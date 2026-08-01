@@ -1,0 +1,1690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BYTHERIM Recruiting</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+
+  <style>
+    /* ==========================================================================
+       1. DESIGN SYSTEM & VERDANA TYPOGRAPHY
+       ========================================================================== */
+    :root {
+      --bg-dark: #000000;          /* Pure black */
+      --bg-card: #111111;          /* Dark grey for cards/containers */
+      --bg-hover: #1e1e1e;         /* Slightly lighter grey for hover */
+      --accent-main: #ffffff;      /* Main accent (White) */
+      --accent-hover: #cccccc;     
+      --text-main: #ffffff;        /* Primary text */
+      --text-muted: #888888;       /* Subtitles / Muted text */
+      --border-color: #333333;     /* Section dividers */
+      
+      /* Rating Badge Colors */
+      --star-color: #ffffff;       /* Uniform Star Color */
+    }
+
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+      font-family: Verdana, sans-serif; 
+    }
+
+    body { 
+      background-color: var(--bg-dark); 
+      color: var(--text-main); 
+      padding-bottom: 50px; 
+    }
+
+    /* Headings & Titles Defaults */
+    h1, h2, h3, h4, th, .brand-title, .rank-num {
+      font-weight: 700;
+    }
+
+    /* Header & Navigation */
+    header { 
+      background: var(--bg-card); 
+      border-bottom: 1px solid var(--border-color); 
+      padding: 1rem 2rem; 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+    }
+
+    .brand { 
+      display: flex; 
+      align-items: center; 
+      gap: 12px; 
+      cursor: pointer; 
+      user-select: none;
+    }
+
+    .brand-logo-img { 
+      height: 40px; 
+      width: auto; 
+      object-fit: contain; 
+      border-radius: 6px;
+    }
+
+    .brand-title { 
+      font-size: 1.3rem; 
+      letter-spacing: 0.5px; 
+      color: var(--text-main);
+    }
+    
+    nav { display: flex; gap: 10px; flex-wrap: wrap; }
+    .nav-btn { 
+      background: transparent; 
+      border: none; 
+      color: var(--text-muted); 
+      padding: 10px 18px; 
+      font-weight: 400; 
+      font-size: 0.85rem; 
+      cursor: pointer; 
+      border-radius: 8px; 
+      transition: all 0.2s ease; 
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .nav-btn:hover { color: var(--text-main); background: var(--bg-hover); }
+    .nav-btn.active { color: var(--bg-dark); background: var(--accent-main); font-weight: 700; }
+
+    /* Layout Containers */
+    .container { max-width: 1400px; margin: 2rem auto; padding: 0 1rem; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Controls & Filter Bar */
+    .controls-bar { 
+      display: flex; 
+      gap: 10px; 
+      margin-bottom: 1.5rem; 
+      flex-wrap: wrap; 
+      justify-content: space-between; 
+      align-items: center;
+    }
+
+    .filter-group { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .search-input, .select-input { 
+      background: var(--bg-card); 
+      border: 1px solid var(--border-color); 
+      color: var(--text-main); 
+      padding: 10px 14px; 
+      border-radius: 8px; 
+      font-size: 0.8rem; 
+      outline: none; 
+      font-weight: 400;
+    }
+
+    .search-input { width: 260px; }
+    .search-input:focus, .select-input:focus { border-color: var(--accent-main); }
+
+    /* Sub-Nav Controls for Statistics Page */
+    .stats-controls-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      background: var(--bg-card);
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+    }
+
+    .sub-nav-group {
+      display: flex;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+
+    .sub-nav-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 8px 16px;
+      font-weight: 400;
+      font-size: 0.75rem;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .sub-nav-btn:hover { color: var(--text-main); background: rgba(255,255,255,0.05); }
+    .sub-nav-btn.active { color: var(--bg-dark); background: var(--accent-main); font-weight: 700; }
+
+    /* Positional Multi-Select Filter */
+    .pos-filter-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pos-filter-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .pos-pill-group {
+      display: flex;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      padding: 4px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+    .pos-pill {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 12px;
+      font-weight: 400;
+      font-size: 0.75rem;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+    }
+    .pos-pill:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .pos-pill.active {
+      color: var(--bg-dark);
+      background: var(--accent-main);
+      font-weight: 700;
+    }
+
+    /* Query Search Builder Box */
+    .query-builder-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 1.25rem;
+    }
+    .query-builder-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .query-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+    }
+    .query-rule-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+      background: rgba(255, 255, 255, 0.02);
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+    }
+    .query-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-weight: 600;
+    }
+    .query-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+    .query-btn-danger {
+      color: #ff6b6b;
+      border-color: rgba(255, 107, 107, 0.3);
+    }
+    .query-btn-danger:hover {
+      background: rgba(255, 107, 107, 0.15);
+    }
+    .query-btn-toggle.engaged {
+      background: #27ae60;
+      color: #ffffff;
+      border-color: #27ae60;
+    }
+
+    /* Data Tables */
+    .table-container { 
+      background: var(--bg-card); 
+      border-radius: 12px; 
+      border: 1px solid var(--border-color); 
+      overflow-x: auto; 
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    th { 
+      background: rgba(255,255,255,0.02); 
+      color: var(--text-muted); 
+      padding: 12px 14px; 
+      text-transform: uppercase; 
+      font-size: 0.7rem; 
+      letter-spacing: 0.5px; 
+      border-bottom: 1px solid var(--border-color); 
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    th.sortable {
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s ease;
+    }
+    th.sortable:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-main);
+    }
+
+    td { padding: 12px 12px; border-bottom: 1px solid var(--border-color); vertical-align: middle; text-align: center; white-space: nowrap; font-weight: 400; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background-color: var(--bg-hover); cursor: pointer; }
+
+    /* Centered Player Table Cell Layout */
+    .player-cell {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 12px;
+      text-align: left;
+    }
+
+    .player-avatar-sm {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: var(--bg-hover);
+      border: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+
+    /* Badges & Highlights */
+    .rank-num { font-size: 1rem; color: var(--text-muted); }
+    .player-name { font-weight: 700; color: var(--text-main); text-decoration: none; display: block; font-size: 0.9rem; }
+    .player-sub { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+    
+    .badge-pos, .badge-class, .badge-intl { 
+      background: var(--bg-hover); 
+      border: 1px solid var(--border-color);
+      color: var(--text-main); 
+      padding: 4px 8px; 
+      border-radius: 6px; 
+      font-size: 0.7rem; 
+      display: inline-block; 
+    }
+
+    /* UNIFORM STAR RATING STYLES */
+    .stars-5, .stars-4, .stars-3 { color: var(--star-color); font-weight: 700; }
+    
+    .rating-pill { 
+      background: var(--bg-hover); 
+      color: var(--text-main); 
+      border: 1px solid var(--border-color); 
+      padding: 4px 10px; 
+      border-radius: 6px; 
+      font-size: 0.8rem; 
+      display: inline-block;
+    }
+
+    /* School Commit Logo & Cell Styling */
+    .status-cell { display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .school-logo { 
+      width: 22px; 
+      height: 22px; 
+      object-fit: contain; 
+      border-radius: 3px; 
+      background: rgba(255,255,255,0.05);
+    }
+
+    .school-logo-lg {
+      width: 36px;
+      height: 36px;
+      object-fit: contain;
+      border-radius: 4px;
+    }
+
+    .commit-tag {
+      background: var(--bg-hover);
+      border: 1px solid var(--border-color);
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin: 3px;
+      display: inline-block;
+      font-size: 0.75rem;
+    }
+
+    /* ==========================================================================
+       2. DETAILED PLAYER PROFILE STYLES
+       ========================================================================== */
+    .profile-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 2rem; }
+    .profile-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 1.5rem; margin-bottom: 1.5rem; }
+    .profile-header-left { display: flex; align-items: center; gap: 24px; }
+    
+    .player-avatar-lg {
+      width: 140px;
+      height: 175px;
+      border-radius: 12px;
+      object-fit: cover;
+      background: var(--bg-hover);
+      border: 2px solid var(--border-color);
+      flex-shrink: 0;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    .profile-title-area h1 { font-size: 1.8rem; margin-bottom: 0.4rem; text-align: left; }
+    .profile-meta-line { display: flex; gap: 10px; align-items: center; color: var(--text-muted); font-size: 0.85rem; flex-wrap: wrap; }
+
+    .profile-top-row {
+      display: flex;
+      gap: 1.25rem;
+      margin-bottom: 1.5rem;
+      align-items: stretch;
+    }
+
+    .profile-top-row > div {
+      flex: 1;
+      min-width: 280px;
+      margin-bottom: 0 !important;
+    }
+
+    .spec-box { background: rgba(255,255,255,0.03); padding: 1.2rem; border-radius: 10px; border: 1px solid var(--border-color); text-align: left; display: flex; flex-direction: column; justify-content: flex-start; }
+    .spec-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    .spec-item:last-child { border-bottom: none; }
+    .spec-label { color: var(--text-muted); font-size: 0.78rem; font-weight: 700; }
+    .spec-value { font-size: 0.85rem; }
+
+    .recruiting-box { background: rgba(255,255,255,0.03); padding: 1.2rem; border-radius: 10px; border: 1px solid var(--border-color); text-align: left; display: flex; flex-direction: column; justify-content: flex-start; }
+    
+    .commit-standout-box {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 1rem;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .uncommitted-box {
+      background: transparent;
+      border: 1px dashed var(--border-color);
+      border-radius: 10px;
+      padding: 0.8rem 1.2rem;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+
+    .commit-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 1px; color: var(--text-muted); text-transform: uppercase; }
+    .commit-main-info { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 6px; }
+    .commit-standout-logo { width: 36px; height: 36px; object-fit: contain; }
+    .commit-school-name { font-size: 1.1rem; font-weight: 700; color: var(--text-main); letter-spacing: 0.5px; }
+
+    .recruiting-section-title { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; margin-top: 8px; }
+    
+    .inline-school-logo {
+      height: 1.1em;
+      width: 1.1em;
+      object-fit: contain;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .final-list-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 0.8rem; }
+    .final-school-card {
+      background: var(--bg-hover);
+      border: 1px solid var(--border-color);
+      font-size: 0.85rem;
+      color: var(--text-main);
+      padding: 6px 12px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .final-school-card.is-commit {
+      background: var(--text-main);
+      border-color: var(--text-main);
+      color: var(--bg-dark);
+      font-weight: 700;
+    }
+
+    .offers-flex { display: flex; flex-wrap: wrap; gap: 6px; }
+    .offer-pill {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      padding: 5px 10px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .accolades-list { display: flex; flex-direction: column; gap: 8px; }
+    .accolade-pill {
+      background: var(--bg-hover);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .accolade-pill:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: var(--accent-main);
+      transform: translateY(-1px);
+    }
+    .accolade-logo {
+      height: 24px;
+      width: 24px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+
+    .scouting-report-full {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      text-align: left;
+    }
+    .scouting-report-full h3 { font-size: 1rem; margin-bottom: 0.75rem; color: var(--text-main); font-weight: 700; }
+    .scouting-report-full p { color: var(--text-muted); line-height: 1.7; margin-bottom: 1.5rem; font-size: 0.88rem; }
+
+    .scouting-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      font-size: 0.85rem;
+    }
+
+    .stats-box-full {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 1.5rem;
+      text-align: left;
+    }
+
+    .profile-stats-table-wrapper {
+      overflow-x: auto;
+      margin-top: 0.8rem;
+    }
+
+    .profile-stats-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    .profile-stats-table th {
+      background: rgba(255, 255, 255, 0.02);
+      color: var(--text-muted);
+      padding: 10px 12px;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border-color);
+      text-align: center;
+    }
+
+    .profile-stats-table td {
+      padding: 12px 10px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      text-align: center;
+    }
+
+    .profile-stats-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .level-badge {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      background: var(--bg-hover);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+    }
+
+    /* ==========================================================================
+       3. SCHOOL DETAIL & ACCOLADE DETAIL PAGE STYLES
+       ========================================================================== */
+    .back-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      margin-bottom: 1.25rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+    .back-btn:hover { background: var(--bg-hover); }
+
+    .school-detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 1.75rem 2rem;
+      margin-bottom: 1.5rem;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .school-detail-brand {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .school-detail-logo {
+      width: 64px;
+      height: 64px;
+      object-fit: contain;
+    }
+
+    .school-detail-stats {
+      display: flex;
+      gap: 1.5rem;
+      align-items: center;
+    }
+
+    .school-stat-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-color);
+      padding: 12px 20px;
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .school-stat-val {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .school-stat-lbl {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .school-commits-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .commit-player-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .commit-player-card:hover {
+      background: var(--bg-hover);
+      transform: translateY(-2px);
+    }
+
+    @media (max-width: 900px) {
+      .profile-top-row { flex-direction: column; }
+      .scouting-columns { grid-template-columns: 1fr; }
+      .profile-header { flex-direction: column; align-items: flex-start; }
+      .controls-bar, .stats-controls-bar { flex-direction: column; align-items: stretch; }
+      .search-input { width: 100%; }
+      .filter-group { width: 100%; justify-content: space-between; }
+      .sub-nav-group { justify-content: center; }
+      .school-detail-header { flex-direction: column; align-items: flex-start; }
+      .pos-filter-wrapper { width: 100%; justify-content: space-between; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand" onclick="switchTab('rankings')" title="Return to Home">
+      <img src="logo.png" alt="BYTHERIM" class="brand-logo-img" onerror="this.style.display='none';">
+      <div class="brand-title">RECRUITING</div>
+    </div>
+    <nav>
+      <button class="nav-btn active" onclick="switchTab('rankings')">Class Rankings</button>
+      <button class="nav-btn" onclick="switchTab('schoolRankings')">School Rankings</button>
+      <button class="nav-btn" onclick="switchTab('stats')">Statistics</button>
+    </nav>
+  </header>
+
+  <div class="container">
+
+    <div id="rankings-tab" class="tab-content active">
+      <div class="controls-bar">
+        <input type="text" id="searchInput" class="search-input" placeholder="Search player or school..." onkeyup="filterRecruits()">
+        
+        <div class="filter-group">
+          <select id="classFilter" class="select-input" onchange="filterRecruits()">
+            <option value="2026">Class of 2026</option>
+            <option value="2027">Class of 2027</option>
+            <option value="2028">Class of 2028</option>
+            <option value="OVERALL">Overall Rankings (All Classes)</option>
+          </select>
+
+          <select id="stateFilter" class="select-input" onchange="filterRecruits()">
+            <option value="ALL">All States / Regions</option>
+            <option value="INT">International</option>
+            <option value="CA">California (CA)</option>
+            <option value="FL">Florida (FL)</option>
+            <option value="VA">Virginia (VA)</option>
+            <option value="MD">Maryland (MD)</option>
+            <option value="AK">Alaska (AK)</option>
+            <option value="OR">Oregon (OR)</option>
+          </select>
+
+          <select id="posFilter" class="select-input" onchange="filterRecruits()">
+            <option value="ALL">All Positions</option>
+            <option value="PG">Point Guard (PG)</option>
+            <option value="SG">Shooting Guard (SG)</option>
+            <option value="SF">Small Forward (SF)</option>
+            <option value="PF">Power Forward (PF)</option>
+            <option value="C">Center (C)</option>
+          </select>
+
+          <select id="starFilter" class="select-input" onchange="filterRecruits()">
+            <option value="ALL">All Star Ratings</option>
+            <option value="5">5-Star Prospects</option>
+            <option value="4">4-Star Prospects</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>Player Name</th>
+              <th>Class</th>
+              <th>POS</th>
+              <th>HT / WT</th>
+              <th>State/Region</th>
+              <th>High School / Club</th>
+              <th>Stars</th>
+              <th>Rating</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="recruitsTableBody">
+            </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="schoolRankings-tab" class="tab-content">
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Rank</th>
+              <th>School</th>
+              <th>Commits</th>
+              <th>Committed Recruits</th>
+              <th>Class Overall Grade</th>
+            </tr>
+          </thead>
+          <tbody id="schoolRankingsTableBody">
+            </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="stats-tab" class="tab-content">
+      <div class="stats-controls-bar">
+        <div class="sub-nav-group" id="levelTabs">
+          <button class="sub-nav-btn active" onclick="setStatLevel('hs')">High School</button>
+          <button class="sub-nav-btn" onclick="setStatLevel('aau')">AAU</button>
+          <button class="sub-nav-btn" onclick="setStatLevel('fiba')">FIBA</button>
+          <button class="sub-nav-btn" onclick="setStatLevel('intl')">International</button>
+        </div>
+
+        <div class="pos-filter-wrapper">
+          <span class="pos-filter-label">POS:</span>
+          <div class="pos-pill-group">
+            <button class="pos-pill active" onclick="togglePosFilter('PG', this)">PG</button>
+            <button class="pos-pill active" onclick="togglePosFilter('SG', this)">SG</button>
+            <button class="pos-pill active" onclick="togglePosFilter('SF', this)">SF</button>
+            <button class="pos-pill active" onclick="togglePosFilter('PF', this)">PF</button>
+            <button class="pos-pill active" onclick="togglePosFilter('C', this)">C</button>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <select id="statsClassFilter" class="select-input" onchange="renderStatsDashboard()">
+            <option value="ALL">All Classes</option>
+            <option value="2026">Class of 2026</option>
+            <option value="2027">Class of 2027</option>
+            <option value="2028">Class of 2028</option>
+          </select>
+
+          <div class="sub-nav-group" id="viewTabs">
+            <button class="sub-nav-btn active" onclick="setStatView('basic')">Basic Stats</button>
+            <button class="sub-nav-btn" onclick="setStatView('advanced')">Advanced Stats</button>
+            <button class="sub-nav-btn" onclick="setStatView('shooting')">Shooting</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="query-builder-box">
+        <div class="query-builder-header">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <strong style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Query Search & Heatmap Filter</strong>
+            <span id="queryEngagedBadge" class="query-badge">OFF</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="query-btn" onclick="addQueryRule()">+ Add Stat Rule</button>
+            <button class="query-btn query-btn-danger" onclick="clearQueryRules()">Clear Rules</button>
+            <button id="toggleQueryBtn" class="query-btn query-btn-toggle" onclick="toggleQueryEngage()">Engage Query Search</button>
+          </div>
+        </div>
+        <div id="queryRulesContainer">
+          </div>
+      </div>
+
+      <div class="table-container">
+        <table>
+          <thead id="statsTableHeader">
+            </thead>
+          <tbody id="statsTableBody">
+            </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="profile-tab" class="tab-content">
+      <div id="profileContainer" class="profile-card">
+        </div>
+    </div>
+
+    <div id="schoolDetail-tab" class="tab-content">
+      <button class="back-btn" onclick="switchTab('schoolRankings')">← Back to School Rankings</button>
+      <div id="schoolDetailContainer">
+        </div>
+    </div>
+
+    <div id="accoladeDetail-tab" class="tab-content">
+      <button class="back-btn" onclick="switchTab('profile')">← Back to Player Profile</button>
+      <div id="accoladeDetailContainer">
+        </div>
+    </div>
+
+  </div>
+
+  <script>
+    // PASTE YOUR PUBLISHED GOOGLE SHEETS COMMA-SEPARATED VALUES (.CSV) URL HERE:
+    const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTWvXoqFJkVFqt36wbBBfgFYUvPKhWCZIztoLIB9sjpc55AiFTdFpJZHMztVgJHyFyy0mtO_MYGD76N/pub?gid=0&single=true&output=csv';
+
+    // ACCOLADE FILE MAPPER (Standardized to curly apostrophe)
+    const ACCOLADE_MAP = {
+      "McDonald’s All-American": "mcdaag.png",
+      "Nike Hoop Summit": "nikehoopsummit.png",
+      "Jordan Brand Classic": "jbc.png"
+    };
+
+    // STAT LABELS FOR QUERY BUILDER & DASHBOARD VIEWS
+    const STAT_LABELS = {
+      basic: {
+        ppg: "PPG (Points)",
+        rpg: "RPG (Rebounds)",
+        apg: "APG (Assists)",
+        spg: "SPG (Steals)",
+        bpg: "BPG (Blocks)",
+        topg: "TPG (Turnovers)",
+        gp: "GP (Games)",
+        mpg: "MPG (Minutes)",
+        fg: "FG%",
+        fg2: "2FG%",
+        fg3: "3FG%",
+        ft: "FT%"
+      },
+      advanced: {
+        bpm: "BPM",
+        obpm: "OBPM",
+        dbpm: "DBPM",
+        ts: "TS%",
+        rts: "rTS%",
+        efg: "eFG%",
+        oreb: "OREB%",
+        dreb: "DREB%",
+        trb: "TRB%",
+        ast: "AST%",
+        tov: "TOV%",
+        stl: "STL%",
+        blk: "BLK%",
+        usg: "USG%",
+        ftr: "FTr",
+        p3ar: "3PAr",
+        ortg: "ORtg",
+        drtg: "DRtg",
+        net: "Net"
+      },
+      shooting: {
+        fga2: "2FGA",
+        fg2: "2FG%",
+        rimFga: "Rim FGA",
+        rimPct: "Rim %",
+        shortMidFga: "Short Mid FGA",
+        shortMidPct: "Short Mid %",
+        longMidFga: "Long Mid FGA",
+        longMidPct: "Long Mid %",
+        rimMidRatio: "Rim/Mid",
+        fga3: "3FGA",
+        fg3: "3FG%",
+        p3ar: "3PAr",
+        fta: "FTA",
+        ft: "FT%",
+        ftr: "FTr"
+      }
+    };
+
+    // ACTIVE STATS PAGE STATE
+    let currentStatLevel = 'hs';    
+    let currentStatView = 'basic';  
+    let activeSelectedSchool = null;
+
+    // MULTI-SELECT POSITIONS FOR STATS PAGE
+    let selectedStatsPositions = ['PG', 'SG', 'SF', 'PF', 'C'];
+
+    // QUERY SEARCH & HEATMAP STATE
+    let queryRules = [];
+    let isQueryEngaged = false;
+
+    // STATS SORTING STATE
+    let statsSortKey = 'ppg';
+    let statsSortDir = 'desc';
+
+    // Holds our active data parsed from Google Sheets
+    let recruits = [];
+    let activeRecruit = null;
+
+    // INITIALIZATION - Fetches data dynamically from Google Sheets or warns the user
+    window.onload = () => {
+      if (GOOGLE_SHEET_CSV_URL === 'YOUR_PUBLISHED_CSV_URL_HERE' || !GOOGLE_SHEET_CSV_URL) {
+        alert("Please set your published Google Sheets CSV URL inside the <script> tags at 'GOOGLE_SHEET_CSV_URL'.");
+        return;
+      }
+      
+      Papa.parse(GOOGLE_SHEET_CSV_URL, {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+          // Helper to split comma strings into clean arrays
+          const parseArray = (str) => str ? str.split(',').map(s => s.trim()).filter(Boolean) : [];
+          
+          // Helper to map out nested tier statistics cleanly per row
+          const buildStatTier = (row, tier) => ({
+            team: row[`${tier}_team`] || "N/A",
+            gp: parseInt(row[`${tier}_gp`]) || 0,
+            mpg: parseFloat(row[`${tier}_mpg`]) || 0,
+            ppg: parseFloat(row[`${tier}_ppg`]) || 0,
+            rpg: parseFloat(row[`${tier}_rpg`]) || 0,
+            apg: parseFloat(row[`${tier}_apg`]) || 0,
+            spg: parseFloat(row[`${tier}_spg`]) || 0,
+            bpg: parseFloat(row[`${tier}_bpg`]) || 0,
+            topg: parseFloat(row[`${tier}_topg`]) || 0,
+            fg: row[`${tier}_fg`] || "0.0%",
+            fg2: row[`${tier}_fg2`] || "0.0%",
+            fg3: row[`${tier}_fg3`] || "0.0%",
+            ft: row[`${tier}_ft`] || "0.0%",
+            bpm: row[`${tier}_bpm`] || "0.0", obpm: row[`${tier}_obpm`] || "0.0", dbpm: row[`${tier}_dbpm`] || "0.0",
+            ts: row[`${tier}_ts`] || "0.0%", rts: row[`${tier}_rts`] || "0.0%", efg: row[`${tier}_efg`] || "0.0%",
+            oreb: row[`${tier}_oreb`] || "0.0%", dreb: row[`${tier}_dreb`] || "0.0%", trb: row[`${tier}_trb`] || "0.0%",
+            ast: row[`${tier}_ast`] || "0.0%", tov: row[`${tier}_tov`] || "0.0%", stl: row[`${tier}_stl`] || "0.0%",
+            blk: row[`${tier}_blk`] || "0.0%", usg: row[`${tier}_usg`] || "0.0%", ftr: row[`${tier}_ftr`] || ".000",
+            p3ar: row[`${tier}_p3ar`] || ".000", ortg: row[`${tier}_ortg`] || "0.0", drtg: row[`${tier}_drtg`] || "0.0", net: row[`${tier}_net`] || "0.0",
+            fga2: parseFloat(row[`${tier}_fga2`]) || 0, rimFga: parseFloat(row[`${tier}_rimFga`]) || 0, rimPct: row[`${tier}_rimPct`] || "0.0%",
+            shortMidFga: parseFloat(row[`${tier}_shortMidFga`]) || 0, shortMidPct: row[`${tier}_shortMidPct`] || "0.0%",
+            longMidFga: parseFloat(row[`${tier}_longMidFga`]) || 0, longMidPct: row[`${tier}_longMidPct`] || "0.0%",
+            rimMidRatio: row[`${tier}_rimMidRatio`] || "0.00", fga3: parseFloat(row[`${tier}_fga3`]) || 0, fta: parseFloat(row[`${tier}_fta`]) || 0
+          });
+
+          // Process rows into the required complex object schema
+          recruits = results.data.map(row => ({
+            id: row.id || Math.random().toString(36).substr(2, 9),
+            rank: parseInt(row.rank) || 99,
+            classYear: row.classYear || "2026",
+            name: row.name || "Unknown Player",
+            dob: row.dob || "N/A",
+            pfp: row.pfp || "",
+            pos: row.pos || "G",
+            height: row.height || "6'0\"",
+            weight: row.weight || "160 lbs",
+            wingspan: row.wingspan || "N/A",
+            hs: row.hs || "N/A",
+            state: row.state || "ALL",
+            hometown: row.hometown || "N/A",
+            stars: parseInt(row.stars) || 3,
+            rating: parseInt(row.rating) || 80,
+            status: row.status || "Uncommitted",
+            committedSchool: row.committedSchool || null,
+            commitLogo: row.commitLogo || "",
+            accolades: parseArray(row.accolades),
+            finalList: row.finalListSchools ? {
+              title: row.finalListTitle || "Final List",
+              schools: parseArray(row.finalListSchools)
+            } : null,
+            offers: parseArray(row.offers),
+            scouting: row.scouting || "No description available.",
+            strengths: parseArray(row.strengths),
+            weaknesses: parseArray(row.weaknesses),
+            stats: {
+              hs: buildStatTier(row, 'hs'),
+              aau: buildStatTier(row, 'aau'),
+              fiba: buildStatTier(row, 'fiba'),
+              intl: buildStatTier(row, 'intl')
+            }
+          }));
+
+          // Fire up data display engine
+          if (recruits.length > 0) {
+            activeRecruit = recruits[0];
+            renderProfile(activeRecruit);
+          }
+          filterRecruits();
+          renderSchoolRankings();
+          renderQueryRulesUI();
+          renderStatsDashboard();
+        }
+      });
+    };
+
+    function getSchoolLogoPath(schoolName) {
+      if (!schoolName) return '';
+      const clean = schoolName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return `schoollogos/${clean}.png`;
+    }
+
+    // Handles any stat metric properly or returns dynamically derived equivalents
+    function parseStatValue(val) {
+      if (val === undefined || val === null || val === "N/A") return null;
+      if (typeof val === 'number') return val;
+      if (typeof val === 'string') {
+        let cleaned = val.replace(/[%+]/g, '').trim();
+        let parsed = parseFloat(cleaned);
+        return isNaN(parsed) ? null : parsed;
+      }
+      return null;
+    }
+    
+    function getComputedStat(st, key) {
+      if (!st) return "N/A";
+      if (st[key] !== undefined) return st[key];
+      if (key === 'rimMidRatio') {
+        let mid = (st.shortMidFga || 0) + (st.longMidFga || 0);
+        return mid > 0 ? (st.rimFga / mid).toFixed(2) : "0.00";
+      }
+      return "N/A";
+    }
+
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+
+      if (tabName === 'rankings') {
+        document.getElementById('rankings-tab').classList.add('active');
+        if (document.querySelectorAll('.nav-btn')[0]) document.querySelectorAll('.nav-btn')[0].classList.add('active');
+      } else if (tabName === 'schoolRankings') {
+        document.getElementById('schoolRankings-tab').classList.add('active');
+        if (document.querySelectorAll('.nav-btn')[1]) document.querySelectorAll('.nav-btn')[1].classList.add('active');
+      } else if (tabName === 'stats') {
+        document.getElementById('stats-tab').classList.add('active');
+        if (document.querySelectorAll('.nav-btn')[2]) document.querySelectorAll('.nav-btn')[2].classList.add('active');
+      } else if (tabName === 'profile') {
+        document.getElementById('profile-tab').classList.add('active');
+      } else if (tabName === 'schoolDetail') {
+        document.getElementById('schoolDetail-tab').classList.add('active');
+      } else if (tabName === 'accoladeDetail') {
+        document.getElementById('accoladeDetail-tab').classList.add('active');
+      }
+    }
+
+    function setStatLevel(level) {
+      currentStatLevel = level;
+      const buttons = document.querySelectorAll('#levelTabs .sub-nav-btn');
+      buttons.forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+      renderStatsDashboard();
+    }
+
+    function setStatView(view) {
+      currentStatView = view;
+      const buttons = document.querySelectorAll('#viewTabs .sub-nav-btn');
+      buttons.forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+
+      if (view === 'basic') statsSortKey = 'ppg';
+      else if (view === 'advanced') statsSortKey = 'bpm';
+      else if (view === 'shooting') statsSortKey = 'fg2';
+      
+      statsSortDir = 'desc';
+
+      renderQueryRulesUI();
+      renderStatsDashboard();
+    }
+
+    function togglePosFilter(pos, btn) {
+      if (selectedStatsPositions.includes(pos)) {
+        selectedStatsPositions = selectedStatsPositions.filter(p => p !== pos);
+        btn.classList.remove('active');
+      } else {
+        selectedStatsPositions.push(pos);
+        btn.classList.add('active');
+      }
+      renderStatsDashboard();
+    }
+
+    function toggleQueryEngage() {
+      isQueryEngaged = !isQueryEngaged;
+      renderQueryRulesUI();
+      renderStatsDashboard();
+    }
+
+    function addQueryRule() {
+      const availableStats = Object.keys(STAT_LABELS[currentStatView]);
+      const defaultStat = availableStats[0] || 'ppg';
+      queryRules.push({
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 4),
+        statKey: defaultStat,
+        op: '>=',
+        value: ''
+      });
+      isQueryEngaged = true;
+      renderQueryRulesUI();
+      renderStatsDashboard();
+    }
+
+    function removeQueryRule(id) {
+      queryRules = queryRules.filter(r => r.id !== id);
+      if (queryRules.length === 0) isQueryEngaged = false;
+      renderQueryRulesUI();
+      renderStatsDashboard();
+    }
+
+    function clearQueryRules() {
+      queryRules = [];
+      isQueryEngaged = false;
+      renderQueryRulesUI();
+      renderStatsDashboard();
+    }
+
+    function updateQueryRule(id, field, val) {
+      const rule = queryRules.find(r => r.id === id);
+      if (rule) {
+        rule[field] = val;
+        renderStatsDashboard();
+      }
+    }
+
+    function renderQueryRulesUI() {
+      const container = document.getElementById('queryRulesContainer');
+      const badge = document.getElementById('queryEngagedBadge');
+      const toggleBtn = document.getElementById('toggleQueryBtn');
+
+      if (isQueryEngaged) {
+        badge.innerText = 'ENGAGED';
+        badge.style.background = 'rgba(39, 174, 96, 0.2)';
+        badge.style.color = '#2ecc71';
+        badge.style.border = '1px solid #2ecc71';
+        toggleBtn.innerText = 'Disengage Query Search';
+        toggleBtn.classList.add('engaged');
+      } else {
+        badge.innerText = 'OFF';
+        badge.style.background = 'rgba(255, 255, 255, 0.05)';
+        badge.style.color = 'var(--text-muted)';
+        badge.style.border = '1px solid var(--border-color)';
+        toggleBtn.innerText = 'Engage Query Search';
+        toggleBtn.classList.remove('engaged');
+      }
+
+      if (queryRules.length === 0) {
+        container.innerHTML = `<div style="font-size: 0.75rem; color: var(--text-muted); font-style: italic; padding: 4px 0;">No active stat query rules. Click "+ Add Stat Rule" to query player statistics.</div>`;
+        return;
+      }
+
+      const availableStats = STAT_LABELS[currentStatView];
+
+      container.innerHTML = queryRules.map((rule) => {
+        if (!availableStats[rule.statKey]) rule.statKey = Object.keys(availableStats)[0];
+
+        const statOptionsHTML = Object.entries(availableStats).map(([k, label]) => {
+          return `<option value="${k}" ${rule.statKey === k ? 'selected' : ''}>${label}</option>`;
+        }).join('');
+
+        return `
+          <div class="query-rule-row">
+            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: bold;">Stat:</span>
+            <select class="select-input" style="padding: 6px 10px; font-size: 0.75rem;" onchange="updateQueryRule('${rule.id}', 'statKey', this.value)">
+              ${statOptionsHTML}
+            </select>
+            <select class="select-input" style="padding: 6px 10px; font-size: 0.75rem; width: 70px;" onchange="updateQueryRule('${rule.id}', 'op', this.value)">
+              <option value=">=" ${rule.op === '>=' ? 'selected' : ''}>&ge;</option>
+              <option value="<=" ${rule.op === '<=' ? 'selected' : ''}>&le;</option>
+            </select>
+            <input type="number" step="any" class="search-input" style="width: 110px; padding: 6px 10px; font-size: 0.75rem;" placeholder="Value" value="${rule.value}" oninput="updateQueryRule('${rule.id}', 'value', this.value)">
+            <button class="query-btn query-btn-danger" style="padding: 4px 8px;" onclick="removeQueryRule('${rule.id}')">&times;</button>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function matchesQueryRules(p, level) {
+      if (!isQueryEngaged || queryRules.length === 0) return true;
+      const st = p.stats[level];
+      if (!st) return false;
+
+      for (let rule of queryRules) {
+        if (!rule.statKey || rule.value === "" || rule.value === null) continue;
+        let pVal = parseStatValue(getComputedStat(st, rule.statKey));
+        let targetVal = parseFloat(rule.value);
+        if (pVal === null || isNaN(targetVal)) continue;
+
+        if (rule.op === '>=' && pVal < targetVal) return false;
+        if (rule.op === '<=' && pVal > targetVal) return false;
+      }
+      return true;
+    }
+
+    function calculatePercentileMap(players, level, keys) {
+      let map = {};
+      keys.forEach(key => {
+        let validPairs = [];
+        players.forEach(p => {
+          let st = p.stats[level];
+          if (st) {
+            let num = parseStatValue(getComputedStat(st, key));
+            if (num !== null) validPairs.push({ id: p.id, val: num });
+          }
+        });
+
+        if (validPairs.length === 0) return;
+        const N = validPairs.length;
+        map[key] = {};
+
+        validPairs.forEach((pair) => {
+          let countLess = validPairs.filter(x => x.val < pair.val).length;
+          let countEqual = validPairs.filter(x => x.val === pair.val).length;
+          let pct = N > 1 ? ((countLess + 0.5 * countEqual) / N) * 100 : 50;
+          map[key][pair.id] = pct;
+        });
+      });
+      return map;
+    }
+
+    function getPercentileStyle(pct) {
+      if (pct === undefined || pct === null) return '';
+      if (pct > 50) {
+        let intensity = (pct - 50) / 50;
+        let alpha = 0.12 + intensity * 0.38;
+        return `background-color: rgba(39, 174, 96, ${alpha.toFixed(2)}); color: #a3e635; font-weight: 700;`;
+      } else if (pct < 50) {
+        let intensity = (50 - pct) / 50;
+        let alpha = 0.12 + intensity * 0.38;
+        return `background-color: rgba(231, 76, 60, ${alpha.toFixed(2)}); color: #f87171; font-weight: 700;`;
+      }
+      return `background-color: rgba(255, 255, 255, 0.05); color: #ffffff;`;
+    }
+
+    function filterRecruits() {
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      const classYr = document.getElementById('classFilter').value;
+      const state = document.getElementById('stateFilter').value;
+      const pos = document.getElementById('posFilter').value;
+      const star = document.getElementById('starFilter').value;
+
+      let filtered = recruits.filter(r => {
+        const matchesSearch = r.name.toLowerCase().includes(query) || r.hs.toLowerCase().includes(query);
+        const matchesClass = (classYr === 'OVERALL') ? true : (r.classYear === classYr);
+        const matchesState = state === 'ALL' || r.state === state;
+        const matchesPos = pos === 'ALL' || r.pos === pos;
+        const matchesStar = star === 'ALL' || r.stars.toString() === star;
+
+        return matchesSearch && matchesClass && matchesState && matchesPos && matchesStar;
+      });
+
+      if (classYr === 'OVERALL') filtered.sort((a, b) => b.rating - a.rating);
+      else filtered.sort((a, b) => a.rank - b.rank);
+
+      renderRankingsTable(filtered, classYr === 'OVERALL');
+    }
+
+    function renderRankingsTable(data, isOverall = false) {
+      const tbody = document.getElementById('recruitsTableBody');
+      tbody.innerHTML = '';
+
+      if (data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="10" style="color: var(--text-muted); padding: 2rem;">No players match the current filter selection.</td></tr>`;
+        return;
+      }
+
+      data.forEach((p, index) => {
+        const row = document.createElement('tr');
+        row.onclick = () => {
+          activeRecruit = p;
+          renderProfile(p);
+          switchTab('profile');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        const displayRank = isOverall ? `${index + 1}` : `${p.rank}`;
+        const starDisplay = p.stars === 5 ? `<span class="stars-5">★★★★★</span>` : `<span class="stars-4">★★★★☆</span>`;
+        const stateDisplay = p.state === 'INT' ? `<span class="badge-intl">INTL</span>` : `<span>${p.state}</span>`;
+        const pfpImg = p.pfp && p.pfp.trim() !== "" ? p.pfp : "emptypfpicon.png";
+
+        let statusHTML = p.commitLogo ? 
+          `<div class="status-cell"><img src="${p.commitLogo}" class="school-logo" onerror="this.style.display='none';"><span style="font-weight: 700;">${p.status}</span></div>` : 
+          `<span>${p.status}</span>`;
+
+        row.innerHTML = `
+          <td><span class="rank-num">${displayRank}</span></td>
+          <td>
+            <div class="player-cell">
+              <img src="${pfpImg}" class="player-avatar-sm" onerror="this.src='emptypfpicon.png';">
+              <div><span class="player-name">${p.name}</span><span class="player-sub">${p.hometown}</span></div>
+            </div>
+          </td>
+          <td><span class="badge-class">'${p.classYear.slice(-2)}</span></td>
+          <td><span class="badge-pos">${p.pos}</span></td>
+          <td><span>${p.height} / ${p.weight}</span></td>
+          <td>${stateDisplay}</td>
+          <td><span>${p.hs}</span></td>
+          <td>${starDisplay}</td>
+          <td><span class="rating-pill">${p.rating}</span></td>
+          <td>${statusHTML}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function getSchoolRankingsData() {
+      const schoolMap = {};
+      recruits.forEach(r => {
+        if (r.status && r.status.includes("Committed to ")) {
+          const schoolName = r.status.replace("Committed to ", "").trim();
+          if (!schoolMap[schoolName]) {
+            schoolMap[schoolName] = { name: schoolName, logo: r.commitLogo || getSchoolLogoPath(schoolName), recruits: [] };
+          }
+          schoolMap[schoolName].recruits.push(r);
+        }
+      });
+
+      const schoolList = Object.values(schoolMap).map(s => {
+        const totalRating = s.recruits.reduce((sum, item) => sum + item.rating, 0);
+        return { ...s, recruitCount: s.recruits.length, overallGrade: parseFloat((totalRating / s.recruits.length).toFixed(1)) };
+      });
+
+      schoolList.sort((a, b) => b.overallGrade - a.overallGrade || b.recruitCount - a.recruitCount);
+      return schoolList;
+    }
+
+    function renderSchoolRankings() {
+      const schoolList = getSchoolRankingsData();
+      const tbody = document.getElementById('schoolRankingsTableBody');
+      tbody.innerHTML = '';
+
+      if (schoolList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="color: var(--text-muted); padding: 2rem;">No school commitments registered yet.</td></tr>`;
+        return;
+      }
+
+      schoolList.forEach((s, idx) => {
+        const row = document.createElement('tr');
+        row.onclick = () => selectSchool(s.name);
+
+        const commitsListHTML = s.recruits.map(r => 
+          `<div class="commit-tag" onclick="event.stopPropagation(); activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');" style="cursor: pointer;">
+            <span style="font-weight: 700;">${r.name}</span> <span style="color: var(--text-muted);">('${r.classYear.slice(-2)} ${r.pos})</span> 
+            <span>Grade: ${r.rating}</span>
+           </div>`
+        ).join('');
+
+        row.innerHTML = `
+          <td><span class="rank-num">${idx + 1}</span></td>
+          <td><div class="status-cell"><img src="${s.logo}" class="school-logo-lg" onerror="this.style.display='none';"><strong style="font-size: 0.95rem;">${s.name}</strong></div></td>
+          <td><span class="badge-class">${s.recruitCount} ${s.recruitCount === 1 ? 'Commit' : 'Commits'}</span></td>
+          <td><div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;">${commitsListHTML}</div></td>
+          <td><span class="rating-pill" style="font-size: 0.95rem; padding: 6px 14px;">${s.overallGrade}</span></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    function selectSchool(schoolName) {
+      activeSelectedSchool = schoolName;
+      renderSchoolDetail(schoolName, 'ALL');
+      switchTab('schoolDetail');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function renderSchoolDetail(schoolName, selectedYear = 'ALL') {
+      const container = document.getElementById('schoolDetailContainer');
+      const schoolList = getSchoolRankingsData();
+      const schoolIndex = schoolList.findIndex(s => s.name === schoolName);
+      const schoolData = schoolList[schoolIndex];
+
+      if (!schoolData) {
+        container.innerHTML = `<div style="color: var(--text-muted); padding: 2rem;">School details not found.</div>`;
+        return;
+      }
+
+      const filteredCommits = schoolData.recruits.filter(r => selectedYear === 'ALL' || r.classYear === selectedYear);
+      let displayAvgGrade = schoolData.overallGrade;
+      if (selectedYear !== 'ALL' && filteredCommits.length > 0) {
+        displayAvgGrade = (filteredCommits.reduce((sum, item) => sum + item.rating, 0) / filteredCommits.length).toFixed(1);
+      }
+
+      const commitsGridHTML = filteredCommits.length === 0 ? 
+        `<div style="color: var(--text-muted); padding: 2rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); width: 100%;">No committed recruits found for Class of ${selectedYear}.</div>` : 
+        filteredCommits.map(r => `
+          <div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');">
+            <img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 50px; height: 50px;" onerror="this.src='emptypfpicon.png';">
+            <div style="flex: 1;">
+              <div style="font-weight: 700; font-size: 0.95rem;">${r.name}</div>
+              <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">'${r.classYear.slice(-2)} | ${r.pos} | ${r.height} / ${r.weight}</div>
+              <div style="display: flex; gap: 8px; align-items: center; margin-top: 6px;">
+                <div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : `<span class="stars-4">★★★★☆</span>`}</div>
+                <span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating}</span>
+              </div>
+            </div>
+          </div>
+        `).join('');
+
+      container.innerHTML = `
+        <div class="school-detail-header">
+          <div class="school-detail-brand">
+            <img src="${schoolData.logo || getSchoolLogoPath(schoolName)}" class="school-detail-logo" onerror="this.style.display='none';">
+            <div><h1 style="font-size: 1.8rem;">${schoolName.toUpperCase()}</h1><div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">RECRUITING CLASS DASHBOARD</div></div>
+          </div>
+          <div class="school-detail-stats">
+            <div class="school-stat-card"><div class="school-stat-val">#${schoolIndex + 1}</div><div class="school-stat-lbl">Overall Rank</div></div>
+            <div class="school-stat-card"><div class="school-stat-val">${displayAvgGrade}</div><div class="school-stat-lbl">${selectedYear === 'ALL' ? 'Overall Avg Grade' : 'Class Avg Grade'}</div></div>
+            <div class="school-stat-card"><div class="school-stat-val">${filteredCommits.length}</div><div class="school-stat-lbl">Commits (${selectedYear})</div></div>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px;">
+          <h2 style="font-size: 1.1rem;">Committed Recruits</h2>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <label for="schoolClassFilter" style="font-size: 0.8rem; color: var(--text-muted);">Filter Class:</label>
+            <select id="schoolClassFilter" class="select-input" onchange="renderSchoolDetail('${schoolName}', this.value)">
+              <option value="ALL" ${selectedYear === 'ALL' ? 'selected' : ''}>All Classes</option>
+              <option value="2026" ${selectedYear === '2026' ? 'selected' : ''}>Class of 2026</option>
+              <option value="2027" ${selectedYear === '2027' ? 'selected' : ''}>Class of 2027</option>
+              <option value="2028" ${selectedYear === '2028' ? 'selected' : ''}>Class of 2028</option>
+            </select>
+          </div>
+        </div>
+        <div class="school-commits-grid">${commitsGridHTML}</div>
+      `;
+    }
+
+    function openAccoladeRoster(accoladeName, selectedYear = 'ALL') {
+      renderAccoladeDetail(accoladeName, selectedYear);
+      switchTab('accoladeDetail');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function renderAccoladeDetail(accoladeName, selectedYear = 'ALL') {
+      const container = document.getElementById('accoladeDetailContainer');
+      const logoPath = ACCOLADE_MAP[accoladeName] || '';
+      const selectedPlayers = recruits.filter(r => (r.accolades && r.accolades.includes(accoladeName)) && (selectedYear === 'ALL' || r.classYear === selectedYear));
+
+      const rosterHTML = selectedPlayers.length === 0 ? 
+        `<div style="color: var(--text-muted); padding: 2.5rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); text-align: center; font-size: 0.9rem;">No players selected for ${accoladeName} ${selectedYear !== 'ALL' ? `in Class of ${selectedYear}` : ''}.</div>` : 
+        `<div class="school-commits-grid">
+          ${selectedPlayers.map(r => `
+            <div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');">
+              <img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 52px; height: 52px;" onerror="this.src='emptypfpicon.png';">
+              <div style="flex: 1;">
+                <div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${r.name}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Class of '${r.classYear.slice(-2)} | ${r.pos} | ${r.height}</div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${r.hs} (${r.state})</div>
+                <div style="display: flex; gap: 8px; align-items: center; margin-top: 6px; justify-content: space-between;">
+                  <div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : `<span class="stars-4">★★★★☆</span>`}</div>
+                  <span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating} OVR</span>
+                </div>
+              </div>
+            </div>`).join('')}
+        </div>`;
+
+      const safeAccoladeName = accoladeName.replace(/'/g, "\\'");
+      container.innerHTML = `
+        <div class="school-detail-header">
+          <div class="school-detail-brand">
+            ${logoPath ? `<img src="${logoPath}" class="school-detail-logo" style="width: 64px; height: 64px;" onerror="this.style.display='none';">` : ''}
+            <div><h1 style="font-size: 1.8rem; text-transform: uppercase;">${accoladeName}</h1><div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">ALL-STAR ROSTER SELECTIONS</div></div>
+          </div>
+          <div class="school-detail-stats">
+            <div class="school-stat-card"><div class="school-stat-val">${selectedPlayers.length}</div><div class="school-stat-lbl">Selections</div></div>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px;">
+          <h2 style="font-size: 1.1rem;">Roster</h2>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <label for="accoladeClassFilter" style="font-size: 0.8rem; color: var(--text-muted);">Filter Class:</label>
+            <select id="accoladeClassFilter" class="select-input" onchange="renderAccoladeDetail('${safeAccoladeName}', this.value)">
+              <option value="ALL" ${selectedYear === 'ALL' ? 'selected' : ''}>All Classes</option>
+              <option value="2026" ${selectedYear === '2026' ? 'selected' : ''}>Class of 2026</option>
+              <option value="2027" ${selectedYear === '2027' ? 'selected' : ''}>Class of 2027</option>
+              <option value="2028" ${selectedYear === '2028' ? 'selected' : ''}>Class of 2028</option>
+            </select>
+          </div>
+        </div>
+        ${rosterHTML}
+      `;
+    }
+
+    function sortStats(key) {
+      if (statsSortKey === key) statsSortDir = statsSortDir === 'desc' ? 'asc' : 'desc';
+      else { statsSortKey = key; statsSortDir = 'desc'; }
+      renderStatsDashboard();
+    }
+
+    function renderStatsDashboard() {
+      const tbody = document.getElementById('statsTableBody');
+      const thead = document.getElementById('statsTableHeader');
+      const cls = document.getElementById('statsClassFilter').value;
+
+      let filtered = recruits.filter(r => {
+        const matchesClass = cls === 'ALL' || r.classYear === cls;
+        const matchesPos = selectedStatsPositions.includes(r.pos);
+        const hasStats = r.stats && r.stats[currentStatLevel] && r.stats[currentStatLevel].gp > 0;
+        return matchesClass && matchesPos && hasStats && matchesQueryRules(r, currentStatLevel);
+      });
+
+      filtered.sort((a, b) => {
+        let valA = parseStatValue(getComputedStat(a.stats[currentStatLevel], statsSortKey));
+        let valB = parseStatValue(getComputedStat(b.stats[currentStatLevel], statsSortKey));
+        if (valA === null) valA = -9999;
+        if (valB === null) valB = -9999;
+        return statsSortDir === 'desc' ? valB - valA : valA - valB;
+      });
+
+      const keys = Object.keys(STAT_LABELS[currentStatView]);
+      const pctMap = calculatePercentileMap(filtered, currentStatLevel, keys);
+
+      let headersHTML = `<tr><th style="text-align: left;">Player</th><th>POS</th><th>Class</th>`;
+      keys.forEach(k => {
+        let label = STAT_LABELS[currentStatView][k];
+        let arrow = statsSortKey === k ? (statsSortDir === 'desc' ? ' ▼' : ' ▲') : '';
+        headersHTML += `<th class="sortable" onclick="sortStats('${k}')">${label}${arrow}</th>`;
+      });
+      headersHTML += `</tr>`;
+      thead.innerHTML = headersHTML;
+
+      tbody.innerHTML = '';
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="${keys.length + 3}" style="color: var(--text-muted); padding: 2rem;">No players match the current filters or query rules.</td></tr>`;
+        return;
+      }
+
+      filtered.forEach(p => {
+        let st = p.stats[currentStatLevel];
+        const row = document.createElement('tr');
+        row.onclick = () => { activeRecruit = p; renderProfile(p); switchTab('profile'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+        
+        let html = `
+          <td>
+            <div class="player-cell">
+              <img src="${p.pfp && p.pfp.trim() !== '' ? p.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" onerror="this.src='emptypfpicon.png';">
+              <span class="player-name">${p.name}</span>
+            </div>
+          </td>
+          <td><span class="badge-pos">${p.pos}</span></td>
+          <td><span class="badge-class">'${p.classYear.slice(-2)}</span></td>
+        `;
+
+        keys.forEach(k => {
+          let rawVal = getComputedStat(st, k);
+          let pct = pctMap[k] ? pctMap[k][p.id] : null;
+          let style = getPercentileStyle(pct);
+          html += `<td style="${style}">${rawVal}</td>`;
+        });
+
+        row.innerHTML = html + `</tr>`;
+        tbody.appendChild(row);
+      });
+    }
+
+    function renderProfile(p) {
+      if(!p) return;
+      const container = document.getElementById('profileContainer');
+      const starDisplay = p.stars === 5 ? `<span class="stars-5">★★★★★</span>` : `<span class="stars-4">★★★★☆</span>`;
+      
+      const statusHTML = p.commitLogo ? `
+        <div class="commit-standout-box">
+          <div class="commit-label">Committed To</div>
+          <div class="commit-main-info"><img src="${p.commitLogo}" class="commit-standout-logo" onerror="this.style.display='none';"><span class="commit-school-name">${p.committedSchool}</span></div>
+        </div>` : `
+        <div class="uncommitted-box">
+          <div class="commit-label" style="margin-bottom: 4px;">Status</div>
+          <div style="font-weight: 700; color: var(--text-main); font-size: 1rem;">Uncommitted</div>
+        </div>`;
+
+      const finalListHTML = p.finalList ? p.finalList.schools.map(s => `<div class="final-school-card ${s === p.committedSchool ? 'is-commit' : ''}">${s}</div>`).join('') : '';
+      const offersHTML = p.offers ? p.offers.map(o => `<div class="offer-pill">${o}</div>`).join('') : '';
+      const accoladesHTML = p.accolades && p.accolades.length > 0 ? p.accolades.map(acc => {
+        const logo = ACCOLADE_MAP[acc] || '';
+        return `<div class="accolade-pill" onclick="openAccoladeRoster('${acc.replace(/'/g, "\\'")}')">${logo ? `<img src="${logo}" class="accolade-logo">` : ''}<span>${acc}</span></div>`;
+      }).join('') : '<div style="color: var(--text-muted); font-size: 0.8rem;">No major accolades yet.</div>';
+
+      const statsLevels = [ { key: 'hs', label: 'High School' }, { key: 'aau', label: 'AAU / Circuit' }, { key: 'fiba', label: 'FIBA / National' }, { key: 'intl', label: 'Intl / Pro' } ];
+      let statsTablesHTML = statsLevels.map(lvl => {
+        let st = p.stats[lvl.key];
+        if (!st || st.gp === 0) return '';
+        return `
+          <h4 style="font-size: 0.85rem; margin-top: 1.2rem; margin-bottom: 0.5rem; color: var(--text-main);">${lvl.label} <span style="color: var(--text-muted); font-weight: 400;">(${st.team})</span></h4>
+          <div class="profile-stats-table-wrapper">
+            <table class="profile-stats-table">
+              <tr><th>GP</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th><th>FG%</th><th>3FG%</th><th>FT%</th></tr>
+              <tr><td>${st.gp}</td><td>${st.mpg}</td><td>${st.ppg}</td><td>${st.rpg}</td><td>${st.apg}</td><td>${st.spg}</td><td>${st.bpg}</td><td>${st.topg}</td><td>${st.fg}</td><td>${st.fg3}</td><td>${st.ft}</td></tr>
+            </table>
+          </div>`;
+      }).join('');
+
+      if (!statsTablesHTML) statsTablesHTML = '<div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 1rem;">No statistics available.</div>';
+
+      container.innerHTML = `
+        <div class="profile-header">
+          <div class="profile-header-left">
+            <img src="${p.pfp && p.pfp.trim() !== '' ? p.pfp : 'emptypfpicon.png'}" class="player-avatar-lg" onerror="this.src='emptypfpicon.png';">
+            <div class="profile-title-area">
+              <h1>${p.name}</h1>
+              <div class="profile-meta-line" style="margin-bottom: 12px;">
+                <span class="badge-class">Class of 20${p.classYear.slice(-2)}</span><span class="badge-pos">${p.pos}</span><span class="rating-pill">${p.rating} OVR</span><span>${starDisplay}</span>
+              </div>
+              <div class="profile-meta-line"><span>📍 ${p.hometown}</span><span>•</span><span>🏫 ${p.hs}</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="profile-top-row">
+          <div class="spec-box">
+            <div style="font-weight: 700; margin-bottom: 1rem; color: var(--text-main); text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px;">Measurables</div>
+            <div class="spec-item"><span class="spec-label">Height</span><span class="spec-value">${p.height}</span></div>
+            <div class="spec-item"><span class="spec-label">Weight</span><span class="spec-value">${p.weight}</span></div>
+            <div class="spec-item"><span class="spec-label">Wingspan</span><span class="spec-value">${p.wingspan || 'N/A'}</span></div>
+            <div class="spec-item"><span class="spec-label">DOB</span><span class="spec-value">${p.dob}</span></div>
+          </div>
+          <div class="recruiting-box">
+            ${statusHTML}
+            <div class="recruiting-section-title">${p.finalList ? p.finalList.title : 'Interests'}</div>
+            <div class="final-list-grid">${finalListHTML}</div>
+            <div class="recruiting-section-title">All Offers</div>
+            <div class="offers-flex">${offersHTML}</div>
+          </div>
+          <div class="recruiting-box">
+            <div style="font-weight: 700; margin-bottom: 1rem; color: var(--text-main); text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px;">Accolades & Events</div>
+            <div class="accolades-list">${accoladesHTML}</div>
+          </div>
+        </div>
+
+        <div class="scouting-report-full">
+          <h3>Scouting Report</h3><p>${p.scouting}</p>
+          <div class="scouting-columns">
+            <div><div class="recruiting-section-title" style="color: #a3e635;">Strengths</div><ul style="padding-left: 1rem; color: var(--text-muted); margin-top: 8px;">${p.strengths.map(s => `<li>${s}</li>`).join('')}</ul></div>
+            <div><div class="recruiting-section-title" style="color: #f87171;">Areas for Growth</div><ul style="padding-left: 1rem; color: var(--text-muted); margin-top: 8px;">${p.weaknesses.map(w => `<li>${w}</li>`).join('')}</ul></div>
+          </div>
+        </div>
+
+        <div class="stats-box-full">
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
+            <h3 style="margin: 0;">Statistical Profile</h3><button class="query-btn" onclick="switchTab('stats'); setStatLevel('hs');">View Advanced Data &rarr;</button>
+          </div>
+          ${statsTablesHTML}
+        </div>
+      `;
+    }
+  </script>
+</body>
+</html>

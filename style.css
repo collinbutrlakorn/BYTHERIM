@@ -1,0 +1,200 @@
+/* --- Inline School Logos --- */
+.inline-school-logo {
+  height: 1.1em;
+  width: 1.1em;
+  object-fit: contain;
+  vertical-align: sub;
+  margin-right: 6px;
+  display: inline-block;
+}
+
+/* --- Accolades Section --- */
+.accolades-section {
+  margin-top: 18px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+}
+
+.accolades-title {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #a0aec0;
+  margin-bottom: 12px;
+}
+
+.accolades-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.accolade-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #1a202c;
+  border: 1px solid #2d3748;
+  padding: 6px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.accolade-badge:hover {
+  background: #2d3748;
+  border-color: #4a5568;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.accolade-badge img {
+  height: 1.2em;
+  width: 1.2em;
+  object-fit: contain;
+}
+
+.accolade-badge span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+/* --- Accolade Modal & Roster Page --- */
+.accolade-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.accolade-modal {
+  background: #111827;
+  border: 1px solid #374151;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 850px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+.accolade-modal-header {
+  padding: 20px;
+  background: #1f2937;
+  border-bottom: 1px solid #374151;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.accolade-modal-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.accolade-modal-header img {
+  height: 36px;
+  width: auto;
+  object-fit: contain;
+}
+
+.accolade-modal-title {
+  font-family: 'Exo 2', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.year-select-dropdown {
+  background: #111827;
+  color: #fff;
+  border: 1px solid #4b5563;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-family: 'Exo 2', sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.accolade-modal-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* FIBA Medal / Result Banner */
+.fiba-result-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(90deg, #1e3a8a 0%, #1e40af 100%);
+  border: 1px solid #3b82f6;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 16px;
+  font-family: 'Exo 2', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fbbf24;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.roster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.roster-card {
+  background: #1f2937;
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid #374151;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.roster-card .player-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.roster-card .player-name {
+  font-weight: 700;
+  color: #f3f4f6;
+  font-size: 0.9rem;
+}
+
+.roster-card .player-sub {
+  font-size: 0.75rem;
+  color: #9ca3af;
+}
+
+.roster-card .player-pos {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
