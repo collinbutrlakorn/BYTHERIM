@@ -864,7 +864,7 @@
   </div>
 
   <script>
-    // PASTE YOUR PUBLISHED GOOGLE SHEETS COMMA-SEPARATED VALUES (.CSV) URL HERE:
+    // PUBLISHED GOOGLE SHEETS COMMA-SEPARATED VALUES (.CSV) URL:
     const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTWvXoqFJkVFqt36wbBBfgFYUvPKhWCZIztoLIB9sjpc55AiFTdFpJZHMztVgJHyFyy0mtO_MYGD76N/pub?gid=0&single=true&output=csv';
 
     // ACCOLADE FILE MAPPER (Standardized to curly apostrophe)
@@ -946,11 +946,11 @@
     let statsSortKey = 'ppg';
     let statsSortDir = 'desc';
 
-    // Holds our active data parsed from Google Sheets
+    // Holds active parsed data from Google Sheets
     let recruits = [];
     let activeRecruit = null;
 
-    // INITIALIZATION - Fetches data dynamically from Google Sheets or warns the user
+    // INITIALIZATION - Fetches data dynamically from Google Sheets
     window.onload = () => {
       if (GOOGLE_SHEET_CSV_URL === 'YOUR_PUBLISHED_CSV_URL_HERE' || !GOOGLE_SHEET_CSV_URL) {
         alert("Please set your published Google Sheets CSV URL inside the <script> tags at 'GOOGLE_SHEET_CSV_URL'.");
@@ -962,10 +962,8 @@
         header: true,
         skipEmptyLines: true,
         complete: function(results) {
-          // Helper to split comma strings into clean arrays
           const parseArray = (str) => str ? str.split(',').map(s => s.trim()).filter(Boolean) : [];
           
-          // Helper to map out nested tier statistics cleanly per row
           const buildStatTier = (row, tier) => ({
             team: row[`${tier}_team`] || "N/A",
             gp: parseInt(row[`${tier}_gp`]) || 0,
@@ -992,14 +990,13 @@
             rimMidRatio: row[`${tier}_rimMidRatio`] || "0.00", fga3: parseFloat(row[`${tier}_fga3`]) || 0, fta: parseFloat(row[`${tier}_fta`]) || 0
           });
 
-          // Process rows into the required complex object schema
           recruits = results.data.map(row => ({
             id: row.id || Math.random().toString(36).substr(2, 9),
             rank: parseInt(row.rank) || 99,
             classYear: row.classYear || "2026",
             name: row.name || "Unknown Player",
             dob: row.dob || "N/A",
-            pfp: row.avatar || "",
+            pfp: row.pfp || "",
             pos: row.pos || "G",
             height: row.height || "6'0\"",
             weight: row.weight || "160 lbs",
@@ -1029,7 +1026,6 @@
             }
           }));
 
-          // Fire up data display engine
           if (recruits.length > 0) {
             activeRecruit = recruits[0];
             renderProfile(activeRecruit);
@@ -1048,7 +1044,6 @@
       return `schoollogos/${clean}.png`;
     }
 
-    // Handles any stat metric properly or returns dynamically derived equivalents
     function parseStatValue(val) {
       if (val === undefined || val === null || val === "N/A") return null;
       if (typeof val === 'number') return val;
