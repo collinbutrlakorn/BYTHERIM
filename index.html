@@ -958,57 +958,55 @@
       }
       
       Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vTWvXoqFJkVFqt36wbBBfgFYUvPKhWCZIztoLIB9sjpc55AiFTdFpJZHMztVgJHyFyy0mtO_MYGD76N/pub?gid=0&single=true&output=csv", {
-        download: true,
-        header: true,
-        skipEmptyLines: true,
-complete: function(results) {
-      recruits = results.data.map(row => {
-        return {
-          // Basic Info & Bio
-          id: row['rank'],
-          rank: parseInt(row['rank']) || 999,
-          name: row['name'] || '',
-          class: row['class'] || '',
-          pos: row['pos'] || '',
-          height: row['height'] || '',
-          weight: row['weight'] || '',
-          wingspan: row['wingspan'] || '',
-          dob: row['dob'] || '',
-          hometown: row['hometown'] || '',
-          state: row['state'] || '',
-          hs: row['hs'] || '',
-          stars: row['stars'] || '',
-          rating: row['rating'] || '',
-          committedSchool: row['committedSchool'] || '',
-          status: row['status'] || '',
-          commitLogo: row['commitLogo'] || '',
-          avatar: row['avatar'] || '',
-          offers: row['offers'] || '',
-          finalListTitle: row['finalListTitle'] || '',
-          finalListSchools: row['finalListSchools'] || '',
-          accolades: row['accolades'] || '',
-          scouting_report: row['scouting_report'] || '',
-          strengths: row['strengths'] || '',
-          areasForGrowth: row['areas for growth'] || '',
+  download: true,
+  header: true,
+  complete: function(results) {
+    recruits = results.data.map(row => {
+      return {
+        // Basic Info & Bio
+        id: row['rank'],
+        rank: parseInt(row['rank']) || 999,
+        name: row['name'] || '',
+        class: row['class'] || '',
+        pos: row['pos'] || '',
+        height: row['height'] || '',
+        weight: row['weight'] || '',
+        wingspan: row['wingspan'] || '',
+        dob: row['dob'] || '',
+        hometown: row['hometown'] || '',
+        state: row['state'] || '',
+        hs: row['hs'] || '',
+        stars: row['stars'] || '',
+        rating: row['rating'] || '',
+        committedSchool: row['committedSchool'] || '',
+        status: row['status'] || '',
+        commitLogo: row['commitLogo'] || '',
+        avatar: row['avatar'] || '',
+        offers: row['offers'] || '',
+        finalListTitle: row['finalListTitle'] || '',
+        finalListSchools: row['finalListSchools'] || '',
+        accolades: row['accolades'] || '',
+        scouting_report: row['scouting_report'] || '',
+        strengths: row['strengths'] || '',
+        areasForGrowth: row['areas for growth'] || '',
 
-          // Raw Row Pass-Through for all hs_, aau_, fiba_, and intl_ stat splits
-          ...row
-        };
-      });
+        // Raw Row Pass-Through for all stat splits (hs_, aau_, fiba_, intl_)
+        ...row
+      };
+    });
 
-      // Render everything immediately after mapping
-      if (typeof activeRecruit !== 'undefined' && activeRecruit) {
-        renderProfile(activeRecruit);
-      }
-      filterRecruits();
-      renderSchoolRankings();
-      renderQueryRulesUI();
-      renderStatsDashboard();
-
-      console.log("Successfully mapped " + recruits.length + " recruits!");
+    // Render UI after data maps
+    if (typeof activeRecruit !== 'undefined' && activeRecruit) {
+      renderProfile(activeRecruit);
     }
-  });
-      
+    if (typeof filterRecruits === 'function') filterRecruits();
+    if (typeof renderSchoolRankings === 'function') renderSchoolRankings();
+    if (typeof renderQueryRulesUI === 'function') renderQueryRulesUI();
+    if (typeof renderStatsDashboard === 'function') renderStatsDashboard();
+
+    console.log("Successfully mapped " + recruits.length + " recruits!");
+  }
+});
     function getSchoolLogoPath(schoolName) {
       if (!schoolName) return '';
       const clean = schoolName.toLowerCase().replace(/[^a-z0-9]/g, '');
