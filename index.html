@@ -708,21 +708,75 @@
         
         <div class="filter-group">
           <select id="classFilter" class="select-input" onchange="filterRecruits()">
-            <option value="2026">Class of 2026</option>
-            <option value="2027">Class of 2027</option>
-            <option value="2028">Class of 2028</option>
             <option value="OVERALL">Overall Rankings (All Classes)</option>
+            <option value="2028">Class of 2028</option>
+            <option value="2029">Class of 2029</option>
+            <option value="2030">Class of 2030</option>
+            <option value="2031">Class of 2031</option>
+            <option value="2032">Class of 2032</option>
+            <option value="2033">Class of 2033</option>
+            <option value="2034">Class of 2034</option>
+            <option value="2035">Class of 2035</option>
+            <option value="2036">Class of 2036</option>
+            <option value="2037">Class of 2037</option>
+            <option value="2038">Class of 2038</option>
+            <option value="2039">Class of 2039</option>
+            <option value="2040">Class of 2040</option>
           </select>
 
           <select id="stateFilter" class="select-input" onchange="filterRecruits()">
             <option value="ALL">All States / Regions</option>
             <option value="INT">International</option>
-            <option value="CA">California (CA)</option>
-            <option value="FL">Florida (FL)</option>
-            <option value="VA">Virginia (VA)</option>
-            <option value="MD">Maryland (MD)</option>
+            <option value="AL">Alabama (AL)</option>
             <option value="AK">Alaska (AK)</option>
+            <option value="AZ">Arizona (AZ)</option>
+            <option value="AR">Arkansas (AR)</option>
+            <option value="CA">California (CA)</option>
+            <option value="CO">Colorado (CO)</option>
+            <option value="CT">Connecticut (CT)</option>
+            <option value="DE">Delaware (DE)</option>
+            <option value="FL">Florida (FL)</option>
+            <option value="GA">Georgia (GA)</option>
+            <option value="HI">Hawaii (HI)</option>
+            <option value="ID">Idaho (ID)</option>
+            <option value="IL">Illinois (IL)</option>
+            <option value="IN">Indiana (IN)</option>
+            <option value="IA">Iowa (IA)</option>
+            <option value="KS">Kansas (KS)</option>
+            <option value="KY">Kentucky (KY)</option>
+            <option value="LA">Louisiana (LA)</option>
+            <option value="ME">Maine (ME)</option>
+            <option value="MD">Maryland (MD)</option>
+            <option value="MA">Massachusetts (MA)</option>
+            <option value="MI">Michigan (MI)</option>
+            <option value="MN">Minnesota (MN)</option>
+            <option value="MS">Mississippi (MS)</option>
+            <option value="MO">Missouri (MO)</option>
+            <option value="MT">Montana (MT)</option>
+            <option value="NE">Nebraska (NE)</option>
+            <option value="NV">Nevada (NV)</option>
+            <option value="NH">New Hampshire (NH)</option>
+            <option value="NJ">New Jersey (NJ)</option>
+            <option value="NM">New Mexico (NM)</option>
+            <option value="NY">New York (NY)</option>
+            <option value="NC">North Carolina (NC)</option>
+            <option value="ND">North Dakota (ND)</option>
+            <option value="OH">Ohio (OH)</option>
+            <option value="OK">Oklahoma (OK)</option>
             <option value="OR">Oregon (OR)</option>
+            <option value="PA">Pennsylvania (PA)</option>
+            <option value="RI">Rhode Island (RI)</option>
+            <option value="SC">South Carolina (SC)</option>
+            <option value="SD">South Dakota (SD)</option>
+            <option value="TN">Tennessee (TN)</option>
+            <option value="TX">Texas (TX)</option>
+            <option value="UT">Utah (UT)</option>
+            <option value="VT">Vermont (VT)</option>
+            <option value="VA">Virginia (VA)</option>
+            <option value="WA">Washington (WA)</option>
+            <option value="WV">West Virginia (WV)</option>
+            <option value="WI">Wisconsin (WI)</option>
+            <option value="WY">Wyoming (WY)</option>
           </select>
 
           <select id="posFilter" class="select-input" onchange="filterRecruits()">
@@ -805,9 +859,19 @@
         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
           <select id="statsClassFilter" class="select-input" onchange="renderStatsDashboard()">
             <option value="ALL">All Classes</option>
-            <option value="2026">Class of 2026</option>
-            <option value="2027">Class of 2027</option>
             <option value="2028">Class of 2028</option>
+            <option value="2029">Class of 2029</option>
+            <option value="2030">Class of 2030</option>
+            <option value="2031">Class of 2031</option>
+            <option value="2032">Class of 2032</option>
+            <option value="2033">Class of 2033</option>
+            <option value="2034">Class of 2034</option>
+            <option value="2035">Class of 2035</option>
+            <option value="2036">Class of 2036</option>
+            <option value="2037">Class of 2037</option>
+            <option value="2038">Class of 2038</option>
+            <option value="2039">Class of 2039</option>
+            <option value="2040">Class of 2040</option>
           </select>
 
           <div class="sub-nav-group" id="viewTabs">
@@ -993,7 +1057,7 @@
           recruits = results.data.map(row => ({
             id: row.id || Math.random().toString(36).substr(2, 9),
             rank: parseInt(row.rank) || 99,
-            classYear: row.classYear || "2026",
+            classYear: row.classYear || "2028",
             name: row.name || "Unknown Player",
             dob: row.dob || "N/A",
             // THIS LINE FIXES THE SPACE ISSUE BY ENCODING THE URL AUTOMATICALLY
@@ -1457,9 +1521,19 @@
             <label for="schoolClassFilter" style="font-size: 0.8rem; color: var(--text-muted);">Filter Class:</label>
             <select id="schoolClassFilter" class="select-input" onchange="renderSchoolDetail('${schoolName}', this.value)">
               <option value="ALL" ${selectedYear === 'ALL' ? 'selected' : ''}>All Classes</option>
-              <option value="2026" ${selectedYear === '2026' ? 'selected' : ''}>Class of 2026</option>
-              <option value="2027" ${selectedYear === '2027' ? 'selected' : ''}>Class of 2027</option>
               <option value="2028" ${selectedYear === '2028' ? 'selected' : ''}>Class of 2028</option>
+              <option value="2029" ${selectedYear === '2029' ? 'selected' : ''}>Class of 2029</option>
+              <option value="2030" ${selectedYear === '2030' ? 'selected' : ''}>Class of 2030</option>
+              <option value="2031" ${selectedYear === '2031' ? 'selected' : ''}>Class of 2031</option>
+              <option value="2032" ${selectedYear === '2032' ? 'selected' : ''}>Class of 2032</option>
+              <option value="2033" ${selectedYear === '2033' ? 'selected' : ''}>Class of 2033</option>
+              <option value="2034" ${selectedYear === '2034' ? 'selected' : ''}>Class of 2034</option>
+              <option value="2035" ${selectedYear === '2035' ? 'selected' : ''}>Class of 2035</option>
+              <option value="2036" ${selectedYear === '2036' ? 'selected' : ''}>Class of 2036</option>
+              <option value="2037" ${selectedYear === '2037' ? 'selected' : ''}>Class of 2037</option>
+              <option value="2038" ${selectedYear === '2038' ? 'selected' : ''}>Class of 2038</option>
+              <option value="2039" ${selectedYear === '2039' ? 'selected' : ''}>Class of 2039</option>
+              <option value="2040" ${selectedYear === '2040' ? 'selected' : ''}>Class of 2040</option>
             </select>
           </div>
         </div>
@@ -1513,9 +1587,19 @@
             <label for="accoladeClassFilter" style="font-size: 0.8rem; color: var(--text-muted);">Filter Class:</label>
             <select id="accoladeClassFilter" class="select-input" onchange="renderAccoladeDetail('${safeAccoladeName}', this.value)">
               <option value="ALL" ${selectedYear === 'ALL' ? 'selected' : ''}>All Classes</option>
-              <option value="2026" ${selectedYear === '2026' ? 'selected' : ''}>Class of 2026</option>
-              <option value="2027" ${selectedYear === '2027' ? 'selected' : ''}>Class of 2027</option>
               <option value="2028" ${selectedYear === '2028' ? 'selected' : ''}>Class of 2028</option>
+              <option value="2029" ${selectedYear === '2029' ? 'selected' : ''}>Class of 2029</option>
+              <option value="2030" ${selectedYear === '2030' ? 'selected' : ''}>Class of 2030</option>
+              <option value="2031" ${selectedYear === '2031' ? 'selected' : ''}>Class of 2031</option>
+              <option value="2032" ${selectedYear === '2032' ? 'selected' : ''}>Class of 2032</option>
+              <option value="2033" ${selectedYear === '2033' ? 'selected' : ''}>Class of 2033</option>
+              <option value="2034" ${selectedYear === '2034' ? 'selected' : ''}>Class of 2034</option>
+              <option value="2035" ${selectedYear === '2035' ? 'selected' : ''}>Class of 2035</option>
+              <option value="2036" ${selectedYear === '2036' ? 'selected' : ''}>Class of 2036</option>
+              <option value="2037" ${selectedYear === '2037' ? 'selected' : ''}>Class of 2037</option>
+              <option value="2038" ${selectedYear === '2038' ? 'selected' : ''}>Class of 2038</option>
+              <option value="2039" ${selectedYear === '2039' ? 'selected' : ''}>Class of 2039</option>
+              <option value="2040" ${selectedYear === '2040' ? 'selected' : ''}>Class of 2040</option>
             </select>
           </div>
         </div>
