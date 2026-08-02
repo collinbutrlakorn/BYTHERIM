@@ -957,56 +957,91 @@
         return;
       }
       
-      Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vTWvXoqFJkVFqt36wbBBfgFYUvPKhWCZIztoLIB9sjpc55AiFTdFpJZHMztVgJHyFyy0mtO_MYGD76N/pub?gid=0&single=true&output=csv", {
-  download: true,
-  header: true,
-  complete: function(results) {
-    recruits = results.data.map(row => {
-      return {
-        // Basic Info & Bio
-        id: row['rank'],
-        rank: parseInt(row['rank']) || 999,
-        name: row['name'] || '',
-        class: row['class'] || '',
-        pos: row['pos'] || '',
-        height: row['height'] || '',
-        weight: row['weight'] || '',
-        wingspan: row['wingspan'] || '',
-        dob: row['dob'] || '',
-        hometown: row['hometown'] || '',
-        state: row['state'] || '',
-        hs: row['hs'] || '',
-        stars: row['stars'] || '',
-        rating: row['rating'] || '',
-        committedSchool: row['committedSchool'] || '',
-        status: row['status'] || '',
-        commitLogo: row['commitLogo'] || '',
-        avatar: row['avatar'] || '',
-        offers: row['offers'] || '',
-        finalListTitle: row['finalListTitle'] || '',
-        finalListSchools: row['finalListSchools'] || '',
-        accolades: row['accolades'] || '',
-        scouting_report: row['scouting_report'] || '',
-        strengths: row['strengths'] || '',
-        areasForGrowth: row['areas for growth'] || '',
+      Papa.parse(GOOGLE_SHEET_CSV_URL, {
+        download: true,
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+          // Helper to split comma strings into clean arrays
+          const parseArray = (str) => str ? str.split(',').map(s => s.trim()).filter(Boolean) : [];
+          
+          // Helper to map out nested tier statistics cleanly per row
+          const buildStatTier = (row, tier) => ({
+            team: row[`${tier}_team`] || "N/A",
+            gp: parseInt(row[`${tier}_gp`]) || 0,
+            mpg: parseFloat(row[`${tier}_mpg`]) || 0,
+            ppg: parseFloat(row[`${tier}_ppg`]) || 0,
+            rpg: parseFloat(row[`${tier}_rpg`]) || 0,
+            apg: parseFloat(row[`${tier}_apg`]) || 0,
+            spg: parseFloat(row[`${tier}_spg`]) || 0,
+            bpg: parseFloat(row[`${tier}_bpg`]) || 0,
+            topg: parseFloat(row[`${tier}_topg`]) || 0,
+            fg: row[`${tier}_fg`] || "0.0%",
+            fg2: row[`${tier}_fg2`] || "0.0%",
+            fg3: row[`${tier}_fg3`] || "0.0%",
+            ft: row[`${tier}_ft`] || "0.0%",
+            bpm: row[`${tier}_bpm`] || "0.0", obpm: row[`${tier}_obpm`] || "0.0", dbpm: row[`${tier}_dbpm`] || "0.0",
+            ts: row[`${tier}_ts`] || "0.0%", rts: row[`${tier}_rts`] || "0.0%", efg: row[`${tier}_efg`] || "0.0%",
+            oreb: row[`${tier}_oreb`] || "0.0%", dreb: row[`${tier}_dreb`] || "0.0%", trb: row[`${tier}_trb`] || "0.0%",
+            ast: row[`${tier}_ast`] || "0.0%", tov: row[`${tier}_tov`] || "0.0%", stl: row[`${tier}_stl`] || "0.0%",
+            blk: row[`${tier}_blk`] || "0.0%", usg: row[`${tier}_usg`] || "0.0%", ftr: row[`${tier}_ftr`] || ".000",
+            p3ar: row[`${tier}_p3ar`] || ".000", ortg: row[`${tier}_ortg`] || "0.0", drtg: row[`${tier}_drtg`] || "0.0", net: row[`${tier}_net`] || "0.0",
+            fga2: parseFloat(row[`${tier}_fga2`]) || 0, rimFga: parseFloat(row[`${tier}_rimFga`]) || 0, rimPct: row[`${tier}_rimPct`] || "0.0%",
+            shortMidFga: parseFloat(row[`${tier}_shortMidFga`]) || 0, shortMidPct: row[`${tier}_shortMidPct`] || "0.0%",
+            longMidFga: parseFloat(row[`${tier}_longMidFga`]) || 0, longMidPct: row[`${tier}_longMidPct`] || "0.0%",
+            rimMidRatio: row[`${tier}_rimMidRatio`] || "0.00", fga3: parseFloat(row[`${tier}_fga3`]) || 0, fta: parseFloat(row[`${tier}_fta`]) || 0
+          });
 
-        // Raw Row Pass-Through for all stat splits (hs_, aau_, fiba_, intl_)
-        ...row
-      };
-    });
+          // Process rows into the required complex object schema
+          recruits = results.data.map(row => ({
+            id: row.id || Math.random().toString(36).substr(2, 9),
+            rank: parseInt(row.rank) || 99,
+            classYear: row.classYear || "2026",
+            name: row.name || "Unknown Player",
+            dob: row.dob || "N/A",
+            pfp: row.pfp || "",
+            pos: row.pos || "G",
+            height: row.height || "6'0\"",
+            weight: row.weight || "160 lbs",
+            wingspan: row.wingspan || "N/A",
+            hs: row.hs || "N/A",
+            state: row.state || "ALL",
+            hometown: row.hometown || "N/A",
+            stars: parseInt(row.stars) || 3,
+            rating: parseInt(row.rating) || 80,
+            status: row.status || "Uncommitted",
+            committedSchool: row.committedSchool || null,
+            commitLogo: row.commitLogo || "",
+            accolades: parseArray(row.accolades),
+            finalList: row.finalListSchools ? {
+              title: row.finalListTitle || "Final List",
+              schools: parseArray(row.finalListSchools)
+            } : null,
+            offers: parseArray(row.offers),
+            scouting: row.scouting || "No description available.",
+            strengths: parseArray(row.strengths),
+            weaknesses: parseArray(row.weaknesses),
+            stats: {
+              hs: buildStatTier(row, 'hs'),
+              aau: buildStatTier(row, 'aau'),
+              fiba: buildStatTier(row, 'fiba'),
+              intl: buildStatTier(row, 'intl')
+            }
+          }));
 
-    // Render UI after data maps
-    if (typeof activeRecruit !== 'undefined' && activeRecruit) {
-      renderProfile(activeRecruit);
-    }
-    if (typeof filterRecruits === 'function') filterRecruits();
-    if (typeof renderSchoolRankings === 'function') renderSchoolRankings();
-    if (typeof renderQueryRulesUI === 'function') renderQueryRulesUI();
-    if (typeof renderStatsDashboard === 'function') renderStatsDashboard();
+          // Fire up data display engine
+          if (recruits.length > 0) {
+            activeRecruit = recruits[0];
+            renderProfile(activeRecruit);
+          }
+          filterRecruits();
+          renderSchoolRankings();
+          renderQueryRulesUI();
+          renderStatsDashboard();
+        }
+      });
+    };
 
-    console.log("Successfully mapped " + recruits.length + " recruits!");
-  }
-});
     function getSchoolLogoPath(schoolName) {
       if (!schoolName) return '';
       const clean = schoolName.toLowerCase().replace(/[^a-z0-9]/g, '');
