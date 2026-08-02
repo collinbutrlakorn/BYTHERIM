@@ -785,10 +785,10 @@
     <div id="stats-tab" class="tab-content">
       <div class="stats-controls-bar">
         <div class="sub-nav-group" id="levelTabs">
-          <button class="sub-nav-btn active" onclick="setStatLevel('hs')">High School</button>
-          <button class="sub-nav-btn" onclick="setStatLevel('aau')">AAU</button>
-          <button class="sub-nav-btn" onclick="setStatLevel('fiba')">FIBA</button>
-          <button class="sub-nav-btn" onclick="setStatLevel('intl')">International</button>
+          <button class="sub-nav-btn active" onclick="setStatLevel('hs', this)">High School</button>
+          <button class="sub-nav-btn" onclick="setStatLevel('aau', this)">AAU</button>
+          <button class="sub-nav-btn" onclick="setStatLevel('fiba', this)">FIBA</button>
+          <button class="sub-nav-btn" onclick="setStatLevel('intl', this)">International</button>
         </div>
 
         <div class="pos-filter-wrapper">
@@ -811,9 +811,9 @@
           </select>
 
           <div class="sub-nav-group" id="viewTabs">
-            <button class="sub-nav-btn active" onclick="setStatView('basic')">Basic Stats</button>
-            <button class="sub-nav-btn" onclick="setStatView('advanced')">Advanced Stats</button>
-            <button class="sub-nav-btn" onclick="setStatView('shooting')">Shooting</button>
+            <button class="sub-nav-btn active" onclick="setStatView('basic', this)">Basic Stats</button>
+            <button class="sub-nav-btn" onclick="setStatView('advanced', this)">Advanced Stats</button>
+            <button class="sub-nav-btn" onclick="setStatView('shooting', this)">Shooting</button>
           </div>
         </div>
       </div>
@@ -1092,19 +1092,19 @@
       }
     }
 
-    function setStatLevel(level) {
+    function setStatLevel(level, element) {
       currentStatLevel = level;
       const buttons = document.querySelectorAll('#levelTabs .sub-nav-btn');
       buttons.forEach(btn => btn.classList.remove('active'));
-      event.target.classList.add('active');
+      if (element) element.classList.add('active');
       renderStatsDashboard();
     }
 
-    function setStatView(view) {
+    function setStatView(view, element) {
       currentStatView = view;
       const buttons = document.querySelectorAll('#viewTabs .sub-nav-btn');
       buttons.forEach(btn => btn.classList.remove('active'));
-      event.target.classList.add('active');
+      if (element) element.classList.add('active');
 
       if (view === 'basic') statsSortKey = 'ppg';
       else if (view === 'advanced') statsSortKey = 'bpm';
@@ -1286,7 +1286,7 @@
       const star = document.getElementById('starFilter').value;
 
       let filtered = recruits.filter(r => {
-        const matchesSearch = r.name.toLowerCase().includes(query) || r.hs.toLowerCase().includes(query);
+        const matchesSearch = (r.name || "").toLowerCase().includes(query) || (r.hs || "").toLowerCase().includes(query);
         const matchesClass = (classYr === 'OVERALL') ? true : (r.classYear === classYr);
         const matchesState = state === 'ALL' || r.state === state;
         const matchesPos = pos === 'ALL' || r.pos === pos;
@@ -1681,7 +1681,7 @@
 
         <div class="stats-box-full">
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
-            <h3 style="margin: 0;">Statistical Profile</h3><button class="query-btn" onclick="switchTab('stats'); setStatLevel('hs');">View Advanced Data &rarr;</button>
+            <h3 style="margin: 0;">Statistical Profile</h3><button class="query-btn" onclick="switchTab('stats'); setStatLevel('hs', null);">View Advanced Data &rarr;</button>
           </div>
           ${statsTablesHTML}
         </div>
