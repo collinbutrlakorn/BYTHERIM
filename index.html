@@ -963,14 +963,12 @@
         return;
       }
       
-      Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vTWvXoqFJkVFqt36wbBBfgFYUvPKhWCZIztoLIB9sjpc55AiFTdFpJZHMztVgJHyFyy0mtO_MYGD76N/pub?gid=0&single=true&output=csv", {
+Papa.parse("https://docs.google.com/spreadsheets/d/e/2PACX-1vTWvXoqFJkVFqt36wbBBfgFYUvPKhWCZIztoLIB9sjpc55AiFTdFpJZHMztVgJHyFyy0mtO_MYGD76N/pub?gid=0&single=true&output=csv", {
     download: true,
     header: true,
     complete: function(results) {
-        // 1. Save data to recruits
         recruits = results.data;
 
-        // 2. Render all your UI components now that data is ready
         if (typeof activeRecruit !== 'undefined' && activeRecruit) {
             renderProfile(activeRecruit);
         }
@@ -979,15 +977,9 @@
         renderQueryRulesUI();
         renderStatsDashboard();
 
-        console.log("Data successfully loaded and UI rendered!");
+        console.log("Data successfully loaded!");
     }
 });
-      // ADD THIS AT THE VERY BOTTOM OF THE COMPLETE FUNCTION:
-      switchTab('players'); // (Replace 'players' with your exact default tab name)
-    }
-        }
-      });
-    };
 
     function getSchoolLogoPath(schoolName) {
       if (!schoolName) return '';
