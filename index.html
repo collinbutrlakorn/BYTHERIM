@@ -1044,6 +1044,14 @@
           renderSchoolRankings();
           renderQueryRulesUI();
           renderStatsDashboard();
+        complete: function(results) {
+      // ... your existing data mapping code ...
+
+      recruits = results.data.map(...);
+
+      // ADD THIS AT THE VERY BOTTOM OF THE COMPLETE FUNCTION:
+      switchTab('players'); // (Replace 'players' with your exact default tab name)
+    }
         }
       });
     };
