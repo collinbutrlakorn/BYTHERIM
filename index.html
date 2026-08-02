@@ -352,7 +352,7 @@
     .status-cell { 
       display: flex; 
       align-items: center; 
-      justify-content: flex-start; /* Changed to flex-start for left alignment */
+      justify-content: flex-start;
       gap: 8px; 
     }
     .school-logo { 
@@ -1065,7 +1065,6 @@
             classYear: row.classYear || "2028",
             name: row.name || "Unknown Player",
             dob: row.dob || "N/A",
-            // THIS LINE FIXES THE SPACE ISSUE BY ENCODING THE URL AUTOMATICALLY
             pfp: row.pfp ? encodeURI(row.pfp.trim()) : "",
             pos: row.pos || "G",
             height: row.height || "6'0\"",
@@ -1078,7 +1077,6 @@
             rating: parseInt(row.rating) || 80,
             status: row.status || "Uncommitted",
             committedSchool: row.committedSchool || null,
-            // We also encode the commit logo just in case you ever use spaces there too
             commitLogo: row.commitLogo ? encodeURI(row.commitLogo.trim()) : "",
             accolades: parseArray(row.accolades),
             finalList: row.finalListSchools ? {
@@ -1428,8 +1426,16 @@
       });
 
       const schoolList = Object.values(schoolMap).map(s => {
-        const totalRating = s.recruits.reduce((sum, item) => sum + item.rating, 0);
-        return { ...s, recruitCount: s.recruits.length, overallGrade: parseFloat((totalRating / s.recruits.length).toFixed(1)) };
+        // Sort recruits highest to lowest to calculate the weighted class score
+        s.recruits.sort((a, b) => b.rating - a.rating);
+        
+        let weightedGrade = 0;
+        s.recruits.forEach((r, index) => {
+          // Top recruit gets 100%, 2nd gets 80%, 3rd gets 64%, etc.
+          weightedGrade += r.rating * Math.pow(0.8, index);
+        });
+
+        return { ...s, recruitCount: s.recruits.length, overallGrade: parseFloat(weightedGrade.toFixed(2)) };
       });
 
       schoolList.sort((a, b) => b.overallGrade - a.overallGrade || b.recruitCount - a.recruitCount);
@@ -1487,9 +1493,18 @@
       }
 
       const filteredCommits = schoolData.recruits.filter(r => selectedYear === 'ALL' || r.classYear === selectedYear);
+      
       let displayAvgGrade = schoolData.overallGrade;
       if (selectedYear !== 'ALL' && filteredCommits.length > 0) {
-        displayAvgGrade = (filteredCommits.reduce((sum, item) => sum + item.rating, 0) / filteredCommits.length).toFixed(1);
+        // Re-calculate the weighted score specifically for the filtered class year
+        let tempScore = 0;
+        const sortedFiltered = [...filteredCommits].sort((a, b) => b.rating - a.rating);
+        sortedFiltered.forEach((r, index) => {
+          tempScore += r.rating * Math.pow(0.8, index);
+        });
+        displayAvgGrade = tempScore.toFixed(2);
+      } else if (selectedYear !== 'ALL') {
+        displayAvgGrade = "0.00";
       }
 
       const commitsGridHTML = filteredCommits.length === 0 ? 
@@ -1516,7 +1531,7 @@
           </div>
           <div class="school-detail-stats">
             <div class="school-stat-card"><div class="school-stat-val">#${schoolIndex + 1}</div><div class="school-stat-lbl">Overall Rank</div></div>
-            <div class="school-stat-card"><div class="school-stat-val">${displayAvgGrade}</div><div class="school-stat-lbl">${selectedYear === 'ALL' ? 'Overall Avg Grade' : 'Class Avg Grade'}</div></div>
+            <div class="school-stat-card"><div class="school-stat-val">${displayAvgGrade}</div><div class="school-stat-lbl">${selectedYear === 'ALL' ? 'Overall Grade' : 'Class Grade'}</div></div>
             <div class="school-stat-card"><div class="school-stat-val">${filteredCommits.length}</div><div class="school-stat-lbl">Commits (${selectedYear})</div></div>
           </div>
         </div>
