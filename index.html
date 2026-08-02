@@ -349,7 +349,12 @@
     }
 
     /* School Commit Logo & Cell Styling */
-    .status-cell { display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .status-cell { 
+      display: flex; 
+      align-items: center; 
+      justify-content: flex-start; /* Changed to flex-start for left alignment */
+      gap: 8px; 
+    }
     .school-logo { 
       width: 22px; 
       height: 22px; 
@@ -809,7 +814,7 @@
               <th>High School / Club</th>
               <th>Stars</th>
               <th>Rating</th>
-              <th>Status</th>
+              <th style="text-align: left;">Status</th>
             </tr>
           </thead>
           <tbody id="recruitsTableBody">
@@ -824,7 +829,7 @@
           <thead>
             <tr>
               <th>Rank</th>
-              <th>School</th>
+              <th style="text-align: left;">School</th>
               <th>Commits</th>
               <th>Committed Recruits</th>
               <th>Class Overall Grade</th>
@@ -1404,7 +1409,7 @@
           <td><span>${p.hs}</span></td>
           <td>${starDisplay}</td>
           <td><span class="rating-pill">${p.rating}</span></td>
-          <td>${statusHTML}</td>
+          <td style="text-align: left;">${statusHTML}</td>
         `;
         tbody.appendChild(row);
       });
@@ -1454,7 +1459,7 @@
 
         row.innerHTML = `
           <td><span class="rank-num">${idx + 1}</span></td>
-          <td><div class="status-cell"><img src="${s.logo}" class="school-logo-lg" onerror="this.style.display='none';"><strong style="font-size: 0.95rem;">${s.name}</strong></div></td>
+          <td style="text-align: left;"><div class="status-cell"><img src="${s.logo}" class="school-logo-lg" onerror="this.style.display='none';"><strong style="font-size: 0.95rem;">${s.name}</strong></div></td>
           <td><span class="badge-class">${s.recruitCount} ${s.recruitCount === 1 ? 'Commit' : 'Commits'}</span></td>
           <td><div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;">${commitsListHTML}</div></td>
           <td><span class="rating-pill" style="font-size: 0.95rem; padding: 6px 14px;">${s.overallGrade}</span></td>
