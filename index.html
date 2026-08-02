@@ -996,7 +996,8 @@
             classYear: row.classYear || "2026",
             name: row.name || "Unknown Player",
             dob: row.dob || "N/A",
-            pfp: row.pfp || "",
+            // THIS LINE FIXES THE SPACE ISSUE BY ENCODING THE URL AUTOMATICALLY
+            pfp: row.pfp ? encodeURI(row.pfp.trim()) : "",
             pos: row.pos || "G",
             height: row.height || "6'0\"",
             weight: row.weight || "160 lbs",
@@ -1008,7 +1009,8 @@
             rating: parseInt(row.rating) || 80,
             status: row.status || "Uncommitted",
             committedSchool: row.committedSchool || null,
-            commitLogo: row.commitLogo || "",
+            // We also encode the commit logo just in case you ever use spaces there too
+            commitLogo: row.commitLogo ? encodeURI(row.commitLogo.trim()) : "",
             accolades: parseArray(row.accolades),
             finalList: row.finalListSchools ? {
               title: row.finalListTitle || "Final List",
