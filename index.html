@@ -735,11 +735,54 @@
             <option value="INT">International</option>
             <option value="AL">Alabama (AL)</option>
             <option value="AK">Alaska (AK)</option>
-            <!-- (Omitted extra states for brevity but you can paste full list here) -->
+            <option value="AZ">Arizona (AZ)</option>
+            <option value="AR">Arkansas (AR)</option>
             <option value="CA">California (CA)</option>
+            <option value="CO">Colorado (CO)</option>
+            <option value="CT">Connecticut (CT)</option>
+            <option value="DE">Delaware (DE)</option>
             <option value="FL">Florida (FL)</option>
-            <option value="TX">Texas (TX)</option>
+            <option value="GA">Georgia (GA)</option>
+            <option value="HI">Hawaii (HI)</option>
+            <option value="ID">Idaho (ID)</option>
+            <option value="IL">Illinois (IL)</option>
+            <option value="IN">Indiana (IN)</option>
+            <option value="IA">Iowa (IA)</option>
+            <option value="KS">Kansas (KS)</option>
+            <option value="KY">Kentucky (KY)</option>
+            <option value="LA">Louisiana (LA)</option>
+            <option value="ME">Maine (ME)</option>
+            <option value="MD">Maryland (MD)</option>
+            <option value="MA">Massachusetts (MA)</option>
+            <option value="MI">Michigan (MI)</option>
+            <option value="MN">Minnesota (MN)</option>
+            <option value="MS">Mississippi (MS)</option>
+            <option value="MO">Missouri (MO)</option>
+            <option value="MT">Montana (MT)</option>
+            <option value="NE">Nebraska (NE)</option>
+            <option value="NV">Nevada (NV)</option>
+            <option value="NH">New Hampshire (NH)</option>
+            <option value="NJ">New Jersey (NJ)</option>
+            <option value="NM">New Mexico (NM)</option>
             <option value="NY">New York (NY)</option>
+            <option value="NC">North Carolina (NC)</option>
+            <option value="ND">North Dakota (ND)</option>
+            <option value="OH">Ohio (OH)</option>
+            <option value="OK">Oklahoma (OK)</option>
+            <option value="OR">Oregon (OR)</option>
+            <option value="PA">Pennsylvania (PA)</option>
+            <option value="RI">Rhode Island (RI)</option>
+            <option value="SC">South Carolina (SC)</option>
+            <option value="SD">South Dakota (SD)</option>
+            <option value="TN">Tennessee (TN)</option>
+            <option value="TX">Texas (TX)</option>
+            <option value="UT">Utah (UT)</option>
+            <option value="VT">Vermont (VT)</option>
+            <option value="VA">Virginia (VA)</option>
+            <option value="WA">Washington (WA)</option>
+            <option value="WV">West Virginia (WV)</option>
+            <option value="WI">Wisconsin (WI)</option>
+            <option value="WY">Wyoming (WY)</option>
           </select>
 
           <select id="posFilter" class="select-input" onchange="filterRecruits()">
@@ -1045,7 +1088,7 @@
 
           recruits = results.data.map(row => ({
             id: row.id || Math.random().toString(36).substr(2, 9),
-            rank: parseInt(row.rank) || 99,
+            rank: (row.rank && !isNaN(parseInt(row.rank))) ? parseInt(row.rank) : "N/A",
             classYear: row.classYear || "2028",
             name: row.name || "Unknown Player",
             dob: row.dob || "N/A",
@@ -1343,8 +1386,15 @@
         return matchesSearch && matchesClass && matchesState && matchesPos && matchesStar;
       });
 
-      if (classYr === 'OVERALL') filtered.sort((a, b) => b.rating - a.rating);
-      else filtered.sort((a, b) => a.rank - b.rank);
+      if (classYr === 'OVERALL') {
+        filtered.sort((a, b) => b.rating - a.rating);
+      } else {
+        filtered.sort((a, b) => {
+          const rankA = a.rank === "N/A" ? 9999 : a.rank;
+          const rankB = b.rank === "N/A" ? 9999 : b.rank;
+          return rankA - rankB;
+        });
+      }
 
       renderRankingsTable(filtered, classYr === 'OVERALL');
     }
