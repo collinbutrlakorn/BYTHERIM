@@ -701,14 +701,12 @@
       return map;
     }
 
-    // Heatmap filter adjusted to have >60th percentile green, <40th percentile red, and negative stats inverted.
     function getPercentileStyle(pct, key) {
       if (pct === undefined || pct === null) return '';
       
-      const negativeStats = ['topg', 'tov']; // Add additional negative stat keys to this array if needed in the future
+      const negativeStats = ['topg', 'tov'];
       let effectivePct = pct;
       
-      // If the stat is negative (like Turnovers), a high raw number is a high percentile. We invert it so it turns red.
       if (negativeStats.includes(key)) {
         effectivePct = 100 - pct;
       }
@@ -803,7 +801,6 @@
       const searchTxt = (document.getElementById('schoolSearchInput')?.value || '').toLowerCase();
       let schoolList = getSchoolRankingsData(yearFilter);
       
-      // Filter list based on search term
       if (searchTxt) {
         schoolList = schoolList.filter(s => s.name.toLowerCase().includes(searchTxt));
       }
@@ -891,10 +888,58 @@
       const container = document.getElementById('accoladeDetailContainer');
       const logoPath = ACCOLADE_MAP[accoladeName] || '';
       const selectedPlayers = recruits.filter(r => (r.accolades && r.accolades.includes(accoladeName)) && (selectedYear === 'ALL' || r.classYear === selectedYear));
-      const rosterHTML = selectedPlayers.length === 0 ? `<div style="color: var(--text-muted); padding: 2.5rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); text-align: center; font-size: 0.9rem;">No players selected for ${accoladeName} ${selectedYear !== 'ALL' ? `in Class of ${selectedYear}` : ''}.</div>` : 
-        `<div class="school-commits-grid">${selectedPlayers.map(r => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 52px; height: 52px;" onerror="this.src='emptypfpicon.png';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Class of '${r.classYear.slice(-2)} | ${r.pos} | ${r.height}</div><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${r.hs} (${r.state})</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px; justify-content: space-between;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : `<span class="stars-4">★★★★☆</span>`}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating} OVR</span></div></div></div>`).join('')}</div>`;
-
+      
       const safeAccoladeName = String(accoladeName).replace(/'/g, "\\'");
+      let rosterHTML = '';
+
+      if (selectedPlayers.length === 0) {
+        rosterHTML = `<div style="color: var(--text-muted); padding: 2.5rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); text-align: center; font-size: 0.9rem;">No players selected for ${accoladeName} ${selectedYear !== 'ALL' ? `in Class of ${selectedYear}` : ''}.</div>`;
+      } else if (accoladeName === "McDonald's All-American" || accoladeName === "Jordan Brand Classic") {
+        const team1Name = accoladeName === "McDonald's All-American" ? "East" : "Team Air";
+        const team2Name = accoladeName === "McDonald's All-American" ? "West" : "Team Flight";
+        
+        // Group players by class to maintain sorting logic per class
+        const classes = [...new Set(selectedPlayers.map(p => p.classYear))].sort();
+        
+        rosterHTML = classes.map(cls => {
+          let classPlayers = selectedPlayers.filter(p => p.classYear === cls);
+          
+          // Execute a stable pseudo-random sort based on the player ID 
+          // (This ensures teams remain visually random but perfectly consistent across renders)
+          classPlayers.sort((a, b) => {
+            const hash = (str) => [...str].reduce((s, c) => Math.imul(31, s) + c.charCodeAt(0) | 0, 0);
+            return hash(a.id) - hash(b.id);
+          });
+
+          // Split array perfectly in half
+          const team1 = classPlayers.filter((_, i) => i % 2 === 0);
+          const team2 = classPlayers.filter((_, i) => i % 2 !== 0);
+
+          const renderCard = (r) => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 52px; height: 52px;" onerror="this.src='emptypfpicon.png';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Class of '${r.classYear.slice(-2)} | ${r.pos} | ${r.height}</div><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${r.hs} (${r.state})</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px; justify-content: space-between;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : `<span class="stars-4">★★★★☆</span>`}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating} OVR</span></div></div></div>`;
+
+          return `
+            <div style="margin-top: 1.5rem; margin-bottom: 0.5rem;"><h3 style="font-size: 1.2rem; color: var(--accent-main); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Class of ${cls}</h3></div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem;">
+              <div>
+                <h4 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 1px;">${team1Name}</h4>
+                <div class="school-commits-grid" style="grid-template-columns: 1fr; margin-top: 0;">
+                  ${team1.map(renderCard).join('')}
+                </div>
+              </div>
+              <div>
+                <h4 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 1px;">${team2Name}</h4>
+                <div class="school-commits-grid" style="grid-template-columns: 1fr; margin-top: 0;">
+                  ${team2.map(renderCard).join('')}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } else {
+        const renderCard = (r) => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 52px; height: 52px;" onerror="this.src='emptypfpicon.png';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Class of '${r.classYear.slice(-2)} | ${r.pos} | ${r.height}</div><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${r.hs} (${r.state})</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px; justify-content: space-between;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : `<span class="stars-4">★★★★☆</span>`}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating} OVR</span></div></div></div>`;
+        rosterHTML = `<div class="school-commits-grid">${selectedPlayers.map(renderCard).join('')}</div>`;
+      }
+
       container.innerHTML = `
         <div class="school-detail-header">
           <div class="school-detail-brand">
