@@ -365,6 +365,7 @@
     <div id="schoolRankings-tab" class="tab-content">
       <div class="controls-bar">
         <div class="filter-group" style="width: 100%; justify-content: flex-start;">
+          <input type="text" id="schoolSearchInput" class="search-input" placeholder="Search school..." onkeyup="renderSchoolRankings()">
           <select id="schoolRankingsYearFilter" class="select-input" onchange="renderSchoolRankings()" style="min-width: 260px;">
             <option value="ALL">All Time Class (Overall)</option>
             <option value="2028">Class of 2028</option>
@@ -419,6 +420,7 @@
           </div>
         </div>
         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <input type="text" id="statsSearchInput" class="search-input" placeholder="Search player..." onkeyup="renderStatsDashboard()">
           <select id="statsClassFilter" class="select-input" onchange="renderStatsDashboard()">
             <option value="ALL">All Classes</option>
             <option value="2028">Class of 2028</option><option value="2029">Class of 2029</option><option value="2030">Class of 2030</option><option value="2031">Class of 2031</option>
@@ -699,10 +701,27 @@
       return map;
     }
 
-    function getPercentileStyle(pct) {
+    // Heatmap filter adjusted to have >60th percentile green, <40th percentile red, and negative stats inverted.
+    function getPercentileStyle(pct, key) {
       if (pct === undefined || pct === null) return '';
-      if (pct > 50) { let intensity = (pct - 50) / 50; let alpha = 0.12 + intensity * 0.38; return `background-color: rgba(39, 174, 96, ${alpha.toFixed(2)}); color: #a3e635; font-weight: 700;`; } 
-      else if (pct < 50) { let intensity = (50 - pct) / 50; let alpha = 0.12 + intensity * 0.38; return `background-color: rgba(231, 76, 60, ${alpha.toFixed(2)}); color: #f87171; font-weight: 700;`; }
+      
+      const negativeStats = ['topg', 'tov']; // Add additional negative stat keys to this array if needed in the future
+      let effectivePct = pct;
+      
+      // If the stat is negative (like Turnovers), a high raw number is a high percentile. We invert it so it turns red.
+      if (negativeStats.includes(key)) {
+        effectivePct = 100 - pct;
+      }
+
+      if (effectivePct >= 60) { 
+        let intensity = (effectivePct - 60) / 40; 
+        let alpha = 0.12 + intensity * 0.38; 
+        return `background-color: rgba(39, 174, 96, ${alpha.toFixed(2)}); color: #a3e635; font-weight: 700;`; 
+      } else if (effectivePct <= 40) { 
+        let intensity = (40 - effectivePct) / 40; 
+        let alpha = 0.12 + intensity * 0.38; 
+        return `background-color: rgba(231, 76, 60, ${alpha.toFixed(2)}); color: #f87171; font-weight: 700;`; 
+      }
       return `background-color: rgba(255, 255, 255, 0.05); color: #ffffff;`;
     }
 
@@ -780,8 +799,15 @@
     }
 
     function renderSchoolRankings() {
-      const yearFilter = document.getElementById('schoolRankingsYearFilter').value;
-      const schoolList = getSchoolRankingsData(yearFilter);
+      const yearFilter = document.getElementById('schoolRankingsYearFilter')?.value || 'ALL';
+      const searchTxt = (document.getElementById('schoolSearchInput')?.value || '').toLowerCase();
+      let schoolList = getSchoolRankingsData(yearFilter);
+      
+      // Filter list based on search term
+      if (searchTxt) {
+        schoolList = schoolList.filter(s => s.name.toLowerCase().includes(searchTxt));
+      }
+
       const tbody = document.getElementById('schoolRankingsTableBody'); tbody.innerHTML = '';
       if (schoolList.length === 0) { tbody.innerHTML = `<tr><td colspan="5" style="color: var(--text-muted); padding: 2rem;">No school commitments registered for this selection.</td></tr>`; return; }
 
@@ -894,8 +920,18 @@
     function sortStats(key) { if (statsSortKey === key) statsSortDir = statsSortDir === 'desc' ? 'asc' : 'desc'; else { statsSortKey = key; statsSortDir = 'desc'; } renderStatsDashboard(); }
 
     function renderStatsDashboard() {
-      const tbody = document.getElementById('statsTableBody'); const thead = document.getElementById('statsTableHeader'); const cls = document.getElementById('statsClassFilter').value;
-      let filtered = recruits.filter(r => { const matchesClass = cls === 'ALL' || r.classYear === cls; const matchesPos = selectedStatsPositions.includes(r.pos); const hasStats = r.stats && r.stats[currentStatLevel] && r.stats[currentStatLevel].gp > 0; return matchesClass && matchesPos && hasStats && matchesQueryRules(r, currentStatLevel); });
+      const tbody = document.getElementById('statsTableBody'); 
+      const thead = document.getElementById('statsTableHeader'); 
+      const cls = document.getElementById('statsClassFilter')?.value || 'ALL';
+      const searchTxt = (document.getElementById('statsSearchInput')?.value || '').toLowerCase();
+
+      let filtered = recruits.filter(r => { 
+        const matchesSearch = String(r.name || "").toLowerCase().includes(searchTxt) || String(r.hs || "").toLowerCase().includes(searchTxt);
+        const matchesClass = cls === 'ALL' || r.classYear === cls; 
+        const matchesPos = selectedStatsPositions.includes(r.pos); 
+        const hasStats = r.stats && r.stats[currentStatLevel] && r.stats[currentStatLevel].gp > 0; 
+        return matchesSearch && matchesClass && matchesPos && hasStats && matchesQueryRules(r, currentStatLevel); 
+      });
       
       filtered.sort((a, b) => { let valA = parseStatValue(getComputedStat(a.stats[currentStatLevel], statsSortKey)); let valB = parseStatValue(getComputedStat(b.stats[currentStatLevel], statsSortKey)); if (valA === null) valA = -9999; if (valB === null) valB = -9999; return statsSortDir === 'desc' ? valB - valA : valA - valB; });
       const keys = Object.keys(STAT_LABELS[currentStatView]);
@@ -910,7 +946,7 @@
         let st = p.stats[currentStatLevel]; const row = document.createElement('tr');
         row.onclick = () => { activeRecruit = p; renderProfile(p); switchTab('profile'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
         let html = `<td><div class="player-cell"><img src="${p.pfp && p.pfp.trim() !== '' ? p.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" onerror="this.src='emptypfpicon.png';"><span class="player-name">${p.name}</span></div></td><td><span class="badge-pos">${p.pos}</span></td><td><span class="badge-class">'${p.classYear.slice(-2)}</span></td>`;
-        keys.forEach(k => { let rawVal = getComputedStat(st, k); let pct = pctMap[k] ? pctMap[k][p.id] : null; let style = getPercentileStyle(pct); html += `<td style="${style}">${rawVal}</td>`; });
+        keys.forEach(k => { let rawVal = getComputedStat(st, k); let pct = pctMap[k] ? pctMap[k][p.id] : null; let style = getPercentileStyle(pct, k); html += `<td style="${style}">${rawVal}</td>`; });
         row.innerHTML = html + `</tr>`; tbody.appendChild(row);
       });
     }
