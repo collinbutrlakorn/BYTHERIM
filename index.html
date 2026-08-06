@@ -259,6 +259,16 @@
     .commit-player-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 1.2rem; display: flex; align-items: center; gap: 16px; cursor: pointer; transition: all 0.2s ease; }
     .commit-player-card:hover { background: var(--bg-hover); transform: translateY(-2px); }
 
+    /* About Me & Feedback Styles */
+    .about-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 2.5rem; max-width: 900px; margin: 0 auto; text-align: left; }
+    .about-card h2 { font-size: 1.6rem; margin-bottom: 1rem; color: var(--text-main); }
+    .about-card p { color: var(--text-muted); line-height: 1.8; margin-bottom: 1.2rem; font-size: 0.95rem; }
+    .feedback-section { margin-top: 2.5rem; padding-top: 2rem; border-top: 1px solid var(--border-color); }
+    .feedback-form { display: flex; flex-direction: column; gap: 14px; margin-top: 1rem; }
+    .feedback-textarea { background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-color); color: var(--text-main); padding: 12px 14px; border-radius: 8px; font-size: 0.85rem; outline: none; resize: vertical; min-height: 120px; }
+    .feedback-textarea:focus { border-color: var(--accent-main); }
+    .feedback-success { background: rgba(39, 174, 96, 0.15); border: 1px solid #2ecc71; color: #2ecc71; padding: 12px 16px; border-radius: 8px; font-size: 0.85rem; margin-top: 1rem; display: none; }
+
     @media (max-width: 900px) {
       .profile-top-row { flex-direction: column; }
       .scouting-columns { grid-template-columns: 1fr; }
@@ -283,6 +293,7 @@
       <button class="nav-btn active" onclick="switchTab('rankings')">Class Rankings</button>
       <button class="nav-btn" onclick="switchTab('schoolRankings')">School Rankings</button>
       <button class="nav-btn" onclick="switchTab('stats')">Statistics</button>
+      <button class="nav-btn" onclick="switchTab('about')">About Me</button>
     </nav>
   </header>
 
@@ -456,6 +467,25 @@
       </div>
     </div>
 
+    <!-- ABOUT ME TAB -->
+    <div id="about-tab" class="tab-content">
+      <div class="about-card">
+        <h2>About BYTHERIM</h2>
+        <p>Welcome to BYTHERIM Recruiting—your premier, independent destination for comprehensive basketball prospect analysis, class rankings, and in-depth player statistics. This platform was built out of a lifelong passion for the game, detailed tracking, and a desire to bring professional-grade metrics and organization to amateur basketball evaluation.</p>
+        <p>Whether you're tracking elite high school standouts, analyzing advanced shooting profiles, or following school recruiting classes, BYTHERIM provides granular data to give you a complete picture of tomorrow's stars.</p>
+        
+        <div class="feedback-section">
+          <h2>Feedback & Ideas</h2>
+          <p>Have suggestions, noticed missing information, or want to share feedback about the site? Drop a message below!</p>
+          <form class="feedback-form" onsubmit="submitFeedback(event)">
+            <textarea id="feedbackInput" class="feedback-textarea" placeholder="Share your thoughts, ideas, or feedback here..." required></textarea>
+            <button type="submit" class="query-btn" style="align-self: flex-start; padding: 10px 20px;">Submit Feedback</button>
+          </form>
+          <div id="feedbackSuccess" class="feedback-success">Thank you! Your feedback has been submitted successfully.</div>
+        </div>
+      </div>
+    </div>
+
     <!-- PROFILE TAB -->
     <div id="profile-tab" class="tab-content">
       <div id="profileContainer" class="profile-card"></div>
@@ -624,6 +654,9 @@
       } else if (tabName === 'stats') {
         document.getElementById('stats-tab').classList.add('active');
         if (document.querySelectorAll('.nav-btn')[2]) document.querySelectorAll('.nav-btn')[2].classList.add('active');
+      } else if (tabName === 'about') {
+        document.getElementById('about-tab').classList.add('active');
+        if (document.querySelectorAll('.nav-btn')[3]) document.querySelectorAll('.nav-btn')[3].classList.add('active');
       } else if (tabName === 'profile') {
         document.getElementById('profile-tab').classList.add('active');
       } else if (tabName === 'schoolDetail') {
@@ -1084,6 +1117,22 @@
           ${statsTablesHTML}
         </div>
       `;
+    }
+
+    function submitFeedback(event) {
+      event.preventDefault();
+      const feedbackText = document.getElementById('feedbackInput').value.trim();
+      if (!feedbackText) return;
+
+      // Here you can handle or log the feedback as needed
+      console.log("Feedback submitted:", feedbackText);
+
+      document.getElementById('feedbackInput').value = '';
+      const successMsg = document.getElementById('feedbackSuccess');
+      successMsg.style.display = 'block';
+      setTimeout(() => {
+        successMsg.style.display = 'none';
+      }, 4000);
     }
   </script>
 </body>
