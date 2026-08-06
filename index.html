@@ -438,6 +438,12 @@
             <option value="2032">Class of 2032</option><option value="2033">Class of 2033</option><option value="2034">Class of 2034</option><option value="2035">Class of 2035</option>
             <option value="2036">Class of 2036</option><option value="2037">Class of 2037</option><option value="2038">Class of 2038</option><option value="2039">Class of 2039</option><option value="2040">Class of 2040</option>
           </select>
+          <div class="sub-nav-group" id="modeTabs">
+            <button class="sub-nav-btn active" onclick="setStatMode('per_game', this)">Per Game</button>
+            <button class="sub-nav-btn" onclick="setStatMode('per_40', this)">Per 40 Min</button>
+            <button class="sub-nav-btn" onclick="setStatMode('per_75', this)">Per 75 Poss</button>
+            <button class="sub-nav-btn" onclick="setStatMode('per_100', this)">Per 100 Poss</button>
+          </div>
           <div class="sub-nav-group" id="viewTabs">
             <button class="sub-nav-btn active" onclick="setStatView('basic', this)">Basic Stats</button>
             <button class="sub-nav-btn" onclick="setStatView('advanced', this)">Advanced Stats</button>
@@ -520,8 +526,11 @@
       shooting: { fga2: "2FGA", fg2: "2FG%", rimFga: "Rim FGA", rimPct: "Rim %", shortMidFga: "Short Mid FGA", shortMidPct: "Short Mid %", longMidFga: "Long Mid FGA", longMidPct: "Long Mid %", rimMidRatio: "Rim/Mid", fga3: "3FGA", fg3: "3FG%", p3ar: "3PAr", fta: "FTA", ft: "FT%", ftr: "FTr" }
     };
 
+    const SCALABLE_STATS = ['ppg', 'rpg', 'apg', 'spg', 'bpg', 'topg', 'fga2', 'rimFga', 'shortMidFga', 'longMidFga', 'fga3', 'fta'];
+
     let currentStatLevel = 'hs';    
     let currentStatView = 'basic';  
+    let currentStatMode = 'per_game';
     let activeSelectedSchool = null;
     let selectedStatsPositions = ['PG', 'SG', 'SF', 'PF', 'C'];
     let queryRules = [];
@@ -633,12 +642,28 @@
     
     function getComputedStat(st, key) {
       if (!st) return "N/A";
-      if (st[key] !== undefined) return st[key];
-      if (key === 'rimMidRatio') {
-        let mid = (st.shortMidFga || 0) + (st.longMidFga || 0);
-        return mid > 0 ? (st.rimFga / mid).toFixed(2) : "0.00";
+      let val = st[key];
+      if (val === undefined || val === null) {
+        if (key === 'rimMidRatio') {
+          let mid = (st.shortMidFga || 0) + (st.longMidFga || 0);
+          return mid > 0 ? (st.rimFga / mid).toFixed(2) : "0.00";
+        }
+        return "N/A";
       }
-      return "N/A";
+
+      if (SCALABLE_STATS.includes(key) && currentStatMode !== 'per_game') {
+        let num = parseStatValue(val);
+        let mpg = parseFloat(st.mpg) || 0;
+        if (num !== null && mpg > 0) {
+          let factor = 1;
+          if (currentStatMode === 'per_40') factor = 40 / mpg;
+          else if (currentStatMode === 'per_75') factor = 37.5 / mpg;
+          else if (currentStatMode === 'per_100') factor = 50 / mpg;
+          return (num * factor).toFixed(1);
+        }
+      }
+
+      return val;
     }
 
     function switchTab(tabName) {
@@ -667,6 +692,7 @@
     }
 
     function setStatLevel(level, element) { currentStatLevel = level; document.querySelectorAll('#levelTabs .sub-nav-btn').forEach(btn => btn.classList.remove('active')); if (element) element.classList.add('active'); renderStatsDashboard(); }
+    function setStatMode(mode, element) { currentStatMode = mode; document.querySelectorAll('#modeTabs .sub-nav-btn').forEach(btn => btn.classList.remove('active')); if (element) element.classList.add('active'); renderStatsDashboard(); }
     function setStatView(view, element) { 
       currentStatView = view; 
       document.querySelectorAll('#viewTabs .sub-nav-btn').forEach(btn => btn.classList.remove('active')); 
@@ -737,7 +763,7 @@
     function getPercentileStyle(pct, key) {
       if (pct === undefined || pct === null) return '';
       
-      const negativeStats = ['topg', 'tov'];
+      const negativeStats = ['topg', 'tov', 'drtg'];
       let effectivePct = pct;
       
       if (negativeStats.includes(key)) {
@@ -931,20 +957,16 @@
         const team1Name = accoladeName === "McDonald's All-American" ? "East" : "Team Air";
         const team2Name = accoladeName === "McDonald's All-American" ? "West" : "Team Flight";
         
-        // Group players by class to maintain sorting logic per class
         const classes = [...new Set(selectedPlayers.map(p => p.classYear))].sort();
         
         rosterHTML = classes.map(cls => {
           let classPlayers = selectedPlayers.filter(p => p.classYear === cls);
           
-          // Execute a stable pseudo-random sort based on the player ID 
-          // (This ensures teams remain visually random but perfectly consistent across renders)
           classPlayers.sort((a, b) => {
             const hash = (str) => [...str].reduce((s, c) => Math.imul(31, s) + c.charCodeAt(0) | 0, 0);
             return hash(a.id) - hash(b.id);
           });
 
-          // Split array perfectly in half
           const team1 = classPlayers.filter((_, i) => i % 2 === 0);
           const team2 = classPlayers.filter((_, i) => i % 2 !== 0);
 
@@ -1124,7 +1146,6 @@
       const feedbackText = document.getElementById('feedbackInput').value.trim();
       if (!feedbackText) return;
 
-      // Here you can handle or log the feedback as needed
       console.log("Feedback submitted:", feedbackText);
 
       document.getElementById('feedbackInput').value = '';
