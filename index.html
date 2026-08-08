@@ -586,7 +586,7 @@
               classYear: String(row.classYear || "2028"),
               name: String(row.name || "Unknown Player"),
               dob: String(row.dob || "N/A"),
-              pfp: typeof row.pfp === 'string' && row.pfp.trim() !== "" ? encodeURI(row.pfp.trim()) : "",
+              pfp: typeof row.avatar === 'string' && row.avatar.trim() !== "" ? encodeURI(row.avatar.trim()) : "",
               pos: String(row.pos || "G"),
               height: String(row.height || "6'0\""),
               weight: String(row.weight || "160 lbs"),
