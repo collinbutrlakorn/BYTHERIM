@@ -339,6 +339,7 @@
           <select id="posFilter" class="select-input" onchange="filterRecruits()">
             <option value="ALL">All Positions</option>
             <option value="PG">Point Guard (PG)</option>
+            <option value="CG">Combo Guard (CG)</option>
             <option value="SG">Shooting Guard (SG)</option>
             <option value="SF">Small Forward (SF)</option>
             <option value="PF">Power Forward (PF)</option>
@@ -424,11 +425,13 @@
           <span class="pos-filter-label">POS:</span>
           <div class="pos-pill-group">
             <button class="pos-pill active" onclick="togglePosFilter('PG', this)">PG</button>
+            <button class="pos-pill active" onclick="togglePosFilter('CG', this)">CG</button>
             <button class="pos-pill active" onclick="togglePosFilter('SG', this)">SG</button>
             <button class="pos-pill active" onclick="togglePosFilter('SF', this)">SF</button>
             <button class="pos-pill active" onclick="togglePosFilter('PF', this)">PF</button>
             <button class="pos-pill active" onclick="togglePosFilter('C', this)">C</button>
           </div>
+          <button class="sub-nav-btn" style="margin-left: 8px;" onclick="toggleAllPositions()">Toggle All</button>
         </div>
         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
           <input type="text" id="statsSearchInput" class="search-input" placeholder="Search player..." onkeyup="renderStatsDashboard()">
@@ -532,7 +535,7 @@
     let currentStatView = 'basic';  
     let currentStatMode = 'per_game';
     let activeSelectedSchool = null;
-    let selectedStatsPositions = ['PG', 'SG', 'SF', 'PF', 'C'];
+    let selectedStatsPositions = ['PG', 'CG', 'SG', 'SF', 'PF', 'C'];
     let queryRules = [];
     let isQueryEngaged = false;
     let statsSortKey = 'ppg';
@@ -705,6 +708,20 @@
     function togglePosFilter(pos, btn) {
       if (selectedStatsPositions.includes(pos)) { selectedStatsPositions = selectedStatsPositions.filter(p => p !== pos); btn.classList.remove('active'); }
       else { selectedStatsPositions.push(pos); btn.classList.add('active'); }
+      renderStatsDashboard();
+    }
+
+    function toggleAllPositions() {
+      const allPos = ['PG', 'CG', 'SG', 'SF', 'PF', 'C'];
+      const pills = document.querySelectorAll('.pos-pill-group .pos-pill');
+      
+      if (selectedStatsPositions.length === allPos.length) {
+        selectedStatsPositions = [];
+        pills.forEach(btn => btn.classList.remove('active'));
+      } else {
+        selectedStatsPositions = [...allPos];
+        pills.forEach(btn => btn.classList.add('active'));
+      }
       renderStatsDashboard();
     }
 
