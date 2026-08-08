@@ -287,7 +287,6 @@
   <header>
     <div class="brand" onclick="switchTab('rankings')" title="Return to Home">
       <img src="logo.png" alt="BYTHERIM" class="brand-logo-img" onerror="this.style.display='none';">
-      <div class="brand-title">RECRUITING</div>
     </div>
     <nav>
       <button class="nav-btn active" onclick="switchTab('rankings')">Class Rankings</button>
@@ -305,7 +304,7 @@
         <div class="filter-group">
           <select id="classFilter" class="select-input" onchange="filterRecruits()">
             <option value="OVERALL">Overall Rankings (All Classes)</option>
-            <option value="2028">Class of 2028</option>
+            <option value="2028" selected>Class of 2028</option>
             <option value="2029">Class of 2029</option>
             <option value="2030">Class of 2030</option>
             <option value="2031">Class of 2031</option>
@@ -380,7 +379,7 @@
           <input type="text" id="schoolSearchInput" class="search-input" placeholder="Search school..." onkeyup="renderSchoolRankings()">
           <select id="schoolRankingsYearFilter" class="select-input" onchange="renderSchoolRankings()" style="min-width: 260px;">
             <option value="ALL">All Time Class (Overall)</option>
-            <option value="2028">Class of 2028</option>
+            <option value="2028" selected>Class of 2028</option>
             <option value="2029">Class of 2029</option>
             <option value="2030">Class of 2030</option>
             <option value="2031">Class of 2031</option>
@@ -437,7 +436,7 @@
           <input type="text" id="statsSearchInput" class="search-input" placeholder="Search player..." onkeyup="renderStatsDashboard()">
           <select id="statsClassFilter" class="select-input" onchange="renderStatsDashboard()">
             <option value="ALL">All Classes</option>
-            <option value="2028">Class of 2028</option><option value="2029">Class of 2029</option><option value="2030">Class of 2030</option><option value="2031">Class of 2031</option>
+            <option value="2028" selected>Class of 2028</option><option value="2029">Class of 2029</option><option value="2030">Class of 2030</option><option value="2031">Class of 2031</option>
             <option value="2032">Class of 2032</option><option value="2033">Class of 2033</option><option value="2034">Class of 2034</option><option value="2035">Class of 2035</option>
             <option value="2036">Class of 2036</option><option value="2037">Class of 2037</option><option value="2038">Class of 2038</option><option value="2039">Class of 2039</option><option value="2040">Class of 2040</option>
           </select>
@@ -480,7 +479,7 @@
     <div id="about-tab" class="tab-content">
       <div class="about-card">
         <h2>About BYTHERIM</h2>
-        <p>Welcome to BYTHERIM Recruiting—your premier, independent destination for comprehensive fictional basketball prospect analysis, class rankings, and in-depth player statistics. This platform was built by Collin (@collinbutr on X/twitter)out of a lifelong passion for the game, detailed tracking, and a desire to bring professional-grade metrics and organization to amateur basketball evaluation.</p>
+        <p>Welcome to BYTHERIM Recruiting—your premier, independent destination for comprehensive fictional basketball prospect analysis, class rankings, and in-depth player statistics. This platform was built by Collin (@collinbutr on X/twitter) out of a lifelong passion for the game, detailed tracking, and a desire to bring professional-grade metrics and organization to amateur basketball evaluation.</p>
         <p>Whether you're tracking elite high school standouts, analyzing advanced shooting profiles, or following school recruiting classes, BYTHERIM provides granular data to give you a complete picture of tomorrow's stars.</p>
         
         <div class="feedback-section">
@@ -594,8 +593,8 @@
               hs: String(row.hs || "N/A"),
               state: String(row.state || "ALL"),
               hometown: String(row.hometown || "N/A"),
-              stars: parseInt(row.stars) || 3,
-              rating: parseInt(row.rating) || 80,
+              stars: (row.stars !== undefined && row.stars !== "" && !isNaN(parseInt(row.stars))) ? parseInt(row.stars) : 3,
+              rating: (row.rating !== undefined && row.rating !== "" && !isNaN(parseInt(row.rating))) ? parseInt(row.rating) : 70,
               status: String(row.status || "Uncommitted"),
               committedSchool: row.committedSchool ? String(row.committedSchool) : null,
               commitLogo: typeof row.commitLogo === 'string' ? encodeURI(row.commitLogo.trim()) : "",
@@ -828,7 +827,7 @@
         const row = document.createElement('tr');
         row.onclick = () => { activeRecruit = p; renderProfile(p); switchTab('profile'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
         const displayRank = isOverall ? `${index + 1}` : `${p.rank}`;
-        const starDisplay = p.stars === 5 ? `<span class="stars-5">★★★★★</span>` : `<span class="stars-4">★★★★☆</span>`;
+        const starDisplay = p.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (p.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`);
         const stateDisplay = p.state === 'INT' ? `<span class="badge-intl">INTL</span>` : `<span>${p.state}</span>`;
         const pfpImg = p.pfp && p.pfp.trim() !== "" ? p.pfp : "emptypfpicon.png";
         let statusHTML = p.commitLogo ? `<div class="status-cell"><img src="${p.commitLogo}" class="school-logo" onerror="this.style.display='none';"><span style="font-weight: 700;">${p.status}</span></div>` : `<span>${p.status}</span>`;
@@ -873,7 +872,7 @@
     }
 
     function renderSchoolRankings() {
-      const yearFilter = document.getElementById('schoolRankingsYearFilter')?.value || 'ALL';
+      const yearFilter = document.getElementById('schoolRankingsYearFilter')?.value || '2028';
       const searchTxt = (document.getElementById('schoolSearchInput')?.value || '').toLowerCase();
       let schoolList = getSchoolRankingsData(yearFilter);
       
@@ -898,9 +897,9 @@
       });
     }
 
-    function selectSchool(schoolName, defaultYear = 'ALL') { activeSelectedSchool = schoolName; renderSchoolDetail(schoolName, defaultYear); switchTab('schoolDetail'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    function selectSchool(schoolName, defaultYear = '2028') { activeSelectedSchool = schoolName; renderSchoolDetail(schoolName, defaultYear); switchTab('schoolDetail'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
-    function renderSchoolDetail(schoolName, selectedYear = 'ALL') {
+    function renderSchoolDetail(schoolName, selectedYear = '2028') {
       const container = document.getElementById('schoolDetailContainer');
       const allTimeSchoolList = getSchoolRankingsData('ALL');
       const schoolIndex = allTimeSchoolList.findIndex(s => s.name === schoolName);
@@ -919,7 +918,7 @@
       } else if (selectedYear !== 'ALL') { displayAvgGrade = "0.00"; }
 
       const commitsGridHTML = filteredCommits.length === 0 ? `<div style="color: var(--text-muted); padding: 2rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); width: 100%;">No committed recruits found for Class of ${selectedYear}.</div>` : 
-        filteredCommits.map(r => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 50px; height: 50px;" onerror="this.src='emptypfpicon.png';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem;">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">'${r.classYear.slice(-2)} | ${r.pos} | ${r.height} / ${r.weight}</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : `<span class="stars-4">★★★★☆</span>`}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating}</span></div></div></div>`).join('');
+        filteredCommits.map(r => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 50px; height: 50px;" onerror="this.src='emptypfpicon.png';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem;">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">'${r.classYear.slice(-2)} | ${r.pos} | ${r.height} / ${r.weight}</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (r.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`)}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating}</span></div></div></div>`).join('');
 
       container.innerHTML = `
         <div class="school-detail-header">
@@ -958,9 +957,9 @@
       `;
     }
 
-    function openAccoladeRoster(accoladeName, selectedYear = 'ALL') { renderAccoladeDetail(accoladeName, selectedYear); switchTab('accoladeDetail'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    function openAccoladeRoster(accoladeName, selectedYear = '2028') { renderAccoladeDetail(accoladeName, selectedYear); switchTab('accoladeDetail'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
-    function renderAccoladeDetail(accoladeName, selectedYear = 'ALL') {
+    function renderAccoladeDetail(accoladeName, selectedYear = '2028') {
       const container = document.getElementById('accoladeDetailContainer');
       const logoPath = ACCOLADE_MAP[accoladeName] || '';
       const selectedPlayers = recruits.filter(r => (r.accolades && r.accolades.includes(accoladeName)) && (selectedYear === 'ALL' || r.classYear === selectedYear));
@@ -987,7 +986,7 @@
           const team1 = classPlayers.filter((_, i) => i % 2 === 0);
           const team2 = classPlayers.filter((_, i) => i % 2 !== 0);
 
-          const renderCard = (r) => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 52px; height: 52px;" onerror="this.src='emptypfpicon.png';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Class of '${r.classYear.slice(-2)} | ${r.pos} | ${r.height}</div><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${r.hs} (${r.state})</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px; justify-content: space-between;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : `<span class="stars-4">★★★★☆</span>`}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating} OVR</span></div></div></div>`;
+          const renderCard = (r) => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 52px; height: 52px;" onerror="this.src='emptypfpicon.png';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Class of '${r.classYear.slice(-2)} | ${r.pos} | ${r.height}</div><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${r.hs} (${r.state})</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px; justify-content: space-between;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (r.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`)}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating} OVR</span></div></div></div>`;
 
           return `
             <div style="margin-top: 1.5rem; margin-bottom: 0.5rem;"><h3 style="font-size: 1.2rem; color: var(--accent-main); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Class of ${cls}</h3></div>
@@ -1008,7 +1007,7 @@
           `;
         }).join('');
       } else {
-        const renderCard = (r) => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 52px; height: 52px;" onerror="this.src='emptypfpicon.png';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Class of '${r.classYear.slice(-2)} | ${r.pos} | ${r.height}</div><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${r.hs} (${r.state})</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px; justify-content: space-between;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : `<span class="stars-4">★★★★☆</span>`}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating} OVR</span></div></div></div>`;
+        const renderCard = (r) => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 52px; height: 52px;" onerror="this.src='emptypfpicon.png';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Class of '${r.classYear.slice(-2)} | ${r.pos} | ${r.height}</div><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${r.hs} (${r.state})</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px; justify-content: space-between;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (r.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`)}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating} OVR</span></div></div></div>`;
         rosterHTML = `<div class="school-commits-grid">${selectedPlayers.map(renderCard).join('')}</div>`;
       }
 
@@ -1039,7 +1038,7 @@
     function renderStatsDashboard() {
       const tbody = document.getElementById('statsTableBody'); 
       const thead = document.getElementById('statsTableHeader'); 
-      const cls = document.getElementById('statsClassFilter')?.value || 'ALL';
+      const cls = document.getElementById('statsClassFilter')?.value || '2028';
       const searchTxt = (document.getElementById('statsSearchInput')?.value || '').toLowerCase();
 
       let filtered = recruits.filter(r => { 
@@ -1071,7 +1070,7 @@
     function renderProfile(p) {
       if(!p) return;
       const container = document.getElementById('profileContainer');
-      const starDisplay = p.stars === 5 ? `<span class="stars-5">★★★★★</span>` : `<span class="stars-4">★★★★☆</span>`;
+      const starDisplay = p.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (p.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`);
       
       const statusHTML = p.commitLogo ? `
         <div class="commit-standout-box">
