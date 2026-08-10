@@ -202,8 +202,17 @@
     .profile-header { display: flex; justify-content: space-between; align-items: center; gap: 20px; border-bottom: 1px solid var(--border-color); padding-bottom: 1.5rem; margin-bottom: 1.5rem; }
     .profile-header-left { display: flex; align-items: center; gap: 24px; }
     .player-avatar-lg { width: 140px; height: 175px; border-radius: 12px; object-fit: cover; background: var(--bg-hover); border: 2px solid var(--border-color); flex-shrink: 0; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); }
-    .profile-title-area h1 { font-size: 1.8rem; margin-bottom: 0.4rem; text-align: left; }
-    .profile-meta-line { display: flex; gap: 10px; align-items: center; color: var(--text-muted); font-size: 0.85rem; flex-wrap: wrap; }
+    
+    /* Updated Profile Title Bio & Ranks */
+    .profile-title-area { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; display: flex; flex-direction: column; gap: 4px; }
+    .profile-title-area h1 { font-size: 2.4rem; margin-bottom: 0; text-align: left; font-weight: 800; letter-spacing: -0.5px; }
+    .bio-location { font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .bio-metrics { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; font-size: 0.95rem; color: var(--text-main); font-weight: 600; flex-wrap: wrap; }
+    .bio-ranks { display: flex; gap: 24px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px; margin-top: 4px; }
+    .rank-item { display: flex; flex-direction: column; gap: 2px; }
+    .rank-lbl { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
+    .rank-val { font-size: 1.25rem; color: var(--text-main); font-weight: 800; }
+
     .profile-top-row { display: flex; gap: 1.25rem; margin-bottom: 1.5rem; align-items: stretch; }
     .profile-top-row > div { flex: 1; min-width: 280px; margin-bottom: 0 !important; }
     .spec-box { background: rgba(255,255,255,0.03); padding: 1.2rem; border-radius: 10px; border: 1px solid var(--border-color); text-align: left; display: flex; flex-direction: column; justify-content: flex-start; }
@@ -570,606 +579,723 @@
               bpm: String(row[`${tier}_bpm`] || "0.0"), obpm: String(row[`${tier}_obpm`] || "0.0"), dbpm: String(row[`${tier}_dbpm`] || "0.0"),
               ts: String(row[`${tier}_ts`] || "0.0%"), rts: String(row[`${tier}_rts`] || "0.0%"), efg: String(row[`${tier}_efg`] || "0.0%"),
               oreb: String(row[`${tier}_oreb`] || "0.0%"), dreb: String(row[`${tier}_dreb`] || "0.0%"), trb: String(row[`${tier}_trb`] || "0.0%"),
-              ast: String(row[`${tier}_ast`] || "0.0%"), tov: String(row[`${tier}_tov`] || "0.0%"), stl: String(row[`${tier}_stl`] || "0.0%"),
-              blk: String(row[`${tier}_blk`] || "0.0%"), usg: String(row[`${tier}_usg`] || "0.0%"), ftr: String(row[`${tier}_ftr`] || ".000"),
-              p3ar: String(row[`${tier}_p3ar`] || ".000"), ortg: String(row[`${tier}_ortg`] || "0.0"), drtg: String(row[`${tier}_drtg`] || "0.0"), net: String(row[`${tier}_net`] || "0.0"),
-              fga2: parseFloat(row[`${tier}_fga2`]) || 0, rimFga: parseFloat(row[`${tier}_rimFga`]) || 0, rimPct: String(row[`${tier}_rimPct`] || "0.0%"),
+              ast: String(row[`${tier}_ast`] || "0.0%"), tov: String(row[`${tier}_tov`] || "0.0%"), stl: String(row[`${tier}_stl`] || "0.0%"), blk: String(row[`${tier}_blk`] || "0.0%"),
+              usg: String(row[`${tier}_usg`] || "0.0%"), ftr: String(row[`${tier}_ftr`] || "0.0"), p3ar: String(row[`${tier}_p3ar`] || "0.0"),
+              ortg: String(row[`${tier}_ortg`] || "0.0"), drtg: String(row[`${tier}_drtg`] || "0.0"), net: String(row[`${tier}_net`] || "0.0"),
+              fga2: parseFloat(row[`${tier}_fga2`]) || 0,
+              rimFga: parseFloat(row[`${tier}_rimFga`]) || 0, rimPct: String(row[`${tier}_rimPct`] || "0.0%"),
               shortMidFga: parseFloat(row[`${tier}_shortMidFga`]) || 0, shortMidPct: String(row[`${tier}_shortMidPct`] || "0.0%"),
               longMidFga: parseFloat(row[`${tier}_longMidFga`]) || 0, longMidPct: String(row[`${tier}_longMidPct`] || "0.0%"),
-              rimMidRatio: String(row[`${tier}_rimMidRatio`] || "0.00"), fga3: parseFloat(row[`${tier}_fga3`]) || 0, fta: parseFloat(row[`${tier}_fta`]) || 0
+              rimMidRatio: String(row[`${tier}_rimMidRatio`] || "0.0"),
+              fga3: parseFloat(row[`${tier}_fga3`]) || 0,
+              fta: parseFloat(row[`${tier}_fta`]) || 0
             });
 
-            recruits = results.data.map(row => ({
-              id: String(row.id || Math.random().toString(36).substr(2, 9)),
-              rank: (row.rank && !isNaN(parseInt(row.rank))) ? parseInt(row.rank) : "N/A",
-              classYear: String(row.classYear || "2028"),
-              name: String(row.name || "Unknown Player"),
-              dob: String(row.dob || "N/A"),
-              pfp: typeof row.avatar === 'string' && row.avatar.trim() !== "" ? encodeURI(row.avatar.trim()) : "",
-              pos: String(row.pos || "G"),
-              height: String(row.height || "6'0\""),
-              weight: String(row.weight || "160 lbs"),
-              wingspan: String(row.wingspan || "N/A"),
-              hs: String(row.hs || "N/A"),
-              state: String(row.state || "ALL"),
-              hometown: String(row.hometown || "N/A"),
-              stars: (row.stars !== undefined && row.stars !== "" && !isNaN(parseInt(row.stars))) ? parseInt(row.stars) : 3,
-              rating: (row.rating !== undefined && row.rating !== "" && !isNaN(parseInt(row.rating))) ? parseInt(row.rating) : 70,
-              status: String(row.status || "Uncommitted"),
-              committedSchool: row.committedSchool ? String(row.committedSchool) : null,
-              commitLogo: typeof row.commitLogo === 'string' ? encodeURI(row.commitLogo.trim()) : "",
-              accolades: parseArray(row.accolades),
-              finalList: row.finalListSchools ? {
-                title: String(row.finalListTitle || "Final List"),
-                schools: parseArray(row.finalListSchools)
-              } : null,
-              offers: parseArray(row.offers),
-              scouting: String(row.scouting || "No description available."),
-              strengths: parseArray(row.strengths),
-              weaknesses: parseArray(row.weaknesses),
-              stats: { hs: buildStatTier(row, 'hs'), aau: buildStatTier(row, 'aau'), fiba: buildStatTier(row, 'fiba'), intl: buildStatTier(row, 'intl') }
-            }));
-
-            if (recruits.length > 0) {
-              activeRecruit = recruits[0];
-              renderProfile(activeRecruit);
-            }
+            recruits = results.data.map((row, index) => {
+              const stars = parseInt(row.stars) || 3;
+              const rating = parseInt(row.rating) || 80;
+              return {
+                id: (index + 1).toString(),
+                rank: row.rank ? String(row.rank) : "N/A",
+                name: String(row.name || "Unknown Player"),
+                classYear: String(row.classYear || "Unknown"),
+                pos: String(row.pos || "N/A"),
+                ht: String(row.ht || "N/A"),
+                wt: String(row.wt || "N/A"),
+                state: String(row.state || "N/A"),
+                hometown: String(row.hometown || "N/A"),
+                hs: String(row.hs || "N/A"),
+                hsTeamLogo: String(row.hsTeamLogo || ""),
+                stars: stars,
+                rating: rating,
+                commitStatus: String(row.commitStatus || "Uncommitted"),
+                commitSchool: String(row.commitSchool || ""),
+                commitLogo: String(row.commitLogo || ""),
+                offers: parseArray(row.offers),
+                finalList: parseArray(row.finalList),
+                accolades: parseArray(row.accolades),
+                scoutingStrengths: String(row.scoutingStrengths || "N/A"),
+                scoutingWeaknesses: String(row.scoutingWeaknesses || "N/A"),
+                scoutingSummary: String(row.scoutingSummary || "N/A"),
+                pfp: String(row.pfp || ""),
+                stats: {
+                  hs: buildStatTier(row, 'hs'),
+                  aau: buildStatTier(row, 'aau'),
+                  fiba: buildStatTier(row, 'fiba'),
+                  intl: buildStatTier(row, 'intl')
+                }
+              };
+            });
+            
             filterRecruits();
-            renderSchoolRankings();
-            renderQueryRulesUI();
             renderStatsDashboard();
-          } catch (error) {
-            console.error("Website UI Rendering Error:", error);
+          } catch (e) {
+            console.error("Data Parsing Error: ", e);
+            alert("Error parsing sheet data. Check console for details.");
           }
+        },
+        error: function(err) {
+          console.error(err);
+          alert("Error fetching data from Google Sheets.");
         }
       });
     };
 
-    function getSchoolLogoPath(schoolName) {
-      if (!schoolName) return '';
-      const clean = String(schoolName).toLowerCase().replace(/[^a-z0-9]/g, '');
-      return `schoollogos/${clean}.png`;
-    }
-
-    function parseStatValue(val) {
-      if (val === undefined || val === null || val === "N/A") return null;
-      if (typeof val === 'number') return val;
-      if (typeof val === 'string') {
-        let cleaned = val.replace(/[%+]/g, '').trim();
-        let parsed = parseFloat(cleaned);
-        return isNaN(parsed) ? null : parsed;
-      }
-      return null;
-    }
-    
-    function getComputedStat(st, key) {
-      if (!st) return "N/A";
-      let val = st[key];
-      if (val === undefined || val === null) {
-        if (key === 'rimMidRatio') {
-          let mid = (st.shortMidFga || 0) + (st.longMidFga || 0);
-          return mid > 0 ? (st.rimFga / mid).toFixed(2) : "0.00";
-        }
-        return "N/A";
-      }
-
-      if (SCALABLE_STATS.includes(key) && currentStatMode !== 'per_game') {
-        let num = parseStatValue(val);
-        let mpg = parseFloat(st.mpg) || 0;
-        if (num !== null && mpg > 0) {
-          let factor = 1;
-          if (currentStatMode === 'per_40') factor = 40 / mpg;
-          else if (currentStatMode === 'per_75') factor = 37.5 / mpg;
-          else if (currentStatMode === 'per_100') factor = 50 / mpg;
-          return (num * factor).toFixed(1);
-        }
-      }
-
-      return val;
-    }
-
-    function switchTab(tabName) {
+    function switchTab(tabId) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-      document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
-
-      if (tabName === 'rankings') {
-        document.getElementById('rankings-tab').classList.add('active');
-        if (document.querySelectorAll('.nav-btn')[0]) document.querySelectorAll('.nav-btn')[0].classList.add('active');
-      } else if (tabName === 'schoolRankings') {
-        document.getElementById('schoolRankings-tab').classList.add('active');
-        if (document.querySelectorAll('.nav-btn')[1]) document.querySelectorAll('.nav-btn')[1].classList.add('active');
-      } else if (tabName === 'stats') {
-        document.getElementById('stats-tab').classList.add('active');
-        if (document.querySelectorAll('.nav-btn')[2]) document.querySelectorAll('.nav-btn')[2].classList.add('active');
-      } else if (tabName === 'about') {
-        document.getElementById('about-tab').classList.add('active');
-        if (document.querySelectorAll('.nav-btn')[3]) document.querySelectorAll('.nav-btn')[3].classList.add('active');
-      } else if (tabName === 'profile') {
-        document.getElementById('profile-tab').classList.add('active');
-      } else if (tabName === 'schoolDetail') {
-        document.getElementById('schoolDetail-tab').classList.add('active');
-      } else if (tabName === 'accoladeDetail') {
-        document.getElementById('accoladeDetail-tab').classList.add('active');
-      }
-    }
-
-    function setStatLevel(level, element) { currentStatLevel = level; document.querySelectorAll('#levelTabs .sub-nav-btn').forEach(btn => btn.classList.remove('active')); if (element) element.classList.add('active'); renderStatsDashboard(); }
-    function setStatMode(mode, element) { currentStatMode = mode; document.querySelectorAll('#modeTabs .sub-nav-btn').forEach(btn => btn.classList.remove('active')); if (element) element.classList.add('active'); renderStatsDashboard(); }
-    function setStatView(view, element) { 
-      currentStatView = view; 
-      document.querySelectorAll('#viewTabs .sub-nav-btn').forEach(btn => btn.classList.remove('active')); 
-      if (element) element.classList.add('active'); 
-      if (view === 'basic') statsSortKey = 'ppg'; else if (view === 'advanced') statsSortKey = 'bpm'; else if (view === 'shooting') statsSortKey = 'fg2'; 
-      statsSortDir = 'desc'; 
-      renderQueryRulesUI(); renderStatsDashboard(); 
-    }
-
-    function togglePosFilter(pos, btn) {
-      if (selectedStatsPositions.includes(pos)) { selectedStatsPositions = selectedStatsPositions.filter(p => p !== pos); btn.classList.remove('active'); }
-      else { selectedStatsPositions.push(pos); btn.classList.add('active'); }
-      renderStatsDashboard();
-    }
-
-    function toggleAllPositions() {
-      const allPos = ['PG', 'CG', 'SG', 'SF', 'PF', 'C'];
-      const pills = document.querySelectorAll('.pos-pill-group .pos-pill');
+      document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
       
-      if (selectedStatsPositions.length === allPos.length) {
-        selectedStatsPositions = [];
-        pills.forEach(btn => btn.classList.remove('active'));
-      } else {
-        selectedStatsPositions = [...allPos];
-        pills.forEach(btn => btn.classList.add('active'));
-      }
-      renderStatsDashboard();
-    }
-
-    function toggleQueryEngage() { isQueryEngaged = !isQueryEngaged; renderQueryRulesUI(); renderStatsDashboard(); }
-    function addQueryRule() { const availableStats = Object.keys(STAT_LABELS[currentStatView]); queryRules.push({ id: Date.now().toString() + Math.random().toString(36).substr(2, 4), statKey: availableStats[0] || 'ppg', op: '>=', value: '' }); isQueryEngaged = true; renderQueryRulesUI(); renderStatsDashboard(); }
-    function removeQueryRule(id) { queryRules = queryRules.filter(r => r.id !== id); if (queryRules.length === 0) isQueryEngaged = false; renderQueryRulesUI(); renderStatsDashboard(); }
-    function clearQueryRules() { queryRules = []; isQueryEngaged = false; renderQueryRulesUI(); renderStatsDashboard(); }
-    function updateQueryRule(id, field, val) { const rule = queryRules.find(r => r.id === id); if (rule) { rule[field] = val; renderStatsDashboard(); } }
-
-    function renderQueryRulesUI() {
-      const container = document.getElementById('queryRulesContainer'); const badge = document.getElementById('queryEngagedBadge'); const toggleBtn = document.getElementById('toggleQueryBtn');
-      if (isQueryEngaged) { badge.innerText = 'ENGAGED'; badge.style.background = 'rgba(39, 174, 96, 0.2)'; badge.style.color = '#2ecc71'; badge.style.border = '1px solid #2ecc71'; toggleBtn.innerText = 'Disengage Query Search'; toggleBtn.classList.add('engaged'); }
-      else { badge.innerText = 'OFF'; badge.style.background = 'rgba(255, 255, 255, 0.05)'; badge.style.color = 'var(--text-muted)'; badge.style.border = '1px solid var(--border-color)'; toggleBtn.innerText = 'Engage Query Search'; toggleBtn.classList.remove('engaged'); }
-      if (queryRules.length === 0) { container.innerHTML = `<div style="font-size: 0.75rem; color: var(--text-muted); font-style: italic; padding: 4px 0;">No active stat query rules. Click "+ Add Stat Rule" to query player statistics.</div>`; return; }
-      const availableStats = STAT_LABELS[currentStatView];
-      container.innerHTML = queryRules.map((rule) => {
-        if (!availableStats[rule.statKey]) rule.statKey = Object.keys(availableStats)[0];
-        const statOptionsHTML = Object.entries(availableStats).map(([k, label]) => `<option value="${k}" ${rule.statKey === k ? 'selected' : ''}>${label}</option>`).join('');
-        return `
-          <div class="query-rule-row">
-            <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: bold;">Stat:</span>
-            <select class="select-input" style="padding: 6px 10px; font-size: 0.75rem;" onchange="updateQueryRule('${rule.id}', 'statKey', this.value)">${statOptionsHTML}</select>
-            <select class="select-input" style="padding: 6px 10px; font-size: 0.75rem; width: 70px;" onchange="updateQueryRule('${rule.id}', 'op', this.value)"><option value=">=" ${rule.op === '>=' ? 'selected' : ''}>&ge;</option><option value="<=" ${rule.op === '<=' ? 'selected' : ''}>&le;</option></select>
-            <input type="number" step="any" class="search-input" style="width: 110px; padding: 6px 10px; font-size: 0.75rem;" placeholder="Value" value="${rule.value}" oninput="updateQueryRule('${rule.id}', 'value', this.value)">
-            <button class="query-btn query-btn-danger" style="padding: 4px 8px;" onclick="removeQueryRule('${rule.id}')">&times;</button>
-          </div>
-        `;
-      }).join('');
-    }
-
-    function matchesQueryRules(p, level) {
-      if (!isQueryEngaged || queryRules.length === 0) return true;
-      const st = p.stats[level]; if (!st) return false;
-      for (let rule of queryRules) {
-        if (!rule.statKey || rule.value === "" || rule.value === null) continue;
-        let pVal = parseStatValue(getComputedStat(st, rule.statKey)); let targetVal = parseFloat(rule.value);
-        if (pVal === null || isNaN(targetVal)) continue;
-        if (rule.op === '>=' && pVal < targetVal) return false;
-        if (rule.op === '<=' && pVal > targetVal) return false;
-      }
-      return true;
-    }
-
-    function calculatePercentileMap(players, level, keys) {
-      let map = {};
-      keys.forEach(key => {
-        let validPairs = [];
-        players.forEach(p => { let st = p.stats[level]; if (st) { let num = parseStatValue(getComputedStat(st, key)); if (num !== null) validPairs.push({ id: p.id, val: num }); } });
-        if (validPairs.length === 0) return;
-        const N = validPairs.length; map[key] = {};
-        validPairs.forEach((pair) => { let countLess = validPairs.filter(x => x.val < pair.val).length; let countEqual = validPairs.filter(x => x.val === pair.val).length; let pct = N > 1 ? ((countLess + 0.5 * countEqual) / N) * 100 : 50; map[key][pair.id] = pct; });
-      });
-      return map;
-    }
-
-    function getPercentileStyle(pct, key) {
-      if (pct === undefined || pct === null) return '';
+      const tabTarget = document.getElementById(`${tabId}-tab`);
+      if(tabTarget) tabTarget.classList.add('active');
       
-      const negativeStats = ['topg', 'tov', 'drtg'];
-      let effectivePct = pct;
-      
-      if (negativeStats.includes(key)) {
-        effectivePct = 100 - pct;
+      if(['rankings', 'schoolRankings', 'stats', 'about'].includes(tabId)) {
+        const btnMap = {'rankings':0, 'schoolRankings':1, 'stats':2, 'about':3};
+        document.querySelectorAll('nav .nav-btn')[btnMap[tabId]].classList.add('active');
       }
 
-      if (effectivePct >= 60) { 
-        let intensity = (effectivePct - 60) / 40; 
-        let alpha = 0.12 + intensity * 0.38; 
-        return `background-color: rgba(39, 174, 96, ${alpha.toFixed(2)}); color: #a3e635; font-weight: 700;`; 
-      } else if (effectivePct <= 40) { 
-        let intensity = (40 - effectivePct) / 40; 
-        let alpha = 0.12 + intensity * 0.38; 
-        return `background-color: rgba(231, 76, 60, ${alpha.toFixed(2)}); color: #f87171; font-weight: 700;`; 
-      }
-      return `background-color: rgba(255, 255, 255, 0.05); color: #ffffff;`;
+      if(tabId === 'rankings') filterRecruits();
+      if(tabId === 'schoolRankings') renderSchoolRankings();
+      if(tabId === 'stats') renderStatsDashboard();
     }
 
-    function filterRecruits() {
-      const query = String(document.getElementById('searchInput').value).toLowerCase();
-      const classYr = document.getElementById('classFilter').value;
-      const state = document.getElementById('stateFilter').value;
-      const pos = document.getElementById('posFilter').value;
-      const star = document.getElementById('starFilter').value;
-
-      let filtered = recruits.filter(r => {
-        const matchesSearch = String(r.name || "").toLowerCase().includes(query) || String(r.hs || "").toLowerCase().includes(query);
-        const matchesClass = (classYr === 'OVERALL') ? true : (r.classYear === classYr);
-        const matchesState = state === 'ALL' || r.state === state;
-        const matchesPos = pos === 'ALL' || r.pos === pos;
-        const matchesStar = star === 'ALL' || r.stars.toString() === star;
-        return matchesSearch && matchesClass && matchesState && matchesPos && matchesStar;
-      });
-
-      if (classYr === 'OVERALL') filtered.sort((a, b) => b.rating - a.rating);
-      else filtered.sort((a, b) => { const rankA = a.rank === "N/A" ? 9999 : a.rank; const rankB = b.rank === "N/A" ? 9999 : b.rank; return rankA - rankB; });
-      renderRankingsTable(filtered, classYr === 'OVERALL');
+    function viewProfile(id) {
+      activeRecruit = recruits.find(r => r.id === id);
+      if(!activeRecruit) return;
+      renderProfile(activeRecruit);
+      switchTab('profile');
+      window.scrollTo(0,0);
     }
 
-    function renderRankingsTable(data, isOverall = false) {
-      const tbody = document.getElementById('recruitsTableBody'); tbody.innerHTML = '';
-      if (data.length === 0) { tbody.innerHTML = `<tr><td colspan="10" style="color: var(--text-muted); padding: 2rem;">No players match the current filter selection.</td></tr>`; return; }
-
-      data.forEach((p, index) => {
-        const row = document.createElement('tr');
-        row.onclick = () => { activeRecruit = p; renderProfile(p); switchTab('profile'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-        const displayRank = isOverall ? `${index + 1}` : `${p.rank}`;
-        const starDisplay = p.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (p.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`);
-        const stateDisplay = p.state === 'INT' ? `<span class="badge-intl">INTL</span>` : `<span>${p.state}</span>`;
-        const pfpImg = p.pfp && p.pfp.trim() !== "" ? p.pfp : "emptypfpicon.png";
-        let statusHTML = p.commitLogo ? `<div class="status-cell"><img src="${p.commitLogo}" class="school-logo" onerror="this.style.display='none';"><span style="font-weight: 700;">${p.status}</span></div>` : `<span>${p.status}</span>`;
-
-        row.innerHTML = `
-          <td><span class="rank-num">${displayRank}</span></td>
-          <td><div class="player-cell"><img src="${pfpImg}" class="player-avatar-sm" onerror="this.src='emptypfpicon.png';"><div><span class="player-name">${p.name}</span><span class="player-sub">${p.hometown}</span></div></div></td>
-          <td><span class="badge-class">'${p.classYear.slice(-2)}</span></td>
-          <td><span class="badge-pos">${p.pos}</span></td>
-          <td><span>${p.height} / ${p.weight}</span></td>
-          <td>${stateDisplay}</td>
-          <td><span>${p.hs}</span></td>
-          <td>${starDisplay}</td>
-          <td><span class="rating-pill">${p.rating}</span></td>
-          <td style="text-align: left;">${statusHTML}</td>
-        `;
-        tbody.appendChild(row);
-      });
+    function viewSchoolDetail(schoolName) {
+      activeSelectedSchool = schoolName;
+      renderSchoolDetail(schoolName);
+      switchTab('schoolDetail');
+      window.scrollTo(0,0);
     }
 
-    function getSchoolRankingsData(yearFilter = 'ALL') {
-      const schoolMap = {};
-      let filteredRecruits = yearFilter !== 'ALL' ? recruits.filter(r => r.classYear === yearFilter) : recruits;
-
-      filteredRecruits.forEach(r => {
-        if (r.status && r.status.includes("Committed to ")) {
-          const schoolName = r.status.replace("Committed to ", "").trim();
-          if (!schoolMap[schoolName]) schoolMap[schoolName] = { name: schoolName, logo: r.commitLogo || getSchoolLogoPath(schoolName), recruits: [] };
-          schoolMap[schoolName].recruits.push(r);
-        }
-      });
-
-      const schoolList = Object.values(schoolMap).map(s => {
-        s.recruits.sort((a, b) => b.rating - a.rating);
-        let currentScore = 0; let weight = 1.0;
-        s.recruits.forEach((r) => { let impact = (r.rating / 100) * weight; currentScore = currentScore + ((100 - currentScore) * impact); weight *= 0.8; });
-        return { ...s, recruitCount: s.recruits.length, overallGrade: parseFloat(currentScore.toFixed(2)) };
-      });
-
-      schoolList.sort((a, b) => b.overallGrade - a.overallGrade || b.recruitCount - a.recruitCount);
-      return schoolList;
+    function viewAccoladeDetail(accoladeName) {
+      renderAccoladeDetail(accoladeName);
+      switchTab('accoladeDetail');
+      window.scrollTo(0,0);
     }
 
-    function renderSchoolRankings() {
-      const yearFilter = document.getElementById('schoolRankingsYearFilter')?.value || '2028';
-      const searchTxt = (document.getElementById('schoolSearchInput')?.value || '').toLowerCase();
-      let schoolList = getSchoolRankingsData(yearFilter);
-      
-      if (searchTxt) {
-        schoolList = schoolList.filter(s => s.name.toLowerCase().includes(searchTxt));
-      }
-
-      const tbody = document.getElementById('schoolRankingsTableBody'); tbody.innerHTML = '';
-      if (schoolList.length === 0) { tbody.innerHTML = `<tr><td colspan="5" style="color: var(--text-muted); padding: 2rem;">No school commitments registered for this selection.</td></tr>`; return; }
-
-      schoolList.forEach((s, idx) => {
-        const row = document.createElement('tr'); row.onclick = () => selectSchool(s.name, yearFilter);
-        const commitsListHTML = s.recruits.map(r => `<div class="commit-tag" onclick="event.stopPropagation(); activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');" style="cursor: pointer;"><span style="font-weight: 700;">${r.name}</span> <span style="color: var(--text-muted);">('${r.classYear.slice(-2)} ${r.pos})</span> <span>Grade: ${r.rating}</span></div>`).join('');
-        row.innerHTML = `
-          <td><span class="rank-num">${idx + 1}</span></td>
-          <td style="text-align: left;"><div class="status-cell"><img src="${s.logo}" class="school-logo-lg" onerror="this.style.display='none';"><strong style="font-size: 0.95rem;">${s.name}</strong></div></td>
-          <td><span class="badge-class">${s.recruitCount} ${s.recruitCount === 1 ? 'Commit' : 'Commits'}</span></td>
-          <td><div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;">${commitsListHTML}</div></td>
-          <td><span class="rating-pill" style="font-size: 0.95rem; padding: 6px 14px;">${s.overallGrade} / 100</span></td>
-        `;
-        tbody.appendChild(row);
-      });
+    function submitFeedback(e) {
+      e.preventDefault();
+      document.getElementById('feedbackSuccess').style.display = 'block';
+      setTimeout(() => { document.getElementById('feedbackSuccess').style.display = 'none'; document.getElementById('feedbackInput').value = ''; }, 3000);
     }
 
-    function selectSchool(schoolName, defaultYear = '2028') { activeSelectedSchool = schoolName; renderSchoolDetail(schoolName, defaultYear); switchTab('schoolDetail'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-
-    function renderSchoolDetail(schoolName, selectedYear = '2028') {
-      const container = document.getElementById('schoolDetailContainer');
-      const allTimeSchoolList = getSchoolRankingsData('ALL');
-      const schoolIndex = allTimeSchoolList.findIndex(s => s.name === schoolName);
-      const schoolData = allTimeSchoolList[schoolIndex];
-      const safeSchoolName = String(schoolName).replace(/'/g, "\\'"); 
-
-      if (!schoolData) { container.innerHTML = `<div style="color: var(--text-muted); padding: 2rem;">School details not found.</div>`; return; }
-
-      const filteredCommits = schoolData.recruits.filter(r => selectedYear === 'ALL' || r.classYear === selectedYear);
-      let displayAvgGrade = schoolData.overallGrade;
-      if (selectedYear !== 'ALL' && filteredCommits.length > 0) {
-        let currentScore = 0; let weight = 1.0;
-        const sortedFiltered = [...filteredCommits].sort((a, b) => b.rating - a.rating);
-        sortedFiltered.forEach((r) => { let impact = (r.rating / 100) * weight; currentScore = currentScore + ((100 - currentScore) * impact); weight *= 0.8; });
-        displayAvgGrade = currentScore.toFixed(2);
-      } else if (selectedYear !== 'ALL') { displayAvgGrade = "0.00"; }
-
-      const commitsGridHTML = filteredCommits.length === 0 ? `<div style="color: var(--text-muted); padding: 2rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); width: 100%;">No committed recruits found for Class of ${selectedYear}.</div>` : 
-        filteredCommits.map(r => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 50px; height: 50px;" onerror="this.src='emptypfpicon.png';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem;">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">'${r.classYear.slice(-2)} | ${r.pos} | ${r.height} / ${r.weight}</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (r.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`)}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating}</span></div></div></div>`).join('');
-
-      container.innerHTML = `
-        <div class="school-detail-header">
-          <div class="school-detail-brand">
-            <img src="${schoolData.logo || getSchoolLogoPath(schoolName)}" class="school-detail-logo" onerror="this.style.display='none';">
-            <div><h1 style="font-size: 1.8rem;">${schoolName.toUpperCase()}</h1><div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">RECRUITING CLASS DASHBOARD</div></div>
-          </div>
-          <div class="school-detail-stats">
-            <div class="school-stat-card"><div class="school-stat-val">${displayAvgGrade}</div><div class="school-stat-lbl">${selectedYear === 'ALL' ? 'Overall Grade' : 'Class Grade'}</div></div>
-            <div class="school-stat-card"><div class="school-stat-val">${filteredCommits.length}</div><div class="school-stat-lbl">Commits (${selectedYear})</div></div>
-          </div>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px;">
-          <h2 style="font-size: 1.1rem;">Committed Recruits</h2>
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <label for="schoolClassFilter" style="font-size: 0.8rem; color: var(--text-muted);">Filter Class:</label>
-            <select id="schoolClassFilter" class="select-input" onchange="renderSchoolDetail('${safeSchoolName}', this.value)">
-              <option value="ALL" ${selectedYear === 'ALL' ? 'selected' : ''}>All Classes</option>
-              <option value="2028" ${selectedYear === '2028' ? 'selected' : ''}>Class of 2028</option>
-              <option value="2029" ${selectedYear === '2029' ? 'selected' : ''}>Class of 2029</option>
-              <option value="2030" ${selectedYear === '2030' ? 'selected' : ''}>Class of 2030</option>
-              <option value="2031" ${selectedYear === '2031' ? 'selected' : ''}>Class of 2031</option>
-              <option value="2032" ${selectedYear === '2032' ? 'selected' : ''}>Class of 2032</option>
-              <option value="2033" ${selectedYear === '2033' ? 'selected' : ''}>Class of 2033</option>
-              <option value="2034" ${selectedYear === '2034' ? 'selected' : ''}>Class of 2034</option>
-              <option value="2035" ${selectedYear === '2035' ? 'selected' : ''}>Class of 2035</option>
-              <option value="2036" ${selectedYear === '2036' ? 'selected' : ''}>Class of 2036</option>
-              <option value="2037" ${selectedYear === '2037' ? 'selected' : ''}>Class of 2037</option>
-              <option value="2038" ${selectedYear === '2038' ? 'selected' : ''}>Class of 2038</option>
-              <option value="2039" ${selectedYear === '2039' ? 'selected' : ''}>Class of 2039</option>
-              <option value="2040" ${selectedYear === '2040' ? 'selected' : ''}>Class of 2040</option>
-            </select>
-          </div>
-        </div>
-        <div class="school-commits-grid">${commitsGridHTML}</div>
-      `;
-    }
-
-    function openAccoladeRoster(accoladeName, selectedYear = '2028') { renderAccoladeDetail(accoladeName, selectedYear); switchTab('accoladeDetail'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
-
-    function renderAccoladeDetail(accoladeName, selectedYear = '2028') {
-      const container = document.getElementById('accoladeDetailContainer');
-      const logoPath = ACCOLADE_MAP[accoladeName] || '';
-      const selectedPlayers = recruits.filter(r => (r.accolades && r.accolades.includes(accoladeName)) && (selectedYear === 'ALL' || r.classYear === selectedYear));
-      
-      const safeAccoladeName = String(accoladeName).replace(/'/g, "\\'");
-      let rosterHTML = '';
-
-      if (selectedPlayers.length === 0) {
-        rosterHTML = `<div style="color: var(--text-muted); padding: 2.5rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); text-align: center; font-size: 0.9rem;">No players selected for ${accoladeName} ${selectedYear !== 'ALL' ? `in Class of ${selectedYear}` : ''}.</div>`;
-      } else if (accoladeName === "McDonald's All-American" || accoladeName === "Jordan Brand Classic") {
-        const team1Name = accoladeName === "McDonald's All-American" ? "East" : "Team Air";
-        const team2Name = accoladeName === "McDonald's All-American" ? "West" : "Team Flight";
-        
-        const classes = [...new Set(selectedPlayers.map(p => p.classYear))].sort();
-        
-        rosterHTML = classes.map(cls => {
-          let classPlayers = selectedPlayers.filter(p => p.classYear === cls);
-          
-          classPlayers.sort((a, b) => {
-            const hash = (str) => [...str].reduce((s, c) => Math.imul(31, s) + c.charCodeAt(0) | 0, 0);
-            return hash(a.id) - hash(b.id);
-          });
-
-          const team1 = classPlayers.filter((_, i) => i % 2 === 0);
-          const team2 = classPlayers.filter((_, i) => i % 2 !== 0);
-
-          const renderCard = (r) => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 52px; height: 52px;" onerror="this.src='emptypfpicon.png';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Class of '${r.classYear.slice(-2)} | ${r.pos} | ${r.height}</div><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${r.hs} (${r.state})</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px; justify-content: space-between;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (r.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`)}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating} OVR</span></div></div></div>`;
-
-          return `
-            <div style="margin-top: 1.5rem; margin-bottom: 0.5rem;"><h3 style="font-size: 1.2rem; color: var(--accent-main); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Class of ${cls}</h3></div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 2rem;">
-              <div>
-                <h4 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 1px;">${team1Name}</h4>
-                <div class="school-commits-grid" style="grid-template-columns: 1fr; margin-top: 0;">
-                  ${team1.map(renderCard).join('')}
-                </div>
-              </div>
-              <div>
-                <h4 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 1px;">${team2Name}</h4>
-                <div class="school-commits-grid" style="grid-template-columns: 1fr; margin-top: 0;">
-                  ${team2.map(renderCard).join('')}
-                </div>
-              </div>
-            </div>
-          `;
-        }).join('');
-      } else {
-        const renderCard = (r) => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 52px; height: 52px;" onerror="this.src='emptypfpicon.png';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Class of '${r.classYear.slice(-2)} | ${r.pos} | ${r.height}</div><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${r.hs} (${r.state})</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px; justify-content: space-between;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (r.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`)}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating} OVR</span></div></div></div>`;
-        rosterHTML = `<div class="school-commits-grid">${selectedPlayers.map(renderCard).join('')}</div>`;
-      }
-
-      container.innerHTML = `
-        <div class="school-detail-header">
-          <div class="school-detail-brand">
-            ${logoPath ? `<img src="${logoPath}" class="school-detail-logo" style="width: 64px; height: 64px;" onerror="this.style.display='none';">` : ''}
-            <div><h1 style="font-size: 1.8rem; text-transform: uppercase;">${accoladeName}</h1><div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">ALL-STAR ROSTER SELECTIONS</div></div>
-          </div>
-          <div class="school-detail-stats"><div class="school-stat-card"><div class="school-stat-val">${selectedPlayers.length}</div><div class="school-stat-lbl">Selections</div></div></div>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px;">
-          <h2 style="font-size: 1.1rem;">Roster</h2>
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <label for="accoladeClassFilter" style="font-size: 0.8rem; color: var(--text-muted);">Filter Class:</label>
-            <select id="accoladeClassFilter" class="select-input" onchange="renderAccoladeDetail('${safeAccoladeName}', this.value)">
-              <option value="ALL" ${selectedYear === 'ALL' ? 'selected' : ''}>All Classes</option>
-              <option value="2028" ${selectedYear === '2028' ? 'selected' : ''}>Class of 2028</option><option value="2029" ${selectedYear === '2029' ? 'selected' : ''}>Class of 2029</option><option value="2030" ${selectedYear === '2030' ? 'selected' : ''}>Class of 2030</option><option value="2031" ${selectedYear === '2031' ? 'selected' : ''}>Class of 2031</option><option value="2032" ${selectedYear === '2032' ? 'selected' : ''}>Class of 2032</option><option value="2033" ${selectedYear === '2033' ? 'selected' : ''}>Class of 2033</option><option value="2034" ${selectedYear === '2034' ? 'selected' : ''}>Class of 2034</option><option value="2035" ${selectedYear === '2035' ? 'selected' : ''}>Class of 2035</option><option value="2036" ${selectedYear === '2036' ? 'selected' : ''}>Class of 2036</option><option value="2037" ${selectedYear === '2037' ? 'selected' : ''}>Class of 2037</option><option value="2038" ${selectedYear === '2038' ? 'selected' : ''}>Class of 2038</option><option value="2039" ${selectedYear === '2039' ? 'selected' : ''}>Class of 2039</option><option value="2040" ${selectedYear === '2040' ? 'selected' : ''}>Class of 2040</option>
-            </select>
-          </div>
-        </div>
-        ${rosterHTML}
-      `;
-    }
-
-    function sortStats(key) { if (statsSortKey === key) statsSortDir = statsSortDir === 'desc' ? 'asc' : 'desc'; else { statsSortKey = key; statsSortDir = 'desc'; } renderStatsDashboard(); }
-
-    function renderStatsDashboard() {
-      const tbody = document.getElementById('statsTableBody'); 
-      const thead = document.getElementById('statsTableHeader'); 
-      const cls = document.getElementById('statsClassFilter')?.value || '2028';
-      const searchTxt = (document.getElementById('statsSearchInput')?.value || '').toLowerCase();
-
-      let filtered = recruits.filter(r => { 
-        const matchesSearch = String(r.name || "").toLowerCase().includes(searchTxt) || String(r.hs || "").toLowerCase().includes(searchTxt);
-        const matchesClass = cls === 'ALL' || r.classYear === cls; 
-        const matchesPos = selectedStatsPositions.includes(r.pos); 
-        const hasStats = r.stats && r.stats[currentStatLevel] && r.stats[currentStatLevel].gp > 0; 
-        return matchesSearch && matchesClass && matchesPos && hasStats && matchesQueryRules(r, currentStatLevel); 
-      });
-      
-      filtered.sort((a, b) => { let valA = parseStatValue(getComputedStat(a.stats[currentStatLevel], statsSortKey)); let valB = parseStatValue(getComputedStat(b.stats[currentStatLevel], statsSortKey)); if (valA === null) valA = -9999; if (valB === null) valB = -9999; return statsSortDir === 'desc' ? valB - valA : valA - valB; });
-      const keys = Object.keys(STAT_LABELS[currentStatView]);
-      const pctMap = calculatePercentileMap(filtered, currentStatLevel, keys);
-
-      let headersHTML = `<tr><th style="text-align: left;">Player</th><th>POS</th><th>Class</th>`;
-      keys.forEach(k => { let label = STAT_LABELS[currentStatView][k]; let arrow = statsSortKey === k ? (statsSortDir === 'desc' ? ' ▼' : ' ▲') : ''; headersHTML += `<th class="sortable" onclick="sortStats('${k}')">${label}${arrow}</th>`; });
-      headersHTML += `</tr>`; thead.innerHTML = headersHTML; tbody.innerHTML = '';
-      if (filtered.length === 0) { tbody.innerHTML = `<tr><td colspan="${keys.length + 3}" style="color: var(--text-muted); padding: 2rem;">No players match the current filters or query rules.</td></tr>`; return; }
-
-      filtered.forEach(p => {
-        let st = p.stats[currentStatLevel]; const row = document.createElement('tr');
-        row.onclick = () => { activeRecruit = p; renderProfile(p); switchTab('profile'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-        let html = `<td><div class="player-cell"><img src="${p.pfp && p.pfp.trim() !== '' ? p.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" onerror="this.src='emptypfpicon.png';"><span class="player-name">${p.name}</span></div></td><td><span class="badge-pos">${p.pos}</span></td><td><span class="badge-class">'${p.classYear.slice(-2)}</span></td>`;
-        keys.forEach(k => { let rawVal = getComputedStat(st, k); let pct = pctMap[k] ? pctMap[k][p.id] : null; let style = getPercentileStyle(pct, k); html += `<td style="${style}">${rawVal}</td>`; });
-        row.innerHTML = html + `</tr>`; tbody.appendChild(row);
-      });
-    }
-
+    // ==========================================
+    // PROFILE RENDERER
+    // ==========================================
     function renderProfile(p) {
-      if(!p) return;
       const container = document.getElementById('profileContainer');
-      const starDisplay = p.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (p.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`);
-      
-      const statusHTML = p.commitLogo ? `
-        <div class="commit-standout-box">
-          <div class="commit-label">Committed To</div>
-          <div class="commit-main-info"><img src="${p.commitLogo}" class="commit-standout-logo" onerror="this.style.display='none';"><span class="commit-school-name">${p.committedSchool}</span></div>
-        </div>` : `
-        <div class="uncommitted-box">
-          <div class="commit-label" style="margin-bottom: 4px;">Status</div>
-          <div style="font-weight: 700; color: var(--text-main); font-size: 1rem;">Uncommitted</div>
+      let starDisplay = "";
+      for (let i = 0; i < p.stars; i++) starDisplay += `<span class="stars-${p.stars}">★</span>`;
+
+      let commitHTML = "";
+      if (p.commitStatus === "Committed" && p.commitSchool) {
+        commitHTML = `
+          <div class="commit-standout-box">
+            <div class="commit-label">Committed To</div>
+            <div class="commit-main-info">
+              ${p.commitLogo ? `<img src="${p.commitLogo}" class="commit-standout-logo" onerror="this.style.display='none'">` : ''}
+              <span class="commit-school-name">${p.commitSchool}</span>
+            </div>
+          </div>
+        `;
+      } else {
+        commitHTML = `<div class="uncommitted-box"><span class="commit-label">Uncommitted Target</span></div>`;
+      }
+
+      let finalHTML = p.finalList.length ? `
+        <div class="recruiting-section-title">Final Choices</div>
+        <div class="final-list-grid">
+          ${p.finalList.map(sch => {
+            const isCommit = (p.commitStatus === "Committed" && sch === p.commitSchool);
+            return `<div class="final-school-card ${isCommit ? 'is-commit' : ''}" onclick="viewSchoolDetail('${sch}')">${sch}</div>`;
+          }).join('')}
+        </div>
+      ` : '';
+
+      let offersHTML = p.offers.length ? `
+        <div class="recruiting-section-title">Offer Sheet</div>
+        <div class="offers-flex">
+          ${p.offers.map(sch => `<div class="offer-pill" onclick="viewSchoolDetail('${sch}')">${sch}</div>`).join('')}
+        </div>
+      ` : '<div style="font-size: 0.8rem; color: var(--text-muted);">No reported offers.</div>';
+
+      let accoladesHTML = p.accolades.length ? p.accolades.map(acc => {
+        const logoName = ACCOLADE_MAP[acc];
+        return `<div class="accolade-pill" onclick="viewAccoladeDetail('${acc}')">
+          ${logoName ? `<img src="${logoName}" class="accolade-logo" onerror="this.style.display='none'">` : ''}
+          <span>${acc}</span>
         </div>`;
+      }).join('') : '<div style="font-size: 0.8rem; color: var(--text-muted);">None reported.</div>';
 
-      const finalListHTML = p.finalList ? p.finalList.schools.map(s => `<div class="final-school-card ${s === p.committedSchool ? 'is-commit' : ''}">${s}</div>`).join('') : '';
-      const offersHTML = p.offers ? p.offers.map(o => `<div class="offer-pill">${o}</div>`).join('') : '';
-      const accoladesHTML = p.accolades && p.accolades.length > 0 ? p.accolades.map(acc => {
-        const logo = ACCOLADE_MAP[acc] || '';
-        return `<div class="accolade-pill" onclick="openAccoladeRoster('${String(acc).replace(/'/g, "\\'")}')">${logo ? `<img src="${logo}" class="accolade-logo">` : ''}<span>${acc}</span></div>`;
-      }).join('') : '<div style="color: var(--text-muted); font-size: 0.8rem;">No major accolades yet.</div>';
-
-      const statsLevels = [ { key: 'hs', label: 'High School' }, { key: 'aau', label: 'AAU / Circuit' }, { key: 'fiba', label: 'FIBA / National' }, { key: 'intl', label: 'Intl / Pro' } ];
-      let statsTablesHTML = statsLevels.map(lvl => {
-        let st = p.stats[lvl.key];
-        if (!st || st.gp === 0) return '';
+      const buildStatsTable = (levelObj) => {
+        if (!levelObj || levelObj.gp === 0) return '<tr><td colspan="12" style="color:var(--text-muted);">No data available for this tier.</td></tr>';
         return `
-          <h4 style="font-size: 0.85rem; margin-top: 1.2rem; margin-bottom: 0.5rem; color: var(--text-main);">${lvl.label} <span style="color: var(--text-muted); font-weight: 400;">(${st.team})</span></h4>
-          <div class="profile-stats-table-wrapper">
-            <table class="profile-stats-table">
-              <tr><th>GP</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th><th>FG%</th><th>3FG%</th><th>FT%</th></tr>
-              <tr><td>${st.gp}</td><td>${st.mpg}</td><td>${st.ppg}</td><td>${st.rpg}</td><td>${st.apg}</td><td>${st.spg}</td><td>${st.bpg}</td><td>${st.topg}</td><td>${st.fg}</td><td>${st.fg3}</td><td>${st.ft}</td></tr>
-            </table>
-          </div>`;
-      }).join('');
+          <tr>
+            <td style="font-weight:700;">${levelObj.team}</td>
+            <td>${levelObj.gp}</td><td>${levelObj.mpg}</td><td>${levelObj.ppg}</td><td>${levelObj.rpg}</td><td>${levelObj.apg}</td>
+            <td>${levelObj.spg}</td><td>${levelObj.bpg}</td><td>${levelObj.fg}</td><td>${levelObj.fg3}</td><td>${levelObj.ft}</td>
+            <td>${levelObj.ts}</td>
+          </tr>
+        `;
+      };
 
-      if (!statsTablesHTML) statsTablesHTML = '<div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 1rem;">No statistics available.</div>';
+      // Rank Calculations
+      const classPeers = recruits.filter(r => r.classYear === p.classYear).sort((a, b) => b.rating - a.rating);
+      const classRank = p.rank !== "N/A" ? p.rank : (classPeers.findIndex(r => r.id === p.id) + 1);
+      const posRank = classPeers.filter(r => r.pos === p.pos).findIndex(r => r.id === p.id) + 1;
+      const stateRank = classPeers.filter(r => r.state === p.state).findIndex(r => r.id === p.id) + 1;
 
       container.innerHTML = `
+        <button class="back-btn" onclick="switchTab('rankings')">← Back to Dashboard</button>
+        
         <div class="profile-header">
           <div class="profile-header-left">
             <img src="${p.pfp && p.pfp.trim() !== '' ? p.pfp : 'emptypfpicon.png'}" class="player-avatar-lg" onerror="this.src='emptypfpicon.png';">
             <div class="profile-title-area">
               <h1>${p.name}</h1>
-              <div class="profile-meta-line" style="margin-bottom: 12px;">
-                <span class="badge-class">Class of 20${p.classYear.slice(-2)}</span><span class="badge-pos">${p.pos}</span><span class="rating-pill">${p.rating} OVR</span><span>${starDisplay}</span>
+              <div class="bio-location">${p.hometown} • ${p.hs}</div>
+              <div class="bio-metrics">
+                <span>Class of '20${p.classYear.slice(-2)}</span>
+                <span style="color: var(--border-color);">|</span>
+                <span>${p.pos}</span>
+                <span style="color: var(--border-color);">|</span>
+                <span>Grade: ${p.rating}</span>
+                <span style="color: var(--border-color);">|</span>
+                <span style="display: flex; align-items: center;">${starDisplay}</span>
               </div>
-              <div class="profile-meta-line"><span>📍 ${p.hometown}</span><span>•</span><span>🏫 ${p.hs}</span></div>
+              <div class="bio-ranks">
+                <div class="rank-item"><span class="rank-lbl">Natl Rank</span><span class="rank-val">${classRank}</span></div>
+                <div class="rank-item"><span class="rank-lbl">Pos Rank</span><span class="rank-val">${posRank}</span></div>
+                <div class="rank-item"><span class="rank-lbl">${p.state} Rank</span><span class="rank-val">${stateRank}</span></div>
+              </div>
             </div>
           </div>
         </div>
 
         <div class="profile-top-row">
           <div class="spec-box">
-            <div style="font-weight: 700; margin-bottom: 1rem; color: var(--text-main); text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px;">Measurables</div>
-            <div class="spec-item"><span class="spec-label">Height</span><span class="spec-value">${p.height}</span></div>
-            <div class="spec-item"><span class="spec-label">Weight</span><span class="spec-value">${p.weight}</span></div>
-            <div class="spec-item"><span class="spec-label">Wingspan</span><span class="spec-value">${p.wingspan || 'N/A'}</span></div>
-            <div class="spec-item"><span class="spec-label">DOB</span><span class="spec-value">${p.dob}</span></div>
+            <div style="font-size: 0.9rem; font-weight: 700; margin-bottom: 12px; color: var(--text-main);">MEASUREABLES</div>
+            <div class="spec-item"><span class="spec-label">Height</span><span class="spec-value">${p.ht}</span></div>
+            <div class="spec-item"><span class="spec-label">Weight</span><span class="spec-value">${p.wt} lbs</span></div>
+            <div class="spec-item"><span class="spec-label">State / Region</span><span class="spec-value badge-intl">${p.state}</span></div>
           </div>
+          
           <div class="recruiting-box">
-            ${statusHTML}
-            <div class="recruiting-section-title">${p.finalList ? p.finalList.title : 'Interests'}</div>
-            <div class="final-list-grid">${finalListHTML}</div>
-            <div class="recruiting-section-title">All Offers</div>
-            <div class="offers-flex">${offersHTML}</div>
+            ${commitHTML}
+            ${finalHTML}
+            ${offersHTML}
           </div>
-          <div class="recruiting-box">
-            <div style="font-weight: 700; margin-bottom: 1rem; color: var(--text-main); text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px;">Accolades & Events</div>
-            <div class="accolades-list">${accoladesHTML}</div>
+
+          <div class="spec-box" style="flex: 0.8;">
+            <div style="font-size: 0.9rem; font-weight: 700; margin-bottom: 12px; color: var(--text-main);">ACCOLADES</div>
+            <div class="accolades-list">
+              ${accoladesHTML}
+            </div>
           </div>
         </div>
 
         <div class="scouting-report-full">
-          <h3>Scouting Report</h3><p>${p.scouting}</p>
+          <h3>EVALUATION & REPORT</h3>
+          <p>${p.scoutingSummary}</p>
           <div class="scouting-columns">
-            <div><div class="recruiting-section-title" style="color: #a3e635;">Strengths</div><ul style="padding-left: 1rem; color: var(--text-muted); margin-top: 8px;">${p.strengths.map(s => `<li>${s}</li>`).join('')}</ul></div>
-            <div><div class="recruiting-section-title" style="color: #f87171;">Areas for Growth</div><ul style="padding-left: 1rem; color: var(--text-muted); margin-top: 8px;">${p.weaknesses.map(w => `<li>${w}</li>`).join('')}</ul></div>
+            <div>
+              <strong style="color: #2ecc71; margin-bottom: 6px; display: block; font-size: 0.75rem; text-transform: uppercase;">Strengths</strong>
+              <div style="color: var(--text-muted); line-height: 1.6;">${p.scoutingStrengths}</div>
+            </div>
+            <div>
+              <strong style="color: #e74c3c; margin-bottom: 6px; display: block; font-size: 0.75rem; text-transform: uppercase;">Areas of Growth</strong>
+              <div style="color: var(--text-muted); line-height: 1.6;">${p.scoutingWeaknesses}</div>
+            </div>
           </div>
         </div>
 
         <div class="stats-box-full">
-          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">
-            <h3 style="margin: 0;">Statistical Profile</h3><button class="query-btn" onclick="switchTab('stats'); setStatLevel('hs', null);">View Advanced Data &rarr;</button>
+          <h3 style="font-size: 1rem; margin-bottom: 0.5rem; color: var(--text-main); font-weight: 700;">STATISTICAL PROFILE</h3>
+          <div class="profile-stats-table-wrapper">
+            <table class="profile-stats-table">
+              <thead>
+                <tr>
+                  <th>Team</th><th>GP</th><th>MPG</th><th>PPG</th><th>RPG</th><th>APG</th><th>SPG</th><th>BPG</th><th>FG%</th><th>3P%</th><th>FT%</th><th>TS%</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${buildStatsTable(p.stats.hs)}
+                ${buildStatsTable(p.stats.aau)}
+                ${buildStatsTable(p.stats.fiba)}
+                ${buildStatsTable(p.stats.intl)}
+              </tbody>
+            </table>
           </div>
-          ${statsTablesHTML}
         </div>
       `;
     }
 
-    function submitFeedback(event) {
-      event.preventDefault();
-      const feedbackText = document.getElementById('feedbackInput').value.trim();
-      if (!feedbackText) return;
+    // ==========================================
+    // RANKINGS DASHBOARD
+    // ==========================================
+    function filterRecruits() {
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      const cls = document.getElementById('classFilter').value;
+      const state = document.getElementById('stateFilter').value;
+      const pos = document.getElementById('posFilter').value;
+      const star = document.getElementById('starFilter').value;
 
-      console.log("Feedback submitted:", feedbackText);
+      let filtered = recruits.filter(r => {
+        let match = true;
+        if (search) { match = r.name.toLowerCase().includes(search) || r.hs.toLowerCase().includes(search) || r.commitSchool.toLowerCase().includes(search); }
+        if (cls !== "OVERALL" && r.classYear !== cls) match = false;
+        if (state !== "ALL") { if (state === "INT") { if (r.state.length <= 2) match = false; } else { if (r.state !== state) match = false; } }
+        if (pos !== "ALL" && r.pos !== pos) match = false;
+        if (star !== "ALL" && r.stars.toString() !== star) match = false;
+        return match;
+      });
 
-      document.getElementById('feedbackInput').value = '';
-      const successMsg = document.getElementById('feedbackSuccess');
-      successMsg.style.display = 'block';
-      setTimeout(() => {
-        successMsg.style.display = 'none';
-      }, 4000);
+      filtered.sort((a, b) => {
+        const rankA = a.rank === "N/A" ? 9999 : parseInt(a.rank);
+        const rankB = b.rank === "N/A" ? 9999 : parseInt(b.rank);
+        return rankA - rankB;
+      });
+
+      const tbody = document.getElementById('recruitsTableBody');
+      tbody.innerHTML = '';
+      if(filtered.length === 0) { tbody.innerHTML = '<tr><td colspan="10" style="text-align:center; padding: 20px;">No players found.</td></tr>'; return; }
+
+      filtered.forEach((p, idx) => {
+        const tr = document.createElement('tr');
+        tr.onclick = () => viewProfile(p.id);
+
+        let starStr = "";
+        for (let i = 0; i < p.stars; i++) starStr += "★";
+        const starClass = `stars-${p.stars}`;
+
+        let commitHTML = `<span class="commit-tag" style="background: transparent; border: 1px dashed var(--border-color); color: var(--text-muted);">Uncommitted</span>`;
+        if (p.commitStatus === "Committed" && p.commitSchool) {
+          commitHTML = `<div class="status-cell">
+            ${p.commitLogo ? `<img src="${p.commitLogo}" class="school-logo" onerror="this.style.display='none'">` : ''}
+            <span class="commit-tag">${p.commitSchool}</span>
+          </div>`;
+        }
+
+        tr.innerHTML = `
+          <td><span class="rank-num">${p.rank !== "N/A" ? p.rank : idx+1}</span></td>
+          <td>
+            <div class="player-cell">
+              <img src="${p.pfp && p.pfp.trim() !== '' ? p.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" onerror="this.src='emptypfpicon.png';">
+              <div>
+                <span class="player-name">${p.name}</span>
+              </div>
+            </div>
+          </td>
+          <td><span class="badge-class">'20${p.classYear.slice(-2)}</span></td>
+          <td><span class="badge-pos">${p.pos}</span></td>
+          <td>${p.ht} / ${p.wt}</td>
+          <td><span class="${p.state.length > 2 ? 'badge-intl' : ''}">${p.state}</span></td>
+          <td>
+            <div style="display:flex; align-items:center; gap:8px; justify-content:center;">
+              ${p.hsTeamLogo ? `<img src="${p.hsTeamLogo}" class="school-logo" onerror="this.style.display='none'">` : ''}
+              <span>${p.hs}</span>
+            </div>
+          </td>
+          <td class="${starClass}">${starStr}</td>
+          <td><span class="rating-pill">${p.rating}</span></td>
+          <td style="text-align: left;">${commitHTML}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // ==========================================
+    // SCHOOL RANKINGS & DETAIL
+    // ==========================================
+    function getSchoolRankings(filterYear = "ALL") {
+      const commitData = {};
+      recruits.forEach(r => {
+        if (r.commitStatus === "Committed" && r.commitSchool) {
+          if (filterYear !== "ALL" && r.classYear !== filterYear) return;
+          const sName = r.commitSchool;
+          if (!commitData[sName]) commitData[sName] = { name: sName, logo: r.commitLogo, count: 0, sumRating: 0, recruits: [] };
+          commitData[sName].count++;
+          commitData[sName].sumRating += r.rating;
+          commitData[sName].recruits.push(r);
+        }
+      });
+      const arr = Object.values(commitData);
+      arr.sort((a, b) => b.sumRating - a.sumRating);
+      return arr;
+    }
+
+    function renderSchoolRankings() {
+      const filterYear = document.getElementById('schoolRankingsYearFilter').value;
+      const search = document.getElementById('schoolSearchInput').value.toLowerCase();
+      let ranks = getSchoolRankings(filterYear);
+      if(search) ranks = ranks.filter(s => s.name.toLowerCase().includes(search));
+
+      const tbody = document.getElementById('schoolRankingsTableBody');
+      tbody.innerHTML = '';
+      if(ranks.length === 0) { tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 20px;">No school commitments found for this filter.</td></tr>'; return; }
+
+      ranks.forEach((s, idx) => {
+        const avg = (s.sumRating / s.count).toFixed(1);
+        const tr = document.createElement('tr');
+        tr.onclick = () => viewSchoolDetail(s.name);
+        
+        let pNames = s.recruits.slice(0, 3).map(r => r.name).join(', ');
+        if(s.recruits.length > 3) pNames += ` +${s.recruits.length - 3} more`;
+
+        tr.innerHTML = `
+          <td><span class="rank-num">${idx + 1}</span></td>
+          <td style="text-align: left;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              ${s.logo ? `<img src="${s.logo}" class="school-logo-lg" onerror="this.style.display='none'">` : ''}
+              <strong style="color:var(--text-main); font-size: 0.95rem;">${s.name}</strong>
+            </div>
+          </td>
+          <td><span style="background:var(--bg-hover); padding: 4px 12px; border-radius: 6px; font-weight:700;">${s.count}</span></td>
+          <td style="font-size: 0.75rem; color:var(--text-muted);">${pNames}</td>
+          <td><span class="rating-pill">${s.sumRating} <span style="font-size:0.65rem; font-weight:400;">(${avg} avg)</span></span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderSchoolDetail(schoolName) {
+      const allRanks = getSchoolRankings("ALL");
+      const sData = allRanks.find(s => s.name === schoolName);
+      const container = document.getElementById('schoolDetailContainer');
+      if(!sData) { container.innerHTML = `<p>Error loading school data.</p>`; return; }
+
+      const avgRating = (sData.sumRating / sData.count).toFixed(1);
+      
+      let gridHTML = sData.recruits.sort((a,b)=>b.rating - a.rating).map(p => {
+        let starStr = ""; for (let i = 0; i < p.stars; i++) starStr += "★";
+        return `
+          <div class="commit-player-card" onclick="viewProfile('${p.id}')">
+            <img src="${p.pfp && p.pfp.trim() !== '' ? p.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 50px; height: 50px;" onerror="this.src='emptypfpicon.png';">
+            <div>
+              <div style="font-weight:700; color:var(--text-main); margin-bottom: 2px;">${p.name}</div>
+              <div style="font-size:0.75rem; color:var(--text-muted);">Class of 20${p.classYear.slice(-2)} • ${p.pos}</div>
+              <div style="margin-top: 6px; font-size: 0.7rem;">
+                <span class="stars-${p.stars}">${starStr}</span> 
+                <span class="rating-pill" style="padding: 2px 6px; font-size: 0.7rem; margin-left: 6px;">${p.rating} Grade</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = `
+        <div class="school-detail-header">
+          <div class="school-detail-brand">
+            ${sData.logo ? `<img src="${sData.logo}" class="school-detail-logo" onerror="this.style.display='none'">` : ''}
+            <div>
+              <h2 style="font-size: 2rem; color: var(--text-main); margin-bottom: 4px;">${sData.name}</h2>
+              <div style="color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Recruiting Class History</div>
+            </div>
+          </div>
+          <div class="school-detail-stats">
+            <div class="school-stat-card">
+              <div class="school-stat-val">${sData.count}</div>
+              <div class="school-stat-lbl">Total Commits</div>
+            </div>
+            <div class="school-stat-card">
+              <div class="school-stat-val">${sData.sumRating}</div>
+              <div class="school-stat-lbl">All-Time Score</div>
+            </div>
+            <div class="school-stat-card">
+              <div class="school-stat-val">${avgRating}</div>
+              <div class="school-stat-lbl">Avg Player Grade</div>
+            </div>
+          </div>
+        </div>
+        <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--text-main);">COMMITTED PLAYERS</h3>
+        <div class="school-commits-grid">
+          ${gridHTML}
+        </div>
+      `;
+    }
+
+    // ==========================================
+    // ACCOLADE DETAIL
+    // ==========================================
+    function renderAccoladeDetail(accName) {
+      const container = document.getElementById('accoladeDetailContainer');
+      const logoName = ACCOLADE_MAP[accName];
+      
+      const filtered = recruits.filter(r => r.accolades.includes(accName)).sort((a,b) => b.rating - a.rating);
+
+      let gridHTML = filtered.map(p => {
+        let starStr = ""; for (let i = 0; i < p.stars; i++) starStr += "★";
+        return `
+          <div class="commit-player-card" onclick="viewProfile('${p.id}')">
+            <img src="${p.pfp && p.pfp.trim() !== '' ? p.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 50px; height: 50px;" onerror="this.src='emptypfpicon.png';">
+            <div>
+              <div style="font-weight:700; color:var(--text-main); margin-bottom: 2px;">${p.name}</div>
+              <div style="font-size:0.75rem; color:var(--text-muted);">Class of 20${p.classYear.slice(-2)} • ${p.pos}</div>
+              <div style="margin-top: 6px; font-size: 0.7rem;">
+                <span class="stars-${p.stars}">${starStr}</span> 
+                <span class="rating-pill" style="padding: 2px 6px; font-size: 0.7rem; margin-left: 6px;">${p.rating} Grade</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = `
+        <div class="school-detail-header">
+          <div class="school-detail-brand">
+            ${logoName ? `<img src="${logoName}" class="school-detail-logo" onerror="this.style.display='none'">` : ''}
+            <div>
+              <h2 style="font-size: 2rem; color: var(--text-main); margin-bottom: 4px;">${accName}</h2>
+              <div style="color: var(--text-muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">Accolade Roster</div>
+            </div>
+          </div>
+          <div class="school-detail-stats">
+            <div class="school-stat-card">
+              <div class="school-stat-val">${filtered.length}</div>
+              <div class="school-stat-lbl">Total Selections</div>
+            </div>
+          </div>
+        </div>
+        <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--text-main);">SELECTED PLAYERS</h3>
+        <div class="school-commits-grid">
+          ${gridHTML}
+        </div>
+      `;
+    }
+
+    // ==========================================
+    // STATS ENGINE & QUERY BUILDER
+    // ==========================================
+    function setStatLevel(lvl, btn) {
+      currentStatLevel = lvl;
+      document.querySelectorAll('#levelTabs .sub-nav-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderStatsDashboard();
+    }
+    function setStatMode(mode, btn) {
+      currentStatMode = mode;
+      document.querySelectorAll('#modeTabs .sub-nav-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderStatsDashboard();
+    }
+    function setStatView(view, btn) {
+      currentStatView = view;
+      document.querySelectorAll('#viewTabs .sub-nav-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderStatsDashboard();
+    }
+    function togglePosFilter(pos, btn) {
+      if (selectedStatsPositions.includes(pos)) {
+        selectedStatsPositions = selectedStatsPositions.filter(p => p !== pos);
+        btn.classList.remove('active');
+      } else {
+        selectedStatsPositions.push(pos);
+        btn.classList.add('active');
+      }
+      renderStatsDashboard();
+    }
+    function toggleAllPositions() {
+      const allBtns = document.querySelectorAll('.pos-pill');
+      if (selectedStatsPositions.length === 6) {
+        selectedStatsPositions = [];
+        allBtns.forEach(b => b.classList.remove('active'));
+      } else {
+        selectedStatsPositions = ['PG', 'CG', 'SG', 'SF', 'PF', 'C'];
+        allBtns.forEach(b => b.classList.add('active'));
+      }
+      renderStatsDashboard();
+    }
+
+    function addQueryRule() {
+      queryRules.push({ field: 'ppg', op: '>=', val: '' });
+      renderQueryRules();
+      if(isQueryEngaged) renderStatsDashboard();
+    }
+    function updateQueryRule(index, key, val) {
+      queryRules[index][key] = val;
+      if(isQueryEngaged) renderStatsDashboard();
+    }
+    function removeQueryRule(index) {
+      queryRules.splice(index, 1);
+      renderQueryRules();
+      if(isQueryEngaged) renderStatsDashboard();
+    }
+    function clearQueryRules() {
+      queryRules = [];
+      renderQueryRules();
+      if(isQueryEngaged) renderStatsDashboard();
+    }
+    function toggleQueryEngage() {
+      isQueryEngaged = !isQueryEngaged;
+      const btn = document.getElementById('toggleQueryBtn');
+      const badge = document.getElementById('queryEngagedBadge');
+      if (isQueryEngaged) {
+        btn.classList.add('engaged');
+        btn.innerText = "Query Engaged";
+        badge.innerText = "ON";
+        badge.style.background = "#27ae60";
+      } else {
+        btn.classList.remove('engaged');
+        btn.innerText = "Engage Query Search";
+        badge.innerText = "OFF";
+        badge.style.background = "var(--border-color)";
+      }
+      renderStatsDashboard();
+    }
+
+    function renderQueryRules() {
+      const container = document.getElementById('queryRulesContainer');
+      container.innerHTML = '';
+      if(queryRules.length === 0) return;
+      
+      const statOptions = Object.entries(STAT_LABELS.basic).concat(Object.entries(STAT_LABELS.advanced), Object.entries(STAT_LABELS.shooting))
+        .map(([k,v]) => `<option value="${k}">${v}</option>`).join('');
+
+      queryRules.forEach((rule, i) => {
+        const row = document.createElement('div');
+        row.className = 'query-rule-row';
+        row.innerHTML = `
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight:700;">WHERE</span>
+          <select class="select-input" style="padding: 6px; font-size: 0.75rem;" onchange="updateQueryRule(${i}, 'field', this.value)">
+            ${statOptions.replace(`value="${rule.field}"`, `value="${rule.field}" selected`)}
+          </select>
+          <select class="select-input" style="padding: 6px; font-size: 0.75rem;" onchange="updateQueryRule(${i}, 'op', this.value)">
+            <option value=">=" ${rule.op === '>=' ? 'selected' : ''}>&ge; (Greater/Eq)</option>
+            <option value="<=" ${rule.op === '<=' ? 'selected' : ''}>&le; (Less/Eq)</option>
+            <option value="==" ${rule.op === '==' ? 'selected' : ''}>== (Equals)</option>
+          </select>
+          <input type="number" step="0.1" class="search-input" style="width: 80px; padding: 6px; font-size: 0.75rem;" value="${rule.val}" onkeyup="updateQueryRule(${i}, 'val', this.value)" onchange="updateQueryRule(${i}, 'val', this.value)">
+          <button class="query-btn query-btn-danger" style="padding: 6px 10px;" onclick="removeQueryRule(${i})">X</button>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function handleSort(key) {
+      if (statsSortKey === key) { statsSortDir = statsSortDir === 'desc' ? 'asc' : 'desc'; } 
+      else { statsSortKey = key; statsSortDir = 'desc'; }
+      renderStatsDashboard();
+    }
+
+    function renderStatsDashboard() {
+      const clsFilter = document.getElementById('statsClassFilter').value;
+      const search = document.getElementById('statsSearchInput').value.toLowerCase();
+      
+      let filtered = recruits.filter(r => {
+        let st = r.stats[currentStatLevel];
+        if (!st || st.gp === 0) return false;
+        if (clsFilter !== "ALL" && r.classYear !== clsFilter) return false;
+        if (selectedStatsPositions.length > 0 && !selectedStatsPositions.includes(r.pos)) return false;
+        if (search && !r.name.toLowerCase().includes(search)) return false;
+        return true;
+      });
+
+      const getScaledVal = (player, statKey) => {
+        let st = player.stats[currentStatLevel];
+        let val = st[statKey];
+        if (typeof val === 'string' && val.includes('%')) val = parseFloat(val);
+        if (typeof val === 'string') val = parseFloat(val);
+        if (isNaN(val)) val = 0;
+
+        if (SCALABLE_STATS.includes(statKey) && currentStatMode !== 'per_game') {
+          let mpg = parseFloat(st.mpg) || 1;
+          let scaleFactor = 1;
+          if (currentStatMode === 'per_40') scaleFactor = 40 / mpg;
+          if (currentStatMode === 'per_75') scaleFactor = 75 / (mpg * 1.8); // Fictional pace est
+          if (currentStatMode === 'per_100') scaleFactor = 100 / (mpg * 1.8);
+          val = val * scaleFactor;
+        }
+        return val;
+      };
+
+      if (isQueryEngaged && queryRules.length > 0) {
+        filtered = filtered.filter(r => {
+          return queryRules.every(rule => {
+            if (rule.val === '') return true;
+            let val = getScaledVal(r, rule.field);
+            let target = parseFloat(rule.val);
+            if (rule.op === '>=') return val >= target;
+            if (rule.op === '<=') return val <= target;
+            if (rule.op === '==') return Math.abs(val - target) < 0.1;
+            return true;
+          });
+        });
+      }
+
+      filtered.sort((a, b) => {
+        let vA = getScaledVal(a, statsSortKey);
+        let vB = getScaledVal(b, statsSortKey);
+        if (vA < vB) return statsSortDir === 'desc' ? 1 : -1;
+        if (vA > vB) return statsSortDir === 'desc' ? -1 : 1;
+        return 0;
+      });
+
+      const statKeys = Object.keys(STAT_LABELS[currentStatView]);
+      
+      const thead = document.getElementById('statsTableHeader');
+      let thHTML = `<tr>
+        <th style="text-align: left; position: sticky; left: 0; background: var(--bg-card); z-index: 10;">Player</th>
+        <th style="position: sticky; left: 200px; background: var(--bg-card); z-index: 10;">POS</th>
+        <th style="position: sticky; left: 250px; background: var(--bg-card); z-index: 10;">Class</th>`;
+      
+      statKeys.forEach(k => {
+        let indicator = '';
+        if (statsSortKey === k) indicator = statsSortDir === 'desc' ? ' ▼' : ' ▲';
+        thHTML += `<th class="sortable" onclick="handleSort('${k}')">${STAT_LABELS[currentStatView][k]}${indicator}</th>`;
+      });
+      thHTML += `</tr>`;
+      thead.innerHTML = thHTML;
+
+      const tbody = document.getElementById('statsTableBody');
+      tbody.innerHTML = '';
+      if(filtered.length === 0) { tbody.innerHTML = `<tr><td colspan="${statKeys.length + 3}" style="text-align:center; padding: 20px;">No matching data.</td></tr>`; return; }
+
+      let columnsData = {};
+      statKeys.forEach(k => { columnsData[k] = filtered.map(r => getScaledVal(r, k)); });
+
+      filtered.forEach(p => {
+        const tr = document.createElement('tr');
+        let tdHTML = `
+          <td style="text-align: left; position: sticky; left: 0; background: var(--bg-card); z-index: 5;">
+            <div class="player-cell" onclick="viewProfile('${p.id}')" style="cursor: pointer;">
+              <img src="${p.pfp && p.pfp.trim() !== '' ? p.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" onerror="this.src='emptypfpicon.png';">
+              <span class="player-name">${p.name}</span>
+            </div>
+          </td>
+          <td style="position: sticky; left: 200px; background: var(--bg-card); z-index: 5;"><span class="badge-pos">${p.pos}</span></td>
+          <td style="position: sticky; left: 250px; background: var(--bg-card); z-index: 5;"><span class="badge-class">'20${p.classYear.slice(-2)}</span></td>
+        `;
+        
+        statKeys.forEach(k => {
+          let rawVal = getScaledVal(p, k);
+          let st = p.stats[currentStatLevel];
+          let originalStr = st[k];
+          let displayVal = originalStr;
+
+          if (SCALABLE_STATS.includes(k) && currentStatMode !== 'per_game') displayVal = rawVal.toFixed(1);
+          else if (typeof originalStr === 'string' && originalStr.includes('%')) displayVal = originalStr;
+          else if (typeof rawVal === 'number' && rawVal % 1 !== 0) displayVal = rawVal.toFixed(1);
+          else displayVal = rawVal;
+
+          let bgCol = "transparent";
+          if (isQueryEngaged && queryRules.some(rule => rule.field === k)) {
+            let max = Math.max(...columnsData[k]);
+            let min = Math.min(...columnsData[k]);
+            let pct = max === min ? 0.5 : (rawVal - min) / (max - min);
+            bgCol = `rgba(39, 174, 96, ${pct * 0.35})`;
+          }
+
+          tdHTML += `<td style="background-color: ${bgCol}; font-weight: ${bgCol !== 'transparent' ? '700' : '400'};">${displayVal}</td>`;
+        });
+        tr.innerHTML = tdHTML;
+        tbody.appendChild(tr);
+      });
     }
   </script>
 </body>
