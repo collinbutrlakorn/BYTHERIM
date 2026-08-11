@@ -225,7 +225,7 @@
     .bio-dot { color: #444; font-size: 0.8rem; }
 
     /* Bio Badges Grid */
-    .bio-badges-grid { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+    .bio-badges-grid { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; margin-top: 6px; }
     .bio-badge {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--border-color);
@@ -233,12 +233,22 @@
       padding: 8px 12px;
       display: flex;
       flex-direction: column;
+      flex: 0 1 auto;
       min-width: 100px;
-      flex: 1 1 calc(16% - 8px);
+      max-width: 135px;
     }
     .bio-badge.highlight {
       background: rgba(255, 255, 255, 0.08);
       border-color: rgba(255, 255, 255, 0.2);
+    }
+    .bio-badge.clickable {
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .bio-badge.clickable:hover {
+      background: rgba(255, 255, 255, 0.16);
+      border-color: var(--accent-main);
+      transform: translateY(-2px);
     }
     .bio-badge-label { font-size: 0.65rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
     .bio-badge-val { font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-top: 2px; }
@@ -318,7 +328,7 @@
       .sub-nav-group { justify-content: center; }
       .school-detail-header { flex-direction: column; align-items: flex-start; }
       .pos-filter-wrapper { width: 100%; justify-content: space-between; }
-      .bio-badge { flex: 1 1 calc(50% - 8px); }
+      .bio-badge { flex: 1 1 calc(50% - 8px); max-width: 100%; }
     }
   </style>
 </head>
@@ -726,6 +736,24 @@
       }
     }
 
+    function filterAndGoToRankings(classYr, pos = 'ALL', state = 'ALL') {
+      const cFilter = document.getElementById('classFilter');
+      const pFilter = document.getElementById('posFilter');
+      const sFilter = document.getElementById('stateFilter');
+      const sInput = document.getElementById('searchInput');
+      const starFilter = document.getElementById('starFilter');
+
+      if (cFilter) cFilter.value = classYr || '2028';
+      if (pFilter) pFilter.value = pos || 'ALL';
+      if (sFilter) sFilter.value = state || 'ALL';
+      if (sInput) sInput.value = '';
+      if (starFilter) starFilter.value = 'ALL';
+
+      filterRecruits();
+      switchTab('rankings');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
     function setStatLevel(level, element) { currentStatLevel = level; document.querySelectorAll('#levelTabs .sub-nav-btn').forEach(btn => btn.classList.remove('active')); if (element) element.classList.add('active'); renderStatsDashboard(); }
     function setStatMode(mode, element) { currentStatMode = mode; document.querySelectorAll('#modeTabs .sub-nav-btn').forEach(btn => btn.classList.remove('active')); if (element) element.classList.add('active'); renderStatsDashboard(); }
     function setStatView(view, element) { 
@@ -1127,11 +1155,11 @@
       if (p.state && p.state !== 'ALL' && p.state !== 'INT') {
         const stateRecruits = classRecruits.filter(r => r.state === p.state);
         const stateRankIdx = stateRecruits.findIndex(r => r.id === p.id);
-        if (stateRankIdx !== -1) stateRank = `#${stateRankIdx + 1}`;
+        if (stateRankIdx !== -1) stateRank = `#${stateRankIdx + 1} (${p.state})`;
       } else if (p.state === 'INT') {
         const intlRecruits = classRecruits.filter(r => r.state === 'INT');
         const intlRankIdx = intlRecruits.findIndex(r => r.id === p.id);
-        if (intlRankIdx !== -1) stateRank = `#${intlRankIdx + 1} (Intl)`;
+        if (intlRankIdx !== -1) stateRank = `#${intlRankIdx + 1} (INTL)`;
       }
 
       const statusHTML = p.commitLogo ? `
@@ -1180,7 +1208,7 @@
               <div class="bio-sub-info">
                 <span>${p.hs}</span>
                 <span class="bio-dot">•</span>
-                <span>${p.hometown}${p.state && p.state !== 'ALL' && p.state !== 'INT' ? `, ${p.state}` : ''}</span>
+                <span>${p.hometown}</span>
               </div>
 
               <div class="bio-badges-grid">
@@ -1196,15 +1224,15 @@
                   <span class="bio-badge-label">Rating</span>
                   <span class="bio-badge-val">${p.rating} OVR</span>
                 </div>
-                <div class="bio-badge highlight">
+                <div class="bio-badge highlight clickable" onclick="filterAndGoToRankings('${p.classYear}', 'ALL', 'ALL')" title="View National Rankings for ${p.classYear}">
                   <span class="bio-badge-label">Natl Rank</span>
                   <span class="bio-badge-val">${classRank}</span>
                 </div>
-                <div class="bio-badge highlight">
+                <div class="bio-badge highlight clickable" onclick="filterAndGoToRankings('${p.classYear}', '${p.pos}', 'ALL')" title="View ${p.pos} Rankings for ${p.classYear}">
                   <span class="bio-badge-label">Pos Rank</span>
                   <span class="bio-badge-val">${posRank} ${p.pos}</span>
                 </div>
-                <div class="bio-badge highlight">
+                <div class="bio-badge highlight clickable" onclick="filterAndGoToRankings('${p.classYear}', 'ALL', '${p.state}')" title="View ${p.state} Rankings for ${p.classYear}">
                   <span class="bio-badge-label">State Rank</span>
                   <span class="bio-badge-val">${stateRank}</span>
                 </div>
