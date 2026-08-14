@@ -347,6 +347,9 @@
   </header>
 
   <div class="container">
+    <!-- GLOBAL BACK BUTTON -->
+    <button id="globalBackBtn" class="back-btn" onclick="goBack()" style="display: none; margin-bottom: 1.25rem;">← Go Back</button>
+
     <div id="rankings-tab" class="tab-content active">
       <div class="controls-bar">
         <input type="text" id="searchInput" class="search-input" placeholder="Search player or school..." onkeyup="filterRecruits()">
@@ -545,12 +548,10 @@
     </div>
 
     <div id="schoolDetail-tab" class="tab-content">
-      <button class="back-btn" onclick="switchTab('schoolRankings')">← Back to School Rankings</button>
       <div id="schoolDetailContainer"></div>
     </div>
 
     <div id="accoladeDetail-tab" class="tab-content">
-      <button class="back-btn" onclick="switchTab('profile')">← Back to Player Profile</button>
       <div id="accoladeDetailContainer"></div>
     </div>
   </div>
@@ -573,6 +574,9 @@
 
     const SCALABLE_STATS = ['ppg', 'rpg', 'apg', 'spg', 'bpg', 'topg', 'fga2', 'rimFga', 'shortMidFga', 'longMidFga', 'fga3', 'fta'];
 
+    let tabHistory = [];
+    let currentActiveTab = 'rankings';
+    
     let currentStatLevel = 'hs';    
     let currentStatView = 'basic';  
     let currentStatMode = 'per_game';
@@ -711,7 +715,12 @@
       return val;
     }
 
-    function switchTab(tabName) {
+    function switchTab(tabName, isBack = false) {
+      if (!isBack && currentActiveTab !== tabName) {
+        tabHistory.push(currentActiveTab);
+      }
+      currentActiveTab = tabName;
+
       document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
       document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
 
@@ -733,6 +742,19 @@
         document.getElementById('schoolDetail-tab').classList.add('active');
       } else if (tabName === 'accoladeDetail') {
         document.getElementById('accoladeDetail-tab').classList.add('active');
+      }
+      
+      const backBtn = document.getElementById('globalBackBtn');
+      if (backBtn) {
+        backBtn.style.display = tabHistory.length > 0 ? 'inline-flex' : 'none';
+      }
+    }
+
+    function goBack() {
+      if (tabHistory.length > 0) {
+        const prevTab = tabHistory.pop();
+        switchTab(prevTab, true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     }
 
