@@ -1,11 +1,57 @@
 :root {
-  --bg-color: #0b0e14;
-  --card-bg: #161b22;
-  --accent: #ff5500;
-  --text-main: #f0f6fc;
-  --text-muted: #8b949e;
-  --border: #30363d;
+  --bg-color: #171b2e;         /* Deep background tint derived from navy */
+  --card-bg: #232a49;        /* Primary Navy */
+  --card-hover: #2d365d;     /* Slightly lighter navy for hover state */
+  --accent: #964282;         /* Primary Magenta/Purple Accent */
+  --accent-dark: #5e2a4f;    /* Deep Plum Accent */
+  --text-main: #f5f6fa;
+  --text-muted: #a0a7c4;
+  --border: #38426b;
 }
+
+/* Updated Header Logo */
+.brand-logo {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+
+.logo-img {
+  height: 42px;              /* Adjust height to fit your navbar neatly */
+  width: auto;
+  object-fit: contain;
+}
+
+/* Button & Accent Adjustments */
+.rp-btn {
+  background: var(--accent-dark);
+  border: 1px solid var(--accent);
+  color: #fff !important;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  transition: all 0.2s ease !important;
+}
+
+.rp-btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.badge {
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 4px;
+}
+
+.hero {
+  padding: 5rem 5%;
+  background: linear-gradient(180deg, rgba(150, 66, 130, 0.15) 0%, rgba(23, 27, 46, 0) 100%);
+  border-bottom: 1px solid var(--border);
+}
+
 
 * {
   box-sizing: border-box;
