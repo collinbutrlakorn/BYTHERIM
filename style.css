@@ -281,3 +281,47 @@ h1, h2, h3, .section-title, .hero h1, .card h3 {
   overflow-y: auto;
   border-radius: 6px;
 }
+.twitter-cta-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 2rem 1rem;
+  background: var(--bg-color);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.x-logo {
+  font-size: 2.5rem;
+  color: var(--text-main);
+  margin-bottom: 0.5rem;
+}
+
+.twitter-cta-box h4 {
+  color: var(--text-main);
+  font-size: 1.3rem;
+  margin-bottom: 0.5rem;
+}
+
+.twitter-cta-box p {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+  max-width: 280px;
+}
+
+.x-follow-btn {
+  background: var(--accent);
+  color: #fff;
+  padding: 0.6rem 1.4rem;
+  border-radius: 20px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: opacity 0.2s;
+}
+
+.x-follow-btn:hover {
+  opacity: 0.9;
+}
