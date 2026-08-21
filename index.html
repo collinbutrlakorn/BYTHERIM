@@ -2,21 +2,55 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>BYTHERIM</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BYTHERIM | Basketball Commentary & Analysis</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-  <header>
-    <a href="/">BYTHERIM Logo</a>
-    <nav>
+
+  <!-- Navigation Bar -->
+  <header class="navbar">
+    <a href="/" class="brand-logo">BYTHERIM</a>
+    <nav class="nav-links">
       <a href="/podcast">Podcast</a>
       <a href="/draft">Draft</a>
       <a href="/nba">NBA</a>
-      <a href="/rp">BYTHERIM RP Experience</a>
+      <a href="/rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
     </nav>
   </header>
-  <main>
-    <h1>Welcome to BYTHERIM</h1>
-    <p>Real-life basketball commentary & blog coming soon.</p>
+
+  <!-- Hero Feature Section -->
+  <section class="hero">
+    <div class="hero-content">
+      <span class="tag">FEATURED STORY</span>
+      <h1>Welcome to BYTHERIM</h1>
+      <p>Deep-dive real-world basketball commentary, scouting reports, and high-stakes hoops culture.</p>
+      <a href="/rp/" class="cta-btn">Enter the RP Experience &rarr;</a>
+    </div>
+  </section>
+
+  <!-- Content Grid -->
+  <main class="container">
+    <h2 class="section-title">LATEST INSIGHTS</h2>
+    <div class="grid">
+      <article class="card">
+        <div class="card-tag">ANALYSIS</div>
+        <h3>Modern Offense & Court Geometry</h3>
+        <p>Breaking down dynamic pick-and-roll spacing and how ball-handler mechanics alter defense rotations.</p>
+      </article>
+      <article class="card">
+        <div class="card-tag">PODCAST</div>
+        <h3>Episode 01: The Draft Hub</h3>
+        <p>Analyzing elite high school prospects making their mark on national scouting radars.</p>
+      </article>
+      <article class="card">
+        <div class="card-tag">SIMULATION</div>
+        <h3>RP High School Recruiting Live</h3>
+        <p>Track class ratings, offer sheets, and commit announcements in our custom RP universe.</p>
+      </article>
+    </div>
   </main>
+
 </body>
 </html>
