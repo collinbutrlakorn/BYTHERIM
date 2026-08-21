@@ -62,9 +62,18 @@
 body {
   background-color: var(--bg-color);
   color: var(--text-main);
-  font-family: 'Inter', sans-serif;
-  line-height: 1.6;
+  font-family: 'Asap Condensed', sans-serif;
+  line-height: 1.5;
 }
+
+/* Headings and Titles */
+h1, h2, h3, .section-title, .hero h1, .card h3 {
+  font-family: 'Anantason Condensed', 'Asap Condensed', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 
 /* Header & Nav */
 .navbar {
