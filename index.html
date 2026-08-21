@@ -82,15 +82,24 @@
     <div class="media-card">
       <h3 class="media-header">RECENT TWEETS</h3>
       <div class="twitter-container">
-        <!-- Replace YOUR_TWITTER_HANDLE with your handle without the @ -->
-        <a class="twitter-timeline" 
-           data-height="400" 
-           data-theme="dark" 
-           data-chrome="noheader nofooter transparent"
-           href="https://twitter.com/collinbutr">
-           Tweets by BYTHERIM
-        </a>
-        <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+  <a class="twitter-timeline" 
+     data-height="400" 
+     data-theme="dark" 
+     data-chrome="noheader nofooter transparent"
+     href="https://x.com/collinbutr">
+     Tweets by BYTHERIM
+  </a>
+</div>
+
+<!-- Load Twitter JS at the end of the container -->
+<script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+<script>
+  // Forces Twitter to parse the timeline if loaded dynamically
+  if (window.twttr && window.twttr.widgets) {
+    window.twttr.widgets.load();
+  }
+</script>
+
       </div>
     </div>
 
