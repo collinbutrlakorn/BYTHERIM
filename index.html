@@ -4,26 +4,30 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BYTHERIM | Basketball Commentary & Analysis</title>
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png">
+
   <link rel="stylesheet" href="style.css">
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
+<body>
 
-<!-- Navigation Bar Header -->
-<header class="navbar">
-  <a href="./" class="brand-logo">
-    <img src="logo.png" alt="BYTHERIM Logo" class="logo-img">
-  </a>
-  <nav class="nav-links">
-    <a href="/podcast">Podcast</a>
-    <a href="/draft">Draft</a>
-    <a href="/nba">NBA</a>
-    <a href="./rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
-  </nav>
-</header>
-
+  <!-- Navigation Bar Header -->
+  <header class="navbar">
+    <a href="./" class="brand-logo">
+      <img src="logo.png" alt="BYTHERIM Logo" class="logo-img">
+    </a>
+    <nav class="nav-links">
+      <a href="/podcast">Podcast</a>
+      <a href="/draft">Draft</a>
+      <a href="/nba">NBA</a>
+      <a href="./rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
+    </nav>
+  </header>
 
   <!-- Hero Feature Section -->
   <section class="hero">
@@ -31,79 +35,97 @@
       <span class="tag">UNBIASED BASKETBALL COVERAGE</span>
       <h1>UNFILTERED HOOPS ANALYSIS</h1>
       <p>BYTHERIM is an unbiased basketball platform dedicated to pure love of the game—delivering deep-dive scouting reports, real-world basketball commentary, and interactive simulations.</p>
-      <a href="/rp/" class="cta-btn">Enter the RP Experience &rarr;</a>
+      <a href="./rp/" class="cta-btn">Enter the RP Experience &rarr;</a>
     </div>
   </section>
 
-
-  <!-- Content Grid -->
+  <!-- Content Carousel -->
   <main class="container">
-    <h2 class="section-title">LATEST INSIGHTS</h2>
-    <div class="grid">
-      <article class="card">
+    <div class="carousel-header">
+      <h2 class="section-title">LATEST INSIGHTS</h2>
+      <div class="carousel-controls">
+        <button class="carousel-btn" id="prevBtn" aria-label="Previous posts">&larr;</button>
+        <button class="carousel-btn" id="nextBtn" aria-label="Next posts">&rarr;</button>
+      </div>
+    </div>
+
+    <div class="carousel-track" id="carouselTrack">
+      <article class="card slide">
         <div class="card-tag">ANALYSIS</div>
         <h3>Modern Offense & Court Geometry</h3>
         <p>Breaking down dynamic pick-and-roll spacing and how ball-handler mechanics alter defense rotations.</p>
       </article>
-      <article class="card">
+      <article class="card slide">
         <div class="card-tag">PODCAST</div>
         <h3>Episode 01: The Draft Hub</h3>
         <p>Analyzing elite high school prospects making their mark on national scouting radars.</p>
       </article>
-      <article class="card">
+      <article class="card slide">
         <div class="card-tag">SIMULATION</div>
         <h3>RP High School Recruiting Live</h3>
         <p>Track class ratings, offer sheets, and commit announcements in our custom RP universe.</p>
+      </article>
+      <article class="card slide">
+        <div class="card-tag">SCOUTING</div>
+        <h3>Mid-Major Sleepers to Watch</h3>
+        <p>Highlighting under-the-radar wing prospects with high translation efficiency.</p>
+      </article>
+      <article class="card slide">
+        <div class="card-tag">CULTURE</div>
+        <h3>The Unbiased Eye Test</h3>
+        <p>Why raw context and tape breakdown beat relying strictly on surface-level box scores.</p>
       </article>
     </div>
   </main>
 
   <!-- Social & Media Feeds Section -->
-<section class="container social-section">
-  <h2 class="section-title">MEDIA & COMMUNITY</h2>
-  <div class="media-grid">
-    
-    <!-- YouTube Video / Channel Embed -->
-    <div class="media-card">
-      <h3 class="media-header">LATEST VIDEO</h3>
-      <div class="video-container">
-        <!-- Replace YOUR_VIDEO_ID with your actual YouTube video ID -->
-        <iframe 
-          src="https://www.youtube.com/embed/videoseries?list=PL86AVwi1070FWesM2xzcu3ul8QPEMaSlx" 
-          title="BYTHERIM YouTube" 
-          frameborder="0" 
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-          allowfullscreen>
-        </iframe>
+  <section class="container social-section">
+    <h2 class="section-title">MEDIA & COMMUNITY</h2>
+    <div class="media-grid">
+      
+      <!-- YouTube Video / Channel Embed -->
+      <div class="media-card">
+        <h3 class="media-header">LATEST VIDEO</h3>
+        <div class="video-container">
+          <iframe 
+            src="https://www.youtube.com/embed/videoseries?list=PL86AVwi1070FWesM2xzcu3ul8QPEMaSlx" 
+            title="BYTHERIM YouTube" 
+            frameborder="0" 
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+            allowfullscreen>
+          </iframe>
+        </div>
       </div>
-    </div>
 
-    <!-- Twitter / X Timeline Embed -->
-   <div class="media-card twitter-brand-card">
-  <h3 class="media-header">COMMUNITY & UPDATES</h3>
-  <div class="twitter-cta-box">
-    <div class="x-logo">𝕏</div>
-    <h4>JOIN THE CONVERSATION</h4>
-    <p>Follow @collinbutr on X for live game reactions, recruiting alerts, and daily hoops analysis.</p>
-    <a href="https://x.com/collinbutr" target="_blank" rel="noopener" class="x-follow-btn">Follow @collinbutr</a>
-  </div>
-</div>
-
-
-<!-- Load Twitter JS at the end of the container -->
-<script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
-<script>
-  // Forces Twitter to parse the timeline if loaded dynamically
-  if (window.twttr && window.twttr.widgets) {
-    window.twttr.widgets.load();
-  }
-</script>
-
+      <!-- Twitter / X Brand Card -->
+      <div class="media-card twitter-brand-card">
+        <h3 class="media-header">COMMUNITY & UPDATES</h3>
+        <div class="twitter-cta-box">
+          <div class="x-logo">𝕏</div>
+          <h4>JOIN THE CONVERSATION</h4>
+          <p>Follow @collinbutr on X for live game reactions, recruiting alerts, and daily hoops analysis.</p>
+          <a href="https://x.com/collinbutr" target="_blank" rel="noopener" class="x-follow-btn">Follow @collinbutr</a>
+        </div>
       </div>
-    </div>
 
-  </div>
-</section>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>&copy; 2026 BYTHERIM. All rights reserved.</p>
+  </footer>
+
+  <!-- Carousel Scroll Script -->
+  <script>
+    const track = document.getElementById('carouselTrack');
+    document.getElementById('nextBtn').addEventListener('click', () => {
+      track.scrollBy({ left: 320, behavior: 'smooth' });
+    });
+    document.getElementById('prevBtn').addEventListener('click', () => {
+      track.scrollBy({ left: -320, behavior: 'smooth' });
+    });
+  </script>
 
 </body>
 </html>
