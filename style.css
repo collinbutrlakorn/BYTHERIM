@@ -75,31 +75,28 @@ h1, h2, h3, .section-title, .hero h1, .card h3 {
 }
 
 
-/* Header & Nav */
+/* Header & Navigation Adjustments */
 .navbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.2rem 5%;
-  background-color: rgba(11, 14, 20, 0.95);
+  padding: 1.5rem 6%; /* Increased vertical and horizontal padding */
+  background-color: rgba(23, 27, 46, 0.98);
   border-bottom: 1px solid var(--border);
   position: sticky;
   top: 0;
   z-index: 100;
 }
 
-.brand-logo {
-  font-family: 'Oswald', sans-serif;
-  font-size: 1.8rem;
-  font-weight: 700;
-  letter-spacing: 2px;
-  color: var(--text-main);
-  text-decoration: none;
+.logo-img {
+  height: 50px; /* Scaled up logo to balance larger text */
+  width: auto;
+  object-fit: contain;
 }
 
 .nav-links {
   display: flex;
-  gap: 1.8rem;
+  gap: 3rem; /* Widened space between each link */
   align-items: center;
 }
 
@@ -107,7 +104,8 @@ h1, h2, h3, .section-title, .hero h1, .card h3 {
   color: var(--text-muted);
   text-decoration: none;
   font-weight: 600;
-  font-size: 0.95rem;
+  font-size: 1.2rem; /* Larger text size for navigation links */
+  letter-spacing: 0.5px;
   transition: color 0.2s ease;
 }
 
@@ -116,17 +114,18 @@ h1, h2, h3, .section-title, .hero h1, .card h3 {
 }
 
 .rp-btn {
-  background: var(--card-bg);
-  border: 1px solid var(--accent);
-  color: var(--accent) !important;
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
+  background: var(--accent-dark);
+  border: 1.5px solid var(--accent);
+  color: #fff !important;
+  padding: 0.7rem 1.4rem; /* Larger button padding */
+  border-radius: 8px;
+  font-size: 1.15rem;
   transition: all 0.2s ease !important;
 }
 
 .rp-btn:hover {
   background: var(--accent);
-  color: #fff !important;
+  border-color: var(--accent);
 }
 
 .badge {
