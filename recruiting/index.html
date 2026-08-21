@@ -20,17 +20,28 @@
 </head>
 <body>
 
-  <header>
-    <div class="brand" onclick="switchTab('rankings')" title="Return to Home">
-      <img src="logo.png" alt="BYTHERIM" class="brand-logo-img" onerror="this.style.display='none';">
+  <!-- UPDATED HEADER -->
+  <header style="position: relative; display: flex; align-items: center; justify-content: space-between;">
+    
+    <!-- Old Logo: Top Left, returns to the main BYTHERIM homepage in the root folder -->
+    <div class="brand" onclick="window.location.href='../index.html'" title="Return to Main BYTHERIM Homepage" style="cursor: pointer; position: relative; z-index: 2;">
+      <img src="../logo.png" alt="BYTHERIM Main" class="brand-logo-img" onerror="this.src='logo.png'; this.onerror=null;">
     </div>
-    <nav>
+    
+    <!-- New Logo: Centered and significantly larger, keeps you on the recruiting page -->
+    <div class="recruiting-brand" onclick="switchTab('rankings')" title="Recruiting Home" style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); cursor: pointer; z-index: 1;">
+      <img src="recruitingrplogo.png" alt="BYTHERIM Recruiting" style="height: 90px; width: auto;" onerror="this.style.display='none';">
+    </div>
+
+    <!-- Navigation -->
+    <nav style="position: relative; z-index: 2;">
       <button class="nav-btn active" onclick="switchTab('rankings')">Class Rankings</button>
       <button class="nav-btn" onclick="switchTab('schoolRankings')">School Rankings</button>
       <button class="nav-btn" onclick="switchTab('stats')">Statistics</button>
       <button class="nav-btn" onclick="switchTab('about')">About Me</button>
     </nav>
   </header>
+  <!-- END OF UPDATED HEADER -->
 
   <div class="container">
     <!-- GLOBAL BACK BUTTON -->
