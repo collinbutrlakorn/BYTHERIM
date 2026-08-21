@@ -1,6 +1,18 @@
 // PUBLISHED GOOGLE SHEETS COMMA-SEPARATED VALUES (.CSV) URL:
 const GOOGLE_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTWvXoqFJkVFqt36wbBBfgFYUvPKhWCZIztoLIB9sjpc55AiFTdFpJZHMztVgJHyFyy0mtO_MYGD76N/pub?gid=0&single=true&output=csv';
 
+// Define the path back to the main repository where images are stored.
+// '../' goes up one directory level. Change to '../../' if you moved the database two levels deep.
+const ASSET_BASE_PATH = '../';
+const EMPTY_PFP = ASSET_BASE_PATH + 'emptypfpicon.png';
+
+const formatImagePath = (imgStr) => {
+  if (!imgStr || imgStr.trim() === "") return "";
+  const clean = imgStr.trim();
+  if (clean.startsWith('http')) return encodeURI(clean);
+  return ASSET_BASE_PATH + encodeURI(clean);
+};
+
 const ACCOLADE_MAP = {
   "McDonald's All-American": "mcdaag.png",
   "Nike Hoop Summit": "nikehoopsummit.png",
@@ -73,7 +85,7 @@ window.onload = () => {
           classYear: String(row.classYear || "2028"),
           name: String(row.name || "Unknown Player"),
           dob: String(row.dob || "N/A"),
-          pfp: typeof row.avatar === 'string' && row.avatar.trim() !== "" ? encodeURI(row.avatar.trim()) : "",
+          pfp: formatImagePath(row.avatar),
           pos: String(row.pos || "G"),
           height: String(row.height || "6'0\""),
           weight: String(row.weight || "160 lbs"),
@@ -85,7 +97,7 @@ window.onload = () => {
           rating: (row.rating !== undefined && row.rating !== "" && !isNaN(parseInt(row.rating))) ? parseInt(row.rating) : 70,
           status: String(row.status || "Uncommitted"),
           committedSchool: row.committedSchool ? String(row.committedSchool) : null,
-          commitLogo: typeof row.commitLogo === 'string' ? encodeURI(row.commitLogo.trim()) : "",
+          commitLogo: formatImagePath(row.commitLogo),
           accolades: parseArray(row.accolades),
           finalList: row.finalListSchools ? {
             title: String(row.finalListTitle || "Final List"),
@@ -116,7 +128,7 @@ window.onload = () => {
 function getSchoolLogoPath(schoolName) {
   if (!schoolName) return '';
   const clean = String(schoolName).toLowerCase().replace(/[^a-z0-9]/g, '');
-  return `schoollogos/${clean}.png`;
+  return ASSET_BASE_PATH + `schoollogos/${clean}.png`;
 }
 
 function parseStatValue(val) {
@@ -353,12 +365,12 @@ function renderRankingsTable(data, isOverall = false) {
     const displayRank = isOverall ? `${index + 1}` : `${p.rank}`;
     const starDisplay = p.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (p.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`);
     const stateDisplay = p.state === 'INT' ? `<span class="badge-intl">INTL</span>` : `<span>${p.state}</span>`;
-    const pfpImg = p.pfp && p.pfp.trim() !== "" ? p.pfp : "emptypfpicon.png";
+    const pfpImg = p.pfp && p.pfp.trim() !== "" ? p.pfp : EMPTY_PFP;
     let statusHTML = p.commitLogo ? `<div class="status-cell"><img src="${p.commitLogo}" class="school-logo" onerror="this.style.display='none';"><span style="font-weight: 700;">${p.status}</span></div>` : `<span>${p.status}</span>`;
 
     row.innerHTML = `
       <td><span class="rank-num">${displayRank}</span></td>
-      <td><div class="player-cell"><img src="${pfpImg}" class="player-avatar-sm" onerror="this.src='emptypfpicon.png';"><div><span class="player-name">${p.name}</span><span class="player-sub">${p.hometown}</span></div></div></td>
+      <td><div class="player-cell"><img src="${pfpImg}" class="player-avatar-sm" onerror="this.src='${EMPTY_PFP}';"><div><span class="player-name">${p.name}</span><span class="player-sub">${p.hometown}</span></div></div></td>
       <td><span class="badge-class">'${p.classYear.slice(-2)}</span></td>
       <td><span class="badge-pos">${p.pos}</span></td>
       <td><span>${p.height} / ${p.weight}</span></td>
@@ -442,7 +454,7 @@ function renderSchoolDetail(schoolName, selectedYear = '2028') {
   } else if (selectedYear !== 'ALL') { displayAvgGrade = "0.00"; }
 
   const commitsGridHTML = filteredCommits.length === 0 ? `<div style="color: var(--text-muted); padding: 2rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); width: 100%;">No committed recruits found for Class of ${selectedYear}.</div>` : 
-    filteredCommits.map(r => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 50px; height: 50px;" onerror="this.src='emptypfpicon.png';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem;">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">'${r.classYear.slice(-2)} | ${r.pos} | ${r.height} / ${r.weight}</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (r.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`)}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating}</span></div></div></div>`).join('');
+    filteredCommits.map(r => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : EMPTY_PFP}" class="player-avatar-sm" style="width: 50px; height: 50px;" onerror="this.src='${EMPTY_PFP}';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem;">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">'${r.classYear.slice(-2)} | ${r.pos} | ${r.height} / ${r.weight}</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (r.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`)}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating}</span></div></div></div>`).join('');
 
   container.innerHTML = `
     <div class="school-detail-header">
@@ -485,7 +497,7 @@ function openAccoladeRoster(accoladeName, selectedYear = '2028') { renderAccolad
 
 function renderAccoladeDetail(accoladeName, selectedYear = '2028') {
   const container = document.getElementById('accoladeDetailContainer');
-  const logoPath = ACCOLADE_MAP[accoladeName] || '';
+  const logoPath = ACCOLADE_MAP[accoladeName] ? ASSET_BASE_PATH + ACCOLADE_MAP[accoladeName] : '';
   const selectedPlayers = recruits.filter(r => (r.accolades && r.accolades.includes(accoladeName)) && (selectedYear === 'ALL' || r.classYear === selectedYear));
   
   const safeAccoladeName = String(accoladeName).replace(/'/g, "\\'");
@@ -510,7 +522,7 @@ function renderAccoladeDetail(accoladeName, selectedYear = '2028') {
       const team1 = classPlayers.filter((_, i) => i % 2 === 0);
       const team2 = classPlayers.filter((_, i) => i % 2 !== 0);
 
-      const renderCard = (r) => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 52px; height: 52px;" onerror="this.src='emptypfpicon.png';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Class of '${r.classYear.slice(-2)} | ${r.pos} | ${r.height}</div><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${r.hs} (${r.state})</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px; justify-content: space-between;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (r.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`)}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating} OVR</span></div></div></div>`;
+      const renderCard = (r) => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : EMPTY_PFP}" class="player-avatar-sm" style="width: 52px; height: 52px;" onerror="this.src='${EMPTY_PFP}';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Class of '${r.classYear.slice(-2)} | ${r.pos} | ${r.height}</div><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${r.hs} (${r.state})</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px; justify-content: space-between;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (r.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`)}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating} OVR</span></div></div></div>`;
 
       return `
         <div style="margin-top: 1.5rem; margin-bottom: 0.5rem;"><h3 style="font-size: 1.2rem; color: var(--accent-main); border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">Class of ${cls}</h3></div>
@@ -531,7 +543,7 @@ function renderAccoladeDetail(accoladeName, selectedYear = '2028') {
       `;
     }).join('');
   } else {
-    const renderCard = (r) => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" style="width: 52px; height: 52px;" onerror="this.src='emptypfpicon.png';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Class of '${r.classYear.slice(-2)} | ${r.pos} | ${r.height}</div><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${r.hs} (${r.state})</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px; justify-content: space-between;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (r.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`)}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating} OVR</span></div></div></div>`;
+    const renderCard = (r) => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : EMPTY_PFP}" class="player-avatar-sm" style="width: 52px; height: 52px;" onerror="this.src='${EMPTY_PFP}';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem; color: var(--text-main);">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Class of '${r.classYear.slice(-2)} | ${r.pos} | ${r.height}</div><div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">${r.hs} (${r.state})</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px; justify-content: space-between;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (r.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`)}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating} OVR</span></div></div></div>`;
     rosterHTML = `<div class="school-commits-grid">${selectedPlayers.map(renderCard).join('')}</div>`;
   }
 
@@ -585,7 +597,7 @@ function renderStatsDashboard() {
   filtered.forEach(p => {
     let st = p.stats[currentStatLevel]; const row = document.createElement('tr');
     row.onclick = () => { activeRecruit = p; renderProfile(p); switchTab('profile'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-    let html = `<td><div class="player-cell"><img src="${p.pfp && p.pfp.trim() !== '' ? p.pfp : 'emptypfpicon.png'}" class="player-avatar-sm" onerror="this.src='emptypfpicon.png';"><span class="player-name">${p.name}</span></div></td><td><span class="badge-pos">${p.pos}</span></td><td><span class="badge-class">'${p.classYear.slice(-2)}</span></td>`;
+    let html = `<td><div class="player-cell"><img src="${p.pfp && p.pfp.trim() !== '' ? p.pfp : EMPTY_PFP}" class="player-avatar-sm" onerror="this.src='${EMPTY_PFP}';"><span class="player-name">${p.name}</span></div></td><td><span class="badge-pos">${p.pos}</span></td><td><span class="badge-class">'${p.classYear.slice(-2)}</span></td>`;
     keys.forEach(k => { let rawVal = getComputedStat(st, k); let pct = pctMap[k] ? pctMap[k][p.id] : null; let style = getPercentileStyle(pct, k); html += `<td style="${style}">${rawVal}</td>`; });
     row.innerHTML = html + `</tr>`; tbody.appendChild(row);
   });
@@ -638,7 +650,7 @@ function renderProfile(p) {
   const finalListHTML = p.finalList ? p.finalList.schools.map(s => `<div class="final-school-card ${s === p.committedSchool ? 'is-commit' : ''}">${s}</div>`).join('') : '';
   const offersHTML = p.offers ? p.offers.map(o => `<div class="offer-pill">${o}</div>`).join('') : '';
   const accoladesHTML = p.accolades && p.accolades.length > 0 ? p.accolades.map(acc => {
-    const logo = ACCOLADE_MAP[acc] || '';
+    const logo = ACCOLADE_MAP[acc] ? ASSET_BASE_PATH + ACCOLADE_MAP[acc] : '';
     return `<div class="accolade-pill" onclick="openAccoladeRoster('${String(acc).replace(/'/g, "\\'")}')">${logo ? `<img src="${logo}" class="accolade-logo">` : ''}<span>${acc}</span></div>`;
   }).join('') : '<div style="color: var(--text-muted); font-size: 0.8rem;">No major accolades yet.</div>';
 
@@ -661,7 +673,7 @@ function renderProfile(p) {
   container.innerHTML = `
     <div class="profile-header">
       <div class="profile-header-left">
-        <img src="${p.pfp && p.pfp.trim() !== '' ? p.pfp : 'emptypfpicon.png'}" class="player-avatar-lg" onerror="this.src='emptypfpicon.png';">
+        <img src="${p.pfp && p.pfp.trim() !== '' ? p.pfp : EMPTY_PFP}" class="player-avatar-lg" onerror="this.src='${EMPTY_PFP}';">
         <div class="profile-title-area">
           <div class="profile-name-row">
             <h1>${p.name}</h1>
