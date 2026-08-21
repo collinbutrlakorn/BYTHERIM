@@ -2,14 +2,78 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>BYTHERIM RP Hub</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BYTHERIM RP | Roleplaying & Simulation Experience</title>
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="../favicon.png">
+
+  <link rel="stylesheet" href="../style.css">
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <h1>BYTHERIM Roleplaying Experience</h1>
-  <ul>
-    <li><a href="/recruiting/">High School Recruiting Site</a></li>
-    <li><a href="/college/">College Simulation (Coming Soon)</a></li>
-    <li><a href="/draft/">NBA Draft Hub (Coming Soon)</a></li>
-  </ul>
+
+  <!-- Navigation Bar Header -->
+  <header class="navbar">
+    <a href="../" class="brand-logo">
+      <img src="../logo.png" alt="BYTHERIM Logo" class="logo-img">
+    </a>
+    <nav class="nav-links">
+      <a href="/podcast">Podcast</a>
+      <a href="/draft">Draft</a>
+      <a href="/nba">NBA</a>
+      <a href="../rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
+    </nav>
+  </header>
+
+  <!-- RP Hero Section -->
+  <section class="hero">
+    <div class="hero-content">
+      <span class="tag">SIMULATION NETWORK</span>
+      <h1>BYTHERIM RP EXPERIENCE</h1>
+      <p>Choose your pathway in our custom roleplaying universe—from grassroots high school recruiting battles to collegiate dominance and professional draft boards.</p>
+    </div>
+  </section>
+
+  <!-- RP Hub Portal Grid -->
+  <main class="container">
+    <h2 class="section-title">ACTIVE & UPCOMING MODULES</h2>
+    <div class="grid">
+
+      <!-- High School Recruiting (LIVE) -->
+      <article class="card rp-card active-module">
+        <div class="rp-status live">● LIVE NOW</div>
+        <h3>High School Recruiting Hub</h3>
+        <p>Explore class rankings, prospect profiles, offer tracking, and live commitment announcements.</p>
+        <a href="../recruiting/" class="cta-btn module-btn">Launch Recruiting Hub &rarr;</a>
+      </article>
+
+      <!-- College Career Simulation (COMING SOON) -->
+      <article class="card rp-card locked-module">
+        <div class="rp-status upcoming">DEVELOPMENT</div>
+        <h3>College Career Simulation</h3>
+        <p>Track team standings, player development arcs, national award races, and tournament brackets.</p>
+        <button class="cta-btn module-btn disabled" disabled>Coming Soon</button>
+      </article>
+
+      <!-- NBA Draft & Pro Hub (COMING SOON) -->
+      <article class="card rp-card locked-module">
+        <div class="rp-status upcoming">DEVELOPMENT</div>
+        <h3>NBA Draft & Pro League</h3>
+        <p>Pro scouting reports, draft stock movements, combine metrics, and franchise trajectory logs.</p>
+        <button class="cta-btn module-btn disabled" disabled>Coming Soon</button>
+      </article>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>&copy; 2026 BYTHERIM. All rights reserved.</p>
+  </footer>
+
 </body>
 </html>
