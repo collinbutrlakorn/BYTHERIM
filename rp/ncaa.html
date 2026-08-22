@@ -32,7 +32,6 @@
       .sim-layout { grid-template-columns: 1fr; }
     }
 
-    /* Sidebar Control Panel */
     .panel-card {
       background: #0a0a0e;
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -66,45 +65,20 @@
       width: 100%;
       margin-bottom: 0.75rem;
       text-transform: uppercase;
-      letter-spacing: 0.03em;
       transition: all 0.2s ease;
     }
 
-    .sim-btn:hover {
-      background: #ffffff;
-      transform: translateY(-1px);
-    }
+    .sim-btn:hover { background: #ffffff; transform: translateY(-1px); }
+    .sim-btn-secondary { background: #161622; color: #e2e8f0; border: 1px solid rgba(255, 255, 255, 0.12); }
+    .sim-btn-secondary:hover { background: #222234; color: #ffffff; }
 
-    .sim-btn-secondary {
-      background: #161622;
-      color: #e2e8f0;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-    }
-
-    .sim-btn-secondary:hover {
-      background: #222234;
-      color: #ffffff;
-    }
-
-    .sim-btn-danger {
-      background: transparent;
-      border: 1px solid rgba(239, 68, 68, 0.4);
-      color: #ef4444;
-      margin-top: 1rem;
-    }
-
-    .sim-btn-danger:hover {
-      background: #ef4444;
-      color: #ffffff;
-    }
-
-    /* Tab Navigation */
     .tab-bar {
       display: flex;
       gap: 0.5rem;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
       margin-bottom: 1.5rem;
       padding-bottom: 0.5rem;
+      overflow-x: auto;
     }
 
     .tab-btn {
@@ -118,74 +92,82 @@
       border-radius: 6px;
       text-transform: uppercase;
       transition: color 0.2s, background 0.2s;
+      white-space: nowrap;
     }
 
-    .tab-btn:hover {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.04);
-    }
-
-    .tab-btn.active {
-      color: #38bdf8;
-      background: rgba(56, 189, 248, 0.1);
-    }
-
-    /* Storylines Feed */
-    .news-feed {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      max-height: 220px;
-      overflow-y: auto;
-      padding-right: 0.5rem;
-    }
-
-    .news-item {
-      padding: 10px 14px;
-      background: #111118;
-      border-left: 3px solid #38bdf8;
-      border-radius: 0 6px 6px 0;
-      font-size: 0.95rem;
-      line-height: 1.4;
-    }
-
-    /* Data Tables */
-    .table-wrapper {
-      overflow-x: auto;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-    }
-
-    th {
-      color: #7d8296;
-      font-size: 0.85rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      padding: 12px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    td {
-      padding: 12px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-      font-size: 1rem;
-    }
-
-    tr:hover td {
-      background: rgba(255, 255, 255, 0.02);
-    }
-
+    .tab-btn:hover { color: #ffffff; background: rgba(255, 255, 255, 0.04); }
+    .tab-btn.active { color: #38bdf8; background: rgba(56, 189, 248, 0.1); }
+    
     .tab-content { display: none; }
     .tab-content.active { display: block; }
+
+    /* Dashboard Grid Styles */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 1rem;
+      margin-top: 1.5rem;
+    }
+
+    .dash-box {
+      background: #111118;
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+
+    .dash-box h4 {
+      margin: 0 0 10px 0;
+      color: #38bdf8;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 5px;
+    }
+
+    .leader-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.9rem;
+      margin-bottom: 6px;
+      color: #a1a5b8;
+    }
+
+    .leader-row span:last-child {
+      font-weight: 700;
+      color: #fff;
+    }
+
+    /* Top 10 Teams Flex */
+    .top-teams-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .team-badge {
+      background: #161622;
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .team-rank { color: #38bdf8; font-size: 0.85rem; }
+
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th { color: #7d8296; font-size: 0.85rem; text-transform: uppercase; padding: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+    td { padding: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); font-size: 1rem; }
+    tr:hover td { background: rgba(255, 255, 255, 0.02); }
   </style>
 </head>
 <body>
 
-  <!-- Navigation Bar Header -->
   <header class="navbar">
     <a href="../" class="brand-logo">
       <img src="../logo.png" alt="BYTHERIM Logo" class="logo-img">
@@ -199,107 +181,92 @@
   </header>
 
   <div class="sim-layout">
-
-    <!-- Sidebar Controls & Season Ticker -->
+    <!-- Sidebar -->
     <aside style="display: flex; flex-direction: column; gap: 1.5rem;">
       <div class="panel-card">
         <span class="status-badge" id="currentPhaseDisplay">Preseason</span>
-        <h2 style="margin: 0 0 0.5rem 0; font-size: 2rem; color: #fff;">
-          <span id="currentYearDisplay">2028</span> SEASON
-        </h2>
-        <p style="color: #7d8296; font-size: 0.95rem; margin-bottom: 1.5rem;">
-          Simulate game cycles, track player efficiency ratings, and monitor draft stock fluctuations.
-        </p>
-
-        <button class="sim-btn" onclick="SimEngine.simulateSeason()">Simulate Full Season</button>
-        <button class="sim-btn sim-btn-secondary" onclick="SimEngine.runOffseason()">Advance Offseason & Draft</button>
-        <button class="sim-btn sim-btn-danger" onclick="SimEngine.hardReset()">Hard Reset Dynasty</button>
+        <h2 style="margin: 0 0 0.5rem 0; font-size: 2rem; color: #fff;"><span id="currentYearDisplay">2028</span> SEASON</h2>
+        <p style="color: #7d8296; font-size: 0.95rem; margin-bottom: 1.5rem;">Simulate the active collegiate universe, team standings, and individual awards.</p>
+        <button class="sim-btn" onclick="SimEngine.simulateSeason()">Simulate Season</button>
+        <button class="sim-btn sim-btn-secondary" onclick="SimEngine.runOffseason()">Advance Offseason</button>
       </div>
-
-      <!-- Live Storylines Card -->
       <div class="panel-card">
-        <h3 style="margin: 0 0 1rem 0; font-size: 1.2rem; color: #fff; text-transform: uppercase;">
-          Season Storylines
-        </h3>
-        <div class="news-feed" id="newsFeed">
-          <div class="news-item">Welcome to the 2028 NCAA Season! Load database to generate rosters.</div>
+        <h3 style="margin: 0 0 1rem 0; font-size: 1.2rem; color: #fff; text-transform: uppercase;">Storylines</h3>
+        <div id="newsFeed" style="display: flex; flex-direction: column; gap: 1rem; max-height: 220px; overflow-y: auto;">
+          <div style="padding: 10px 14px; background: #111118; border-left: 3px solid #38bdf8; font-size: 0.95rem;">System ready.</div>
         </div>
       </div>
     </aside>
 
     <!-- Main Content Area -->
     <main class="panel-card">
-      
-      <!-- Tab Controls -->
       <div class="tab-bar">
-        <button class="tab-btn active" onclick="switchTab('statsTab', this)">Player Leaderboards</button>
-        <button class="tab-btn" onclick="switchTab('standingsTab', this)">Team Standings</button>
+        <button class="tab-btn active" onclick="switchTab('dashTab', this)">Dashboard</button>
+        <button class="tab-btn" onclick="switchTab('statsTab', this)">Stat Leaders</button>
+        <button class="tab-btn" onclick="switchTab('standingsTab', this)">Team Rankings</button>
         <button class="tab-btn" onclick="switchTab('awardsTab', this)">Award Races</button>
       </div>
 
-      <!-- Tab 1: Player Leaderboards -->
-      <div id="statsTab" class="tab-content active">
-        <div class="table-wrapper">
+      <!-- Tab 1: Dashboard -->
+      <div id="dashTab" class="tab-content active">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3 style="margin:0; color:#fff;">AP Top 10 Teams</h3>
+          <button style="background:transparent; border:1px solid #38bdf8; color:#38bdf8; border-radius:4px; padding:4px 8px; cursor:pointer;" onclick="switchTab('standingsTab', document.querySelectorAll('.tab-btn')[2])">View Top 25 &rarr;</button>
+        </div>
+        <div class="top-teams-container" id="dashTopTeams">
+          <p style="color:#7d8296;">Simulate season to generate rankings.</p>
+        </div>
+        
+        <h3 style="margin: 2rem 0 0 0; color:#fff;">Stat Leaders (Top 5)</h3>
+        <div class="dashboard-grid">
+          <div class="dash-box"><h4>Points (PPG)</h4><div id="dashPts"></div></div>
+          <div class="dash-box"><h4>Rebounds (RPG)</h4><div id="dashReb"></div></div>
+          <div class="dash-box"><h4>Assists (APG)</h4><div id="dashAst"></div></div>
+          <div class="dash-box"><h4>Steals (SPG)</h4><div id="dashStl"></div></div>
+          <div class="dash-box"><h4>Blocks (BPG)</h4><div id="dashBlk"></div></div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Stat Leaders -->
+      <div id="statsTab" class="tab-content">
+        <div style="overflow-x: auto;">
           <table>
             <thead>
-              <tr>
-                <th>Rank</th>
-                <th>Player</th>
-                <th>Pos</th>
-                <th>Class</th>
-                <th>School</th>
-                <th>MPG</th>
-                <th>PTS</th>
-                <th>REB</th>
-                <th>AST</th>
-                <th>BPM</th>
-              </tr>
+              <tr><th>Rank</th><th>Player</th><th>Class</th><th>School</th><th>MPG</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>BPM</th></tr>
             </thead>
             <tbody id="statsBody">
-              <tr>
-                <td colspan="10" style="text-align: center; color: #7d8296; padding: 2rem;">
-                  Click "Simulate Full Season" to generate player statistics.
-                </td>
-              </tr>
+              <tr><td colspan="11" style="text-align: center; color: #7d8296;">Simulate season to view leaderboards.</td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      <!-- Tab 2: Team Standings -->
+      <!-- Tab 3: Team Rankings -->
       <div id="standingsTab" class="tab-content">
-        <div class="table-wrapper">
+        <div style="overflow-x: auto;">
           <table>
             <thead>
-              <tr>
-                <th>Team</th>
-                <th>Conference</th>
-                <th>W</th>
-                <th>L</th>
-                <th>Win %</th>
-                <th>Pace</th>
-                <th>ORtg</th>
-                <th>DRtg</th>
-              </tr>
+              <tr><th>AP Rank</th><th>Team</th><th>W</th><th>L</th><th>Win %</th><th>Team OVR</th></tr>
             </thead>
             <tbody id="standingsBody">
-              <tr>
-                <td colspan="8" style="text-align: center; color: #7d8296; padding: 2rem;">
-                  Standings will populate after simulating games.
-                </td>
-              </tr>
+              <tr><td colspan="6" style="text-align: center; color: #7d8296;">Simulate season to view standings.</td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      <!-- Tab 3: Award Races -->
+      <!-- Tab 4: Award Races -->
       <div id="awardsTab" class="tab-content">
-        <div style="padding: 1rem 0; color: #a1a5b8;">
-          <h3 style="color: #fff;">Wooden Award Candidates (National Player of the Year)</h3>
-          <ul id="awardList" style="list-style: none; padding: 0; line-height: 2;">
-            <li>Complete a season to generate top award candidates.</li>
-          </ul>
+        <h3 style="color: #fff;">Wooden Award Candidates (National Player of the Year)</h3>
+        <div style="overflow-x: auto;">
+          <table>
+            <thead>
+              <tr><th>Watchlist Rank</th><th>Player</th><th>School</th><th>Primary Case (Stats)</th><th>Impact (BPM)</th></tr>
+            </thead>
+            <tbody id="awardsBody">
+              <tr><td colspan="5" style="text-align: center; color: #7d8296;">Complete a season to generate candidates.</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
