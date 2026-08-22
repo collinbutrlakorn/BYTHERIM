@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BYTHERIM | NCAA Simulation</title>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    body { background-color: #050507; color: #e2e8f0; font-family: 'Asap Condensed', sans-serif; margin: 0; }
+    .sim-container { display: grid; grid-template-columns: 280px 1fr; gap: 2rem; max-width: 1400px; margin: 2rem auto; padding: 0 1rem; }
+    
+    /* Control Panel */
+    .control-panel { background: #0a0a0e; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 1.5rem; height: fit-content; }
+    .status-header { font-size: 1.2rem; font-weight: 800; color: #38bdf8; text-transform: uppercase; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem; }
+    .sim-btn { background: #38bdf8; color: #000; border: none; padding: 10px 15px; font-weight: 800; font-size: 1rem; border-radius: 6px; cursor: pointer; width: 100%; margin-bottom: 10px; transition: 0.2s; }
+    .sim-btn:hover { background: #ffffff; }
+    .sim-btn-danger { background: transparent; border: 1px solid #ef4444; color: #ef4444; }
+    .sim-btn-danger:hover { background: #ef4444; color: #fff; }
+
+    /* Main Dashboard area */
+    .dashboard { display: flex; flex-direction: column; gap: 2rem; }
+    .data-card { background: #0a0a0e; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 1.5rem; }
+    table { width: 100%; border-collapse: collapse; text-align: left; }
+    th, td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    th { color: #8a8d9b; font-size: 0.9rem; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation (Assumes standard navbar from previous pages) -->
+  <header class="navbar">
+    <a href="../" class="brand-logo"><img src="../logo.png" alt="BYTHERIM" class="logo-img"></a>
+    <nav class="nav-links">
+      <a href="../podcast.html">Podcast</a>
+      <a href="../draft.html">Draft</a>
+      <a href="../nba.html">NBA</a>
+      <a href="./ncaa.html" style="font-weight: 800; color: #ffffff;">NCAA RP</a>
+      <a href="./draft.html">Draft RP</a>
+    </nav>
+  </header>
+
+  <div class="sim-container">
+    <!-- Sidebar Controls -->
+    <aside class="control-panel">
+      <div class="status-header">Season Status: <span id="currentYearDisplay">2028</span></div>
+      <p id="currentPhaseDisplay" style="color: #a1a5b8; margin-bottom: 1.5rem;">Phase: Preseason</p>
+      
+      <button class="sim-btn" onclick="SimEngine.simulateSeason()">Simulate Season</button>
+      <button class="sim-btn" onclick="SimEngine.runOffseason()">Run Offseason & Draft</button>
+      <div style="margin-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+        <button class="sim-btn sim-btn-danger" onclick="SimEngine.hardReset()">Hard Reset Dynasty</button>
+      </div>
+    </aside>
+
+    <!-- Main Output -->
+    <main class="dashboard">
+      <div class="data-card">
+        <h2>Top Performers (BPM)</h2>
+        <table id="statsTable">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>Class</th>
+              <th>School</th>
+              <th>PTS</th>
+              <th>REB</th>
+              <th>AST</th>
+              <th>BPM</th>
+            </tr>
+          </thead>
+          <tbody id="statsBody">
+            <!-- JavaScript will populate this -->
+          </tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <script src="./js/ncaa-engine.js"></script>
+</body>
+</html>
