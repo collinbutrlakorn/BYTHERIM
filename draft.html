@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BYTHERIM | NBA Draft Big Board</title>
+  
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- PapaParse for Google Sheets CSV integration -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+
+  <!-- Navigation Bar Header (Matches Main Site) -->
+  <header class="navbar" style="background: var(--bg-card); border-bottom: 1px solid var(--border-color); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center;">
+    <a href="index.html" class="brand-logo">
+      <img src="logo.png" alt="BYTHERIM Logo" class="logo-img" style="height: 40px;">
+    </a>
+    <nav class="nav-links" style="display: flex; gap: 15px; align-items: center;">
+      <a href="podcast.html" style="color: var(--text-main); text-decoration: none;">Podcast</a>
+      <a href="draft.html" style="color: var(--text-main); text-decoration: none; font-weight: 700;">Draft</a>
+      <a href="nba.html" style="color: var(--text-main); text-decoration: none;">NBA</a>
+      <a href="rp/index.html" class="rp-btn" style="background: var(--accent-main); color: var(--bg-dark); padding: 6px 12px; border-radius: 6px; text-decoration: none; font-weight: 700;">BYTHERIM RP <span class="badge" style="font-size: 0.7rem;">SIM</span></a>
+    </nav>
+  </header>
+
+  <!-- Draft Board Content -->
+  <main class="container">
+    <div class="draft-board-container" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 1.5rem;">
+      
+      <!-- Interactive Controls -->
+      <div class="controls-bar">
+        <div>
+          <h1 style="font-size: 1.6rem; color: var(--text-main); margin-bottom: 4px;">NBA Draft Big Board</h1>
+          <p style="font-size: 0.85rem; color: var(--text-muted);">Consensus ranking & prospect evaluations</p>
+        </div>
+        
+        <div class="filter-group">
+          <input type="text" id="searchInput" class="search-input" placeholder="Search prospect or school...">
+          <select id="posFilter" class="select-input">
+            <option value="ALL">All Positions</option>
+            <option value="PG">PG</option>
+            <option value="SG">SG</option>
+            <option value="SF">SF</option>
+            <option value="PF">PF</option>
+            <option value="C">C</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Table Structure -->
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 60px;">Pick</th>
+              <th style="text-align: left;">Prospect</th>
+              <th>Pos</th>
+              <th>Ht / Wt</th>
+              <th>Team / School</th>
+              <th>Grade / Tier</th>
+            </tr>
+          </thead>
+          <tbody id="draftTableBody">
+            <!-- Data will be injected here via JavaScript -->
+            <tr><td colspan="6" style="padding: 2rem; color: var(--text-muted);">Loading draft board...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Google Sheets Parsing & Filtering Script -->
+  <script>
+    // TO-DO: Replace this URL with your published Google Sheet CSV link
+    // File -> Share -> Publish to web -> Entire Document as Comma-separated values (.csv)
+    const googleSheetCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTjSzV7c31_8uY69vD-UzxT_rqX_mqjOxECd0aFr-gien0cULby0kLa8iV3ISnuskTr7u2AevhwB7ZN/pub?output=csv';
+    
+    let draftData = [];
+
+    // Initialize PapaParse to pull and format the data
+    Papa.parse(googleSheetCSV, {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: function(results) {
+        draftData = results.data;
+        renderTable(draftData);
+      },
+      error: function(err) {
+        document.getElementById('draftTableBody').innerHTML = '<tr><td colspan="6">Error loading data. Make sure the sheet is published to the web as a CSV.</td></tr>';
+      }
+    });
+
+    function renderTable(data) {
+      const tbody = document.getElementById('draftTableBody');
+      tbody.innerHTML = ''; // Clear loading text
+
+      if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6">No prospects found matching your criteria.</td></tr>';
+        return;
+      }
+
+      data.forEach(player => {
+        // Build the row based on Google Sheet column headers 
+        // (Assuming columns: Pick, Name, Archetype, Pos, Height, Weight, School, Tier, AvatarURL)
+        const tr = document.createElement('tr');
+        
+        tr.innerHTML = `
+          <td class="rank-num">${player.Pick || '-'}</td>
+          <td>
+            <div class="player-cell">
+              <img src="${player.AvatarURL || 'default-avatar.png'}" class="player-avatar-sm" alt="${player.Name}">
+              <div>
+                <span class="player-name">${player.Name || 'Unknown Player'}</span>
+                <span class="player-sub">${player.Archetype || 'Prospect'}</span>
+              </div>
+            </div>
+          </td>
+          <td><span class="badge-pos">${player.Pos || '-'}</span></td>
+          <td>${player.Height || '-'} / ${player.Weight || '-'}</td>
+          <td>${player.School || 'Undecided'}</td>
+          <td><span class="rating-pill">${player.Tier || '-'}</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Interactivity: Search and Filter Logic
+    function filterData() {
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+      const posFilter = document.getElementById('posFilter').value;
+
+      const filtered = draftData.filter(player => {
+        const matchesSearch = (player.Name && player.Name.toLowerCase().includes(searchTerm)) || 
+                              (player.School && player.School.toLowerCase().includes(searchTerm));
+        const matchesPos = (posFilter === 'ALL') || (player.Pos === posFilter);
+        
+        return matchesSearch && matchesPos;
+      });
+
+      renderTable(filtered);
+    }
+
+    // Attach Event Listeners to inputs
+    document.getElementById('searchInput').addEventListener('input', filterData);
+    document.getElementById('posFilter').addEventListener('change', filterData);
+  </script>
+
+</body>
+</html>
