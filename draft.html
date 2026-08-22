@@ -218,30 +218,30 @@
 
     .torvik-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
-      gap: 1rem;
+      grid-template-columns: repeat(auto-fit, minmax(75px, 1fr));
+      gap: 0.75rem;
     }
 
     .stat-box {
       background: #121218;
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 8px;
-      padding: 0.75rem;
+      padding: 0.6rem 0.4rem;
       text-align: center;
     }
 
     .stat-label {
       display: block;
-      font-size: 0.85rem;
+      font-size: 0.75rem;
       color: #7d8296;
       text-transform: uppercase;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
       font-weight: 600;
     }
 
     .stat-value {
       display: block;
-      font-size: 1.35rem;
+      font-size: 1.2rem;
       font-weight: 700;
       color: #ffffff;
     }
@@ -521,14 +521,24 @@
         const espnImg = getField(player, 'ESPN Image URL', 'ESPN', 'Image', 'Headshot', 'Picture');
         const scouting = getField(player, 'Scouting Report', 'Scouting', 'Notes', 'Report', 'Evaluation');
         
-        // Torvik Data (Extracted directly if they are columns in your sheet)
+        // Torvik Stats Mapping
         const pts = getField(player, 'PTS', 'Points') || '-';
         const reb = getField(player, 'REB', 'Rebounds') || '-';
         const ast = getField(player, 'AST', 'Assists') || '-';
+        const stl = getField(player, 'STL', 'Steals') || '-';
+        const blk = getField(player, 'BLK', 'Blocks') || '-';
+        const tov = getField(player, 'TOV', 'Turnovers') || '-';
         const tsp = getField(player, 'TS%', 'True Shooting') || '-';
         const efg = getField(player, 'eFG%', 'eFG') || '-';
         const usg = getField(player, 'USG%', 'Usage') || '-';
         const bpm = getField(player, 'BPM', 'Box Plus-Minus') || '-';
+        const obpm = getField(player, 'OBPM') || '-';
+        const dbpm = getField(player, 'DBPM') || '-';
+        const tPr = getField(player, '3Pr', '3P Rate') || '-';
+        const fTr = getField(player, 'FTr', 'FT Rate') || '-';
+        const twoP = getField(player, '2P%', '2P') || '-';
+        const threeP = getField(player, '3P%', '3P') || '-';
+        const ftP = getField(player, 'FT%', 'FT') || '-';
 
         const draftAge = getDraftAgeConfig(dob);
         const classHTML = getClassHTML(classVal);
@@ -574,7 +584,7 @@
         const detailTr = document.createElement('tr');
         detailTr.id = `detail-${index}`;
         detailTr.className = 'detail-row';
-        detailTr.style.display = 'none'; // Hidden by default
+        detailTr.style.display = 'none';
 
         const imageHTML = espnImg 
           ? `<img src="${espnImg}" alt="${name}">` 
@@ -594,15 +604,25 @@
                 </div>
                 
                 <div class="torvik-stats">
-                  <h3>Advanced Stats (Torvik)</h3>
+                  <h3>Advanced Stats & Box Breakdown (Torvik)</h3>
                   <div class="torvik-grid">
                     <div class="stat-box"><span class="stat-label">PTS</span><span class="stat-value">${pts}</span></div>
                     <div class="stat-box"><span class="stat-label">REB</span><span class="stat-value">${reb}</span></div>
                     <div class="stat-box"><span class="stat-label">AST</span><span class="stat-value">${ast}</span></div>
+                    <div class="stat-box"><span class="stat-label">STL</span><span class="stat-value">${stl}</span></div>
+                    <div class="stat-box"><span class="stat-label">BLK</span><span class="stat-value">${blk}</span></div>
+                    <div class="stat-box"><span class="stat-label">TOV</span><span class="stat-value">${tov}</span></div>
                     <div class="stat-box"><span class="stat-label">TS%</span><span class="stat-value">${tsp}</span></div>
                     <div class="stat-box"><span class="stat-label">eFG%</span><span class="stat-value">${efg}</span></div>
                     <div class="stat-box"><span class="stat-label">USG%</span><span class="stat-value">${usg}</span></div>
                     <div class="stat-box"><span class="stat-label">BPM</span><span class="stat-value">${bpm}</span></div>
+                    <div class="stat-box"><span class="stat-label">OBPM</span><span class="stat-value">${obpm}</span></div>
+                    <div class="stat-box"><span class="stat-label">DBPM</span><span class="stat-value">${dbpm}</span></div>
+                    <div class="stat-box"><span class="stat-label">3Pr</span><span class="stat-value">${tPr}</span></div>
+                    <div class="stat-box"><span class="stat-label">FTr</span><span class="stat-value">${fTr}</span></div>
+                    <div class="stat-box"><span class="stat-label">2P%</span><span class="stat-value">${twoP}</span></div>
+                    <div class="stat-box"><span class="stat-label">3P%</span><span class="stat-value">${threeP}</span></div>
+                    <div class="stat-box"><span class="stat-label">FT%</span><span class="stat-value">${ftP}</span></div>
                   </div>
                 </div>
               </div>
@@ -613,10 +633,7 @@
         // --- TOGGLE LISTENER ---
         mainTr.addEventListener('click', () => {
           const isExpanded = detailTr.style.display === 'table-row';
-          
-          // Optional: Close all other open rows when a new one is clicked
           document.querySelectorAll('.detail-row').forEach(row => row.style.display = 'none');
-          
           detailTr.style.display = isExpanded ? 'none' : 'table-row';
         });
 
