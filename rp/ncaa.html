@@ -3,79 +3,317 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BYTHERIM | NCAA Simulation</title>
+  <title>BYTHERIM | NCAA RP Simulation</title>
+  
+  <link rel="icon" type="image/png" href="../favicon.png">
   <link rel="stylesheet" href="../style.css">
-  <style>
-    body { background-color: #050507; color: #e2e8f0; font-family: 'Asap Condensed', sans-serif; margin: 0; }
-    .sim-container { display: grid; grid-template-columns: 280px 1fr; gap: 2rem; max-width: 1400px; margin: 2rem auto; padding: 0 1rem; }
-    
-    /* Control Panel */
-    .control-panel { background: #0a0a0e; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 1.5rem; height: fit-content; }
-    .status-header { font-size: 1.2rem; font-weight: 800; color: #38bdf8; text-transform: uppercase; margin-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 0.5rem; }
-    .sim-btn { background: #38bdf8; color: #000; border: none; padding: 10px 15px; font-weight: 800; font-size: 1rem; border-radius: 6px; cursor: pointer; width: 100%; margin-bottom: 10px; transition: 0.2s; }
-    .sim-btn:hover { background: #ffffff; }
-    .sim-btn-danger { background: transparent; border: 1px solid #ef4444; color: #ef4444; }
-    .sim-btn-danger:hover { background: #ef4444; color: #fff; }
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:ital,wght@0,400;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
 
-    /* Main Dashboard area */
-    .dashboard { display: flex; flex-direction: column; gap: 2rem; }
-    .data-card { background: #0a0a0e; border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 1.5rem; }
-    table { width: 100%; border-collapse: collapse; text-align: left; }
-    th, td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-    th { color: #8a8d9b; font-size: 0.9rem; text-transform: uppercase; }
+  <style>
+    body {
+      background-color: #050507;
+      color: #e2e8f0;
+      font-family: 'Asap Condensed', sans-serif;
+      margin: 0;
+    }
+
+    .sim-layout {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 1.5rem;
+      max-width: 1440px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    @media (max-width: 960px) {
+      .sim-layout { grid-template-columns: 1fr; }
+    }
+
+    /* Sidebar Control Panel */
+    .panel-card {
+      background: #0a0a0e;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 1.5rem;
+      box-shadow: 0 15px 30px rgba(0, 0, 0, 0.6);
+    }
+
+    .status-badge {
+      display: inline-block;
+      background: rgba(56, 189, 248, 0.1);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-weight: 800;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      margin-bottom: 1rem;
+    }
+
+    .sim-btn {
+      background: #38bdf8;
+      color: #000000;
+      border: none;
+      padding: 12px 16px;
+      font-weight: 800;
+      font-size: 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 100%;
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      transition: all 0.2s ease;
+    }
+
+    .sim-btn:hover {
+      background: #ffffff;
+      transform: translateY(-1px);
+    }
+
+    .sim-btn-secondary {
+      background: #161622;
+      color: #e2e8f0;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .sim-btn-secondary:hover {
+      background: #222234;
+      color: #ffffff;
+    }
+
+    .sim-btn-danger {
+      background: transparent;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #ef4444;
+      margin-top: 1rem;
+    }
+
+    .sim-btn-danger:hover {
+      background: #ef4444;
+      color: #ffffff;
+    }
+
+    /* Tab Navigation */
+    .tab-bar {
+      display: flex;
+      gap: 0.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.5rem;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: #7d8296;
+      font-size: 1.1rem;
+      font-weight: 700;
+      padding: 8px 16px;
+      cursor: pointer;
+      border-radius: 6px;
+      text-transform: uppercase;
+      transition: color 0.2s, background 0.2s;
+    }
+
+    .tab-btn:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .tab-btn.active {
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.1);
+    }
+
+    /* Storylines Feed */
+    .news-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      max-height: 220px;
+      overflow-y: auto;
+      padding-right: 0.5rem;
+    }
+
+    .news-item {
+      padding: 10px 14px;
+      background: #111118;
+      border-left: 3px solid #38bdf8;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+
+    /* Data Tables */
+    .table-wrapper {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    th {
+      color: #7d8296;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    td {
+      padding: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 1rem;
+    }
+
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
   </style>
 </head>
 <body>
 
-  <!-- Top Navigation (Assumes standard navbar from previous pages) -->
+  <!-- Navigation Bar Header -->
   <header class="navbar">
-    <a href="../" class="brand-logo"><img src="../logo.png" alt="BYTHERIM" class="logo-img"></a>
+    <a href="../" class="brand-logo">
+      <img src="../logo.png" alt="BYTHERIM Logo" class="logo-img">
+    </a>
     <nav class="nav-links">
       <a href="../podcast.html">Podcast</a>
       <a href="../draft.html">Draft</a>
       <a href="../nba.html">NBA</a>
-      <a href="./ncaa.html" style="font-weight: 800; color: #ffffff;">NCAA RP</a>
-      <a href="./draft.html">Draft RP</a>
+      <a href="./" style="font-weight: 800; color: #ffffff;">BYTHERIM RP <span class="badge">SIM</span></a>
     </nav>
   </header>
 
-  <div class="sim-container">
-    <!-- Sidebar Controls -->
-    <aside class="control-panel">
-      <div class="status-header">Season Status: <span id="currentYearDisplay">2028</span></div>
-      <p id="currentPhaseDisplay" style="color: #a1a5b8; margin-bottom: 1.5rem;">Phase: Preseason</p>
-      
-      <button class="sim-btn" onclick="SimEngine.simulateSeason()">Simulate Season</button>
-      <button class="sim-btn" onclick="SimEngine.runOffseason()">Run Offseason & Draft</button>
-      <div style="margin-top: 2rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+  <div class="sim-layout">
+
+    <!-- Sidebar Controls & Season Ticker -->
+    <aside style="display: flex; flex-direction: column; gap: 1.5rem;">
+      <div class="panel-card">
+        <span class="status-badge" id="currentPhaseDisplay">Preseason</span>
+        <h2 style="margin: 0 0 0.5rem 0; font-size: 2rem; color: #fff;">
+          <span id="currentYearDisplay">2028</span> SEASON
+        </h2>
+        <p style="color: #7d8296; font-size: 0.95rem; margin-bottom: 1.5rem;">
+          Simulate game cycles, track player efficiency ratings, and monitor draft stock fluctuations.
+        </p>
+
+        <button class="sim-btn" onclick="SimEngine.simulateSeason()">Simulate Full Season</button>
+        <button class="sim-btn sim-btn-secondary" onclick="SimEngine.runOffseason()">Advance Offseason & Draft</button>
         <button class="sim-btn sim-btn-danger" onclick="SimEngine.hardReset()">Hard Reset Dynasty</button>
+      </div>
+
+      <!-- Live Storylines Card -->
+      <div class="panel-card">
+        <h3 style="margin: 0 0 1rem 0; font-size: 1.2rem; color: #fff; text-transform: uppercase;">
+          Season Storylines
+        </h3>
+        <div class="news-feed" id="newsFeed">
+          <div class="news-item">Welcome to the 2028 NCAA Season! Load database to generate rosters.</div>
+        </div>
       </div>
     </aside>
 
-    <!-- Main Output -->
-    <main class="dashboard">
-      <div class="data-card">
-        <h2>Top Performers (BPM)</h2>
-        <table id="statsTable">
-          <thead>
-            <tr>
-              <th>Player</th>
-              <th>Class</th>
-              <th>School</th>
-              <th>PTS</th>
-              <th>REB</th>
-              <th>AST</th>
-              <th>BPM</th>
-            </tr>
-          </thead>
-          <tbody id="statsBody">
-            <!-- JavaScript will populate this -->
-          </tbody>
-        </table>
+    <!-- Main Content Area -->
+    <main class="panel-card">
+      
+      <!-- Tab Controls -->
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('statsTab', this)">Player Leaderboards</button>
+        <button class="tab-btn" onclick="switchTab('standingsTab', this)">Team Standings</button>
+        <button class="tab-btn" onclick="switchTab('awardsTab', this)">Award Races</button>
       </div>
+
+      <!-- Tab 1: Player Leaderboards -->
+      <div id="statsTab" class="tab-content active">
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Rank</th>
+                <th>Player</th>
+                <th>Pos</th>
+                <th>Class</th>
+                <th>School</th>
+                <th>MPG</th>
+                <th>PTS</th>
+                <th>REB</th>
+                <th>AST</th>
+                <th>BPM</th>
+              </tr>
+            </thead>
+            <tbody id="statsBody">
+              <tr>
+                <td colspan="10" style="text-align: center; color: #7d8296; padding: 2rem;">
+                  Click "Simulate Full Season" to generate player statistics.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab 2: Team Standings -->
+      <div id="standingsTab" class="tab-content">
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Team</th>
+                <th>Conference</th>
+                <th>W</th>
+                <th>L</th>
+                <th>Win %</th>
+                <th>Pace</th>
+                <th>ORtg</th>
+                <th>DRtg</th>
+              </tr>
+            </thead>
+            <tbody id="standingsBody">
+              <tr>
+                <td colspan="8" style="text-align: center; color: #7d8296; padding: 2rem;">
+                  Standings will populate after simulating games.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab 3: Award Races -->
+      <div id="awardsTab" class="tab-content">
+        <div style="padding: 1rem 0; color: #a1a5b8;">
+          <h3 style="color: #fff;">Wooden Award Candidates (National Player of the Year)</h3>
+          <ul id="awardList" style="list-style: none; padding: 0; line-height: 2;">
+            <li>Complete a season to generate top award candidates.</li>
+          </ul>
+        </div>
+      </div>
+
     </main>
   </div>
 
   <script src="./js/ncaa-engine.js"></script>
+  <script>
+    function switchTab(tabId, btn) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      btn.classList.add('active');
+    }
+  </script>
 </body>
 </html>
