@@ -63,7 +63,7 @@
       background: #000000;
       border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 12px;
-      padding: 0.5rem;
+      padding: 0.25rem 0.5rem;
       display: flex;
       align-items: center;
     }
@@ -78,7 +78,7 @@
     .articles-feed {
       display: flex;
       flex-direction: column;
-      gap: 2.5rem;
+      gap: 1.75rem;
     }
 
     .post-card {
@@ -87,22 +87,57 @@
       border-radius: 16px;
       overflow: hidden;
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+      transition: transform 0.2s ease, border-color 0.2s ease;
     }
 
-    .post-embed-container {
-      width: 100%;
-      height: 480px;
-      border: 0;
+    .post-card:hover {
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
     }
 
-    .post-embed-container iframe {
-      width: 100%;
-      height: 100%;
-      border: 0;
+    .post-content {
+      padding: 1.75rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .post-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .post-badge {
+      color: #38bdf8;
+      font-weight: 800;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .post-date {
+      color: #7d8296;
+      font-size: 0.9rem;
+    }
+
+    .post-title {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: #ffffff;
+      margin: 0;
+      line-height: 1.2;
+    }
+
+    .post-snippet {
+      color: #a1a5b8;
+      font-size: 1.05rem;
+      line-height: 1.6;
+      margin: 0;
     }
 
     .fallback-link {
-      padding: 1.25rem 2rem;
+      padding: 1.1rem 2rem;
       background: #111117;
       border-top: 1px solid rgba(255, 255, 255, 0.06);
       display: flex;
@@ -149,40 +184,77 @@
         <p>Long-form essays, tactical breakdowns, and Substack newsletters</p>
       </div>
 
-      <!-- Optional Substack Inline Embed Widget -->
+      <!-- Substack Inline Subscribe Widget -->
       <div class="substack-subscribe-box">
         <iframe src="https://collindunks.substack.com/embed" scrolling="no"></iframe>
       </div>
     </div>
 
-    <!-- Substack Articles Feed -->
-    <div class="articles-feed">
-
-      <!-- Article Post 1 -->
-      <article class="post-card">
-        <div class="post-embed-container">
-          <iframe src="https://collindunks.substack.com/p/bytherim-final-big-board?r=43nhkz&utm_campaign=post&utm_medium=web/embed" loading="lazy"></iframe>
-        </div>
-        <div class="fallback-link">
-          <span style="color: #7d8296; font-size: 0.9rem;">Substack Publication</span>
-          <a href="https://collindunks.substack.com/p/bytherim-final-big-board?r=43nhkz&utm_campaign=post&utm_medium=web" target="_blank" rel="noopener">Read Full Post on Substack &rarr;</a>
-        </div>
-      </article>
-
-      <!-- Article Post 2 -->
-      <article class="post-card">
-        <div class="post-embed-container">
-          <iframe src="https://collindunks.substack.com/p/bytherim-final-big-board?r=43nhkz&utm_campaign=post&utm_medium=web/embed" loading="lazy"></iframe>
-        </div>
-        <div class="fallback-link">
-          <span style="color: #7d8296; font-size: 0.9rem;">Substack Publication</span>
-          <a href="https://collindunks.substack.com/p/bytherim-final-big-board?r=43nhkz&utm_campaign=post&utm_medium=web" target="_blank" rel="noopener">Read Full Post on Substack &rarr;</a>
-        </div>
-      </article>
-
+    <!-- Automated Substack Articles Feed -->
+    <div class="articles-feed" id="articlesFeed">
+      <p style="color: #8a8d9b; text-align: center; padding: 3rem 0;">Loading latest articles...</p>
     </div>
 
   </div>
+
+  <script>
+    const SUBSTACK_RSS_URL = 'https://collindunks.substack.com/feed';
+    const RSS2JSON_API = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(SUBSTACK_RSS_URL)}`;
+
+    async function fetchSubstackPosts() {
+      const feedContainer = document.getElementById('articlesFeed');
+      
+      try {
+        const response = await fetch(RSS2JSON_API);
+        const data = await response.json();
+
+        if (data.status !== 'ok' || !data.items || !data.items.length) {
+          feedContainer.innerHTML = '<p style="color: #8a8d9b; text-align: center; padding: 3rem 0;">No articles found.</p>';
+          return;
+        }
+
+        feedContainer.innerHTML = ''; // Clear loading message
+
+        data.items.forEach(post => {
+          const pubDate = new Date(post.pubDate).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+          });
+
+          // Clean HTML tags and trim description snippet
+          const cleanSnippet = post.description
+            .replace(/<[^>]*>?/gm, '')
+            .replace(/&nbsp;/g, ' ')
+            .trim()
+            .slice(0, 220) + '...';
+
+          const postCard = document.createElement('article');
+          postCard.className = 'post-card';
+          postCard.innerHTML = `
+            <div class="post-content">
+              <div class="post-meta">
+                <span class="post-badge">Substack Essay</span>
+                <span class="post-date">${pubDate}</span>
+              </div>
+              <h2 class="post-title">${post.title}</h2>
+              <p class="post-snippet">${cleanSnippet}</p>
+            </div>
+            <div class="fallback-link">
+              <span style="color: #7d8296; font-size: 0.9rem;">By Collin</span>
+              <a href="${post.link}" target="_blank" rel="noopener">Read Full Article on Substack &rarr;</a>
+            </div>
+          `;
+
+          feedContainer.appendChild(postCard);
+        });
+      } catch (error) {
+        feedContainer.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 3rem 0;">Unable to load Substack posts at this time.</p>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', fetchSubstackPosts);
+  </script>
 
 </body>
 </html>
