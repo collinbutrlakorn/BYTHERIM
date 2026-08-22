@@ -3,89 +3,331 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BYTHERIM | NBA Draft Big Board</title>
+  <title>BYTHERIM | Draft Board</title>
   
+  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png">
+
+  <!-- Stylesheets & Fonts -->
   <link rel="stylesheet" href="style.css">
-  
-  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   
-  <!-- PapaParse for Google Sheets CSV integration -->
+  <!-- PapaParse for CSV fetching -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+  <style>
+    /* Dark Theme Overrides & Modern Draft Board Styling */
+    body {
+      background-color: #050507;
+      color: #e2e8f0;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .draft-container {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .draft-header-card {
+      background: linear-gradient(180deg, #121218 0%, #0a0a0f 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 1.75rem 2rem;
+      margin-bottom: 1.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .draft-title h1 {
+      font-family: 'Asap Condensed', sans-serif;
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: #ffffff;
+      margin: 0;
+    }
+
+    .draft-title p {
+      color: #8a8d9b;
+      font-size: 0.9rem;
+      margin-top: 4px;
+    }
+
+    .filter-controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .search-bar, .filter-select {
+      background: #000000;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #ffffff;
+      padding: 0.7rem 1rem;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .search-bar:focus, .filter-select:focus {
+      border-color: #ffffff;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
+    }
+
+    /* Table Design */
+    .table-wrapper {
+      background: #0a0a0e;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 16px;
+      overflow-x: auto;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+    }
+
+    .draft-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    .draft-table th {
+      background: #111117;
+      color: #63677b;
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .draft-table td {
+      padding: 1.1rem 1.25rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      vertical-align: middle;
+    }
+
+    .draft-table tbody tr {
+      transition: background 0.15s ease;
+    }
+
+    .draft-table tbody tr:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    /* Pick Rank Number */
+    .pick-num {
+      font-family: 'Asap Condensed', sans-serif;
+      font-size: 1.4rem;
+      font-weight: 800;
+      color: #ffffff;
+      text-align: center;
+      width: 50px;
+    }
+
+    /* Player Profile Formatting */
+    .player-cell {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .player-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #1a1a24;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .player-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .player-name {
+      font-size: 1.25rem;
+      font-weight: 900;
+      color: #ffffff;
+      letter-spacing: -0.01em;
+      line-height: 1.1;
+    }
+
+    .player-archetype {
+      font-size: 0.78rem;
+      color: #7d8296;
+      font-weight: 500;
+      margin-top: 3px;
+    }
+
+    /* School Logo Display */
+    .school-cell {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .school-logo {
+      height: 32px;
+      width: auto;
+      max-width: 45px;
+      object-fit: contain;
+      filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.5));
+    }
+
+    .school-fallback-text {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #d1d5db;
+    }
+
+    /* Position Pill */
+    .pos-badge {
+      display: inline-block;
+      padding: 4px 10px;
+      background: #161622;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    /* Dynamic Tier Badges (Tier 1 Red -> Tier 10 Blue) */
+    .tier-badge {
+      display: inline-block;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+  </style>
 </head>
 <body>
 
-  <!-- Navigation Bar Header (Matches Main Site) -->
-  <header class="navbar" style="background: var(--bg-card); border-bottom: 1px solid var(--border-color); padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center;">
-    <a href="index.html" class="brand-logo">
-      <img src="logo.png" alt="BYTHERIM Logo" class="logo-img" style="height: 40px;">
+  <!-- Navigation Bar Header -->
+  <header class="navbar">
+    <a href="./" class="brand-logo">
+      <img src="logo.png" alt="BYTHERIM Logo" class="logo-img">
     </a>
-    <nav class="nav-links" style="display: flex; gap: 15px; align-items: center;">
-      <a href="podcast.html" style="color: var(--text-main); text-decoration: none;">Podcast</a>
-      <a href="draft.html" style="color: var(--text-main); text-decoration: none; font-weight: 700;">Draft</a>
-      <a href="nba.html" style="color: var(--text-main); text-decoration: none;">NBA</a>
-      <a href="rp/index.html" class="rp-btn" style="background: var(--accent-main); color: var(--bg-dark); padding: 6px 12px; border-radius: 6px; text-decoration: none; font-weight: 700;">BYTHERIM RP <span class="badge" style="font-size: 0.7rem;">SIM</span></a>
+    <nav class="nav-links">
+      <a href="podcast.html">Podcast</a>
+      <a href="draft.html" style="font-weight: 800; color: #ffffff;">Draft</a>
+      <a href="nba.html">NBA</a>
+      <a href="./rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
     </nav>
   </header>
 
-  <!-- Draft Board Content -->
-  <main class="container">
-    <div class="draft-board-container" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px; padding: 1.5rem;">
-      
-      <!-- Interactive Controls -->
-      <div class="controls-bar">
-        <div>
-          <h1 style="font-size: 1.6rem; color: var(--text-main); margin-bottom: 4px;">NBA Draft Big Board</h1>
-          <p style="font-size: 0.85rem; color: var(--text-muted);">Consensus ranking & prospect evaluations</p>
-        </div>
-        
-        <div class="filter-group">
-          <input type="text" id="searchInput" class="search-input" placeholder="Search prospect or school...">
-          <select id="posFilter" class="select-input">
-            <option value="ALL">All Positions</option>
-            <option value="PG">PG</option>
-            <option value="SG">SG</option>
-            <option value="SF">SF</option>
-            <option value="PF">PF</option>
-            <option value="C">C</option>
-          </select>
-        </div>
+  <!-- Main Content -->
+  <div class="draft-container">
+    
+    <!-- Controls Header -->
+    <div class="draft-header-card">
+      <div class="draft-title">
+        <h1>NBA DRAFT BIG BOARD</h1>
+        <p>Interactive prospect evaluations & consensus rankings</p>
       </div>
 
-      <!-- Table Structure -->
-      <div class="table-container">
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 60px;">Pick</th>
-              <th style="text-align: left;">Prospect</th>
-              <th>Pos</th>
-              <th>Ht / Wt</th>
-              <th>Team / School</th>
-              <th>Grade / Tier</th>
-            </tr>
-          </thead>
-          <tbody id="draftTableBody">
-            <!-- Data will be injected here via JavaScript -->
-            <tr><td colspan="6" style="padding: 2rem; color: var(--text-muted);">Loading draft board...</td></tr>
-          </tbody>
-        </table>
+      <div class="filter-controls">
+        <input type="text" id="searchInput" class="search-bar" placeholder="Search player or team...">
+        <select id="posFilter" class="filter-select">
+          <option value="ALL">All Positions</option>
+          <option value="PG">PG</option>
+          <option value="SG">SG</option>
+          <option value="SF">SF</option>
+          <option value="PF">PF</option>
+          <option value="C">C</option>
+        </select>
       </div>
     </div>
-  </main>
 
-  <!-- Google Sheets Parsing & Filtering Script -->
+    <!-- Data Table -->
+    <div class="table-wrapper">
+      <table class="draft-table">
+        <thead>
+          <tr>
+            <th style="text-align: center; width: 60px;">Pick</th>
+            <th>Prospect</th>
+            <th>Pos</th>
+            <th>HT / WT</th>
+            <th>School / Team</th>
+            <th>Tier Rating</th>
+          </tr>
+        </thead>
+        <tbody id="draftTableBody">
+          <tr>
+            <td colspan="6" style="text-align: center; padding: 3rem; color: #63677b;">
+              Loading Big Board Data...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
   <script>
-    // TO-DO: Replace this URL with your published Google Sheet CSV link
-    // File -> Share -> Publish to web -> Entire Document as Comma-separated values (.csv)
-    const googleSheetCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTjSzV7c31_8uY69vD-UzxT_rqX_mqjOxECd0aFr-gien0cULby0kLa8iV3ISnuskTr7u2AevhwB7ZN/pub?output=csv';
-    
+    // Link to your published Google Sheet CSV
+    const googleSheetCSV = 'YOUR_GOOGLE_SHEET_CSV_URL_HERE';
     let draftData = [];
 
-    // Initialize PapaParse to pull and format the data
+    // Color gradient mapping for Tiers 1 through 10 (Red -> Orange -> Yellow -> Green -> Teal -> Purple -> Blue)
+    const tierStyles = {
+      1:  { bg: "rgba(239, 68, 68, 0.18)",   color: "#f87171", border: "rgba(239, 68, 68, 0.4)" },   // Crimson Red
+      2:  { bg: "rgba(249, 115, 22, 0.18)",  color: "#fb923c", border: "rgba(249, 115, 22, 0.4)" },  // Red-Orange
+      3:  { bg: "rgba(245, 158, 11, 0.18)",  color: "#fbbf24", border: "rgba(245, 158, 11, 0.4)" },  // Amber / Orange
+      4:  { bg: "rgba(234, 179, 8, 0.18)",   color: "#facc15", border: "rgba(234, 179, 8, 0.4)" },   // Yellow
+      5:  { bg: "rgba(132, 204, 22, 0.18)",  color: "#a3e635", border: "rgba(132, 204, 22, 0.4)" },  // Lime
+      6:  { bg: "rgba(34, 197, 94, 0.18)",   color: "#4ade80", border: "rgba(34, 197, 94, 0.4)" },   // Green
+      7:  { bg: "rgba(20, 184, 166, 0.18)",  color: "#2dd4bf", border: "rgba(20, 184, 166, 0.4)" },  // Teal
+      8:  { bg: "rgba(6, 182, 212, 0.18)",   color: "#38bdf8", border: "rgba(6, 182, 212, 0.4)" },   // Cyan
+      9:  { bg: "rgba(99, 102, 241, 0.18)",  color: "#818cf8", border: "rgba(99, 102, 241, 0.4)" },  // Indigo / Violet
+      10: { bg: "rgba(59, 130, 246, 0.18)",  color: "#60a5fa", border: "rgba(59, 130, 246, 0.4)" }   // Deep Blue
+    };
+
+    function getTierBadgeHTML(tierInput) {
+      if (!tierInput) return '-';
+      
+      // Extract numeric tier digit (e.g. "Tier 1" -> 1)
+      const match = String(tierInput).match(/\d+/);
+      const tierNum = match ? parseInt(match[0]) : null;
+
+      const style = tierStyles[tierNum] || {
+        bg: "rgba(255, 255, 255, 0.08)",
+        color: "#d1d5db",
+        border: "rgba(255, 255, 255, 0.15)"
+      };
+
+      return `<span class="tier-badge" style="background: ${style.bg}; color: ${style.color}; border: 1px solid ${style.border};">${tierInput}</span>`;
+    }
+
+    function getSchoolLogoHTML(schoolName) {
+      if (!schoolName) return '<span class="school-fallback-text">-</span>';
+      
+      // Formats school name to lowercase hyphenated filename (e.g., "Duke" -> "duke.png", "North Carolina" -> "north-carolina.png")
+      const formattedFilename = schoolName.toLowerCase().trim().replace(/\s+/g, '-');
+      const logoPath = `schoollogos/${formattedFilename}.png`;
+
+      return `
+        <div class="school-cell">
+          <img src="${logoPath}" class="school-logo" alt="${schoolName}" 
+               onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+          <span class="school-fallback-text" style="display: none;">${schoolName}</span>
+        </div>
+      `;
+    }
+
     Papa.parse(googleSheetCSV, {
       download: true,
       header: true,
@@ -94,46 +336,46 @@
         draftData = results.data;
         renderTable(draftData);
       },
-      error: function(err) {
-        document.getElementById('draftTableBody').innerHTML = '<tr><td colspan="6">Error loading data. Make sure the sheet is published to the web as a CSV.</td></tr>';
+      error: function() {
+        document.getElementById('draftTableBody').innerHTML = 
+          '<tr><td colspan="6" style="text-align: center; color: #ef4444;">Error fetching data. Check your Google Sheet CSV URL.</td></tr>';
       }
     });
 
     function renderTable(data) {
       const tbody = document.getElementById('draftTableBody');
-      tbody.innerHTML = ''; // Clear loading text
+      tbody.innerHTML = '';
 
       if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6">No prospects found matching your criteria.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #63677b;">No matching prospects found.</td></tr>';
         return;
       }
 
       data.forEach(player => {
-        // Build the row based on Google Sheet column headers 
-        // (Assuming columns: Pick, Name, Archetype, Pos, Height, Weight, School, Tier, AvatarURL)
         const tr = document.createElement('tr');
-        
+
         tr.innerHTML = `
-          <td class="rank-num">${player.Pick || '-'}</td>
+          <td class="pick-num">${player.Pick || '-'}</td>
           <td>
             <div class="player-cell">
-              <img src="${player.AvatarURL || 'default-avatar.png'}" class="player-avatar-sm" alt="${player.Name}">
-              <div>
+              <img src="${player.AvatarURL || 'favicon.png'}" class="player-avatar" alt="${player.Name}">
+              <div class="player-info">
                 <span class="player-name">${player.Name || 'Unknown Player'}</span>
-                <span class="player-sub">${player.Archetype || 'Prospect'}</span>
+                <span class="player-archetype">${player.Archetype || 'Prospect'}</span>
               </div>
             </div>
           </td>
-          <td><span class="badge-pos">${player.Pos || '-'}</span></td>
-          <td>${player.Height || '-'} / ${player.Weight || '-'}</td>
-          <td>${player.School || 'Undecided'}</td>
-          <td><span class="rating-pill">${player.Tier || '-'}</span></td>
+          <td><span class="pos-badge">${player.Pos || '-'}</span></td>
+          <td style="color: #cbd5e1; font-weight: 500;">${player.Height || '-'} / ${player.Weight || '-'}</td>
+          <td>${getSchoolLogoHTML(player.School)}</td>
+          <td>${getTierBadgeHTML(player.Tier)}</td>
         `;
+
         tbody.appendChild(tr);
       });
     }
 
-    // Interactivity: Search and Filter Logic
+    // Live Filtering Logic
     function filterData() {
       const searchTerm = document.getElementById('searchInput').value.toLowerCase();
       const posFilter = document.getElementById('posFilter').value;
@@ -142,14 +384,13 @@
         const matchesSearch = (player.Name && player.Name.toLowerCase().includes(searchTerm)) || 
                               (player.School && player.School.toLowerCase().includes(searchTerm));
         const matchesPos = (posFilter === 'ALL') || (player.Pos === posFilter);
-        
+
         return matchesSearch && matchesPos;
       });
 
       renderTable(filtered);
     }
 
-    // Attach Event Listeners to inputs
     document.getElementById('searchInput').addEventListener('input', filterData);
     document.getElementById('posFilter').addEventListener('change', filterData);
   </script>
