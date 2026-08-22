@@ -12,17 +12,24 @@
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <!-- Loading Asap Condensed for all standard text weights -->
+  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet">
   
   <!-- PapaParse for CSV fetching -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 
   <style>
-    /* Dark Theme Overrides & Modern Draft Board Styling */
+    /* Dark Theme & Platform Typography */
     body {
       background-color: #050507;
       color: #e2e8f0;
-      font-family: 'Inter', sans-serif;
+      font-family: 'Asap Condensed', sans-serif;
+      font-size: 1.1rem; 
+    }
+
+    /* Target all major headings with Anantason Condensed */
+    h1, h2, h3, h4, h5, h6, .brand-logo {
+      font-family: 'Anantason Condensed', 'Asap Condensed', sans-serif;
     }
 
     .draft-container {
@@ -46,8 +53,7 @@
     }
 
     .draft-title h1 {
-      font-family: 'Asap Condensed', sans-serif;
-      font-size: 2.2rem;
+      font-size: 2.4rem;
       font-weight: 800;
       letter-spacing: 0.03em;
       text-transform: uppercase;
@@ -57,7 +63,7 @@
 
     .draft-title p {
       color: #8a8d9b;
-      font-size: 0.9rem;
+      font-size: 1rem;
       margin-top: 4px;
     }
 
@@ -73,8 +79,9 @@
       color: #ffffff;
       padding: 0.7rem 1rem;
       border-radius: 8px;
-      font-size: 0.88rem;
+      font-size: 1rem;
       outline: none;
+      font-family: 'Asap Condensed', sans-serif;
       transition: all 0.2s ease;
     }
 
@@ -95,20 +102,18 @@
     .draft-table {
       width: 100%;
       border-collapse: collapse;
-      /* By default, everything is centered */
       text-align: center; 
     }
 
     .draft-table th {
       background: #111117;
       color: #63677b;
-      font-size: 0.72rem;
-      font-weight: 800;
+      font-size: 0.9rem;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       padding: 1rem 1.25rem;
       border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-      text-align: center;
     }
 
     .draft-table td {
@@ -118,34 +123,130 @@
       transition: background 0.2s ease, border 0.2s ease, box-shadow 0.2s ease;
     }
 
-    /* Overriding Prospect Column Alignment */
     .draft-table td.prospect-col {
       text-align: left;
     }
 
+    /* Make rows clickable for expansion */
+    .player-row {
+      cursor: pointer;
+    }
+
     /* Dynamic Row Glow Hover Effect */
-    .draft-table tbody tr {
+    .draft-table tbody .player-row {
       transition: all 0.2s ease;
       position: relative;
     }
 
-    .draft-table tbody tr:hover td {
+    .draft-table tbody .player-row:hover td {
       background: var(--hover-bg, rgba(255, 255, 255, 0.03));
       border-top: 1px solid var(--hover-glow, transparent);
       border-bottom: 1px solid var(--hover-glow, transparent);
     }
     
-    .draft-table tbody tr:hover td:first-child {
+    .draft-table tbody .player-row:hover td:first-child {
       border-left: 1px solid var(--hover-glow, transparent);
       box-shadow: inset 15px 0 15px -15px var(--hover-glow, transparent);
     }
 
-    .draft-table tbody tr:hover td:last-child {
+    .draft-table tbody .player-row:hover td:last-child {
       border-right: 1px solid var(--hover-glow, transparent);
       box-shadow: inset -15px 0 15px -15px var(--hover-glow, transparent);
     }
 
-    /* Column 1: Rank & Tier Stack */
+    /* Expanded Profile Detail Row Styles */
+    .detail-row td {
+      padding: 0 !important;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background-color: #0d0d12;
+    }
+
+    .profile-card {
+      display: flex;
+      box-shadow: inset 0 10px 20px rgba(0,0,0,0.5);
+      padding: 2rem;
+      gap: 2rem;
+      align-items: flex-start;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .profile-image {
+      flex-shrink: 0;
+      width: 140px;
+      height: 140px;
+      background: #161622;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .profile-image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: top;
+    }
+
+    .profile-content {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      text-align: left;
+    }
+
+    .scouting-report h3, .torvik-stats h3 {
+      color: #ffffff;
+      font-size: 1.4rem;
+      margin-top: 0;
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 0.5rem;
+    }
+
+    .scouting-report p {
+      font-size: 1.1rem;
+      color: #a1a5b8;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    .torvik-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+      gap: 1rem;
+    }
+
+    .stat-box {
+      background: #121218;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 0.75rem;
+      text-align: center;
+    }
+
+    .stat-label {
+      display: block;
+      font-size: 0.85rem;
+      color: #7d8296;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+
+    .stat-value {
+      display: block;
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #ffffff;
+    }
+
+    /* Specific Row Element Formatting */
     .rank-tier-cell {
       display: flex;
       flex-direction: column;
@@ -156,26 +257,23 @@
     }
 
     .pick-num {
-      font-family: 'Asap Condensed', sans-serif;
-      font-size: 1.5rem;
+      font-size: 1.6rem;
       font-weight: 800;
       color: #ffffff;
       line-height: 1;
     }
 
-    /* Dynamic Tier Badges */
     .tier-badge {
       display: inline-block;
       padding: 3px 8px;
       border-radius: 12px;
-      font-size: 0.68rem;
+      font-size: 0.75rem;
       font-weight: 800;
       text-transform: uppercase;
       letter-spacing: 0.04em;
       white-space: nowrap;
     }
 
-    /* Column 2: Player Profile Formatting */
     .player-cell {
       display: flex;
       flex-direction: column;
@@ -183,7 +281,7 @@
     }
 
     .player-name {
-      font-size: 1.25rem;
+      font-size: 1.35rem;
       font-weight: 900;
       color: #ffffff;
       letter-spacing: -0.01em;
@@ -191,25 +289,23 @@
     }
 
     .player-archetype {
-      font-size: 0.78rem;
+      font-size: 0.95rem;
       color: #7d8296;
       font-weight: 500;
       margin-top: 3px;
     }
 
-    /* Column 3: Position Pill */
     .pos-badge {
       display: inline-block;
       padding: 4px 10px;
       background: #161622;
       border: 1px solid rgba(255, 255, 255, 0.12);
       border-radius: 6px;
-      font-size: 0.78rem;
+      font-size: 0.95rem;
       font-weight: 700;
       color: #ffffff;
     }
 
-    /* School Logo Display */
     .school-cell {
       display: flex;
       align-items: center;
@@ -226,14 +322,13 @@
     }
 
     .school-fallback-text {
-      font-size: 0.9rem;
+      font-size: 1rem;
       font-weight: 600;
       color: #d1d5db;
     }
 
-    /* Box Score Text */
     .boxscore-cell {
-      font-size: 0.85rem;
+      font-size: 1rem;
       font-weight: 600;
       color: #94a3b8;
       white-space: nowrap;
@@ -306,26 +401,23 @@
   </div>
 
   <script>
-    // URL convertor to ensure published sheet is fetched strictly as CSV
     let googleSheetCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTjSzV7c31_8uY69vD-UzxT_rqX_mqjOxECd0aFr-gien0cULby0kLa8iV3ISnuskTr7u2AevhwB7ZN/pub?output=csv';
     
     let draftData = [];
 
-    // Color gradient mapping for Tiers 1 through 10
     const tierStyles = {
-      1:  { bg: "rgba(239, 68, 68, 0.2)",   color: "#f87171", border: "rgba(239, 68, 68, 0.5)" },   // Red
-      2:  { bg: "rgba(249, 115, 22, 0.2)",  color: "#fb923c", border: "rgba(249, 115, 22, 0.5)" },  // Red-Orange
-      3:  { bg: "rgba(245, 158, 11, 0.2)",  color: "#fbbf24", border: "rgba(245, 158, 11, 0.5)" },  // Orange
-      4:  { bg: "rgba(234, 179, 8, 0.2)",   color: "#facc15", border: "rgba(234, 179, 8, 0.5)" },   // Yellow
-      5:  { bg: "rgba(132, 204, 22, 0.2)",  color: "#a3e635", border: "rgba(132, 204, 22, 0.5)" },  // Lime
-      6:  { bg: "rgba(34, 197, 94, 0.2)",   color: "#4ade80", border: "rgba(34, 197, 94, 0.5)" },   // Green
-      7:  { bg: "rgba(20, 184, 166, 0.2)",  color: "#2dd4bf", border: "rgba(20, 184, 166, 0.5)" },  // Teal
-      8:  { bg: "rgba(6, 182, 212, 0.2)",   color: "#38bdf8", border: "rgba(6, 182, 212, 0.5)" },   // Cyan
-      9:  { bg: "rgba(99, 102, 241, 0.2)",  color: "#818cf8", border: "rgba(99, 102, 241, 0.5)" },  // Indigo
-      10: { bg: "rgba(59, 130, 246, 0.2)",  color: "#60a5fa", border: "rgba(59, 130, 246, 0.5)" }   // Blue
+      1:  { bg: "rgba(239, 68, 68, 0.2)",   color: "#f87171", border: "rgba(239, 68, 68, 0.5)" },   
+      2:  { bg: "rgba(249, 115, 22, 0.2)",  color: "#fb923c", border: "rgba(249, 115, 22, 0.5)" },  
+      3:  { bg: "rgba(245, 158, 11, 0.2)",  color: "#fbbf24", border: "rgba(245, 158, 11, 0.5)" },  
+      4:  { bg: "rgba(234, 179, 8, 0.2)",   color: "#facc15", border: "rgba(234, 179, 8, 0.5)" },   
+      5:  { bg: "rgba(132, 204, 22, 0.2)",  color: "#a3e635", border: "rgba(132, 204, 22, 0.5)" },  
+      6:  { bg: "rgba(34, 197, 94, 0.2)",   color: "#4ade80", border: "rgba(34, 197, 94, 0.5)" },   
+      7:  { bg: "rgba(20, 184, 166, 0.2)",  color: "#2dd4bf", border: "rgba(20, 184, 166, 0.5)" },  
+      8:  { bg: "rgba(6, 182, 212, 0.2)",   color: "#38bdf8", border: "rgba(6, 182, 212, 0.5)" },   
+      9:  { bg: "rgba(99, 102, 241, 0.2)",  color: "#818cf8", border: "rgba(99, 102, 241, 0.5)" },  
+      10: { bg: "rgba(59, 130, 246, 0.2)",  color: "#60a5fa", border: "rgba(59, 130, 246, 0.5)" }   
     };
 
-    // Helper to get flexible column fields regardless of header spelling
     function getField(row, ...possibleKeys) {
       if (!row) return '';
       const keys = Object.keys(row);
@@ -341,71 +433,45 @@
       return '';
     }
 
-    // Tier HTML Generator
     function getTierBadgeHTML(tierInput) {
       if (!tierInput) return '';
-      
       const match = String(tierInput).match(/\d+/);
       const tierNum = match ? parseInt(match[0]) : null;
-
-      const style = tierStyles[tierNum] || {
-        bg: "rgba(255, 255, 255, 0.08)",
-        color: "#d1d5db",
-        border: "rgba(255, 255, 255, 0.15)"
-      };
-
+      const style = tierStyles[tierNum] || { bg: "rgba(255, 255, 255, 0.08)", color: "#d1d5db", border: "rgba(255, 255, 255, 0.15)" };
       const displayText = tierInput.toLowerCase().includes('tier') ? tierInput : `Tier ${tierInput}`;
       return `<span class="tier-badge" style="background: ${style.bg}; color: ${style.color}; border: 1px solid ${style.border};">${displayText}</span>`;
     }
 
-    // Class Output Parser
     function getClassHTML(classInput) {
       if (!classInput) return '-';
       const val = String(classInput).trim().toLowerCase();
-      
-      if (val.includes('5th') || val.includes('fifth') || val.includes('super')) {
-        return `<span style="color: #fbbf24; font-weight: 800; text-shadow: 0 0 8px rgba(251,191,36,0.3);">SR</span>`;
-      }
+      if (val.includes('5th') || val.includes('fifth') || val.includes('super')) return `<span style="color: #fbbf24; font-weight: 800; text-shadow: 0 0 8px rgba(251,191,36,0.3);">SR</span>`;
       if (val === 'fr' || val.includes('freshman') || val.includes('freshmen')) return 'FR';
       if (val === 'so' || val.includes('sophomore')) return 'SO';
       if (val === 'jr' || val.includes('junior')) return 'JR';
       if (val === 'sr' || val.includes('senior')) return 'SR';
       if (val === 'int' || val.includes('intl') || val.includes('international')) return 'INT';
-      
       return classInput;
     }
 
-    // Draft Age Calculator (Green to Red interpolation based on age relative to June 24, 2027)
     function getDraftAgeConfig(dobStr) {
       if (!dobStr) return { text: '-', color: '#cbd5e1' };
       const dob = new Date(dobStr);
-      if (isNaN(dob)) return { text: dobStr, color: '#cbd5e1' }; // Fallback if data is unparsable
-
+      if (isNaN(dob)) return { text: dobStr, color: '#cbd5e1' }; 
       const draftDate = new Date('2027-06-24');
       const ageInMs = draftDate - dob;
       const ageInYears = ageInMs / (1000 * 60 * 60 * 24 * 365.25);
-      
-      // Interpolate color from 18 years old (Green) to 23 years old (Red)
       const minAge = 18.0;
       const maxAge = 23.0;
-      
-      // Keep ratio bound between 0 and 1
       const ratio = Math.max(0, Math.min(1, (ageInYears - minAge) / (maxAge - minAge)));
-      
-      // Hue mapping: Green is 120, Red is 0.
       const hue = Math.round(120 * (1 - ratio));
-      const color = `hsl(${hue}, 85%, 55%)`; 
-
-      return { text: ageInYears.toFixed(1), color: color };
+      return { text: ageInYears.toFixed(1), color: `hsl(${hue}, 85%, 55%)` };
     }
 
-    // School Logo Generator
     function getSchoolLogoHTML(schoolName) {
       if (!schoolName) return '<span class="school-fallback-text">-</span>';
-      
       const formattedFilename = schoolName.toLowerCase().trim().replace(/\s+/g, '-');
       const logoPath = `schoollogos/${formattedFilename}.png`;
-
       return `
         <div class="school-cell">
           <img src="${logoPath}" class="school-logo" alt="${schoolName}" 
@@ -424,8 +490,7 @@
         renderTable(draftData);
       },
       error: function() {
-        document.getElementById('draftTableBody').innerHTML = 
-          '<tr><td colspan="8" style="text-align: center; color: #ef4444;">Error fetching data. Check your Google Sheet CSV URL.</td></tr>';
+        document.getElementById('draftTableBody').innerHTML = '<tr><td colspan="8" style="text-align: center; color: #ef4444;">Error fetching data. Check your Google Sheet CSV URL.</td></tr>';
       }
     });
 
@@ -438,8 +503,8 @@
         return;
       }
 
-      data.forEach(player => {
-        // Data Extraction
+      data.forEach((player, index) => {
+        // Base Data
         const rank = getField(player, 'Ranking', 'Rank', 'Pick', '#');
         const tier = getField(player, 'Tier', 'Tier Rating', 'Grade');
         const name = getField(player, 'Prospect', 'Name', 'Player');
@@ -449,73 +514,117 @@
         const weight = getField(player, 'Weight', 'Wt');
         const school = getField(player, 'School/Team', 'School', 'Team', 'College');
         const boxscore = getField(player, 'Box Score', 'BoxScore', 'Stats', 'Statline', 'PPG');
-        
-        // New Column Processing
         const dob = getField(player, 'DOB', 'Date of Birth', 'Birthdate', 'Birth');
-        const draftAge = getDraftAgeConfig(dob);
         const classVal = getField(player, 'Class', 'Year');
-        const classHTML = getClassHTML(classVal);
+        
+        // Expanded Profile Data
+        const espnImg = getField(player, 'ESPN Image URL', 'ESPN', 'Image', 'Headshot', 'Picture');
+        const scouting = getField(player, 'Scouting Report', 'Scouting', 'Notes', 'Report', 'Evaluation');
+        
+        // Torvik Data (Extracted directly if they are columns in your sheet)
+        const pts = getField(player, 'PTS', 'Points') || '-';
+        const reb = getField(player, 'REB', 'Rebounds') || '-';
+        const ast = getField(player, 'AST', 'Assists') || '-';
+        const tsp = getField(player, 'TS%', 'True Shooting') || '-';
+        const efg = getField(player, 'eFG%', 'eFG') || '-';
+        const usg = getField(player, 'USG%', 'Usage') || '-';
+        const bpm = getField(player, 'BPM', 'Box Plus-Minus') || '-';
 
+        const draftAge = getDraftAgeConfig(dob);
+        const classHTML = getClassHTML(classVal);
         const htWtDisplay = (height || weight) ? `${height || '-'} / ${weight || '-'}` : '-';
 
-        // Resolve styling for the hover glow based on the specific tier
         const tierMatch = String(tier).match(/\d+/);
         const tierNum = tierMatch ? parseInt(tierMatch[0]) : null;
         const hoverStyles = tierStyles[tierNum] || { bg: 'rgba(255,255,255,0.05)', color: '#d1d5db' };
         
-        // We boost the background slightly on hover and set the glow color outline
         const rowHoverBg = hoverStyles.bg.replace('0.2', '0.15');
         const rowHoverGlow = hoverStyles.color;
 
-        const tr = document.createElement('tr');
-        
-        // Applying our CSS variables natively into the element
-        tr.style.setProperty('--hover-bg', rowHoverBg);
-        tr.style.setProperty('--hover-glow', rowHoverGlow);
+        // --- MAIN ROW GENERATION ---
+        const mainTr = document.createElement('tr');
+        mainTr.className = 'player-row';
+        mainTr.style.setProperty('--hover-bg', rowHoverBg);
+        mainTr.style.setProperty('--hover-glow', rowHoverGlow);
 
-        tr.innerHTML = `
-          <!-- Ranking & Tier -->
+        mainTr.innerHTML = `
           <td>
             <div class="rank-tier-cell">
               <span class="pick-num">${rank || '-'}</span>
               ${getTierBadgeHTML(tier)}
             </div>
           </td>
-
-          <!-- Prospect & Archetype (Left Aligned due to class) -->
           <td class="prospect-col">
             <div class="player-cell">
               <span class="player-name">${name || 'Unknown Player'}</span>
               <span class="player-archetype">${archetype || 'Prospect'}</span>
             </div>
           </td>
-
-          <!-- Position -->
           <td><span class="pos-badge">${pos || '-'}</span></td>
-
-          <!-- Class -->
           <td style="font-weight: 700;">${classHTML}</td>
-
-          <!-- Height / Weight -->
           <td style="color: #cbd5e1; font-weight: 500;">${htWtDisplay}</td>
-
-          <!-- Draft Age -->
-          <td style="color: ${draftAge.color}; font-weight: 800; font-size: 1.05rem; text-shadow: 0 0 10px rgba(0,0,0,0.5);">
+          <td style="color: ${draftAge.color}; font-weight: 800; font-size: 1.15rem; text-shadow: 0 0 10px rgba(0,0,0,0.5);">
             ${draftAge.text}
           </td>
-
-          <!-- School / Team Logo -->
           <td>${getSchoolLogoHTML(school)}</td>
-
-          <!-- Box Score -->
           <td><span class="boxscore-cell">${boxscore || '-'}</span></td>
         `;
 
-        tbody.appendChild(tr);
+        // --- DETAIL ROW GENERATION ---
+        const detailTr = document.createElement('tr');
+        detailTr.id = `detail-${index}`;
+        detailTr.className = 'detail-row';
+        detailTr.style.display = 'none'; // Hidden by default
+
+        const imageHTML = espnImg 
+          ? `<img src="${espnImg}" alt="${name}">` 
+          : `<span style="color: #63677b; font-size: 0.85rem; font-weight: 600;">NO IMAGE</span>`;
+
+        detailTr.innerHTML = `
+          <td colspan="8">
+            <div class="profile-card">
+              <div class="profile-image">
+                ${imageHTML}
+              </div>
+              
+              <div class="profile-content">
+                <div class="scouting-report">
+                  <h3>Scouting Report</h3>
+                  <p>${scouting || 'No scouting report data found for this prospect.'}</p>
+                </div>
+                
+                <div class="torvik-stats">
+                  <h3>Advanced Stats (Torvik)</h3>
+                  <div class="torvik-grid">
+                    <div class="stat-box"><span class="stat-label">PTS</span><span class="stat-value">${pts}</span></div>
+                    <div class="stat-box"><span class="stat-label">REB</span><span class="stat-value">${reb}</span></div>
+                    <div class="stat-box"><span class="stat-label">AST</span><span class="stat-value">${ast}</span></div>
+                    <div class="stat-box"><span class="stat-label">TS%</span><span class="stat-value">${tsp}</span></div>
+                    <div class="stat-box"><span class="stat-label">eFG%</span><span class="stat-value">${efg}</span></div>
+                    <div class="stat-box"><span class="stat-label">USG%</span><span class="stat-value">${usg}</span></div>
+                    <div class="stat-box"><span class="stat-label">BPM</span><span class="stat-value">${bpm}</span></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </td>
+        `;
+
+        // --- TOGGLE LISTENER ---
+        mainTr.addEventListener('click', () => {
+          const isExpanded = detailTr.style.display === 'table-row';
+          
+          // Optional: Close all other open rows when a new one is clicked
+          document.querySelectorAll('.detail-row').forEach(row => row.style.display = 'none');
+          
+          detailTr.style.display = isExpanded ? 'none' : 'table-row';
+        });
+
+        tbody.appendChild(mainTr);
+        tbody.appendChild(detailTr);
       });
     }
 
-    // Live Search & Position Filter
     function filterData() {
       const searchTerm = document.getElementById('searchInput').value.toLowerCase();
       const posFilter = document.getElementById('posFilter').value;
