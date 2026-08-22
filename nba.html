@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BYTHERIM | NBA</title>
+  
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      background-color: #050507;
+      color: #e2e8f0;
+      font-family: 'Asap Condensed', sans-serif;
+      font-size: 1.1rem;
+      margin: 0;
+    }
+
+    h1, h2, h3, h4, h5, h6, .brand-logo {
+      font-family: 'Anantason Condensed', 'Asap Condensed', sans-serif;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    .header-card {
+      background: linear-gradient(180deg, #121218 0%, #0a0a0f 100%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 1.75rem 2rem;
+      margin-bottom: 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+    }
+
+    .header-title h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: #ffffff;
+      margin: 0;
+    }
+
+    .header-title p {
+      color: #8a8d9b;
+      font-size: 1rem;
+      margin-top: 4px;
+    }
+
+    .substack-subscribe-box {
+      background: #000000;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      padding: 0.5rem;
+      display: flex;
+      align-items: center;
+    }
+
+    .substack-subscribe-box iframe {
+      border: 0;
+      background: transparent;
+      height: 50px;
+      width: 320px;
+    }
+
+    .articles-feed {
+      display: flex;
+      flex-direction: column;
+      gap: 2.5rem;
+    }
+
+    .post-card {
+      background: #0a0a0e;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+    }
+
+    .post-embed-container {
+      width: 100%;
+      height: 480px;
+      border: 0;
+    }
+
+    .post-embed-container iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+    }
+
+    .fallback-link {
+      padding: 1.25rem 2rem;
+      background: #111117;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .fallback-link a {
+      color: #38bdf8;
+      text-decoration: none;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.95rem;
+      transition: color 0.2s ease;
+    }
+
+    .fallback-link a:hover {
+      color: #ffffff;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navigation Bar Header -->
+  <header class="navbar">
+    <a href="./" class="brand-logo">
+      <img src="logo.png" alt="BYTHERIM Logo" class="logo-img">
+    </a>
+    <nav class="nav-links">
+      <a href="podcast.html">Podcast</a>
+      <a href="draft.html">Draft</a>
+      <a href="nba.html" style="font-weight: 800; color: #ffffff;">NBA</a>
+      <a href="./rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
+    </nav>
+  </header>
+
+  <!-- Main Content -->
+  <div class="container">
+    
+    <div class="header-card">
+      <div class="header-title">
+        <h1>NBA ANALYSIS & WRITING</h1>
+        <p>Long-form essays, tactical breakdowns, and Substack newsletters</p>
+      </div>
+
+      <!-- Optional Substack Inline Embed Widget -->
+      <div class="substack-subscribe-box">
+        <iframe src="https://YOUR_SUBSTACK_HANDLE.substack.com/embed" scrolling="no"></iframe>
+      </div>
+    </div>
+
+    <!-- Substack Articles Feed -->
+    <div class="articles-feed">
+
+      <!-- Article Post 1 -->
+      <article class="post-card">
+        <div class="post-embed-container">
+          <iframe src="https://YOUR_SUBSTACK_HANDLE.substack.com/p/POST_SLUG_1/embed" loading="lazy"></iframe>
+        </div>
+        <div class="fallback-link">
+          <span style="color: #7d8296; font-size: 0.9rem;">Substack Publication</span>
+          <a href="https://YOUR_SUBSTACK_HANDLE.substack.com/p/POST_SLUG_1" target="_blank" rel="noopener">Read Full Post on Substack &rarr;</a>
+        </div>
+      </article>
+
+      <!-- Article Post 2 -->
+      <article class="post-card">
+        <div class="post-embed-container">
+          <iframe src="https://YOUR_SUBSTACK_HANDLE.substack.com/p/POST_SLUG_2/embed" loading="lazy"></iframe>
+        </div>
+        <div class="fallback-link">
+          <span style="color: #7d8296; font-size: 0.9rem;">Substack Publication</span>
+          <a href="https://YOUR_SUBSTACK_HANDLE.substack.com/p/POST_SLUG_2" target="_blank" rel="noopener">Read Full Post on Substack &rarr;</a>
+        </div>
+      </article>
+
+    </div>
+
+  </div>
+
+</body>
+</html>
