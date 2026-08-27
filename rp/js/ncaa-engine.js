@@ -5,18 +5,9 @@ const RECRUIT_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTWvXoq
 const ROSTER_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS_KgPla_wVF3w_s8PGVIreieVKkfOuVuFqt1K25i3gHNa_NpL6MDPST1qnIw12V61COFsSkf2C03Q-/pub?gid=0&single=true&output=csv';
 
 const COLUMN_MAP = {
-  name: "name",
-  pos: "pos",
-  school: "committedSchool",
-  rating: "rating",
-  classYear: "classYear",
-  hs_mpg: "hs_mpg",
-  hs_ppg: "hs_ppg",
-  hs_rpg: "hs_rpg",
-  hs_apg: "hs_apg",
-  hs_bpm: "hs_bpm",
-  hs_usg: "hs_usg",
-  hs_ts: "hs_ts"
+  name: "name", pos: "pos", school: "committedSchool", rating: "rating",
+  classYear: "classYear", hs_mpg: "hs_mpg", hs_ppg: "hs_ppg", hs_rpg: "hs_rpg",
+  hs_apg: "hs_apg", hs_bpm: "hs_bpm", hs_usg: "hs_usg", hs_ts: "hs_ts"
 };
 
 // ==========================================
@@ -26,17 +17,18 @@ const SimEngine = {
   state: {
     currentYear: 2028,
     phase: 'Preseason',
-    allRecruits: [], // Master historical list
-    allRosters: [],  // Master historical list
-    activeRecruits: [], // Filtered for current year
-    activeRosters: [],  // Filtered for current year
+    allRecruits: [], 
+    allRosters: [],  
+    activePlayers: [], // Master list combining rosters & recruits
     teamData: {}
   },
 
   init() {
     this.logStory("Engine initializing. Connecting to BYTHERIM databases...");
-    this.loadRecruitDatabase();
-    this.loadRosterDatabase();
+    // Load databases sequentially to ensure both are ready before merging
+    this.loadRosterDatabase().then(() => {
+      this.loadRecruitDatabase();
+    });
   },
 
   async loadRecruitDatabase() {
@@ -59,7 +51,6 @@ const SimEngine = {
       const response = await fetch(ROSTER_CSV_URL);
       const csvText = await response.text();
       this.state.allRosters = this.parseRosterCSV(csvText);
-      this.filterActiveData();
       this.logStory("Live Team Rosters synched and filtered by year.");
     } catch (err) {
       console.error("Error fetching rosters:", err);
@@ -67,12 +58,61 @@ const SimEngine = {
   },
 
   filterActiveData() {
-    // Current season starts in currentYear (e.g., 2028), finishes in currentYear + 1 (e.g., 2029)
     const recruitTargetYear = this.state.currentYear.toString();
     const rosterTargetYear = (this.state.currentYear + 1).toString();
 
-    this.state.activeRecruits = this.state.allRecruits.filter(p => p.classYear === recruitTargetYear);
-    this.state.activeRosters = this.state.allRosters.filter(p => p.year === rosterTargetYear);
+    const activeRecruits = this.state.allRecruits.filter(p => p.classYear === recruitTargetYear);
+    const activeRosters = this.state.allRosters.filter(p => p.year === rosterTargetYear);
+
+    // MERGE LOGIC
+    const playerMap = new Map();
+
+    // 1. Map all roster players
+    activeRosters.forEach(rosterPlayer => {
+      const key = rosterPlayer.name.toLowerCase();
+      playerMap.set(key, {
+        id: `roster_${key}`,
+        name: rosterPlayer.name,
+        pos: rosterPlayer.pos,
+        school: rosterPlayer.team,
+        classYear: rosterPlayer.class,
+        rosterInfo: rosterPlayer, 
+        // Baseline generation for roster players missing recruit histories
+        rating: 75 + Math.floor(Math.random() * 10), 
+        hs_stats: { 
+          mpg: 24, ppg: 8 + Math.random() * 6, rpg: 3 + Math.random() * 4, 
+          apg: 1 + Math.random() * 3, bpm: -1 + Math.random() * 5 
+        },
+        stats: null
+      });
+    });
+
+    // 2. Map and merge recruits
+    activeRecruits.forEach(recruit => {
+      const key = recruit.name.toLowerCase();
+      if (playerMap.has(key)) {
+        // Merge true recruit data into the existing roster frame
+        const p = playerMap.get(key);
+        p.rating = recruit.rating;
+        p.hs_stats = recruit.hs_stats;
+        p.pos = p.pos || recruit.pos; 
+      } else {
+        // Recruit isn't on roster sheet, still gets added as active
+        playerMap.set(key, {
+          id: recruit.id,
+          name: recruit.name,
+          pos: recruit.pos,
+          school: recruit.school,
+          classYear: recruit.classYear,
+          rating: recruit.rating,
+          hs_stats: recruit.hs_stats,
+          rosterInfo: null, 
+          stats: null
+        });
+      }
+    });
+
+    this.state.activePlayers = Array.from(playerMap.values());
   },
 
   parseCSVData(text) {
@@ -117,13 +157,12 @@ const SimEngine = {
         name: col.name !== null && row[col.name] ? row[col.name] : `Player ${idx}`,
         pos: col.pos !== null && row[col.pos] ? row[col.pos] : 'G',
         school: col.school !== null && row[col.school] ? row[col.school] : 'Uncommitted',
-        classYear: col.classYear !== null && row[col.classYear] ? row[col.classYear] : '2028', // Default backup
+        classYear: col.classYear !== null && row[col.classYear] ? row[col.classYear] : '2028',
         rating: safeNum(col.rating, 80),
         hs_stats: {
           mpg: safeNum(col.mpg, 24), ppg: safeNum(col.ppg, 12), rpg: safeNum(col.rpg, 4),
           apg: safeNum(col.apg, 2), bpm: safeNum(col.bpm, 0)
-        },
-        stats: null 
+        }
       };
     }).filter(p => p.name !== `Player ${p.id.split('_')[1]}`); 
   },
@@ -142,9 +181,7 @@ const SimEngine = {
     let projMpg = Math.min(36, Math.max(6, (player.rating - 76) * 1.3));
     const baseHsMpg = hs.mpg > 5 ? hs.mpg : 28; 
     
-    // RNG multiplier introduces variance each simulation (between 0.85x and 1.15x)
     const rng = () => 0.85 + (Math.random() * 0.30);
-    
     const compPenalty = 0.82; 
     const scaleFactor = (projMpg / baseHsMpg) * compPenalty;
 
@@ -153,7 +190,14 @@ const SimEngine = {
     let apg = (hs.apg * scaleFactor * 0.95 * rng()).toFixed(1);
     let projBpm = (((hs.bpm * 0.55) + ((player.rating - 85) * 0.25)) * rng()).toFixed(1);
 
-    return { mpg: projMpg.toFixed(1), ppg, rpg, apg, bpm: projBpm };
+    // Generate peripheral stats
+    const isBig = player.pos && (player.pos.includes('C') || player.pos.includes('F'));
+    let stl = (0.5 + (Math.random() * 1.2) * (isBig ? 0.6 : 1.2)).toFixed(1);
+    let blk = (0.2 + (Math.random() * 1.5) * (isBig ? 1.5 : 0.3)).toFixed(1);
+    let tov = (1.0 + (parseFloat(apg) * 0.3) + (Math.random() * 1.5)).toFixed(1);
+    let pf = (1.5 + (Math.random() * 1.5) + (isBig ? 0.5 : 0)).toFixed(1);
+
+    return { mpg: projMpg.toFixed(1), ppg, rpg, apg, stl, blk, tov, pf, bpm: projBpm };
   },
 
   simulateSeason() {
@@ -161,31 +205,31 @@ const SimEngine = {
       alert("Season has already been simulated! Run the offseason loop to advance.");
       return;
     }
-    if (this.state.activeRecruits.length === 0) {
+    if (this.state.activePlayers.length === 0) {
       alert("Database still loading, please wait.");
       return;
     }
 
     this.logStory(`Simulating ${this.state.currentYear}-${(this.state.currentYear + 1).toString().slice(-2)} Regular Season...`);
     
-    this.state.activeRecruits.forEach(player => {
+    this.state.activePlayers.forEach(player => {
       player.stats = this.calculatePlayerSeason(player);
     });
     
-    // Sort by generated BPM
-    this.state.activeRecruits.sort((a, b) => parseFloat(b.stats.bpm) - parseFloat(a.stats.bpm));
+    this.state.activePlayers.sort((a, b) => parseFloat(b.stats.bpm) - parseFloat(a.stats.bpm));
 
     this.generateTeamStats();
+    this.populateDashboard();
 
     this.state.phase = 'Postseason';
-    this.logStory("Season Complete. Production translated from High School metrics.");
+    this.logStory("Season Complete. Production calculated for Recruits and Roster personnel.");
     
     this.renderTable();
     this.updateUI();
   },
 
   generateTeamStats() {
-    const uniqueTeams = [...new Set(this.state.activeRosters.map(p => p.team))];
+    const uniqueTeams = [...new Set(this.state.activePlayers.map(p => p.school).filter(s => s && s !== 'Uncommitted'))];
     
     uniqueTeams.forEach(team => {
       const wins = Math.floor(Math.random() * 20) + 10;
@@ -204,6 +248,22 @@ const SimEngine = {
         oppPpg: (60 + Math.random() * 15).toFixed(1)
       };
     });
+  },
+
+  populateDashboard() {
+    const getLeaders = (stat) => [...this.state.activePlayers].sort((a, b) => parseFloat(b.stats[stat]) - parseFloat(a.stats[stat])).slice(0, 5);
+    const buildList = (players, stat) => players.map((p, i) => `
+      <div class="leader-row">
+        <span>${i+1}. ${p.name}</span>
+        <span>${p.stats[stat]}</span>
+      </div>
+    `).join('');
+
+    document.getElementById('dashPts').innerHTML = buildList(getLeaders('ppg'), 'ppg');
+    document.getElementById('dashReb').innerHTML = buildList(getLeaders('rpg'), 'rpg');
+    document.getElementById('dashAst').innerHTML = buildList(getLeaders('apg'), 'apg');
+    document.getElementById('dashStl').innerHTML = buildList(getLeaders('stl'), 'stl');
+    document.getElementById('dashBlk').innerHTML = buildList(getLeaders('blk'), 'blk');
   },
 
   openTeamModal(teamName) {
@@ -231,24 +291,26 @@ const SimEngine = {
     document.getElementById('modalTeamPPG').innerText = teamStats.teamPpg;
     document.getElementById('modalOppPPG').innerText = teamStats.oppPpg;
 
-    const teamRoster = this.state.activeRosters.filter(p => p.team === teamName);
+    const teamRoster = this.state.activePlayers.filter(p => p.school === teamName);
     const tbody = document.getElementById('modalRosterBody');
     
     tbody.innerHTML = teamRoster.map(p => {
-      const hasDraftData = p.draft && p.draft.trim() !== '' && p.draft !== '-';
+      // Pull specific roster visuals if they exist, default if they are just a pure recruit
+      const r = p.rosterInfo || { number: '-', ht: '-', wt: '-', from: 'Recruit', draft: '-' };
+      const hasDraftData = r.draft && r.draft.trim() !== '' && r.draft !== '-';
       const draftDisplay = hasDraftData 
-        ? `<span class="draft-projection" data-player="${p.name}">${p.draft}</span>` 
+        ? `<span class="draft-projection" data-player="${p.name}">${r.draft}</span>` 
         : `<span style="color:#4b5063;">-</span>`;
 
       return `
         <tr>
-          <td style="color:#7d8296;">${p.number}</td>
+          <td style="color:#7d8296;">${r.number || '-'}</td>
           <td style="font-weight:700; color:#fff;">${p.name}</td>
-          <td style="color:#a1a5b8;">${p.pos}</td>
-          <td>${p.class}</td>
-          <td>${p.ht}</td>
-          <td>${p.wt}</td>
-          <td style="color:#a1a5b8; font-size:0.9rem;">${p.from}</td>
+          <td style="color:#a1a5b8;">${p.pos || '-'}</td>
+          <td>${p.classYear || r.class || '-'}</td>
+          <td>${r.ht || '-'}</td>
+          <td>${r.wt || '-'}</td>
+          <td style="color:#a1a5b8; font-size:0.9rem;">${r.from || 'Recruit'}</td>
           <td>${draftDisplay}</td>
         </tr>
       `;
@@ -269,9 +331,8 @@ const SimEngine = {
     this.state.currentYear += 1;
     this.state.phase = 'Preseason';
     
-    // Refilter for the new year
     this.filterActiveData();
-    this.state.activeRecruits.forEach(p => p.stats = null);
+    this.state.activePlayers.forEach(p => p.stats = null);
     
     this.logStory(`Offseason complete. Advanced calendar to ${this.state.currentYear}-${(this.state.currentYear + 1).toString().slice(-2)}.`);
     this.renderTable();
@@ -302,25 +363,29 @@ const SimEngine = {
     if (!tbody) return;
 
     if (this.state.phase === 'Preseason') {
-      tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: #7d8296; padding: 2rem;">Preseason Roster Locked. Click "Simulate Full Season" to generate NCAA stat translations.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="14" style="text-align: center; color: #7d8296; padding: 2rem;">Preseason Roster Locked. Click "Simulate Full Season" to generate NCAA stat translations.</td></tr>`;
       return;
     }
 
-    tbody.innerHTML = this.state.activeRecruits.slice(0, 100).map((p, index) => {
+    tbody.innerHTML = this.state.activePlayers.slice(0, 100).map((p, index) => {
       const s = p.stats;
-      const bpmColor = parseFloat(s.bpm) > 4.0 ? '#4ade80' : parseFloat(s.bpm) > 0 ? '#38bdf8' : '#f87171';
+      const bpmColor = parseFloat(s.bpm) > 4.0 ? '#4ade80' : parseFloat(s.bpm) > 0 ? 'var(--brand-color)' : '#f87171';
       
       return `
         <tr>
           <td style="color:#7d8296;">#${index + 1}</td>
           <td style="font-weight:700; color:#fff;">${p.name}</td>
-          <td style="color:#a1a5b8;">${p.pos}</td>
-          <td><span style="color:#38bdf8; font-size: 0.85rem;">${p.classYear}</span></td>
+          <td style="color:#a1a5b8;">${p.pos || '-'}</td>
+          <td><span style="color:var(--brand-color); font-size: 0.85rem;">${p.classYear || '-'}</span></td>
           <td><span class="clickable-school" onclick="SimEngine.openTeamModal('${p.school}')">${p.school}</span></td>
           <td>${s.mpg}</td>
           <td style="font-weight:600;">${s.ppg}</td>
           <td style="font-weight:600;">${s.rpg}</td>
           <td style="font-weight:600;">${s.apg}</td>
+          <td style="font-weight:600;">${s.stl}</td>
+          <td style="font-weight:600;">${s.blk}</td>
+          <td style="font-weight:600;">${s.tov}</td>
+          <td style="font-weight:600;">${s.pf}</td>
           <td style="font-weight:800; color:${bpmColor}">${s.bpm}</td>
         </tr>
       `;
