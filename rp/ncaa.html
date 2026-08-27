@@ -13,7 +13,7 @@
 
   <style>
     :root {
-      --brand-color: #FF6600; /* Adjust this to exact BYTHERIM Hex */
+      --brand-color: #FF6600;
       --brand-color-light: rgba(255, 102, 0, 0.1);
       --brand-color-border: rgba(255, 102, 0, 0.25);
     }
@@ -156,9 +156,20 @@
 
     .team-rank { color: var(--brand-color); font-size: 0.85rem; }
 
-    table { width: 100%; border-collapse: collapse; text-align: left; }
-    th { color: #7d8296; font-size: 0.85rem; text-transform: uppercase; padding: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
-    td { padding: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); font-size: 1rem; }
+    table { width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; }
+    th { 
+      color: #7d8296; 
+      font-size: 0.85rem; 
+      text-transform: uppercase; 
+      padding: 12px 16px; 
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08); 
+      cursor: pointer;
+      user-select: none;
+      transition: color 0.2s;
+    }
+    th:hover { color: #fff; }
+    th.active-sort { color: var(--brand-color); }
+    td { padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); font-size: 1rem; }
     tr:hover td { background: rgba(255, 255, 255, 0.02); }
 
     .modal-overlay {
@@ -266,18 +277,20 @@
       </div>
 
       <div id="statsTab" class="tab-content">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3 style="margin: 0; color: #fff;">League Leaders</h3>
+          <select id="statTypeToggle" onchange="SimEngine.toggleStatView(this.value)" style="background: #111118; color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 6px; font-family: 'Asap Condensed', sans-serif; font-size: 1rem; cursor: pointer; outline: none;">
+            <option value="box">Box Score Stats</option>
+            <option value="adv">Advanced Metrics</option>
+          </select>
+        </div>
         <div style="overflow-x: auto;">
           <table>
-            <thead>
-              <!-- Headers updated to include Pos and ALL missing stats -->
-              <tr>
-                <th>Rank</th><th>Player</th><th>Pos</th><th>Class</th><th>School</th>
-                <th>MPG</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th>
-                <th>BLK</th><th>TOV</th><th>PF</th><th>BPM</th>
-              </tr>
+            <thead id="statsHeader">
+              <!-- Dynamically built by JS based on selection -->
             </thead>
             <tbody id="statsBody">
-              <tr><td colspan="14" style="text-align: center; color: #7d8296;">Simulate season to view leaderboards.</td></tr>
+              <tr><td colspan="25" style="text-align: center; color: #7d8296;">Simulate season to view leaderboards.</td></tr>
             </tbody>
           </table>
         </div>
@@ -356,7 +369,7 @@
               <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #7d8296;">HT</th>
               <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #7d8296;">WT</th>
               <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #7d8296;">From</th>
-              <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #7d8296;">Draft</th>
+              <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #7d8296;">Status</th>
             </tr>
           </thead>
           <tbody id="modalRosterBody">
