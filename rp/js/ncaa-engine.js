@@ -1,321 +1,453 @@
-// ==========================================
-// 1. CONFIGURATION & MAPPING
-// ==========================================
-const RECRUIT_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTWvXoqFJkVFqt36wbBBfgFYUvPKhWCZIztoLIB9sjpc55AiFTdFpJZHMztVgJHyFyy0mtO_MYGD76N/pub?gid=0&single=true&output=csv';
-const ROSTER_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS_KgPla_wVF3w_s8PGVIreieVKkfOuVuFqt1K25i3gHNa_NpL6MDPST1qnIw12V61COFsSkf2C03Q-/pub?gid=0&single=true&output=csv';
-
-const COLUMN_MAP = {
-  name: "name", pos: "pos", school: "committedSchool", rating: "rating",
-  classYear: "classYear", hs_mpg: "hs_mpg", hs_ppg: "hs_ppg", hs_rpg: "hs_rpg",
-  hs_apg: "hs_apg", hs_bpm: "hs_bpm", hs_usg: "hs_usg", hs_ts: "hs_ts"
-};
-
-// ==========================================
-// 2. CORE SIMULATION ENGINE
-// ==========================================
-const SimEngine = {
+window.SimEngine = {
   state: {
-    currentYear: 2028,
+    year: 2028,
     phase: 'Preseason',
-    allRecruits: [], 
-    allRosters: [],  
-    activePlayers: [], // Master list combining rosters & recruits
-    teamData: {}
+    teams: [],
+    recruits: [],
+    activePlayers: [],
+    simCompleted: false,
+    statView: 'box', // 'box' or 'adv'
+    sortCol: 'ppg',
+    sortDir: 'desc'
   },
-
+  
   init() {
-    this.logStory("Engine initializing. Connecting to BYTHERIM databases...");
-    // Load databases sequentially to ensure both are ready before merging
-    this.loadRosterDatabase().then(() => {
-      this.loadRecruitDatabase();
-    });
+    this.fetchData();
   },
 
-  async loadRecruitDatabase() {
+  async fetchData() {
     try {
-      const response = await fetch(RECRUIT_CSV_URL);
-      const csvText = await response.text();
-      this.state.allRecruits = this.parseCSVData(csvText);
+      const dbUrl = 'https://raw.githubusercontent.com/cbutrlakorn/cbutrlakorn.github.io/main/db.json';
+      const response = await fetch(dbUrl);
+      if(!response.ok) throw new Error("Could not load db.json");
+      const data = await response.json();
+      
+      this.state.teams = data.teams || [];
+      this.state.recruits = data.recruits || [];
+      
       this.filterActiveData();
-      this.logStory(`Successfully loaded ${this.state.allRecruits.length} total prospects. Filtered for ${this.state.currentYear}.`);
-      this.renderTable();
-      this.updateUI();
-    } catch (err) {
-      console.error("Error fetching recruit CSV:", err);
-      this.logStory("ERROR: Could not load recruiting database.");
+      
+      document.getElementById('currentYearDisplay').innerText = `${this.state.year}-${(this.state.year+1).toString().slice(2)}`;
+      
+      this.logNews(`Loaded ${this.state.teams.length} teams and ${this.state.activePlayers.length} active players for the ${this.state.year} season.`);
+    } catch(err) {
+      console.error(err);
+      this.logNews("Error loading database.");
     }
   },
-
-  async loadRosterDatabase() {
-    try {
-      const response = await fetch(ROSTER_CSV_URL);
-      const csvText = await response.text();
-      this.state.allRosters = this.parseRosterCSV(csvText);
-      this.logStory("Live Team Rosters synched and filtered by year.");
-    } catch (err) {
-      console.error("Error fetching rosters:", err);
-    }
-  },
-
+  
   filterActiveData() {
-    const recruitTargetYear = this.state.currentYear.toString();
-    const rosterTargetYear = (this.state.currentYear + 1).toString();
-
-    const activeRecruits = this.state.allRecruits.filter(p => p.classYear === recruitTargetYear);
-    const activeRosters = this.state.allRosters.filter(p => p.year === rosterTargetYear);
-
-    // MERGE LOGIC
-    const playerMap = new Map();
-
-    // 1. Map all roster players
-    activeRosters.forEach(rosterPlayer => {
-      const key = rosterPlayer.name.toLowerCase();
-      playerMap.set(key, {
-        id: `roster_${key}`,
-        name: rosterPlayer.name,
-        pos: rosterPlayer.pos,
-        school: rosterPlayer.team,
-        classYear: rosterPlayer.class,
-        rosterInfo: rosterPlayer, 
-        // Baseline generation for roster players missing recruit histories
-        rating: 75 + Math.floor(Math.random() * 10), 
-        hs_stats: { 
-          mpg: 24, ppg: 8 + Math.random() * 6, rpg: 3 + Math.random() * 4, 
-          apg: 1 + Math.random() * 3, bpm: -1 + Math.random() * 5 
-        },
-        stats: null
-      });
-    });
-
-    // 2. Map and merge recruits
-    activeRecruits.forEach(recruit => {
-      const key = recruit.name.toLowerCase();
-      if (playerMap.has(key)) {
-        // Merge true recruit data into the existing roster frame
-        const p = playerMap.get(key);
-        p.rating = recruit.rating;
-        p.hs_stats = recruit.hs_stats;
-        p.pos = p.pos || recruit.pos; 
-      } else {
-        // Recruit isn't on roster sheet, still gets added as active
-        playerMap.set(key, {
-          id: recruit.id,
-          name: recruit.name,
-          pos: recruit.pos,
-          school: recruit.school,
-          classYear: recruit.classYear,
-          rating: recruit.rating,
-          hs_stats: recruit.hs_stats,
-          rosterInfo: null, 
-          stats: null
+    let players = [];
+    
+    this.state.teams.forEach(team => {
+      if(team.roster) {
+        team.roster.forEach(player => {
+          let p = { ...player, school: team.school, school_logo: team.logo, isRecruit: false };
+          players.push(p);
         });
       }
     });
 
-    this.state.activePlayers = Array.from(playerMap.values());
-  },
-
-  parseCSVData(text) {
-    const rows = [];
-    let currentRow = [];
-    let currentCell = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < text.length; i++) {
-      const char = text[i];
-      if (char === '"') inQuotes = !inQuotes;
-      else if (char === ',' && !inQuotes) { currentRow.push(currentCell.trim()); currentCell = ''; }
-      else if (char === '\n' && !inQuotes) { currentRow.push(currentCell.trim()); rows.push(currentRow); currentRow = []; currentCell = ''; }
-      else if (char !== '\r') currentCell += char;
-    }
-    if (currentRow.length > 0) { currentRow.push(currentCell.trim()); rows.push(currentRow); }
-
-    const headers = rows[0];
-    const dataRows = rows.slice(1);
-
-    const getCol = (key) => {
-      const index = headers.findIndex(h => h === COLUMN_MAP[key]);
-      return index !== -1 ? index : null;
-    };
-
-    const col = {
-      name: getCol('name'), pos: getCol('pos'), school: getCol('school'),
-      rating: getCol('rating'), classYear: getCol('classYear'),
-      mpg: getCol('hs_mpg'), ppg: getCol('hs_ppg'), rpg: getCol('hs_rpg'), 
-      apg: getCol('hs_apg'), bpm: getCol('hs_bpm')
-    };
-
-    return dataRows.map((row, idx) => {
-      const safeNum = (index, fallback = 0) => {
-        if (index === null || !row[index]) return fallback;
-        const val = parseFloat(row[index]);
-        return isNaN(val) ? fallback : val;
-      };
-
-      return {
-        id: `rec_${idx}`,
-        name: col.name !== null && row[col.name] ? row[col.name] : `Player ${idx}`,
-        pos: col.pos !== null && row[col.pos] ? row[col.pos] : 'G',
-        school: col.school !== null && row[col.school] ? row[col.school] : 'Uncommitted',
-        classYear: col.classYear !== null && row[col.classYear] ? row[col.classYear] : '2028',
-        rating: safeNum(col.rating, 80),
-        hs_stats: {
-          mpg: safeNum(col.mpg, 24), ppg: safeNum(col.ppg, 12), rpg: safeNum(col.rpg, 4),
-          apg: safeNum(col.apg, 2), bpm: safeNum(col.bpm, 0)
-        }
-      };
-    }).filter(p => p.name !== `Player ${p.id.split('_')[1]}`); 
-  },
-
-  parseRosterCSV(text) {
-    const rows = text.split('\n').map(row => row.split(',').map(cell => cell.trim().replace(/(^"|"$)/g, '')));
-    return rows.slice(1).map(row => ({
-      team: row[0], year: row[1], number: row[2], name: row[3],
-      class: row[4], pos: row[5], ht: row[6], wt: row[7],
-      from: row[8], draft: row[9]
-    })).filter(p => p.name); 
-  },
-
-  calculatePlayerSeason(player) {
-    const hs = player.hs_stats;
-    let projMpg = Math.min(36, Math.max(6, (player.rating - 76) * 1.3));
-    const baseHsMpg = hs.mpg > 5 ? hs.mpg : 28; 
+    this.state.recruits.forEach(rec => {
+      if(rec.committedTo && parseInt(rec.classYear) <= this.state.year) {
+        let team = this.state.teams.find(t => t.school === rec.committedTo);
+        let schoolLogo = team ? team.logo : '';
+        let p = { ...rec, school: rec.committedTo, school_logo: schoolLogo, isRecruit: true, class: 'FR' };
+        players.push(p);
+      }
+    });
     
-    const rng = () => 0.85 + (Math.random() * 0.30);
-    const compPenalty = 0.82; 
-    const scaleFactor = (projMpg / baseHsMpg) * compPenalty;
-
-    let ppg = (hs.ppg * scaleFactor * rng()).toFixed(1);
-    let rpg = (hs.rpg * scaleFactor * 0.9 * rng()).toFixed(1);
-    let apg = (hs.apg * scaleFactor * 0.95 * rng()).toFixed(1);
-    let projBpm = (((hs.bpm * 0.55) + ((player.rating - 85) * 0.25)) * rng()).toFixed(1);
-
-    // Generate peripheral stats
-    const isBig = player.pos && (player.pos.includes('C') || player.pos.includes('F'));
-    let stl = (0.5 + (Math.random() * 1.2) * (isBig ? 0.6 : 1.2)).toFixed(1);
-    let blk = (0.2 + (Math.random() * 1.5) * (isBig ? 1.5 : 0.3)).toFixed(1);
-    let tov = (1.0 + (parseFloat(apg) * 0.3) + (Math.random() * 1.5)).toFixed(1);
-    let pf = (1.5 + (Math.random() * 1.5) + (isBig ? 0.5 : 0)).toFixed(1);
-
-    return { mpg: projMpg.toFixed(1), ppg, rpg, apg, stl, blk, tov, pf, bpm: projBpm };
+    this.state.activePlayers = players;
   },
 
   simulateSeason() {
-    if (this.state.phase !== 'Preseason') {
-      alert("Season has already been simulated! Run the offseason loop to advance.");
+    if(this.state.phase !== 'Preseason') {
+      alert("Season already simulated! Advance offseason to start a new year.");
       return;
     }
-    if (this.state.activePlayers.length === 0) {
-      alert("Database still loading, please wait.");
-      return;
-    }
-
-    this.logStory(`Simulating ${this.state.currentYear}-${(this.state.currentYear + 1).toString().slice(-2)} Regular Season...`);
     
-    this.state.activePlayers.forEach(player => {
-      player.stats = this.calculatePlayerSeason(player);
+    this.state.phase = 'Regular Season Final';
+    document.getElementById('currentPhaseDisplay').innerText = 'Regular Season Final';
+    
+    // 1. Simulate all individual stat lines
+    this.state.activePlayers.forEach(p => {
+      p.stats = this.calculatePlayerSeason(p);
     });
     
-    this.state.activePlayers.sort((a, b) => parseFloat(b.stats.bpm) - parseFloat(a.stats.bpm));
-
-    this.generateTeamStats();
-    this.populateDashboard();
-
-    this.state.phase = 'Postseason';
-    this.logStory("Season Complete. Production calculated for Recruits and Roster personnel.");
-    
-    this.renderTable();
-    this.updateUI();
-  },
-
-  generateTeamStats() {
-    const uniqueTeams = [...new Set(this.state.activePlayers.map(p => p.school).filter(s => s && s !== 'Uncommitted'))];
-    
-    uniqueTeams.forEach(team => {
-      const wins = Math.floor(Math.random() * 20) + 10;
-      const losses = 32 - wins;
-      const confWins = Math.floor(Math.random() * 12) + 4;
-      const confLosses = 18 - confWins;
-      
-      const isTop25 = wins > 24;
-      const apRank = isTop25 ? Math.floor(Math.random() * 25) + 1 : null;
-      
-      this.state.teamData[team] = {
-        record: `${wins}-${losses}`,
-        confRecord: `${confWins}-${confLosses}`,
-        rank: apRank,
-        teamPpg: (70 + Math.random() * 15).toFixed(1),
-        oppPpg: (60 + Math.random() * 15).toFixed(1)
-      };
+    // 2. Aggregate team ratings based on players
+    this.state.teams.forEach(team => {
+      team.simData = this.calculateTeamSeason(team);
     });
-  },
-
-  populateDashboard() {
-    const getLeaders = (stat) => [...this.state.activePlayers].sort((a, b) => parseFloat(b.stats[stat]) - parseFloat(a.stats[stat])).slice(0, 5);
-    const buildList = (players, stat) => players.map((p, i) => `
-      <div class="leader-row">
-        <span>${i+1}. ${p.name}</span>
-        <span>${p.stats[stat]}</span>
-      </div>
-    `).join('');
-
-    document.getElementById('dashPts').innerHTML = buildList(getLeaders('ppg'), 'ppg');
-    document.getElementById('dashReb').innerHTML = buildList(getLeaders('rpg'), 'rpg');
-    document.getElementById('dashAst').innerHTML = buildList(getLeaders('apg'), 'apg');
-    document.getElementById('dashStl').innerHTML = buildList(getLeaders('stl'), 'stl');
-    document.getElementById('dashBlk').innerHTML = buildList(getLeaders('blk'), 'blk');
-  },
-
-  openTeamModal(teamName) {
-    if (!teamName || teamName === 'Uncommitted') return;
     
-    const teamStats = this.state.teamData[teamName] || { 
-      record: '0-0', confRecord: '0-0', rank: null, teamPpg: '0.0', oppPpg: '0.0' 
+    // 3. Sort Teams by OVR to proxy standings
+    this.state.teams.sort((a,b) => b.simData.teamOvr - a.simData.teamOvr);
+    
+    this.state.simCompleted = true;
+    this.state.sortCol = 'ppg';
+    this.state.sortDir = 'desc';
+
+    this.updateDashboard();
+    this.sortAndRenderStatsTable();
+    this.updateStandingsTab();
+    this.updateAwardsTab();
+    
+    this.logNews("Regular season simulation complete. Stats and standings generated based on player formulas.");
+  },
+
+  calculatePlayerSeason(player) {
+    const hs = player.hs_stats || {};
+    let rating = parseFloat(player.rating) || 75;
+    
+    // Parse class year
+    let pClass = player.class || player.classYear || 'FR';
+    let isUpper = ['JR', 'SR', 'GR', 'Jr', 'Sr'].includes(pClass.toString().toUpperCase());
+    let isElite = rating >= 88;
+    
+    // Priority dictates base minutes and touches
+    let prioMultiplier = 1.0;
+    if (isUpper) prioMultiplier += 0.25;
+    if (isElite) prioMultiplier += 0.20;
+    
+    // Everyone on the active roster gets rotation minutes (Minimum 10-12, Max 38)
+    let baseMpg = Math.min(36, Math.max(12, ((rating - 70) * 1.5) * prioMultiplier));
+    const rng = () => 0.85 + (Math.random() * 0.30); // 85% to 115% variance
+    
+    let mpg = baseMpg * rng();
+    if (mpg > 38) mpg = 38 + Math.random();
+    if (mpg < 10) mpg = 10 + Math.random() * 5;
+
+    // Scale output to minutes played vs. high school reference baseline
+    const scale = mpg / 28; 
+
+    let ppg = (hs.ppg || (Math.random() * 10 + 5)) * scale * 0.85 * rng();
+    let rpg = (hs.rpg || (Math.random() * 5 + 2)) * scale * 0.9 * rng();
+    let apg = (hs.apg || (Math.random() * 4 + 1)) * scale * 0.9 * rng();
+    
+    const posStr = (player.pos || '').toUpperCase();
+    const isBig = posStr.includes('C') || (posStr.includes('F') && !posStr.includes('G'));
+    
+    let stl = (0.3 + (Math.random() * 1.2) * (isBig ? 0.7 : 1.2) * (mpg/20));
+    let blk = (0.2 + (Math.random() * 1.5) * (isBig ? 1.8 : 0.3) * (mpg/20));
+    let tov = (0.8 + (apg * 0.35) + (Math.random() * 1.5) * (mpg/20));
+    let pf = (1.5 + (Math.random() * 1.5) + (isBig ? 0.8 : 0) * (mpg/20));
+
+    let bpm = (((hs.bpm || 0) * 0.5) + ((rating - 80) * 0.3)) * rng();
+
+    // Box Score Volume Generation
+    let ftRate = rng() * (isBig ? 0.45 : 0.28);
+    let ftm = ppg * ftRate;
+    let ftPct = (isBig ? 0.65 : 0.80) * rng();
+    if (ftPct > 0.94) ftPct = 0.92;
+    let fta = ftPct > 0 ? ftm / ftPct : 0;
+    
+    let ptsFromFg = ppg - ftm;
+    let threePRate = isBig ? (rng() * 0.15) : (0.35 + rng() * 0.3); // % of FG pts from 3
+    if (threePRate > 0.8) threePRate = 0.8;
+    
+    let threePm = (ptsFromFg * threePRate) / 3;
+    let threePPct = isBig ? (0.28 * rng()) : (0.35 * rng());
+    if (threePPct < 0.15) threePPct = 0; 
+    let threePa = threePPct > 0 ? threePm / threePPct : 0;
+    
+    let twoPm = (ptsFromFg - (threePm * 3)) / 2;
+    let twoPPct = isBig ? (0.58 * rng()) : (0.48 * rng());
+    let twoPa = twoPPct > 0 ? twoPm / twoPPct : 0;
+    
+    let fgm = twoPm + threePm;
+    let fga = twoPa + threePa;
+    let fgPct = fga > 0 ? fgm / fga : 0;
+
+    // Advanced Metrics
+    let tsPct = (2 * (fga + 0.44 * fta)) > 0 ? ppg / (2 * (fga + 0.44 * fta)) : 0;
+    let rTsPct = (tsPct * 100) - 54.0;
+    let eFgPct = fga > 0 ? (fgm + 0.5 * threePm) / fga : 0;
+    
+    let obpmRatio = isBig ? 0.4 : 0.65;
+    let obpm = bpm * obpmRatio + (Math.random() * 2 - 1);
+    let dbpm = bpm - obpm;
+    
+    // Usage Formula estimation scaled to ~20% average
+    let usg = ((fga + 0.44 * fta + tov) / mpg) * 45; 
+    
+    let orebPct = isBig ? 8 + Math.random()*6 : 2 + Math.random()*3;
+    let drebPct = isBig ? 18 + Math.random()*10 : 8 + Math.random()*5;
+    let trbPct = (orebPct + drebPct) / 2;
+    
+    let astPct = (apg / mpg) * 65;
+    let totalPos = fga + 0.44*fta + tov;
+    let tovPct = totalPos > 0 ? (tov / totalPos) * 100 : 0;
+    let blkPct = (blk / mpg) * 45;
+    
+    let ftr = fga > 0 ? fta / fga : 0;
+    let threePar = fga > 0 ? threePa / fga : 0;
+    
+    let ortg = 100 + (obpm * 3.5) + (Math.random() * 5);
+    let drtg = 100 - (dbpm * 3.5) + (Math.random() * 5);
+    let netRtg = ortg - drtg;
+
+    const t1 = (val) => (isNaN(val) || !isFinite(val)) ? "0.0" : Number(val).toFixed(1);
+    const t3 = (val) => (isNaN(val) || !isFinite(val)) ? ".000" : Number(val).toFixed(3).replace(/^0+/, '');
+
+    return {
+      mpg: t1(mpg), ppg: t1(ppg), rpg: t1(rpg), apg: t1(apg),
+      stl: t1(stl), blk: t1(blk), tov: t1(tov), pf: t1(pf),
+      fgm: t1(fgm), fga: t1(fga), fgPct: t3(fgPct),
+      twoPm: t1(twoPm), twoPa: t1(twoPa), twoPPct: t3(twoPPct),
+      threePm: t1(threePm), threePa: t1(threePa), threePPct: t3(threePPct),
+      ftm: t1(ftm), fta: t1(fta), ftPct: t3(ftPct),
+      bpm: t1(bpm), obpm: t1(obpm), dbpm: t1(dbpm),
+      tsPct: t3(tsPct), rTsPct: t1(rTsPct), eFgPct: t3(eFgPct),
+      orebPct: t1(orebPct)+'%', drebPct: t1(drebPct)+'%', trbPct: t1(trbPct)+'%',
+      astPct: t1(astPct)+'%', tovPct: t1(tovPct)+'%', blkPct: t1(blkPct)+'%',
+      usg: t1(usg)+'%', ftr: t3(ftr), threePar: t3(threePar),
+      ortg: t1(ortg), drtg: t1(drtg), netRtg: t1(netRtg)
     };
+  },
 
-    const logoFormatted = teamName.toLowerCase().replace(/\s+/g, '');
-    document.getElementById('modalTeamLogo').src = `../schoollogos/${logoFormatted}.png`;
-    document.getElementById('modalTeamName').innerText = teamName;
-    document.getElementById('modalTeamYear').innerText = `${this.state.currentYear + 1} Roster`;
+  calculateTeamSeason(team) {
+    let roster = this.state.activePlayers.filter(p => p.school === team.school);
+    let totalBpm = 0;
+    let top3Bpm = [];
     
-    const rankBadge = document.getElementById('modalTeamRank');
-    if (teamStats.rank) {
-      rankBadge.innerText = `#${teamStats.rank}`;
-      rankBadge.style.display = 'inline-block';
+    roster.forEach(p => {
+      let bpm = parseFloat(p.stats.bpm) || 0;
+      totalBpm += bpm;
+      top3Bpm.push(bpm);
+    });
+    
+    top3Bpm.sort((a,b) => b-a);
+    let starPower = top3Bpm.slice(0,3).reduce((a,b)=>a+b, 0);
+    
+    let ratingOvr = 75 + (totalBpm * 1.2) + (starPower * 1.5) + (Math.random() * 5);
+    let winPct = Math.min(0.95, Math.max(0.1, (ratingOvr - 65) / 40));
+    
+    let gamesPlayed = 31;
+    let wins = Math.round(gamesPlayed * winPct);
+    let losses = gamesPlayed - wins;
+    
+    return {
+      teamOvr: ratingOvr,
+      wins: wins,
+      losses: losses,
+      winPct: (wins/gamesPlayed).toFixed(3).replace(/^0+/, ''),
+      rosterRef: roster
+    };
+  },
+
+  toggleStatView(view) {
+    this.state.statView = view;
+    this.sortAndRenderStatsTable();
+  },
+
+  handleSort(colId) {
+    if(!this.state.simCompleted) return;
+    if(this.state.sortCol === colId) {
+      this.state.sortDir = this.state.sortDir === 'desc' ? 'asc' : 'desc';
     } else {
-      rankBadge.style.display = 'none';
+      this.state.sortCol = colId;
+      this.state.sortDir = 'desc';
+    }
+    this.sortAndRenderStatsTable();
+  },
+
+  sortAndRenderStatsTable() {
+    if(!this.state.simCompleted) return;
+    
+    let col = this.state.sortCol;
+    let dir = this.state.sortDir === 'desc' ? -1 : 1;
+
+    // Apply sort
+    this.state.activePlayers.sort((a, b) => {
+      let valA = a.stats ? a.stats[col] : 0;
+      let valB = b.stats ? b.stats[col] : 0;
+
+      // Handle strings
+      if(['name', 'school', 'pos', 'class'].includes(col)) {
+        valA = a[col] || a.classYear || '';
+        valB = b[col] || b.classYear || '';
+        return valA.toString().localeCompare(valB.toString()) * dir;
+      }
+
+      // Handle numbers with string modifiers (like %)
+      if(typeof valA === 'string') valA = parseFloat(valA.replace('%','')) || 0;
+      if(typeof valB === 'string') valB = parseFloat(valB.replace('%','')) || 0;
+
+      return (valA - valB) * dir;
+    });
+
+    const boxHeaders = [
+      { id: 'name', label: 'Player' }, { id: 'school', label: 'School' }, { id: 'pos', label: 'Pos' }, { id: 'mpg', label: 'MPG' },
+      { id: 'ppg', label: 'PPG' }, { id: 'rpg', label: 'RPG' }, { id: 'apg', label: 'APG' }, { id: 'stl', label: 'SPG' },
+      { id: 'blk', label: 'BPG' }, { id: 'tov', label: 'TPG' }, { id: 'pf', label: 'PF' },
+      { id: 'fgm', label: 'FGM' }, { id: 'fga', label: 'FGA' }, { id: 'fgPct', label: 'FG%' },
+      { id: 'twoPm', label: '2P' }, { id: 'twoPa', label: '2PA' }, { id: 'twoPPct', label: '2P%' },
+      { id: 'threePm', label: '3P' }, { id: 'threePa', label: '3PA' }, { id: 'threePPct', label: '3P%' },
+      { id: 'ftm', label: 'FT' }, { id: 'fta', label: 'FTA' }, { id: 'ftPct', label: 'FT%' }
+    ];
+
+    const advHeaders = [
+      { id: 'name', label: 'Player' }, { id: 'school', label: 'School' }, { id: 'mpg', label: 'MPG' },
+      { id: 'bpm', label: 'BPM' }, { id: 'obpm', label: 'OBPM' }, { id: 'dbpm', label: 'DBPM' },
+      { id: 'tsPct', label: 'TS%' }, { id: 'rTsPct', label: 'rTS%' }, { id: 'eFgPct', label: 'eFG%' },
+      { id: 'orebPct', label: 'OREB%' }, { id: 'drebPct', label: 'DREB%' }, { id: 'trbPct', label: 'TRB%' },
+      { id: 'astPct', label: 'AST%' }, { id: 'tovPct', label: 'TOV%' }, { id: 'blkPct', label: 'BLK%' },
+      { id: 'usg', label: 'USG%' }, { id: 'ftr', label: 'FTr' }, { id: 'threePar', label: '3PAr' },
+      { id: 'ortg', label: 'ORtg' }, { id: 'drtg', label: 'DRtg' }, { id: 'netRtg', label: 'Net' }
+    ];
+
+    let currentHeaders = this.state.statView === 'box' ? boxHeaders : advHeaders;
+
+    // Render THEAD
+    let theadHtml = `<tr>`;
+    currentHeaders.forEach(h => {
+      let isSort = this.state.sortCol === h.id;
+      let arrow = isSort ? (this.state.sortDir === 'desc' ? ' &darr;' : ' &uarr;') : '';
+      let cls = isSort ? 'active-sort' : '';
+      theadHtml += `<th class="${cls}" onclick="SimEngine.handleSort('${h.id}')">${h.label}${arrow}</th>`;
+    });
+    theadHtml += `</tr>`;
+    document.getElementById('statsHeader').innerHTML = theadHtml;
+
+    // Render TBODY
+    let tbodyHtml = '';
+    this.state.activePlayers.forEach((p) => {
+      tbodyHtml += `<tr>`;
+      currentHeaders.forEach(h => {
+        if(h.id === 'name') tbodyHtml += `<td style="font-weight:700; color:#fff;">${p.name}</td>`;
+        else if(h.id === 'school') tbodyHtml += `<td>${p.school}</td>`;
+        else if(h.id === 'pos') tbodyHtml += `<td>${p.pos || '-'}</td>`;
+        else tbodyHtml += `<td>${p.stats[h.id] || '-'}</td>`;
+      });
+      tbodyHtml += `</tr>`;
+    });
+    
+    document.getElementById('statsBody').innerHTML = tbodyHtml;
+  },
+
+  updateDashboard() {
+    let topTeamsHtml = '';
+    for(let i=0; i<10; i++){
+      if(this.state.teams[i]) {
+        topTeamsHtml += `
+          <div class="team-badge clickable-school" onclick="SimEngine.openTeamModal('${this.state.teams[i].school}')">
+            <span class="team-rank">#${i+1}</span>
+            <img src="${this.state.teams[i].logo || ''}" style="width:20px; height:20px; object-fit:contain;">
+            ${this.state.teams[i].school}
+          </div>
+        `;
+      }
+    }
+    document.getElementById('dashTopTeams').innerHTML = topTeamsHtml;
+    
+    this.populateDashList('dashPts', 'ppg', 'PPG');
+    this.populateDashList('dashReb', 'rpg', 'RPG');
+    this.populateDashList('dashAst', 'apg', 'APG');
+    this.populateDashList('dashStl', 'stl', 'SPG');
+    this.populateDashList('dashBlk', 'blk', 'BPG');
+  },
+
+  populateDashList(elementId, statKey, label) {
+    let sorted = [...this.state.activePlayers].sort((a,b) => parseFloat(b.stats[statKey]) - parseFloat(a.stats[statKey]));
+    let html = '';
+    for(let i=0; i<5; i++){
+      if(sorted[i]) {
+        html += `<div class="leader-row">
+          <span>${i+1}. ${sorted[i].name} <span style="font-size:0.75rem;">(${sorted[i].school})</span></span>
+          <span>${sorted[i].stats[statKey]}</span>
+        </div>`;
+      }
+    }
+    document.getElementById(elementId).innerHTML = html;
+  },
+
+  updateStandingsTab() {
+    let html = '';
+    this.state.teams.forEach((t, index) => {
+      html += `<tr>
+        <td style="font-weight:800; color:var(--brand-color);">#${index+1}</td>
+        <td>
+          <div style="display:flex; align-items:center; gap:8px;" class="clickable-school" onclick="SimEngine.openTeamModal('${t.school}')">
+            <img src="${t.logo}" style="width:24px; height:24px; object-fit:contain;">
+            <span style="font-weight:700; color:#fff;">${t.school}</span>
+          </div>
+        </td>
+        <td>${t.simData.wins}</td>
+        <td>${t.simData.losses}</td>
+        <td>${t.simData.winPct}</td>
+        <td style="color:#7d8296;">${t.simData.teamOvr.toFixed(1)}</td>
+      </tr>`;
+    });
+    document.getElementById('standingsBody').innerHTML = html;
+  },
+
+  updateAwardsTab() {
+    let candidates = [...this.state.activePlayers].sort((a,b) => parseFloat(b.stats.bpm) - parseFloat(a.stats.bpm));
+    let html = '';
+    for(let i=0; i<15; i++) {
+      if(candidates[i]) {
+        let p = candidates[i];
+        html += `<tr>
+          <td style="font-weight:800; color:var(--brand-color);">#${i+1}</td>
+          <td style="font-weight:700; color:#fff;">${p.name}</td>
+          <td>${p.school}</td>
+          <td style="color:#a1a5b8;">${p.stats.ppg} PTS, ${p.stats.rpg} REB, ${p.stats.apg} AST</td>
+          <td style="font-weight:700;">${p.stats.bpm}</td>
+        </tr>`;
+      }
+    }
+    document.getElementById('awardsBody').innerHTML = html;
+  },
+
+  openTeamModal(schoolName) {
+    let team = this.state.teams.find(t => t.school === schoolName);
+    if(!team) return;
+
+    let rank = this.state.teams.findIndex(t => t.school === schoolName) + 1;
+    
+    document.getElementById('modalTeamLogo').src = team.logo || '';
+    document.getElementById('modalTeamName').innerText = team.school;
+    document.getElementById('modalTeamYear').innerText = `${this.state.year}-${(this.state.year+1).toString().slice(2)}`;
+    
+    if(this.state.simCompleted) {
+      document.getElementById('modalTeamRank').style.display = 'block';
+      document.getElementById('modalTeamRank').innerText = `#${rank}`;
+      document.getElementById('modalTeamRecord').innerText = `${team.simData.wins}-${team.simData.losses}`;
+      
+      let teamPpg = team.simData.rosterRef.reduce((sum, p) => sum + parseFloat(p.stats.ppg), 0);
+      document.getElementById('modalTeamPPG').innerText = teamPpg.toFixed(1);
+      document.getElementById('modalOppPPG').innerText = (teamPpg - (Math.random()*8 - 2)).toFixed(1);
+    } else {
+      document.getElementById('modalTeamRank').style.display = 'none';
+      document.getElementById('modalTeamRecord').innerText = "0-0";
+      document.getElementById('modalTeamPPG').innerText = "0.0";
+      document.getElementById('modalOppPPG').innerText = "0.0";
     }
 
-    document.getElementById('modalTeamRecord').innerText = teamStats.record;
-    document.getElementById('modalConfRecord').innerText = teamStats.confRecord;
-    document.getElementById('modalTeamPPG').innerText = teamStats.teamPpg;
-    document.getElementById('modalOppPPG').innerText = teamStats.oppPpg;
-
-    const teamRoster = this.state.activePlayers.filter(p => p.school === teamName);
-    const tbody = document.getElementById('modalRosterBody');
+    let rPlayers = this.state.activePlayers.filter(p => p.school === schoolName);
+    if(this.state.simCompleted) {
+      rPlayers.sort((a,b) => parseFloat(b.stats.mpg) - parseFloat(a.stats.mpg));
+    }
     
-    tbody.innerHTML = teamRoster.map(p => {
-      // Pull specific roster visuals if they exist, default if they are just a pure recruit
-      const r = p.rosterInfo || { number: '-', ht: '-', wt: '-', from: 'Recruit', draft: '-' };
-      const hasDraftData = r.draft && r.draft.trim() !== '' && r.draft !== '-';
-      const draftDisplay = hasDraftData 
-        ? `<span class="draft-projection" data-player="${p.name}">${r.draft}</span>` 
-        : `<span style="color:#4b5063;">-</span>`;
-
-      return `
+    let rHtml = '';
+    rPlayers.forEach((p, idx) => {
+      let statsStr = this.state.simCompleted ? `<span style="display:block; font-size:0.8rem; color:var(--brand-color); margin-top:4px;">${p.stats.ppg} PPG | ${p.stats.mpg} MPG</span>` : '';
+      let cls = p.class || p.classYear || 'FR';
+      
+      rHtml += `
         <tr>
-          <td style="color:#7d8296;">${r.number || '-'}</td>
-          <td style="font-weight:700; color:#fff;">${p.name}</td>
-          <td style="color:#a1a5b8;">${p.pos || '-'}</td>
-          <td>${p.classYear || r.class || '-'}</td>
-          <td>${r.ht || '-'}</td>
-          <td>${r.wt || '-'}</td>
-          <td style="color:#a1a5b8; font-size:0.9rem;">${r.from || 'Recruit'}</td>
-          <td>${draftDisplay}</td>
+          <td style="color:#7d8296;">${idx+1}</td>
+          <td><span style="font-weight:700; color:#fff;">${p.name}</span> ${statsStr}</td>
+          <td>${p.pos || '-'}</td>
+          <td>${cls}</td>
+          <td>${p.ht || '-'}</td>
+          <td>${p.wt || '-'}</td>
+          <td>${p.home || p.hometown || '-'}</td>
+          <td><span class="draft-projection">Active</span></td>
         </tr>
       `;
-    }).join('');
-
+    });
+    
+    document.getElementById('modalRosterBody').innerHTML = rHtml;
     document.getElementById('teamModal').classList.add('active');
   },
 
@@ -324,72 +456,31 @@ const SimEngine = {
   },
 
   runOffseason() {
-    if (this.state.phase !== 'Postseason') {
-      alert("You must simulate the season before advancing to the offseason.");
+    if(this.state.phase === 'Preseason') {
+      alert("Simulate the regular season first before advancing to the offseason.");
       return;
     }
-    this.state.currentYear += 1;
+    this.state.year += 1;
     this.state.phase = 'Preseason';
+    this.state.simCompleted = false;
+    
+    document.getElementById('currentYearDisplay').innerText = `${this.state.year}-${(this.state.year+1).toString().slice(2)}`;
+    document.getElementById('currentPhaseDisplay').innerText = 'Preseason';
     
     this.filterActiveData();
-    this.state.activePlayers.forEach(p => p.stats = null);
+    this.logNews(`Advanced to ${this.state.year} offseason. Freshmen processed. Regular season stats reset.`);
     
-    this.logStory(`Offseason complete. Advanced calendar to ${this.state.currentYear}-${(this.state.currentYear + 1).toString().slice(-2)}.`);
-    this.renderTable();
-    this.updateUI();
+    document.getElementById('statsBody').innerHTML = `<tr><td colspan="25" style="text-align: center; color: #7d8296;">Simulate season to view leaderboards.</td></tr>`;
+    document.getElementById('standingsBody').innerHTML = `<tr><td colspan="6" style="text-align: center; color: #7d8296;">Simulate season to view standings.</td></tr>`;
+    document.getElementById('awardsBody').innerHTML = `<tr><td colspan="5" style="text-align: center; color: #7d8296;">Complete a season to generate candidates.</td></tr>`;
   },
 
-  logStory(msg) {
+  logNews(msg) {
     const feed = document.getElementById('newsFeed');
-    if (!feed) return;
     const item = document.createElement('div');
-    item.className = 'news-item';
+    item.style.cssText = `padding: 10px 14px; background: #111118; border-left: 3px solid var(--brand-color); font-size: 0.95rem; margin-bottom: 0.5rem; animation: fadeIn 0.5s;`;
     item.innerText = msg;
-    feed.prepend(item); 
-  },
-
-  updateUI() {
-    const yearDisplay = document.getElementById('currentYearDisplay');
-    const phaseDisplay = document.getElementById('currentPhaseDisplay');
-    if (yearDisplay) {
-        const nextYearStr = (this.state.currentYear + 1).toString().slice(-2);
-        yearDisplay.innerText = `${this.state.currentYear}-${nextYearStr}`;
-    }
-    if (phaseDisplay) phaseDisplay.innerText = this.state.phase;
-  },
-
-  renderTable() {
-    const tbody = document.getElementById('statsBody');
-    if (!tbody) return;
-
-    if (this.state.phase === 'Preseason') {
-      tbody.innerHTML = `<tr><td colspan="14" style="text-align: center; color: #7d8296; padding: 2rem;">Preseason Roster Locked. Click "Simulate Full Season" to generate NCAA stat translations.</td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = this.state.activePlayers.slice(0, 100).map((p, index) => {
-      const s = p.stats;
-      const bpmColor = parseFloat(s.bpm) > 4.0 ? '#4ade80' : parseFloat(s.bpm) > 0 ? 'var(--brand-color)' : '#f87171';
-      
-      return `
-        <tr>
-          <td style="color:#7d8296;">#${index + 1}</td>
-          <td style="font-weight:700; color:#fff;">${p.name}</td>
-          <td style="color:#a1a5b8;">${p.pos || '-'}</td>
-          <td><span style="color:var(--brand-color); font-size: 0.85rem;">${p.classYear || '-'}</span></td>
-          <td><span class="clickable-school" onclick="SimEngine.openTeamModal('${p.school}')">${p.school}</span></td>
-          <td>${s.mpg}</td>
-          <td style="font-weight:600;">${s.ppg}</td>
-          <td style="font-weight:600;">${s.rpg}</td>
-          <td style="font-weight:600;">${s.apg}</td>
-          <td style="font-weight:600;">${s.stl}</td>
-          <td style="font-weight:600;">${s.blk}</td>
-          <td style="font-weight:600;">${s.tov}</td>
-          <td style="font-weight:600;">${s.pf}</td>
-          <td style="font-weight:800; color:${bpmColor}">${s.bpm}</td>
-        </tr>
-      `;
-    }).join('');
+    feed.prepend(item);
   }
 };
 
