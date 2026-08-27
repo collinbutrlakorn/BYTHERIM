@@ -26,8 +26,10 @@ const SimEngine = {
   state: {
     currentYear: 2028,
     phase: 'Preseason',
-    players: [],
-    rosters: [],
+    allRecruits: [], // Master historical list
+    allRosters: [],  // Master historical list
+    activeRecruits: [], // Filtered for current year
+    activeRosters: [],  // Filtered for current year
     teamData: {}
   },
 
@@ -41,8 +43,9 @@ const SimEngine = {
     try {
       const response = await fetch(RECRUIT_CSV_URL);
       const csvText = await response.text();
-      this.state.players = this.parseCSVData(csvText);
-      this.logStory(`Successfully loaded ${this.state.players.length} prospects from the database.`);
+      this.state.allRecruits = this.parseCSVData(csvText);
+      this.filterActiveData();
+      this.logStory(`Successfully loaded ${this.state.allRecruits.length} total prospects. Filtered for ${this.state.currentYear}.`);
       this.renderTable();
       this.updateUI();
     } catch (err) {
@@ -55,11 +58,21 @@ const SimEngine = {
     try {
       const response = await fetch(ROSTER_CSV_URL);
       const csvText = await response.text();
-      this.state.rosters = this.parseRosterCSV(csvText);
-      this.logStory("Live Team Rosters synched.");
+      this.state.allRosters = this.parseRosterCSV(csvText);
+      this.filterActiveData();
+      this.logStory("Live Team Rosters synched and filtered by year.");
     } catch (err) {
       console.error("Error fetching rosters:", err);
     }
+  },
+
+  filterActiveData() {
+    // Current season starts in currentYear (e.g., 2028), finishes in currentYear + 1 (e.g., 2029)
+    const recruitTargetYear = this.state.currentYear.toString();
+    const rosterTargetYear = (this.state.currentYear + 1).toString();
+
+    this.state.activeRecruits = this.state.allRecruits.filter(p => p.classYear === recruitTargetYear);
+    this.state.activeRosters = this.state.allRosters.filter(p => p.year === rosterTargetYear);
   },
 
   parseCSVData(text) {
@@ -104,7 +117,7 @@ const SimEngine = {
         name: col.name !== null && row[col.name] ? row[col.name] : `Player ${idx}`,
         pos: col.pos !== null && row[col.pos] ? row[col.pos] : 'G',
         school: col.school !== null && row[col.school] ? row[col.school] : 'Uncommitted',
-        classYear: col.classYear !== null && row[col.classYear] ? row[col.classYear] : 'FR',
+        classYear: col.classYear !== null && row[col.classYear] ? row[col.classYear] : '2028', // Default backup
         rating: safeNum(col.rating, 80),
         hs_stats: {
           mpg: safeNum(col.mpg, 24), ppg: safeNum(col.ppg, 12), rpg: safeNum(col.rpg, 4),
@@ -129,13 +142,16 @@ const SimEngine = {
     let projMpg = Math.min(36, Math.max(6, (player.rating - 76) * 1.3));
     const baseHsMpg = hs.mpg > 5 ? hs.mpg : 28; 
     
+    // RNG multiplier introduces variance each simulation (between 0.85x and 1.15x)
+    const rng = () => 0.85 + (Math.random() * 0.30);
+    
     const compPenalty = 0.82; 
     const scaleFactor = (projMpg / baseHsMpg) * compPenalty;
 
-    let ppg = (hs.ppg * scaleFactor).toFixed(1);
-    let rpg = (hs.rpg * scaleFactor * 0.9).toFixed(1);
-    let apg = (hs.apg * scaleFactor * 0.95).toFixed(1);
-    let projBpm = ((hs.bpm * 0.55) + ((player.rating - 85) * 0.25)).toFixed(1);
+    let ppg = (hs.ppg * scaleFactor * rng()).toFixed(1);
+    let rpg = (hs.rpg * scaleFactor * 0.9 * rng()).toFixed(1);
+    let apg = (hs.apg * scaleFactor * 0.95 * rng()).toFixed(1);
+    let projBpm = (((hs.bpm * 0.55) + ((player.rating - 85) * 0.25)) * rng()).toFixed(1);
 
     return { mpg: projMpg.toFixed(1), ppg, rpg, apg, bpm: projBpm };
   },
@@ -145,17 +161,19 @@ const SimEngine = {
       alert("Season has already been simulated! Run the offseason loop to advance.");
       return;
     }
-    if (this.state.players.length === 0) {
+    if (this.state.activeRecruits.length === 0) {
       alert("Database still loading, please wait.");
       return;
     }
 
-    this.logStory(`Simulating ${this.state.currentYear} Regular Season & Tournaments...`);
+    this.logStory(`Simulating ${this.state.currentYear}-${(this.state.currentYear + 1).toString().slice(-2)} Regular Season...`);
     
-    this.state.players.forEach(player => {
+    this.state.activeRecruits.forEach(player => {
       player.stats = this.calculatePlayerSeason(player);
     });
-    this.state.players.sort((a, b) => parseFloat(b.stats.bpm) - parseFloat(a.stats.bpm));
+    
+    // Sort by generated BPM
+    this.state.activeRecruits.sort((a, b) => parseFloat(b.stats.bpm) - parseFloat(a.stats.bpm));
 
     this.generateTeamStats();
 
@@ -167,7 +185,7 @@ const SimEngine = {
   },
 
   generateTeamStats() {
-    const uniqueTeams = [...new Set(this.state.rosters.map(p => p.team))];
+    const uniqueTeams = [...new Set(this.state.activeRosters.map(p => p.team))];
     
     uniqueTeams.forEach(team => {
       const wins = Math.floor(Math.random() * 20) + 10;
@@ -198,7 +216,7 @@ const SimEngine = {
     const logoFormatted = teamName.toLowerCase().replace(/\s+/g, '');
     document.getElementById('modalTeamLogo').src = `../schoollogos/${logoFormatted}.png`;
     document.getElementById('modalTeamName').innerText = teamName;
-    document.getElementById('modalTeamYear').innerText = `${this.state.currentYear} Roster`;
+    document.getElementById('modalTeamYear').innerText = `${this.state.currentYear + 1} Roster`;
     
     const rankBadge = document.getElementById('modalTeamRank');
     if (teamStats.rank) {
@@ -213,7 +231,7 @@ const SimEngine = {
     document.getElementById('modalTeamPPG').innerText = teamStats.teamPpg;
     document.getElementById('modalOppPPG').innerText = teamStats.oppPpg;
 
-    const teamRoster = this.state.rosters.filter(p => p.team === teamName);
+    const teamRoster = this.state.activeRosters.filter(p => p.team === teamName);
     const tbody = document.getElementById('modalRosterBody');
     
     tbody.innerHTML = teamRoster.map(p => {
@@ -250,8 +268,12 @@ const SimEngine = {
     }
     this.state.currentYear += 1;
     this.state.phase = 'Preseason';
-    this.state.players.forEach(p => p.stats = null);
-    this.logStory(`Offseason complete. Advanced calendar to ${this.state.currentYear}.`);
+    
+    // Refilter for the new year
+    this.filterActiveData();
+    this.state.activeRecruits.forEach(p => p.stats = null);
+    
+    this.logStory(`Offseason complete. Advanced calendar to ${this.state.currentYear}-${(this.state.currentYear + 1).toString().slice(-2)}.`);
     this.renderTable();
     this.updateUI();
   },
@@ -268,7 +290,10 @@ const SimEngine = {
   updateUI() {
     const yearDisplay = document.getElementById('currentYearDisplay');
     const phaseDisplay = document.getElementById('currentPhaseDisplay');
-    if (yearDisplay) yearDisplay.innerText = this.state.currentYear;
+    if (yearDisplay) {
+        const nextYearStr = (this.state.currentYear + 1).toString().slice(-2);
+        yearDisplay.innerText = `${this.state.currentYear}-${nextYearStr}`;
+    }
     if (phaseDisplay) phaseDisplay.innerText = this.state.phase;
   },
 
@@ -281,7 +306,7 @@ const SimEngine = {
       return;
     }
 
-    tbody.innerHTML = this.state.players.slice(0, 100).map((p, index) => {
+    tbody.innerHTML = this.state.activeRecruits.slice(0, 100).map((p, index) => {
       const s = p.stats;
       const bpmColor = parseFloat(s.bpm) > 4.0 ? '#4ade80' : parseFloat(s.bpm) > 0 ? '#38bdf8' : '#f87171';
       
@@ -290,7 +315,7 @@ const SimEngine = {
           <td style="color:#7d8296;">#${index + 1}</td>
           <td style="font-weight:700; color:#fff;">${p.name}</td>
           <td style="color:#a1a5b8;">${p.pos}</td>
-          <td><span style="color:#38bdf8; font-size: 0.85rem;">${p.classYear || 'FR'}</span></td>
+          <td><span style="color:#38bdf8; font-size: 0.85rem;">${p.classYear}</span></td>
           <td><span class="clickable-school" onclick="SimEngine.openTeamModal('${p.school}')">${p.school}</span></td>
           <td>${s.mpg}</td>
           <td style="font-weight:600;">${s.ppg}</td>
