@@ -12,6 +12,12 @@
   <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:ital,wght@0,400;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
 
   <style>
+    :root {
+      --brand-color: #FF6600; /* Adjust this to exact BYTHERIM Hex */
+      --brand-color-light: rgba(255, 102, 0, 0.1);
+      --brand-color-border: rgba(255, 102, 0, 0.25);
+    }
+
     body {
       background-color: #050507;
       color: #e2e8f0;
@@ -42,9 +48,9 @@
 
     .status-badge {
       display: inline-block;
-      background: rgba(56, 189, 248, 0.1);
-      color: #38bdf8;
-      border: 1px solid rgba(56, 189, 248, 0.25);
+      background: var(--brand-color-light);
+      color: var(--brand-color);
+      border: 1px solid var(--brand-color-border);
       padding: 4px 10px;
       border-radius: 6px;
       font-weight: 800;
@@ -54,7 +60,7 @@
     }
 
     .sim-btn {
-      background: #38bdf8;
+      background: var(--brand-color);
       color: #000000;
       border: none;
       padding: 12px 16px;
@@ -96,12 +102,11 @@
     }
 
     .tab-btn:hover { color: #ffffff; background: rgba(255, 255, 255, 0.04); }
-    .tab-btn.active { color: #38bdf8; background: rgba(56, 189, 248, 0.1); }
+    .tab-btn.active { color: var(--brand-color); background: var(--brand-color-light); }
     
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
-    /* Dashboard Grid Styles */
     .dashboard-grid {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
@@ -118,7 +123,7 @@
 
     .dash-box h4 {
       margin: 0 0 10px 0;
-      color: #38bdf8;
+      color: var(--brand-color);
       font-size: 0.9rem;
       text-transform: uppercase;
       border-bottom: 1px solid rgba(255,255,255,0.1);
@@ -133,18 +138,9 @@
       color: #a1a5b8;
     }
 
-    .leader-row span:last-child {
-      font-weight: 700;
-      color: #fff;
-    }
+    .leader-row span:last-child { font-weight: 700; color: #fff; }
 
-    /* Top 10 Teams Flex */
-    .top-teams-container {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      margin-bottom: 1.5rem;
-    }
+    .top-teams-container { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; }
 
     .team-badge {
       background: #161622;
@@ -158,14 +154,13 @@
       gap: 8px;
     }
 
-    .team-rank { color: #38bdf8; font-size: 0.85rem; }
+    .team-rank { color: var(--brand-color); font-size: 0.85rem; }
 
     table { width: 100%; border-collapse: collapse; text-align: left; }
     th { color: #7d8296; font-size: 0.85rem; text-transform: uppercase; padding: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
     td { padding: 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.04); font-size: 1rem; }
     tr:hover td { background: rgba(255, 255, 255, 0.02); }
 
-    /* Modal / Team Hub Styles */
     .modal-overlay {
       display: none;
       position: fixed;
@@ -202,13 +197,13 @@
     .close-btn:hover { color: #fff; }
     .team-header { display: flex; align-items: center; gap: 1.5rem; margin-bottom: 2rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 1.5rem; }
     .team-logo { width: 100px; height: 100px; object-fit: contain; }
-    .ap-rank { background: #38bdf8; color: #000; font-weight: 800; padding: 4px 10px; border-radius: 6px; font-size: 1.2rem; display: none; }
+    .ap-rank { background: var(--brand-color); color: #000; font-weight: 800; padding: 4px 10px; border-radius: 6px; font-size: 1.2rem; display: none; }
     .team-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem; }
     .stat-box { background: #111118; border: 1px solid rgba(255, 255, 255, 0.04); padding: 1rem; border-radius: 8px; text-align: center; }
     .stat-label { display: block; color: #7d8296; font-size: 0.85rem; font-weight: 700; margin-bottom: 0.5rem; }
     .stat-value { display: block; color: #fff; font-size: 1.75rem; font-weight: 800; }
-    .draft-projection { background: rgba(56, 189, 248, 0.1); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; transition: all 0.2s; }
-    .clickable-school { cursor: pointer; color: #38bdf8; font-weight: 700; transition: color 0.2s; }
+    .draft-projection { background: var(--brand-color-light); color: var(--brand-color); border: 1px solid var(--brand-color-border); padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; transition: all 0.2s; }
+    .clickable-school { cursor: pointer; color: var(--brand-color); font-weight: 700; transition: color 0.2s; }
     .clickable-school:hover { color: #fff; text-decoration: underline; }
   </style>
 </head>
@@ -227,7 +222,6 @@
   </header>
 
   <div class="sim-layout">
-    <!-- Sidebar -->
     <aside style="display: flex; flex-direction: column; gap: 1.5rem;">
       <div class="panel-card">
         <span class="status-badge" id="currentPhaseDisplay">Preseason</span>
@@ -239,12 +233,11 @@
       <div class="panel-card">
         <h3 style="margin: 0 0 1rem 0; font-size: 1.2rem; color: #fff; text-transform: uppercase;">Storylines</h3>
         <div id="newsFeed" style="display: flex; flex-direction: column; gap: 1rem; max-height: 220px; overflow-y: auto;">
-          <div style="padding: 10px 14px; background: #111118; border-left: 3px solid #38bdf8; font-size: 0.95rem;">System ready.</div>
+          <div style="padding: 10px 14px; background: #111118; border-left: 3px solid var(--brand-color); font-size: 0.95rem;">System ready.</div>
         </div>
       </div>
     </aside>
 
-    <!-- Main Content Area -->
     <main class="panel-card">
       <div class="tab-bar">
         <button class="tab-btn active" onclick="switchTab('dashTab', this)">Dashboard</button>
@@ -253,11 +246,10 @@
         <button class="tab-btn" onclick="switchTab('awardsTab', this)">Award Races</button>
       </div>
 
-      <!-- Tab 1: Dashboard -->
       <div id="dashTab" class="tab-content active">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
           <h3 style="margin:0; color:#fff;">AP Top 10 Teams</h3>
-          <button style="background:transparent; border:1px solid #38bdf8; color:#38bdf8; border-radius:4px; padding:4px 8px; cursor:pointer;" onclick="switchTab('standingsTab', document.querySelectorAll('.tab-btn')[2])">View Top 25 &rarr;</button>
+          <button style="background:transparent; border:1px solid var(--brand-color); color:var(--brand-color); border-radius:4px; padding:4px 8px; cursor:pointer;" onclick="switchTab('standingsTab', document.querySelectorAll('.tab-btn')[2])">View Top 25 &rarr;</button>
         </div>
         <div class="top-teams-container" id="dashTopTeams">
           <p style="color:#7d8296;">Simulate season to generate rankings.</p>
@@ -273,21 +265,24 @@
         </div>
       </div>
 
-      <!-- Tab 2: Stat Leaders -->
       <div id="statsTab" class="tab-content">
         <div style="overflow-x: auto;">
           <table>
             <thead>
-              <tr><th>Rank</th><th>Player</th><th>Class</th><th>School</th><th>MPG</th><th>PTS</th><th>REB</th><th>AST</th><th>BPM</th></tr>
+              <!-- Headers updated to include Pos and ALL missing stats -->
+              <tr>
+                <th>Rank</th><th>Player</th><th>Pos</th><th>Class</th><th>School</th>
+                <th>MPG</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th>
+                <th>BLK</th><th>TOV</th><th>PF</th><th>BPM</th>
+              </tr>
             </thead>
             <tbody id="statsBody">
-              <tr><td colspan="9" style="text-align: center; color: #7d8296;">Simulate season to view leaderboards.</td></tr>
+              <tr><td colspan="14" style="text-align: center; color: #7d8296;">Simulate season to view leaderboards.</td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      <!-- Tab 3: Team Rankings -->
       <div id="standingsTab" class="tab-content">
         <div style="overflow-x: auto;">
           <table>
@@ -301,7 +296,6 @@
         </div>
       </div>
 
-      <!-- Tab 4: Award Races -->
       <div id="awardsTab" class="tab-content">
         <h3 style="color: #fff;">Wooden Award Candidates (National Player of the Year)</h3>
         <div style="overflow-x: auto;">
@@ -315,7 +309,6 @@
           </table>
         </div>
       </div>
-
     </main>
   </div>
 
@@ -329,7 +322,6 @@
     }
   </script>
   
-  <!-- TEAM HUB MODAL -->
   <div id="teamModal" class="modal-overlay">
     <div class="modal-content">
       <button class="close-btn" onclick="SimEngine.closeTeamModal()">&times;</button>
@@ -341,27 +333,15 @@
             <span id="modalTeamRank" class="ap-rank"></span>
             <h2 id="modalTeamName" style="margin: 0; font-size: 2.5rem; color: #fff; text-transform: uppercase;"></h2>
           </div>
-          <span id="modalTeamYear" style="color: #38bdf8; font-weight: 700; font-size: 1.2rem;"></span>
+          <span id="modalTeamYear" style="color: var(--brand-color); font-weight: 700; font-size: 1.2rem;"></span>
         </div>
       </div>
 
       <div class="team-stats-grid">
-        <div class="stat-box">
-          <span class="stat-label">OVERALL</span>
-          <span id="modalTeamRecord" class="stat-value">0-0</span>
-        </div>
-        <div class="stat-box">
-          <span class="stat-label">CONF</span>
-          <span id="modalConfRecord" class="stat-value">0-0</span>
-        </div>
-        <div class="stat-box">
-          <span class="stat-label">TEAM PPG</span>
-          <span id="modalTeamPPG" class="stat-value">0.0</span>
-        </div>
-        <div class="stat-box">
-          <span class="stat-label">OPP PPG</span>
-          <span id="modalOppPPG" class="stat-value">0.0</span>
-        </div>
+        <div class="stat-box"><span class="stat-label">OVERALL</span><span id="modalTeamRecord" class="stat-value">0-0</span></div>
+        <div class="stat-box"><span class="stat-label">CONF</span><span id="modalConfRecord" class="stat-value">0-0</span></div>
+        <div class="stat-box"><span class="stat-label">TEAM PPG</span><span id="modalTeamPPG" class="stat-value">0.0</span></div>
+        <div class="stat-box"><span class="stat-label">OPP PPG</span><span id="modalOppPPG" class="stat-value">0.0</span></div>
       </div>
 
       <h3 style="color: #fff; margin-bottom: 1rem; text-transform: uppercase;">Active Roster</h3>
@@ -380,7 +360,6 @@
             </tr>
           </thead>
           <tbody id="modalRosterBody">
-            <!-- Team Roster injects here -->
           </tbody>
         </table>
       </div>
