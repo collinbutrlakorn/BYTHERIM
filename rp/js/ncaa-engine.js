@@ -10,11 +10,18 @@ window.SimEngine = {
     sortCol: 'ppg',
     sortDir: 'desc',
     confFilter: 'ALL',   
-    scopeFilter: 'full'  
+    scopeFilter: 'full',
+    selectedAwardConf: 'ACC'
   },
   
   init() {
     this.fetchData();
+  },
+
+  // Helper to fetch logos directly from the schoollogos directory in the repository
+  getTeamLogo(schoolName) {
+    if (!schoolName || schoolName === 'Free Agent' || schoolName === 'Uncommitted') return '';
+    return `../schoollogos/${schoolName}.png`;
   },
 
   async fetchData() {
@@ -48,7 +55,7 @@ window.SimEngine = {
           teamsMap[player.school] = {
             school: player.school,
             conference: player.conference || 'NCAA',
-            logo: player.school_logo || '', 
+            logo: this.getTeamLogo(player.school), 
             roster: []
           };
         } else if (player.conference && player.conference !== 'NCAA') {
@@ -111,12 +118,13 @@ window.SimEngine = {
     };
 
     const rating = parseFloat(getVal(['rating', 'ovr', 'grade', 'stars'], 75)) || 75;
+    const school = getVal(['school', 'team', 'committedto', 'college'], 'Free Agent');
     
     return {
       name: getVal(['name', 'player', 'fullname'], 'Unknown Player'),
-      school: getVal(['school', 'team', 'committedto', 'college'], 'Free Agent'),
+      school: school,
       conference: getVal(['conf', 'conference', 'league'], 'NCAA'),
-      school_logo: getVal(['logo', 'schoollogo', 'teamlogo'], ''),
+      school_logo: this.getTeamLogo(school),
       pos: getVal(['pos', 'position'], 'G').toUpperCase(),
       class: getVal(['class', 'classyear', 'yr'], isRecruit ? 'FR' : 'SO').toUpperCase(),
       ht: getVal(['ht', 'height'], "6'4"),
@@ -155,7 +163,7 @@ window.SimEngine = {
         const team = this.state.teams.find(t => t.school.toLowerCase() === rec.school.toLowerCase());
         if (team && !team.roster.some(p => p.name === rec.name)) {
           rec.school = team.school;
-          rec.school_logo = team.logo;
+          rec.school_logo = this.getTeamLogo(team.school);
           rec.class = 'FR';
           team.roster.push(rec);
           players.push(rec);
@@ -189,6 +197,23 @@ window.SimEngine = {
     this.state.teams.forEach((t, i) => {
       t.apRank = (i < 25) ? (i + 1) : null;
     });
+
+    // Calculate overall player scores incorporating team success
+    this.state.activePlayers.forEach(p => {
+      const team = this.state.teams.find(t => t.school === p.school);
+      const teamWinPct = team ? (team.simData.wins / (team.simData.wins + team.simData.losses)) : 0.5;
+      const bpm = parseFloat(p.stats ? p.stats.bpm : 0);
+      const ppg = parseFloat(p.stats ? p.stats.ppg : 0);
+      const apg = parseFloat(p.stats ? p.stats.apg : 0);
+      const rpg = parseFloat(p.stats ? p.stats.rpg : 0);
+      const dbpm = parseFloat(p.stats ? p.stats.dbpm : 0);
+      const stl = parseFloat(p.stats ? p.stats.stl : 0);
+      const blk = parseFloat(p.stats ? p.stats.blk : 0);
+
+      // Best player per category on best team weighting
+      p.awardScore = (bpm * 2.5) + (ppg * 0.8) + (apg * 0.4) + (rpg * 0.4) + (teamWinPct * 15);
+      p.defensiveScore = (dbpm * 3.5) + (stl * 2.5) + (blk * 2.5) + (teamWinPct * 10);
+    });
     
     this.state.simCompleted = true;
     this.state.sortCol = 'ppg';
@@ -199,7 +224,7 @@ window.SimEngine = {
     this.updateStandingsTab();
     this.updateAwardsTab();
     
-    this.logNews("Regular season complete. Standings & conference records generated.");
+    this.logNews("Regular season complete. National and Conference awards awarded.");
   },
 
   calculateTeamSeason(team) {
@@ -214,6 +239,7 @@ window.SimEngine = {
     roster.forEach((p, idx) => {
       let allocatedMpg = (rawWeights[idx] / totalWeight) * 200;
       if (idx > 9) allocatedMpg = 0; 
+      p.isBench = idx >= 5;
       p.stats = this.calculatePlayerSeason(p, Math.min(35.5, allocatedMpg));
     });
 
@@ -445,7 +471,7 @@ window.SimEngine = {
         topTeamsHtml += `
           <div class="team-badge clickable-school" onclick="SimEngine.openTeamModal('${this.state.teams[i].school}')">
             <span class="team-rank">#${i+1}</span>
-            <img src="${this.state.teams[i].logo || ''}" style="width:20px; height:20px; object-fit:contain;">
+            <img src="${this.getTeamLogo(this.state.teams[i].school)}" style="width:20px; height:20px; object-fit:contain;">
             ${this.state.teams[i].school}
           </div>
         `;
@@ -480,7 +506,6 @@ window.SimEngine = {
       return;
     }
 
-    // 1. Render AP Top 25 Card (Top 10 visible by default)
     let apTop25 = this.state.teams.slice(0, 25);
     let apHtml = `
       <div style="background: #111118; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem;">
@@ -501,7 +526,7 @@ window.SimEngine = {
           <td style="font-weight:800; color:var(--brand-color);">#${t.apRank}</td>
           <td>
             <div style="display:flex; align-items:center; gap:8px;" class="clickable-school" onclick="SimEngine.openTeamModal('${t.school}')">
-              <img src="${t.logo || ''}" style="width:20px; height:20px; object-fit:contain;">
+              <img src="${this.getTeamLogo(t.school)}" style="width:20px; height:20px; object-fit:contain;">
               <span style="font-weight:700; color:#fff;">${t.school}</span>
             </div>
           </td>
@@ -519,10 +544,7 @@ window.SimEngine = {
         ${apTop25.length > 10 ? `<button class="sim-btn sim-btn-secondary" style="margin-top: 1rem; width: 100%;" onclick="SimEngine.toggleApTop25(this)">See More (Top 25)</button>` : ''}
       </div>`;
 
-    // 2. Render Conference Standings Grid
     const confList = ['ACC', 'AAC', 'A10', 'Big 12', 'Big Ten', 'Big East', 'SEC', 'Pac-12', 'WCC', 'Mountain West'];
-    
-    // Check for any extra conferences in the spreadsheet
     let allConfsInState = [...new Set(this.state.teams.map(t => (t.conference || 'NCAA').trim()))].filter(Boolean);
     let displayConfs = [...confList];
     allConfsInState.forEach(c => {
@@ -538,7 +560,6 @@ window.SimEngine = {
       let confTeams = this.state.teams.filter(t => (t.conference || '').toLowerCase() === confName.toLowerCase());
       if (confTeams.length === 0) return;
 
-      // Sort teams within conference by confWins desc, then overall wins desc
       confTeams.sort((a,b) => {
         if (b.simData.confWins !== a.simData.confWins) return b.simData.confWins - a.simData.confWins;
         if (b.simData.wins !== a.simData.wins) return b.simData.wins - a.simData.wins;
@@ -568,7 +589,7 @@ window.SimEngine = {
             <td style="font-weight:700; color:#a1a5b8;">${idx+1}</td>
             <td>
               <div style="display:flex; align-items:center; gap:6px;" class="clickable-school" onclick="SimEngine.openTeamModal('${t.school}')">
-                <img src="${t.logo || ''}" style="width:18px; height:18px; object-fit:contain;">
+                <img src="${this.getTeamLogo(t.school)}" style="width:18px; height:18px; object-fit:contain;">
                 <span style="font-weight:700; color:#fff;">${t.school}</span>${apTag}
               </div>
             </td>
@@ -609,21 +630,229 @@ window.SimEngine = {
   },
 
   updateAwardsTab() {
-    let candidates = [...this.state.activePlayers].sort((a,b) => parseFloat(b.stats.bpm) - parseFloat(a.stats.bpm));
-    let html = '';
-    for (let i = 0; i < 15; i++) {
-      if (candidates[i]) {
-        let p = candidates[i];
-        html += `<tr>
-          <td style="font-weight:800; color:var(--brand-color);">#${i+1}</td>
-          <td style="font-weight:700; color:#fff;">${p.name}</td>
-          <td>${p.school}</td>
-          <td style="color:#a1a5b8;">${p.stats.ppg} PTS, ${p.stats.rpg} REB, ${p.stats.apg} AST</td>
-          <td style="font-weight:700;">${p.stats.bpm}</td>
-        </tr>`;
-      }
+    if (!this.state.simCompleted) {
+      document.getElementById('nationalAwardsGrid').innerHTML = `<p style="color: #7d8296;">Simulate season to calculate National Award winners.</p>`;
+      document.getElementById('allAmericanContainer').innerHTML = `<p style="color: #7d8296;">Simulate season to view All-American teams.</p>`;
+      document.getElementById('confAwardsContainer').innerHTML = `<p style="color: #7d8296;">Simulate season to view conference award winners.</p>`;
+      return;
     }
-    document.getElementById('awardsBody').innerHTML = html;
+
+    // 1. Calculate Major National Awards
+    const players = [...this.state.activePlayers];
+    
+    // Position filters
+    const isPG = p => p.pos === 'PG' || (p.pos === 'G' && parseFloat(p.stats.apg) >= 3.5);
+    const isSG = p => p.pos === 'SG' || (p.pos === 'G' && parseFloat(p.stats.apg) < 3.5);
+    const isSF = p => p.pos === 'SF' || (p.pos === 'F' && parseFloat(p.stats.rpg) < 6.5);
+    const isPF = p => p.pos === 'PF' || (p.pos === 'F' && parseFloat(p.stats.rpg) >= 6.5);
+    const isC = p => p.pos === 'C' || (p.pos === 'F/C');
+
+    const npoy = [...players].sort((a,b) => b.awardScore - a.awardScore)[0];
+    const dpoy = [...players].sort((a,b) => b.defensiveScore - a.defensiveScore)[0];
+    const froy = [...players].filter(p => p.class === 'FR').sort((a,b) => b.awardScore - a.awardScore)[0];
+    
+    const cousy = [...players].filter(isPG).sort((a,b) => b.awardScore - a.awardScore)[0] || npoy;
+    const west = [...players].filter(isSG).sort((a,b) => b.awardScore - a.awardScore)[0] || npoy;
+    const erving = [...players].filter(isSF).sort((a,b) => b.awardScore - a.awardScore)[0] || npoy;
+    const malone = [...players].filter(isPF).sort((a,b) => b.awardScore - a.awardScore)[0] || npoy;
+    const abdulJabbar = [...players].filter(isC).sort((a,b) => b.awardScore - a.awardScore)[0] || npoy;
+
+    const majorAwards = [
+      { title: "National Player of the Year", sub: "Naismith / Wooden Trophy", winner: npoy, major: true },
+      { title: "Defensive Player of the Year", sub: "NABC National DPOY", winner: dpoy, major: true },
+      { title: "National Freshman of the Year", sub: "Wayman Tisdale Award", winner: froy, major: true },
+      { title: "Bob Cousy Award", sub: "Best Point Guard", winner: cousy, major: false },
+      { title: "Jerry West Award", sub: "Best Shooting Guard", winner: west, major: false },
+      { title: "Julius Erving Award", sub: "Best Small Forward", winner: erving, major: false },
+      { title: "Karl Malone Award", sub: "Best Power Forward", winner: malone, major: false },
+      { title: "Kareem Abdul-Jabbar Award", sub: "Best Center", winner: abdulJabbar, major: false }
+    ];
+
+    let natHtml = '';
+    majorAwards.forEach(a => {
+      if (!a.winner) return;
+      natHtml += `
+        <div class="award-card ${a.major ? 'major-award' : ''}">
+          <div class="award-title">${a.title}</div>
+          <div class="award-sub">${a.sub}</div>
+          <div class="award-winner">
+            <img src="${this.getTeamLogo(a.winner.school)}" style="width:36px; height:36px; object-fit:contain;">
+            <div class="award-winner-info">
+              <span class="award-winner-name">${a.winner.name}</span>
+              <span class="award-winner-school">${a.winner.school} (${a.winner.pos} &bull; ${a.winner.class})</span>
+              <span class="award-winner-stats">${a.winner.stats.ppg} PPG, ${a.winner.stats.rpg} RPG, ${a.winner.stats.apg} APG</span>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    document.getElementById('nationalAwardsGrid').innerHTML = natHtml;
+
+    // 2. All-American Teams (1st, 2nd, 3rd)
+    const sortedAll = [...players].sort((a,b) => b.awardScore - a.awardScore);
+    const aa1 = sortedAll.slice(0, 5);
+    const aa2 = sortedAll.slice(5, 10);
+    const aa3 = sortedAll.slice(10, 15);
+
+    const renderAaCard = (teamName, teamList) => {
+      let rows = '';
+      teamList.forEach((p, idx) => {
+        rows += `
+          <tr>
+            <td style="font-weight:800; color:var(--brand-color);">${idx+1}</td>
+            <td>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <img src="${this.getTeamLogo(p.school)}" style="width:16px; height:16px; object-fit:contain;">
+                <span style="font-weight:700; color:#fff;">${p.name}</span>
+              </div>
+            </td>
+            <td>${p.school}</td>
+            <td style="color:#7d8296;">${p.pos}</td>
+            <td style="font-weight:700; color:#fff;">${p.stats.ppg} PPG</td>
+          </tr>`;
+      });
+      return `
+        <div style="background: #111118; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 1rem;">
+          <h5 style="margin: 0 0 0.75rem 0; color: #fff; font-size: 1.1rem; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem;">${teamName}</h5>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>#</th><th>Player</th><th>School</th><th>Pos</th><th>PPG</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    };
+
+    document.getElementById('allAmericanContainer').innerHTML = 
+      renderAaCard("1st Team All-American", aa1) +
+      renderAaCard("2nd Team All-American", aa2) +
+      renderAaCard("3rd Team All-American", aa3);
+
+    // 3. Render Conference Awards for currently selected conference
+    this.renderConferenceAwards(this.state.selectedAwardConf);
+  },
+
+  renderConferenceAwards(confName) {
+    this.state.selectedAwardConf = confName;
+    document.getElementById('confAwardsTitle').innerText = `${confName} Conference Honors`;
+    
+    if (!this.state.simCompleted) {
+      document.getElementById('confAwardsContainer').innerHTML = `<p style="color: #7d8296;">Simulate season to view conference awards.</p>`;
+      return;
+    }
+
+    const confPlayers = this.state.activePlayers.filter(p => (p.conference || '').toLowerCase() === confName.toLowerCase());
+    
+    if (confPlayers.length === 0) {
+      document.getElementById('confAwardsContainer').innerHTML = `<p style="color: #7d8296;">No players found for conference: ${confName}</p>`;
+      return;
+    }
+
+    const sortedConf = [...confPlayers].sort((a,b) => b.awardScore - a.awardScore);
+    const sortedDef = [...confPlayers].sort((a,b) => b.defensiveScore - a.defensiveScore);
+    const sortedFresh = [...confPlayers].filter(p => p.class === 'FR').sort((a,b) => b.awardScore - a.awardScore);
+    const sorted6m = [...confPlayers].filter(p => p.isBench).sort((a,b) => b.awardScore - a.awardScore);
+
+    const cpoy = sortedConf[0];
+    const cdpoy = sortedDef[0];
+    const croty = sortedFresh[0] || sortedConf[1];
+    const c6moy = sorted6m[0] || sortedConf[4];
+
+    const conf1st = sortedConf.slice(0, 5);
+    const conf2nd = sortedConf.slice(5, 10);
+    const confFreshTeam = sortedFresh.slice(0, 5);
+
+    let html = `
+      <div class="awards-grid">
+        <div class="award-card major-award">
+          <div class="award-title">Player of the Year</div>
+          <div class="award-sub">${confName} POY</div>
+          <div class="award-winner">
+            <img src="${this.getTeamLogo(cpoy.school)}" style="width:32px; height:32px; object-fit:contain;">
+            <div class="award-winner-info">
+              <span class="award-winner-name">${cpoy.name}</span>
+              <span class="award-winner-school">${cpoy.school} &bull; ${cpoy.stats.ppg} PPG, ${cpoy.stats.rpg} RPG</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="award-card">
+          <div class="award-title">Defensive Player of the Year</div>
+          <div class="award-sub">${confName} DPOY</div>
+          <div class="award-winner">
+            <img src="${this.getTeamLogo(cdpoy.school)}" style="width:32px; height:32px; object-fit:contain;">
+            <div class="award-winner-info">
+              <span class="award-winner-name">${cdpoy.name}</span>
+              <span class="award-winner-school">${cdpoy.school} &bull; ${cdpoy.stats.stl} SPG, ${cdpoy.stats.blk} BPG</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="award-card">
+          <div class="award-title">Rookie of the Year</div>
+          <div class="award-sub">${confName} ROTY / Freshman of Year</div>
+          <div class="award-winner">
+            <img src="${this.getTeamLogo(croty.school)}" style="width:32px; height:32px; object-fit:contain;">
+            <div class="award-winner-info">
+              <span class="award-winner-name">${croty.name}</span>
+              <span class="award-winner-school">${croty.school} &bull; ${croty.stats.ppg} PPG</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="award-card">
+          <div class="award-title">Sixth Man of the Year</div>
+          <div class="award-sub">${confName} 6MOY</div>
+          <div class="award-winner">
+            <img src="${this.getTeamLogo(c6moy.school)}" style="width:32px; height:32px; object-fit:contain;">
+            <div class="award-winner-info">
+              <span class="award-winner-name">${c6moy.name}</span>
+              <span class="award-winner-school">${c6moy.school} &bull; ${c6moy.stats.ppg} PPG</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.25rem;">
+        ${this.renderConfTeamTable("1st Team All-" + confName, conf1st)}
+        ${this.renderConfTeamTable("2nd Team All-" + confName, conf2nd)}
+        ${this.renderConfTeamTable("All-Freshman Team", confFreshTeam)}
+      </div>
+    `;
+
+    document.getElementById('confAwardsContainer').innerHTML = html;
+  },
+
+  renderConfTeamTable(title, playerList) {
+    let rows = '';
+    playerList.forEach((p, idx) => {
+      rows += `
+        <tr>
+          <td style="font-weight:700; color:#a1a5b8;">${idx+1}</td>
+          <td>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <img src="${this.getTeamLogo(p.school)}" style="width:16px; height:16px; object-fit:contain;">
+              <span style="font-weight:700; color:#fff;">${p.name}</span>
+            </div>
+          </td>
+          <td>${p.school}</td>
+          <td style="color:#7d8296;">${p.pos}</td>
+          <td style="font-weight:700; color:#fff;">${p.stats ? p.stats.ppg : '0.0'} PPG</td>
+        </tr>`;
+    });
+
+    return `
+      <div style="background: #111118; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 1rem;">
+        <h5 style="margin: 0 0 0.75rem 0; color: #fff; font-size: 1.05rem; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.5rem;">${title}</h5>
+        <div class="table-scroll">
+          <table>
+            <thead><tr><th>#</th><th>Player</th><th>School</th><th>Pos</th><th>PPG</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="5" style="text-align:center; color:#7d8296;">No qualifying players</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>
+    `;
   },
 
   openTeamModal(schoolName) {
@@ -632,7 +861,7 @@ window.SimEngine = {
 
     let rank = team.apRank;
     
-    document.getElementById('modalTeamLogo').src = team.logo || '';
+    document.getElementById('modalTeamLogo').src = this.getTeamLogo(team.school);
     document.getElementById('modalTeamName').innerText = team.school;
     document.getElementById('modalTeamYear').innerText = `${this.state.year}-${(this.state.year+1).toString().slice(2)}`;
     
@@ -717,7 +946,7 @@ window.SimEngine = {
     
     document.getElementById('statsBody').innerHTML = `<tr><td colspan="25" style="text-align: center; color: #7d8296;">Simulate season to view leaderboards.</td></tr>`;
     document.getElementById('standingsContainer').innerHTML = `<p style="text-align: center; color: #7d8296;">Simulate season to view standings.</p>`;
-    document.getElementById('awardsBody').innerHTML = `<tr><td colspan="5" style="text-align: center; color: #7d8296;">Complete a season to generate candidates.</td></tr>`;
+    this.updateAwardsTab();
   },
 
   logNews(msg) {
