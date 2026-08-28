@@ -283,9 +283,47 @@
         </div>
       </div>
 
-      <div id="statsTab" class="tab-content">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-          <h3 style="margin: 0; color: #fff;">League Leaders</h3>
+     <div id="statsTab" class="tab-content">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+    <h3 style="margin: 0; color: #fff;">League Leaders</h3>
+    
+    <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+      <!-- Conference Filter Dropdown -->
+      <select id="confFilter" onchange="SimEngine.setConfFilter(this.value)" style="background: #111118; color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 6px; font-family: 'Asap Condensed', sans-serif; font-size: 1rem; cursor: pointer; outline: none;">
+        <option value="ALL">All NCAA (Whole League)</option>
+        <option value="ACC">ACC</option>
+        <option value="Big 12">Big 12</option>
+        <option value="Big Ten">Big Ten</option>
+        <option value="Big East">Big East</option>
+        <option value="SEC">SEC</option>
+        <option value="Pac-12">Pac-12</option>
+        <option value="WCC">WCC</option>
+        <option value="Mountain West">Mountain West</option>
+      </select>
+
+      <!-- Full Season vs Conference Split Toggle -->
+      <select id="scopeFilter" onchange="SimEngine.setStatScope(this.value)" style="background: #111118; color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 6px; font-family: 'Asap Condensed', sans-serif; font-size: 1rem; cursor: pointer; outline: none;">
+        <option value="full">Full Season Stats</option>
+        <option value="conf">Conference Games Only</option>
+      </select>
+
+      <!-- Stat Category View Toggle -->
+      <select id="statTypeToggle" onchange="SimEngine.toggleStatView(this.value)" style="background: #111118; color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 6px; font-family: 'Asap Condensed', sans-serif; font-size: 1rem; cursor: pointer; outline: none;">
+        <option value="box">Box Score Stats</option>
+        <option value="adv">Advanced Metrics</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <thead id="statsHeader"></thead>
+      <tbody id="statsBody">
+        <tr><td colspan="25" style="text-align: center; color: #7d8296;">Simulate season to view leaderboards.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
           <select id="statTypeToggle" onchange="SimEngine.toggleStatView(this.value)" style="background: #111118; color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 6px; font-family: 'Asap Condensed', sans-serif; font-size: 1rem; cursor: pointer; outline: none;">
             <option value="box">Box Score Stats</option>
             <option value="adv">Advanced Metrics</option>
