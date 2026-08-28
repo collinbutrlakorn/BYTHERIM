@@ -15,12 +15,14 @@ window.SimEngine = {
     this.fetchData();
   },
 
-  async fetchData() {
+    async fetchData() {
     try {
-      const dbUrl = 'https://raw.githubusercontent.com/cbutrlakorn/cbutrlakorn.github.io/main/db.json';
+      // Replaced the GitHub URL with your local relative path
+      const dbUrl = '../db.json'; 
       const response = await fetch(dbUrl);
       if(!response.ok) throw new Error("Could not load db.json");
       const data = await response.json();
+
       
       this.state.teams = data.teams || [];
       this.state.recruits = data.recruits || [];
