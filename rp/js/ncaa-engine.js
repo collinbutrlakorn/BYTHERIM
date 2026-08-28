@@ -47,9 +47,12 @@ window.SimEngine = {
         if (!teamsMap[player.school]) {
           teamsMap[player.school] = {
             school: player.school,
+            conference: player.conference || 'NCAA',
             logo: player.school_logo || '', 
             roster: []
           };
+        } else if (player.conference && player.conference !== 'NCAA') {
+          teamsMap[player.school].conference = player.conference;
         }
         teamsMap[player.school].roster.push(player);
       });
@@ -176,7 +179,16 @@ window.SimEngine = {
       team.simData = this.calculateTeamSeason(team);
     });
     
-    this.state.teams.sort((a,b) => b.simData.teamOvr - a.simData.teamOvr);
+    // Sort overall by win count & team OVR
+    this.state.teams.sort((a,b) => {
+      if (b.simData.wins !== a.simData.wins) return b.simData.wins - a.simData.wins;
+      return b.simData.teamOvr - a.simData.teamOvr;
+    });
+
+    // Assign AP Top 25 ranks
+    this.state.teams.forEach((t, i) => {
+      t.apRank = (i < 25) ? (i + 1) : null;
+    });
     
     this.state.simCompleted = true;
     this.state.sortCol = 'ppg';
@@ -187,12 +199,12 @@ window.SimEngine = {
     this.updateStandingsTab();
     this.updateAwardsTab();
     
-    this.logNews("Regular season complete. Normalized minutes and realistic box scores calculated.");
+    this.logNews("Regular season complete. Standings & conference records generated.");
   },
 
   calculateTeamSeason(team) {
     let roster = this.state.activePlayers.filter(p => p.school === team.school);
-    if (roster.length === 0) return { teamOvr: 70, wins: 0, losses: 31, winPct: '.000', rosterRef: [] };
+    if (roster.length === 0) return { teamOvr: 70, wins: 0, losses: 31, confWins: 0, confLosses: 18, winPct: '.000', rosterRef: [] };
 
     roster.sort((a, b) => b.rating - a.rating);
 
@@ -212,11 +224,19 @@ window.SimEngine = {
     const gamesPlayed = 31;
     const wins = Math.round(gamesPlayed * winPct);
     const losses = gamesPlayed - wins;
+
+    // Simulate 18 Conference Games
+    const confGames = 18;
+    const confWinPct = Math.min(0.94, Math.max(0.06, winPct + (Math.random() * 0.12 - 0.06)));
+    const confWins = Math.round(confGames * confWinPct);
+    const confLosses = confGames - confWins;
     
     return {
       teamOvr: teamOvr,
       wins: wins,
       losses: losses,
+      confWins: confWins,
+      confLosses: confLosses,
       winPct: (wins / gamesPlayed).toFixed(3).replace(/^0+/, ''),
       rosterRef: roster
     };
@@ -455,23 +475,137 @@ window.SimEngine = {
   },
 
   updateStandingsTab() {
-    let html = '';
-    this.state.teams.forEach((t, index) => {
-      html += `<tr>
-        <td style="font-weight:800; color:var(--brand-color);">#${index+1}</td>
-        <td>
-          <div style="display:flex; align-items:center; gap:8px;" class="clickable-school" onclick="SimEngine.openTeamModal('${t.school}')">
-            <img src="${t.logo}" style="width:24px; height:24px; object-fit:contain;">
-            <span style="font-weight:700; color:#fff;">${t.school}</span>
-          </div>
-        </td>
-        <td>${t.simData.wins}</td>
-        <td>${t.simData.losses}</td>
-        <td>${t.simData.winPct}</td>
-        <td style="color:#7d8296;">${t.simData.teamOvr.toFixed(1)}</td>
-      </tr>`;
+    if (!this.state.simCompleted) {
+      document.getElementById('standingsContainer').innerHTML = `<p style="text-align: center; color: #7d8296;">Simulate season to view standings.</p>`;
+      return;
+    }
+
+    // 1. Render AP Top 25 Card (Top 10 visible by default)
+    let apTop25 = this.state.teams.slice(0, 25);
+    let apHtml = `
+      <div style="background: #111118; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <h3 style="margin: 0; color: #fff; font-size: 1.4rem;">AP TOP 25</h3>
+        </div>
+        <div class="table-scroll">
+          <table>
+            <thead>
+              <tr><th>AP Rank</th><th>Team</th><th>Conf</th><th>Overall</th><th>Conf W-L</th><th>Team OVR</th></tr>
+            </thead>
+            <tbody>`;
+    
+    apTop25.forEach((t, idx) => {
+      let isHidden = idx >= 10 ? 'class="ap-extra-row" style="display:none;"' : '';
+      apHtml += `
+        <tr ${isHidden}>
+          <td style="font-weight:800; color:var(--brand-color);">#${t.apRank}</td>
+          <td>
+            <div style="display:flex; align-items:center; gap:8px;" class="clickable-school" onclick="SimEngine.openTeamModal('${t.school}')">
+              <img src="${t.logo || ''}" style="width:20px; height:20px; object-fit:contain;">
+              <span style="font-weight:700; color:#fff;">${t.school}</span>
+            </div>
+          </td>
+          <td style="color:#7d8296;">${t.conference || 'NCAA'}</td>
+          <td>${t.simData.wins}-${t.simData.losses}</td>
+          <td>${t.simData.confWins}-${t.simData.confLosses}</td>
+          <td style="color:#7d8296;">${t.simData.teamOvr.toFixed(1)}</td>
+        </tr>`;
     });
-    document.getElementById('standingsBody').innerHTML = html;
+
+    apHtml += `
+            </tbody>
+          </table>
+        </div>
+        ${apTop25.length > 10 ? `<button class="sim-btn sim-btn-secondary" style="margin-top: 1rem; width: 100%;" onclick="SimEngine.toggleApTop25(this)">See More (Top 25)</button>` : ''}
+      </div>`;
+
+    // 2. Render Conference Standings Grid
+    const confList = ['ACC', 'AAC', 'A10', 'Big 12', 'Big Ten', 'Big East', 'SEC', 'Pac-12', 'WCC', 'Mountain West'];
+    
+    // Check for any extra conferences in the spreadsheet
+    let allConfsInState = [...new Set(this.state.teams.map(t => (t.conference || 'NCAA').trim()))].filter(Boolean);
+    let displayConfs = [...confList];
+    allConfsInState.forEach(c => {
+      if (!displayConfs.some(existing => existing.toLowerCase() === c.toLowerCase()) && c !== 'NCAA') {
+        displayConfs.push(c);
+      }
+    });
+
+    let confsHtml = `<h3 style="color:#fff; margin: 2rem 0 1rem 0; font-size:1.4rem;">CONFERENCE STANDINGS</h3>`;
+    confsHtml += `<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 1.5rem;">`;
+
+    displayConfs.forEach(confName => {
+      let confTeams = this.state.teams.filter(t => (t.conference || '').toLowerCase() === confName.toLowerCase());
+      if (confTeams.length === 0) return;
+
+      // Sort teams within conference by confWins desc, then overall wins desc
+      confTeams.sort((a,b) => {
+        if (b.simData.confWins !== a.simData.confWins) return b.simData.confWins - a.simData.confWins;
+        if (b.simData.wins !== a.simData.wins) return b.simData.wins - a.simData.wins;
+        return b.simData.teamOvr - a.simData.teamOvr;
+      });
+
+      let confSafeId = confName.replace(/[^a-zA-Z0-9]/g, '_');
+
+      confsHtml += `
+        <div style="background: #111118; border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 1.25rem;">
+          <h4 style="margin:0 0 1rem 0; color:var(--brand-color); font-size:1.1rem; border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:0.5rem; text-transform:uppercase;">${confName}</h4>
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr><th>Rank</th><th>Team</th><th>Conf W-L</th><th>Overall</th></tr>
+              </thead>
+              <tbody>`;
+
+      confTeams.forEach((t, idx) => {
+        let isHidden = idx >= 5 ? `class="conf-row-${confSafeId}" style="display:none;"` : '';
+        let isApRanked = t.apRank !== null && t.apRank <= 25;
+        let rowStyle = isApRanked ? 'style="background: rgba(255, 102, 0, 0.14); border-left: 3px solid var(--brand-color);"' : '';
+        let apTag = isApRanked ? ` <span style="color:var(--brand-color); font-size:0.85rem; font-weight:800;">(#${t.apRank})</span>` : '';
+
+        confsHtml += `
+          <tr ${isHidden} ${rowStyle}>
+            <td style="font-weight:700; color:#a1a5b8;">${idx+1}</td>
+            <td>
+              <div style="display:flex; align-items:center; gap:6px;" class="clickable-school" onclick="SimEngine.openTeamModal('${t.school}')">
+                <img src="${t.logo || ''}" style="width:18px; height:18px; object-fit:contain;">
+                <span style="font-weight:700; color:#fff;">${t.school}</span>${apTag}
+              </div>
+            </td>
+            <td style="font-weight:800; color:#fff;">${t.simData.confWins}-${t.simData.confLosses}</td>
+            <td style="color:#7d8296; font-size:0.9rem;">${t.simData.wins}-${t.simData.losses}</td>
+          </tr>`;
+      });
+
+      confsHtml += `
+              </tbody>
+            </table>
+          </div>`;
+      
+      if (confTeams.length > 5) {
+        confsHtml += `<button class="sim-btn sim-btn-secondary" style="margin-top:0.75rem; padding:6px 10px; font-size:0.85rem;" onclick="SimEngine.toggleConfStandings('${confSafeId}', this)">See More (${confTeams.length - 5} Teams)</button>`;
+      }
+
+      confsHtml += `</div>`;
+    });
+
+    confsHtml += `</div>`;
+
+    document.getElementById('standingsContainer').innerHTML = apHtml + confsHtml;
+  },
+
+  toggleApTop25(btn) {
+    const rows = document.querySelectorAll('.ap-extra-row');
+    const isExpanded = rows[0] && rows[0].style.display !== 'none';
+    rows.forEach(r => r.style.display = isExpanded ? 'none' : 'table-row');
+    btn.innerText = isExpanded ? 'See More (Top 25)' : 'See Less';
+  },
+
+  toggleConfStandings(confSafeId, btn) {
+    const rows = document.querySelectorAll(`.conf-row-${confSafeId}`);
+    const isExpanded = rows[0] && rows[0].style.display !== 'none';
+    rows.forEach(r => r.style.display = isExpanded ? 'none' : 'table-row');
+    btn.innerText = isExpanded ? `See More (${rows.length} Teams)` : 'See Less';
   },
 
   updateAwardsTab() {
@@ -496,16 +630,22 @@ window.SimEngine = {
     let team = this.state.teams.find(t => t.school === schoolName);
     if (!team) return;
 
-    let rank = this.state.teams.findIndex(t => t.school === schoolName) + 1;
+    let rank = team.apRank;
     
     document.getElementById('modalTeamLogo').src = team.logo || '';
     document.getElementById('modalTeamName').innerText = team.school;
     document.getElementById('modalTeamYear').innerText = `${this.state.year}-${(this.state.year+1).toString().slice(2)}`;
     
     if (this.state.simCompleted) {
-      document.getElementById('modalTeamRank').style.display = 'block';
-      document.getElementById('modalTeamRank').innerText = `#${rank}`;
+      if (rank && rank <= 25) {
+        document.getElementById('modalTeamRank').style.display = 'block';
+        document.getElementById('modalTeamRank').innerText = `#${rank}`;
+      } else {
+        document.getElementById('modalTeamRank').style.display = 'none';
+      }
+
       document.getElementById('modalTeamRecord').innerText = `${team.simData.wins}-${team.simData.losses}`;
+      document.getElementById('modalConfRecord').innerText = `${team.simData.confWins}-${team.simData.confLosses}`;
       
       let teamPpg = team.simData.rosterRef.reduce((sum, p) => sum + parseFloat(p.stats.ppg), 0);
       document.getElementById('modalTeamPPG').innerText = teamPpg.toFixed(1);
@@ -513,6 +653,7 @@ window.SimEngine = {
     } else {
       document.getElementById('modalTeamRank').style.display = 'none';
       document.getElementById('modalTeamRecord').innerText = "0-0";
+      document.getElementById('modalConfRecord').innerText = "0-0";
       document.getElementById('modalTeamPPG').innerText = "0.0";
       document.getElementById('modalOppPPG').innerText = "0.0";
     }
@@ -575,7 +716,7 @@ window.SimEngine = {
     this.logNews(`Advanced to ${this.state.year} Offseason. Graduated seniors cleared; incoming recruits added.`);
     
     document.getElementById('statsBody').innerHTML = `<tr><td colspan="25" style="text-align: center; color: #7d8296;">Simulate season to view leaderboards.</td></tr>`;
-    document.getElementById('standingsBody').innerHTML = `<tr><td colspan="6" style="text-align: center; color: #7d8296;">Simulate season to view standings.</td></tr>`;
+    document.getElementById('standingsContainer').innerHTML = `<p style="text-align: center; color: #7d8296;">Simulate season to view standings.</p>`;
     document.getElementById('awardsBody').innerHTML = `<tr><td colspan="5" style="text-align: center; color: #7d8296;">Complete a season to generate candidates.</td></tr>`;
   },
 
