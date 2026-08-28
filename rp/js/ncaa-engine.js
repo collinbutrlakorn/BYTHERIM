@@ -15,9 +15,10 @@ window.SimEngine = {
     this.fetchData();
   },
 
-  async fetchData() {
+    async fetchData() {
     try {
-      const dbUrl = '../db.json'; 
+      // Updated path to target the current directory on GitHub Pages
+      const dbUrl = './db.json'; 
       const response = await fetch(dbUrl);
       
       if(!response.ok) {
@@ -36,10 +37,10 @@ window.SimEngine = {
       this.logNews(`Loaded ${this.state.teams.length} teams and ${this.state.activePlayers.length} active players for the ${this.state.year} season.`);
     } catch(err) {
       console.error("Database Fetch Error:", err);
-      // Prints the specific error directly to the sim dashboard so you don't have to hunt in dev tools
-      this.logNews(`Database Error: ${err.message}. Check if testing locally without a server.`);
+      this.logNews(`Database Error: ${err.message}. Check file casing and GitHub cache.`);
     }
   },
+
   
   filterActiveData() {
     let players = [];
