@@ -15,7 +15,7 @@ window.SimEngine = {
     this.fetchData();
   },
 
-  async fetchData() {
+   async fetchData() {
     try {
       const recruitsUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTWvXoqFJkVFqt36wbBBfgFYUvPKhWCZIztoLIB9sjpc55AiFTdFpJZHMztVgJHyFyy0mtO_MYGD76N/pub?gid=0&single=true&output=csv";
       const rostersUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_KgPla_wVF3w_s8PGVIreieVKkfOuVuFqt1K25i3gHNa_NpL6MDPST1qnIw12V61COFsSkf2C03Q-/pub?gid=0&single=true&output=csv";
@@ -35,27 +35,25 @@ window.SimEngine = {
       const recruitsData = this.parseCSV(recruitsText);
       const rostersData = this.parseCSV(rostersText);
       
-      // Group flat roster CSV into team arrays
       const teamsMap = {};
       rostersData.forEach(player => {
-        // Fallback for capitalization variants in CSV headers
-        const school = player.school || player.School;
+        // Fallback checks for various possible header names
+        const school = player.school || player.School || player.TEAM || player.Team;
         if(!school) return;
         
         if(!teamsMap[school]) {
           teamsMap[school] = {
             school: school,
-            logo: player.logo || player.school_logo || '', 
+            logo: player.logo || player.Logo || player.school_logo || '', 
             roster: []
           };
         }
         
-        // Nest high school stats for simulation formulas
         player.hs_stats = {
-          ppg: parseFloat(player.ppg || player.hs_ppg || player.PPG || 0),
-          rpg: parseFloat(player.rpg || player.hs_rpg || player.RPG || 0),
-          apg: parseFloat(player.apg || player.hs_apg || player.APG || 0),
-          bpm: parseFloat(player.bpm || player.hs_bpm || player.BPM || 0)
+          ppg: parseFloat(player.ppg || player.PPG || player.hs_ppg || 0),
+          rpg: parseFloat(player.rpg || player.RPG || player.hs_rpg || 0),
+          apg: parseFloat(player.apg || player.APG || player.hs_apg || 0),
+          bpm: parseFloat(player.bpm || player.BPM || player.hs_bpm || 0)
         };
         
         teamsMap[school].roster.push(player);
