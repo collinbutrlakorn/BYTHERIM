@@ -6,7 +6,7 @@ window.SimEngine = {
     recruits: [],
     activePlayers: [],
     simCompleted: false,
-    statView: 'box', // 'box' or 'adv'
+    statView: 'box', 
     sortCol: 'ppg',
     sortDir: 'desc'
   },
@@ -15,14 +15,16 @@ window.SimEngine = {
     this.fetchData();
   },
 
-    async fetchData() {
+  async fetchData() {
     try {
-      // Replaced the GitHub URL with your local relative path
       const dbUrl = '../db.json'; 
       const response = await fetch(dbUrl);
-      if(!response.ok) throw new Error("Could not load db.json");
+      
+      if(!response.ok) {
+        throw new Error(`HTTP ${response.status} - Path not found`);
+      }
+      
       const data = await response.json();
-
       
       this.state.teams = data.teams || [];
       this.state.recruits = data.recruits || [];
@@ -33,8 +35,9 @@ window.SimEngine = {
       
       this.logNews(`Loaded ${this.state.teams.length} teams and ${this.state.activePlayers.length} active players for the ${this.state.year} season.`);
     } catch(err) {
-      console.error(err);
-      this.logNews("Error loading database.");
+      console.error("Database Fetch Error:", err);
+      // Prints the specific error directly to the sim dashboard so you don't have to hunt in dev tools
+      this.logNews(`Database Error: ${err.message}. Check if testing locally without a server.`);
     }
   },
   
@@ -71,17 +74,14 @@ window.SimEngine = {
     this.state.phase = 'Regular Season Final';
     document.getElementById('currentPhaseDisplay').innerText = 'Regular Season Final';
     
-    // 1. Simulate all individual stat lines
     this.state.activePlayers.forEach(p => {
       p.stats = this.calculatePlayerSeason(p);
     });
     
-    // 2. Aggregate team ratings based on players
     this.state.teams.forEach(team => {
       team.simData = this.calculateTeamSeason(team);
     });
     
-    // 3. Sort Teams by OVR to proxy standings
     this.state.teams.sort((a,b) => b.simData.teamOvr - a.simData.teamOvr);
     
     this.state.simCompleted = true;
@@ -100,25 +100,21 @@ window.SimEngine = {
     const hs = player.hs_stats || {};
     let rating = parseFloat(player.rating) || 75;
     
-    // Parse class year
     let pClass = player.class || player.classYear || 'FR';
     let isUpper = ['JR', 'SR', 'GR', 'Jr', 'Sr'].includes(pClass.toString().toUpperCase());
     let isElite = rating >= 88;
     
-    // Priority dictates base minutes and touches
     let prioMultiplier = 1.0;
     if (isUpper) prioMultiplier += 0.25;
     if (isElite) prioMultiplier += 0.20;
     
-    // Everyone on the active roster gets rotation minutes (Minimum 10-12, Max 38)
     let baseMpg = Math.min(36, Math.max(12, ((rating - 70) * 1.5) * prioMultiplier));
-    const rng = () => 0.85 + (Math.random() * 0.30); // 85% to 115% variance
+    const rng = () => 0.85 + (Math.random() * 0.30); 
     
     let mpg = baseMpg * rng();
     if (mpg > 38) mpg = 38 + Math.random();
     if (mpg < 10) mpg = 10 + Math.random() * 5;
 
-    // Scale output to minutes played vs. high school reference baseline
     const scale = mpg / 28; 
 
     let ppg = (hs.ppg || (Math.random() * 10 + 5)) * scale * 0.85 * rng();
@@ -135,7 +131,6 @@ window.SimEngine = {
 
     let bpm = (((hs.bpm || 0) * 0.5) + ((rating - 80) * 0.3)) * rng();
 
-    // Box Score Volume Generation
     let ftRate = rng() * (isBig ? 0.45 : 0.28);
     let ftm = ppg * ftRate;
     let ftPct = (isBig ? 0.65 : 0.80) * rng();
@@ -143,7 +138,7 @@ window.SimEngine = {
     let fta = ftPct > 0 ? ftm / ftPct : 0;
     
     let ptsFromFg = ppg - ftm;
-    let threePRate = isBig ? (rng() * 0.15) : (0.35 + rng() * 0.3); // % of FG pts from 3
+    let threePRate = isBig ? (rng() * 0.15) : (0.35 + rng() * 0.3);
     if (threePRate > 0.8) threePRate = 0.8;
     
     let threePm = (ptsFromFg * threePRate) / 3;
@@ -159,7 +154,6 @@ window.SimEngine = {
     let fga = twoPa + threePa;
     let fgPct = fga > 0 ? fgm / fga : 0;
 
-    // Advanced Metrics
     let tsPct = (2 * (fga + 0.44 * fta)) > 0 ? ppg / (2 * (fga + 0.44 * fta)) : 0;
     let rTsPct = (tsPct * 100) - 54.0;
     let eFgPct = fga > 0 ? (fgm + 0.5 * threePm) / fga : 0;
@@ -168,7 +162,6 @@ window.SimEngine = {
     let obpm = bpm * obpmRatio + (Math.random() * 2 - 1);
     let dbpm = bpm - obpm;
     
-    // Usage Formula estimation scaled to ~20% average
     let usg = ((fga + 0.44 * fta + tov) / mpg) * 45; 
     
     let orebPct = isBig ? 8 + Math.random()*6 : 2 + Math.random()*3;
@@ -258,19 +251,16 @@ window.SimEngine = {
     let col = this.state.sortCol;
     let dir = this.state.sortDir === 'desc' ? -1 : 1;
 
-    // Apply sort
     this.state.activePlayers.sort((a, b) => {
       let valA = a.stats ? a.stats[col] : 0;
       let valB = b.stats ? b.stats[col] : 0;
 
-      // Handle strings
       if(['name', 'school', 'pos', 'class'].includes(col)) {
         valA = a[col] || a.classYear || '';
         valB = b[col] || b.classYear || '';
         return valA.toString().localeCompare(valB.toString()) * dir;
       }
 
-      // Handle numbers with string modifiers (like %)
       if(typeof valA === 'string') valA = parseFloat(valA.replace('%','')) || 0;
       if(typeof valB === 'string') valB = parseFloat(valB.replace('%','')) || 0;
 
@@ -299,7 +289,6 @@ window.SimEngine = {
 
     let currentHeaders = this.state.statView === 'box' ? boxHeaders : advHeaders;
 
-    // Render THEAD
     let theadHtml = `<tr>`;
     currentHeaders.forEach(h => {
       let isSort = this.state.sortCol === h.id;
@@ -310,7 +299,6 @@ window.SimEngine = {
     theadHtml += `</tr>`;
     document.getElementById('statsHeader').innerHTML = theadHtml;
 
-    // Render TBODY
     let tbodyHtml = '';
     this.state.activePlayers.forEach((p) => {
       tbodyHtml += `<tr>`;
