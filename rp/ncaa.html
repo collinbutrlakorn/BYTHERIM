@@ -260,14 +260,15 @@
       <div class="tab-bar">
         <button class="tab-btn active" onclick="switchTab('dashTab', this)">Dashboard</button>
         <button class="tab-btn" onclick="switchTab('statsTab', this)">Stat Leaders</button>
-        <button class="tab-btn" onclick="switchTab('standingsTab', this)">Team Rankings</button>
+        <button class="tab-btn" onclick="switchTab('standingsTab', this)">Standings</button>
         <button class="tab-btn" onclick="switchTab('awardsTab', this)">Award Races</button>
       </div>
 
+      <!-- Dashboard Tab -->
       <div id="dashTab" class="tab-content active">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
           <h3 style="margin:0; color:#fff;">AP Top 10 Teams</h3>
-          <button style="background:transparent; border:1px solid var(--brand-color); color:var(--brand-color); border-radius:4px; padding:4px 8px; cursor:pointer;" onclick="switchTab('standingsTab', document.querySelectorAll('.tab-btn')[2])">View Top 25 &rarr;</button>
+          <button style="background:transparent; border:1px solid var(--brand-color); color:var(--brand-color); border-radius:4px; padding:4px 8px; cursor:pointer;" onclick="switchTab('standingsTab', document.querySelectorAll('.tab-btn')[2])">View Standings &rarr;</button>
         </div>
         <div class="top-teams-container" id="dashTopTeams">
           <p style="color:#7d8296;">Simulate season to generate rankings.</p>
@@ -283,15 +284,17 @@
         </div>
       </div>
 
+      <!-- Stat Leaders Tab -->
       <div id="statsTab" class="tab-content">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem;">
           <h3 style="margin: 0; color: #fff;">League Leaders</h3>
           
           <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-            <!-- Conference Filter Dropdown -->
             <select id="confFilter" onchange="SimEngine.setConfFilter(this.value)" style="background: #111118; color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 6px; font-family: 'Asap Condensed', sans-serif; font-size: 1rem; cursor: pointer; outline: none;">
               <option value="ALL">All NCAA (Whole League)</option>
               <option value="ACC">ACC</option>
+              <option value="AAC">AAC</option>
+              <option value="A10">A10</option>
               <option value="Big 12">Big 12</option>
               <option value="Big Ten">Big Ten</option>
               <option value="Big East">Big East</option>
@@ -301,13 +304,11 @@
               <option value="Mountain West">Mountain West</option>
             </select>
 
-            <!-- Full Season vs Conference Split Toggle -->
             <select id="scopeFilter" onchange="SimEngine.setStatScope(this.value)" style="background: #111118; color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 6px; font-family: 'Asap Condensed', sans-serif; font-size: 1rem; cursor: pointer; outline: none;">
               <option value="full">Full Season Stats</option>
               <option value="conf">Conference Games Only</option>
             </select>
 
-            <!-- Stat Category View Toggle -->
             <select id="statTypeToggle" onchange="SimEngine.toggleStatView(this.value)" style="background: #111118; color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1); padding: 8px 12px; border-radius: 6px; font-family: 'Asap Condensed', sans-serif; font-size: 1rem; cursor: pointer; outline: none;">
               <option value="box">Box Score Stats</option>
               <option value="adv">Advanced Metrics</option>
@@ -325,19 +326,14 @@
         </div>
       </div>
 
+      <!-- Standings Tab -->
       <div id="standingsTab" class="tab-content">
-        <div class="table-scroll">
-          <table>
-            <thead>
-              <tr><th>AP Rank</th><th>Team</th><th>W</th><th>L</th><th>Win %</th><th>Team OVR</th></tr>
-            </thead>
-            <tbody id="standingsBody">
-              <tr><td colspan="6" style="text-align: center; color: #7d8296;">Simulate season to view standings.</td></tr>
-            </tbody>
-          </table>
+        <div id="standingsContainer">
+          <p style="text-align: center; color: #7d8296;">Simulate season to view standings.</p>
         </div>
       </div>
 
+      <!-- Awards Tab -->
       <div id="awardsTab" class="tab-content">
         <h3 style="color: #fff;">Wooden Award Candidates (National Player of the Year)</h3>
         <div class="table-scroll">
