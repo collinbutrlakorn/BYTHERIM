@@ -15,7 +15,7 @@ window.SimEngine = {
     this.fetchData();
   },
 
-   async fetchData() {
+  async fetchData() {
     try {
       const recruitsUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTWvXoqFJkVFqt36wbBBfgFYUvPKhWCZIztoLIB9sjpc55AiFTdFpJZHMztVgJHyFyy0mtO_MYGD76N/pub?gid=0&single=true&output=csv";
       const rostersUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_KgPla_wVF3w_s8PGVIreieVKkfOuVuFqt1K25i3gHNa_NpL6MDPST1qnIw12V61COFsSkf2C03Q-/pub?gid=0&single=true&output=csv";
@@ -25,65 +25,54 @@ window.SimEngine = {
         fetch(rostersUrl)
       ]);
       
-      if(!recruitsRes.ok || !rostersRes.ok) {
+      if (!recruitsRes.ok || !rostersRes.ok) {
         throw new Error("Could not load Google Sheets CSVs");
       }
       
       const recruitsText = await recruitsRes.text();
       const rostersText = await rostersRes.text();
       
-      const recruitsData = this.parseCSV(recruitsText);
-      const rostersData = this.parseCSV(rostersText);
+      const rawRecruits = this.parseCSV(recruitsText);
+      const rawRosters = this.parseCSV(rostersText);
+      
+      this.state.recruits = rawRecruits.map(r => this.normalizePlayerObj(r, true));
       
       const teamsMap = {};
-      rostersData.forEach(player => {
-        // Fallback checks for various possible header names
-        const school = player.school || player.School || player.TEAM || player.Team;
-        if(!school) return;
-        
-        if(!teamsMap[school]) {
-          teamsMap[school] = {
-            school: school,
-            logo: player.logo || player.Logo || player.school_logo || '', 
+      rawRosters.forEach(rawPlayer => {
+        const player = this.normalizePlayerObj(rawPlayer, false);
+        if (!player.school) return;
+
+        if (!teamsMap[player.school]) {
+          teamsMap[player.school] = {
+            school: player.school,
+            logo: player.school_logo || '', 
             roster: []
           };
         }
-        
-        player.hs_stats = {
-          ppg: parseFloat(player.ppg || player.PPG || player.hs_ppg || 0),
-          rpg: parseFloat(player.rpg || player.RPG || player.hs_rpg || 0),
-          apg: parseFloat(player.apg || player.APG || player.hs_apg || 0),
-          bpm: parseFloat(player.bpm || player.BPM || player.hs_bpm || 0)
-        };
-        
-        teamsMap[school].roster.push(player);
+        teamsMap[player.school].roster.push(player);
       });
       
       this.state.teams = Object.values(teamsMap);
-      this.state.recruits = recruitsData;
-      
       this.filterActiveData();
       
-      document.getElementById('currentYearDisplay').innerText = `${this.state.year}-${(this.state.year+1).toString().slice(2)}`;
-      this.logNews(`Loaded ${this.state.teams.length} teams and ${this.state.activePlayers.length} active players for the ${this.state.year} season.`);
+      document.getElementById('currentYearDisplay').innerText = `${this.state.year}-${(this.state.year + 1).toString().slice(2)}`;
+      this.logNews(`Loaded ${this.state.teams.length} teams and ${this.state.activePlayers.length} players for ${this.state.year}.`);
       
     } catch(err) {
       console.error("Database Fetch Error:", err);
-      this.logNews(`Database Error: ${err.message}. Check your published Google Sheets links.`);
+      this.logNews(`Database Error: ${err.message}. Check public Google Sheets links.`);
     }
   },
 
-  // Helper function to handle commas inside text fields gracefully
   parseCSV(csvData) {
-    const lines = csvData.split(/\r?\n/);
-    const result = [];
-    if(lines.length === 0) return result;
+    const lines = csvData.split(/\r?\n/).filter(line => line.trim() !== '');
+    if (lines.length === 0) return [];
 
-    const headers = lines[0].split(',').map(h => h.trim().replace(/(^"|"$)/g, ''));
+    // Normalize keys: Lowercase and strip all non-alphanumeric characters
+    const headers = lines[0].split(',').map(h => h.trim().replace(/(^"|"$)/g, '').toLowerCase().replace(/[^a-z0-9]/g, ''));
     
-    for(let i = 1; i < lines.length; i++) {
-      if(!lines[i].trim()) continue;
-      
+    const result = [];
+    for (let i = 1; i < lines.length; i++) {
       let rowValues = [];
       let inQuotes = false;
       let currentValue = '';
@@ -108,29 +97,64 @@ window.SimEngine = {
     }
     return result;
   },
+
+  normalizePlayerObj(raw, isRecruit = false) {
+    const getVal = (keys, fallback = '') => {
+      for (let k of keys) {
+        if (raw[k] !== undefined && raw[k] !== '') return raw[k];
+      }
+      return fallback;
+    };
+
+    const rating = parseFloat(getVal(['rating', 'ovr', 'grade', 'stars'], 75)) || 75;
+    
+    return {
+      name: getVal(['name', 'player', 'fullname'], 'Unknown Player'),
+      school: getVal(['school', 'team', 'committedto', 'college'], 'Free Agent'),
+      school_logo: getVal(['logo', 'schoollogo', 'teamlogo'], ''),
+      pos: getVal(['pos', 'position'], 'G').toUpperCase(),
+      class: getVal(['class', 'classyear', 'yr'], isRecruit ? 'FR' : 'SO').toUpperCase(),
+      ht: getVal(['ht', 'height'], "6'4"),
+      wt: getVal(['wt', 'weight'], "190"),
+      hometown: getVal(['from', 'hometown', 'home'], 'N/A'),
+      rating: rating,
+      isRecruit: isRecruit,
+      recClassYear: parseInt(getVal(['classyear', 'recclass'], this.state.year)),
+      hs_stats: {
+        ppg: parseFloat(getVal(['ppg', 'hsppg'], 12.0)),
+        rpg: parseFloat(getVal(['rpg', 'hsrpg'], 4.0)),
+        apg: parseFloat(getVal(['apg', 'hsapg'], 2.5)),
+        bpm: parseFloat(getVal(['bpm', 'hsbpm'], 0.0))
+      },
+      stats: null
+    };
+  },
   
   filterActiveData() {
     let players = [];
     
+    // Process active campus rosters
     this.state.teams.forEach(team => {
-      if(team.roster) {
+      if (team.roster) {
         team.roster.forEach(player => {
-          let p = { ...player, school: team.school, school_logo: team.logo, isRecruit: false };
-          players.push(p);
+          if (player.class !== 'GRADUATED') {
+            players.push(player);
+          }
         });
       }
     });
 
+    // Process incoming recruiting class
     this.state.recruits.forEach(rec => {
-      // Fallback for CSV casing variations
-      let committedTo = rec.committedTo || rec['Committed To'] || rec.school;
-      let classYear = rec.classYear || rec['Class Year'] || rec.class;
-
-      if(committedTo && parseInt(classYear) <= this.state.year) {
-        let team = this.state.teams.find(t => t.school === committedTo);
-        let schoolLogo = team ? team.logo : '';
-        let p = { ...rec, school: committedTo, school_logo: schoolLogo, isRecruit: true, class: 'FR' };
-        players.push(p);
+      if (rec.recClassYear <= this.state.year && rec.school && rec.school !== 'Uncommitted') {
+        const team = this.state.teams.find(t => t.school.toLowerCase() === rec.school.toLowerCase());
+        if (team && !team.roster.some(p => p.name === rec.name)) {
+          rec.school = team.school;
+          rec.school_logo = team.logo;
+          rec.class = 'FR';
+          team.roster.push(rec);
+          players.push(rec);
+        }
       }
     });
     
@@ -138,7 +162,7 @@ window.SimEngine = {
   },
 
   simulateSeason() {
-    if(this.state.phase !== 'Preseason') {
+    if (this.state.phase !== 'Preseason') {
       alert("Season already simulated! Advance offseason to start a new year.");
       return;
     }
@@ -146,10 +170,7 @@ window.SimEngine = {
     this.state.phase = 'Regular Season Final';
     document.getElementById('currentPhaseDisplay').innerText = 'Regular Season Final';
     
-    this.state.activePlayers.forEach(p => {
-      p.stats = this.calculatePlayerSeason(p);
-    });
-    
+    // Simulate Team and normalize 200 team-minutes per game
     this.state.teams.forEach(team => {
       team.simData = this.calculateTeamSeason(team);
     });
@@ -165,92 +186,105 @@ window.SimEngine = {
     this.updateStandingsTab();
     this.updateAwardsTab();
     
-    this.logNews("Regular season simulation complete. Stats and standings generated based on player formulas.");
+    this.logNews("Regular season complete. Normalized minutes and realistic box scores calculated.");
   },
 
-  calculatePlayerSeason(player) {
-    const hs = player.hs_stats || {};
-    let rating = parseFloat(player.rating || player.Rating) || 75;
-    
-    let pClass = player.class || player.classYear || player['Class Year'] || 'FR';
-    let isUpper = ['JR', 'SR', 'GR', 'Jr', 'Sr'].includes(pClass.toString().toUpperCase());
-    let isElite = rating >= 88;
-    
-    let prioMultiplier = 1.0;
-    if (isUpper) prioMultiplier += 0.25;
-    if (isElite) prioMultiplier += 0.20;
-    
-    let baseMpg = Math.min(36, Math.max(12, ((rating - 70) * 1.5) * prioMultiplier));
-    const rng = () => 0.85 + (Math.random() * 0.30); 
-    
-    let mpg = baseMpg * rng();
-    if (mpg > 38) mpg = 38 + Math.random();
-    if (mpg < 10) mpg = 10 + Math.random() * 5;
+  calculateTeamSeason(team) {
+    let roster = this.state.activePlayers.filter(p => p.school === team.school);
+    if (roster.length === 0) return { teamOvr: 70, wins: 0, losses: 31, winPct: '.000', rosterRef: [] };
 
-    const scale = mpg / 28; 
+    // Sort team depth chart by overall rating
+    roster.sort((a, b) => b.rating - a.rating);
 
-    let ppg = (hs.ppg || (Math.random() * 10 + 5)) * scale * 0.85 * rng();
-    let rpg = (hs.rpg || (Math.random() * 5 + 2)) * scale * 0.9 * rng();
-    let apg = (hs.apg || (Math.random() * 4 + 1)) * scale * 0.9 * rng();
-    
-    const posStr = (player.pos || player.Pos || '').toUpperCase();
-    const isBig = posStr.includes('C') || (posStr.includes('F') && !posStr.includes('G'));
-    
-    let stl = (0.3 + (Math.random() * 1.2) * (isBig ? 0.7 : 1.2) * (mpg/20));
-    let blk = (0.2 + (Math.random() * 1.5) * (isBig ? 1.8 : 0.3) * (mpg/20));
-    let tov = (0.8 + (apg * 0.35) + (Math.random() * 1.5) * (mpg/20));
-    let pf = (1.5 + (Math.random() * 1.5) + (isBig ? 0.8 : 0) * (mpg/20));
+    // Distribute 200 team rotation minutes (5 players * 40 mins)
+    const rawWeights = roster.map((p, idx) => Math.max(0.1, (p.rating - 55) * Math.pow(0.78, idx)));
+    const totalWeight = rawWeights.reduce((a, b) => a + b, 0) || 1;
 
-    let bpm = (((hs.bpm || 0) * 0.5) + ((rating - 80) * 0.3)) * rng();
+    roster.forEach((p, idx) => {
+      let allocatedMpg = (rawWeights[idx] / totalWeight) * 200;
+      if (idx > 9) allocatedMpg = 0; // Bench limit cutoff
+      p.stats = this.calculatePlayerSeason(p, Math.min(35.5, allocatedMpg));
+    });
 
-    let ftRate = rng() * (isBig ? 0.45 : 0.28);
-    let ftm = ppg * ftRate;
-    let ftPct = (isBig ? 0.65 : 0.80) * rng();
-    if (ftPct > 0.94) ftPct = 0.92;
-    let fta = ftPct > 0 ? ftm / ftPct : 0;
+    const top8 = roster.slice(0, 8);
+    const teamOvr = top8.reduce((sum, p) => sum + p.rating, 0) / Math.min(8, top8.length);
     
-    let ptsFromFg = ppg - ftm;
-    let threePRate = isBig ? (rng() * 0.15) : (0.35 + rng() * 0.3);
-    if (threePRate > 0.8) threePRate = 0.8;
+    const winPct = Math.min(0.94, Math.max(0.06, 0.50 + (teamOvr - 78) * 0.038 + (Math.random() * 0.1 - 0.05)));
+    const gamesPlayed = 31;
+    const wins = Math.round(gamesPlayed * winPct);
+    const losses = gamesPlayed - wins;
     
-    let threePm = (ptsFromFg * threePRate) / 3;
-    let threePPct = isBig ? (0.28 * rng()) : (0.35 * rng());
-    if (threePPct < 0.15) threePPct = 0; 
+    return {
+      teamOvr: teamOvr,
+      wins: wins,
+      losses: losses,
+      winPct: (wins / gamesPlayed).toFixed(3).replace(/^0+/, ''),
+      rosterRef: roster
+    };
+  },
+
+  calculatePlayerSeason(player, mpg) {
+    if (mpg <= 0.5) {
+      const z1 = "0.0", z3 = ".000";
+      return {
+        mpg: z1, ppg: z1, rpg: z1, apg: z1, stl: z1, blk: z1, tov: z1, pf: z1,
+        fgm: z1, fga: z1, fgPct: z3, twoPm: z1, twoPa: z1, twoPPct: z3,
+        threePm: z1, threePa: z1, threePPct: z3, ftm: z1, fta: z1, ftPct: z3,
+        bpm: z1, obpm: z1, dbpm: z1, tsPct: z3, rTsPct: z1, eFgPct: z3,
+        orebPct: '0.0%', drebPct: '0.0%', trbPct: '0.0%', astPct: '0.0%',
+        tovPct: '0.0%', blkPct: '0.0%', usg: '0.0%', ftr: z3, threePar: z3,
+        ortg: '0.0', drtg: '0.0', netRtg: '0.0'
+      };
+    }
+
+    const rng = () => 0.88 + (Math.random() * 0.24);
+    const r = player.rating;
+    const pos = player.pos;
+    const isBig = pos.includes('C') || (pos.includes('F') && !pos.includes('G'));
+    
+    // Basic per-game counting stats based on usage minutes
+    const usageScale = (mpg / 28) * (r / 78);
+    let ppg = Math.max(0.5, (r * 0.18) * usageScale * rng());
+    let rpg = Math.max(0.2, (isBig ? 6.5 : 2.5) * usageScale * rng());
+    let apg = Math.max(0.1, (!isBig ? 4.0 : 1.2) * usageScale * rng());
+    let stl = Math.max(0.1, (!isBig ? 1.2 : 0.5) * usageScale * rng());
+    let blk = Math.max(0.1, (isBig ? 1.6 : 0.3) * usageScale * rng());
+    let tov = Math.max(0.2, (apg * 0.4 + 0.8) * rng());
+    let pf = Math.min(3.8, Math.max(0.8, (mpg / 8) * rng()));
+
+    // Advanced Ratings
+    let bpm = ((r - 76) * 0.45) * rng();
+    let obpm = bpm * (isBig ? 0.45 : 0.60);
+    let dbpm = bpm - obpm;
+
+    // Shooting Split Calculations
+    let ftPct = Math.min(0.92, Math.max(0.48, (isBig ? 0.64 : 0.78) * rng()));
+    let fta = Math.max(0.2, (ppg * (isBig ? 0.35 : 0.22)));
+    let ftm = fta * ftPct;
+
+    let ptsFromFg = Math.max(0, ppg - ftm);
+    let threePar = isBig ? 0.12 * rng() : 0.38 * rng();
+    let threePPct = Math.min(0.46, Math.max(0.20, (isBig ? 0.30 : 0.36) * rng()));
+    let threePm = Math.max(0, (ptsFromFg * threePar) / 3);
     let threePa = threePPct > 0 ? threePm / threePPct : 0;
-    
-    let twoPm = (ptsFromFg - (threePm * 3)) / 2;
-    let twoPPct = isBig ? (0.58 * rng()) : (0.48 * rng());
+
+    let twoPm = Math.max(0, (ptsFromFg - (threePm * 3)) / 2);
+    let twoPPct = Math.min(0.68, Math.max(0.38, (isBig ? 0.56 : 0.46) * rng()));
     let twoPa = twoPPct > 0 ? twoPm / twoPPct : 0;
-    
+
     let fgm = twoPm + threePm;
     let fga = twoPa + threePa;
     let fgPct = fga > 0 ? fgm / fga : 0;
 
     let tsPct = (2 * (fga + 0.44 * fta)) > 0 ? ppg / (2 * (fga + 0.44 * fta)) : 0;
-    let rTsPct = (tsPct * 100) - 54.0;
+    let rTsPct = (tsPct * 100) - 53.5;
     let eFgPct = fga > 0 ? (fgm + 0.5 * threePm) / fga : 0;
     
-    let obpmRatio = isBig ? 0.4 : 0.65;
-    let obpm = bpm * obpmRatio + (Math.random() * 2 - 1);
-    let dbpm = bpm - obpm;
-    
-    let usg = ((fga + 0.44 * fta + tov) / mpg) * 45; 
-    
-    let orebPct = isBig ? 8 + Math.random()*6 : 2 + Math.random()*3;
-    let drebPct = isBig ? 18 + Math.random()*10 : 8 + Math.random()*5;
-    let trbPct = (orebPct + drebPct) / 2;
-    
-    let astPct = (apg / mpg) * 65;
-    let totalPos = fga + 0.44*fta + tov;
-    let tovPct = totalPos > 0 ? (tov / totalPos) * 100 : 0;
-    let blkPct = (blk / mpg) * 45;
-    
+    let usg = ((fga + 0.44 * fta + tov) / mpg) * 40;
     let ftr = fga > 0 ? fta / fga : 0;
-    let threePar = fga > 0 ? threePa / fga : 0;
-    
-    let ortg = 100 + (obpm * 3.5) + (Math.random() * 5);
-    let drtg = 100 - (dbpm * 3.5) + (Math.random() * 5);
-    let netRtg = ortg - drtg;
+
+    let ortg = 95 + (obpm * 3.2);
+    let drtg = 105 - (dbpm * 3.2);
 
     const t1 = (val) => (isNaN(val) || !isFinite(val)) ? "0.0" : Number(val).toFixed(1);
     const t3 = (val) => (isNaN(val) || !isFinite(val)) ? ".000" : Number(val).toFixed(3).replace(/^0+/, '');
@@ -264,40 +298,10 @@ window.SimEngine = {
       ftm: t1(ftm), fta: t1(fta), ftPct: t3(ftPct),
       bpm: t1(bpm), obpm: t1(obpm), dbpm: t1(dbpm),
       tsPct: t3(tsPct), rTsPct: t1(rTsPct), eFgPct: t3(eFgPct),
-      orebPct: t1(orebPct)+'%', drebPct: t1(drebPct)+'%', trbPct: t1(trbPct)+'%',
-      astPct: t1(astPct)+'%', tovPct: t1(tovPct)+'%', blkPct: t1(blkPct)+'%',
-      usg: t1(usg)+'%', ftr: t3(ftr), threePar: t3(threePar),
-      ortg: t1(ortg), drtg: t1(drtg), netRtg: t1(netRtg)
-    };
-  },
-
-  calculateTeamSeason(team) {
-    let roster = this.state.activePlayers.filter(p => p.school === team.school);
-    let totalBpm = 0;
-    let top3Bpm = [];
-    
-    roster.forEach(p => {
-      let bpm = parseFloat(p.stats.bpm) || 0;
-      totalBpm += bpm;
-      top3Bpm.push(bpm);
-    });
-    
-    top3Bpm.sort((a,b) => b-a);
-    let starPower = top3Bpm.slice(0,3).reduce((a,b)=>a+b, 0);
-    
-    let ratingOvr = 75 + (totalBpm * 1.2) + (starPower * 1.5) + (Math.random() * 5);
-    let winPct = Math.min(0.95, Math.max(0.1, (ratingOvr - 65) / 40));
-    
-    let gamesPlayed = 31;
-    let wins = Math.round(gamesPlayed * winPct);
-    let losses = gamesPlayed - wins;
-    
-    return {
-      teamOvr: ratingOvr,
-      wins: wins,
-      losses: losses,
-      winPct: (wins/gamesPlayed).toFixed(3).replace(/^0+/, ''),
-      rosterRef: roster
+      orebPct: t1(isBig ? 9.5 : 3.0) + '%', drebPct: t1(isBig ? 21.0 : 10.5) + '%', trbPct: t1(isBig ? 15.0 : 6.8) + '%',
+      astPct: t1((apg / mpg) * 60) + '%', tovPct: t1((tov / (fga + 0.44 * fta + tov)) * 100) + '%', blkPct: t1((blk / mpg) * 40) + '%',
+      usg: t1(usg) + '%', ftr: t3(ftr), threePar: t3(threePar),
+      ortg: t1(ortg), drtg: t1(drtg), netRtg: t1(ortg - drtg)
     };
   },
 
@@ -307,8 +311,8 @@ window.SimEngine = {
   },
 
   handleSort(colId) {
-    if(!this.state.simCompleted) return;
-    if(this.state.sortCol === colId) {
+    if (!this.state.simCompleted) return;
+    if (this.state.sortCol === colId) {
       this.state.sortDir = this.state.sortDir === 'desc' ? 'asc' : 'desc';
     } else {
       this.state.sortCol = colId;
@@ -318,7 +322,7 @@ window.SimEngine = {
   },
 
   sortAndRenderStatsTable() {
-    if(!this.state.simCompleted) return;
+    if (!this.state.simCompleted) return;
     
     let col = this.state.sortCol;
     let dir = this.state.sortDir === 'desc' ? -1 : 1;
@@ -327,14 +331,14 @@ window.SimEngine = {
       let valA = a.stats ? a.stats[col] : 0;
       let valB = b.stats ? b.stats[col] : 0;
 
-      if(['name', 'school', 'pos', 'class'].includes(col)) {
-        valA = a[col] || a.name || a.Name || '';
-        valB = b[col] || b.name || b.Name || '';
+      if (['name', 'school', 'pos', 'class'].includes(col)) {
+        valA = a[col] || '';
+        valB = b[col] || '';
         return valA.toString().localeCompare(valB.toString()) * dir;
       }
 
-      if(typeof valA === 'string') valA = parseFloat(valA.replace('%','')) || 0;
-      if(typeof valB === 'string') valB = parseFloat(valB.replace('%','')) || 0;
+      if (typeof valA === 'string') valA = parseFloat(valA.replace('%','')) || 0;
+      if (typeof valB === 'string') valB = parseFloat(valB.replace('%','')) || 0;
 
       return (valA - valB) * dir;
     });
@@ -375,12 +379,10 @@ window.SimEngine = {
     this.state.activePlayers.forEach((p) => {
       tbodyHtml += `<tr>`;
       currentHeaders.forEach(h => {
-        let nameField = p.name || p.Name;
-        let posField = p.pos || p.Pos;
-        if(h.id === 'name') tbodyHtml += `<td style="font-weight:700; color:#fff;">${nameField}</td>`;
-        else if(h.id === 'school') tbodyHtml += `<td>${p.school}</td>`;
-        else if(h.id === 'pos') tbodyHtml += `<td>${posField || '-'}</td>`;
-        else tbodyHtml += `<td>${p.stats[h.id] || '-'}</td>`;
+        if (h.id === 'name') tbodyHtml += `<td style="font-weight:700; color:#fff;">${p.name}</td>`;
+        else if (h.id === 'school') tbodyHtml += `<td>${p.school}</td>`;
+        else if (h.id === 'pos') tbodyHtml += `<td>${p.pos}</td>`;
+        else tbodyHtml += `<td>${p.stats ? p.stats[h.id] : '-'}</td>`;
       });
       tbodyHtml += `</tr>`;
     });
@@ -390,8 +392,8 @@ window.SimEngine = {
 
   updateDashboard() {
     let topTeamsHtml = '';
-    for(let i=0; i<10; i++){
-      if(this.state.teams[i]) {
+    for (let i = 0; i < 10; i++) {
+      if (this.state.teams[i]) {
         topTeamsHtml += `
           <div class="team-badge clickable-school" onclick="SimEngine.openTeamModal('${this.state.teams[i].school}')">
             <span class="team-rank">#${i+1}</span>
@@ -403,21 +405,20 @@ window.SimEngine = {
     }
     document.getElementById('dashTopTeams').innerHTML = topTeamsHtml;
     
-    this.populateDashList('dashPts', 'ppg', 'PPG');
-    this.populateDashList('dashReb', 'rpg', 'RPG');
-    this.populateDashList('dashAst', 'apg', 'APG');
-    this.populateDashList('dashStl', 'stl', 'SPG');
-    this.populateDashList('dashBlk', 'blk', 'BPG');
+    this.populateDashList('dashPts', 'ppg');
+    this.populateDashList('dashReb', 'rpg');
+    this.populateDashList('dashAst', 'apg');
+    this.populateDashList('dashStl', 'stl');
+    this.populateDashList('dashBlk', 'blk');
   },
 
-  populateDashList(elementId, statKey, label) {
+  populateDashList(elementId, statKey) {
     let sorted = [...this.state.activePlayers].sort((a,b) => parseFloat(b.stats[statKey]) - parseFloat(a.stats[statKey]));
     let html = '';
-    for(let i=0; i<5; i++){
-      if(sorted[i]) {
-        let nameField = sorted[i].name || sorted[i].Name;
+    for (let i = 0; i < 5; i++) {
+      if (sorted[i]) {
         html += `<div class="leader-row">
-          <span>${i+1}. ${nameField} <span style="font-size:0.75rem;">(${sorted[i].school})</span></span>
+          <span>${i+1}. ${sorted[i].name} <span style="font-size:0.75rem;">(${sorted[i].school})</span></span>
           <span>${sorted[i].stats[statKey]}</span>
         </div>`;
       }
@@ -448,13 +449,12 @@ window.SimEngine = {
   updateAwardsTab() {
     let candidates = [...this.state.activePlayers].sort((a,b) => parseFloat(b.stats.bpm) - parseFloat(a.stats.bpm));
     let html = '';
-    for(let i=0; i<15; i++) {
-      if(candidates[i]) {
+    for (let i = 0; i < 15; i++) {
+      if (candidates[i]) {
         let p = candidates[i];
-        let nameField = p.name || p.Name;
         html += `<tr>
           <td style="font-weight:800; color:var(--brand-color);">#${i+1}</td>
-          <td style="font-weight:700; color:#fff;">${nameField}</td>
+          <td style="font-weight:700; color:#fff;">${p.name}</td>
           <td>${p.school}</td>
           <td style="color:#a1a5b8;">${p.stats.ppg} PTS, ${p.stats.rpg} REB, ${p.stats.apg} AST</td>
           <td style="font-weight:700;">${p.stats.bpm}</td>
@@ -466,7 +466,7 @@ window.SimEngine = {
 
   openTeamModal(schoolName) {
     let team = this.state.teams.find(t => t.school === schoolName);
-    if(!team) return;
+    if (!team) return;
 
     let rank = this.state.teams.findIndex(t => t.school === schoolName) + 1;
     
@@ -474,14 +474,15 @@ window.SimEngine = {
     document.getElementById('modalTeamName').innerText = team.school;
     document.getElementById('modalTeamYear').innerText = `${this.state.year}-${(this.state.year+1).toString().slice(2)}`;
     
-    if(this.state.simCompleted) {
+    if (this.state.simCompleted) {
       document.getElementById('modalTeamRank').style.display = 'block';
       document.getElementById('modalTeamRank').innerText = `#${rank}`;
       document.getElementById('modalTeamRecord').innerText = `${team.simData.wins}-${team.simData.losses}`;
       
+      // Calculate realistic total team PPG based on player minutes distribution
       let teamPpg = team.simData.rosterRef.reduce((sum, p) => sum + parseFloat(p.stats.ppg), 0);
       document.getElementById('modalTeamPPG').innerText = teamPpg.toFixed(1);
-      document.getElementById('modalOppPPG').innerText = (teamPpg - (Math.random()*8 - 2)).toFixed(1);
+      document.getElementById('modalOppPPG').innerText = (teamPpg + (team.simData.losses - team.simData.wins) * 0.4).toFixed(1);
     } else {
       document.getElementById('modalTeamRank').style.display = 'none';
       document.getElementById('modalTeamRecord').innerText = "0-0";
@@ -490,26 +491,23 @@ window.SimEngine = {
     }
 
     let rPlayers = this.state.activePlayers.filter(p => p.school === schoolName);
-    if(this.state.simCompleted) {
+    if (this.state.simCompleted) {
       rPlayers.sort((a,b) => parseFloat(b.stats.mpg) - parseFloat(a.stats.mpg));
     }
     
     let rHtml = '';
     rPlayers.forEach((p, idx) => {
       let statsStr = this.state.simCompleted ? `<span style="display:block; font-size:0.8rem; color:var(--brand-color); margin-top:4px;">${p.stats.ppg} PPG | ${p.stats.mpg} MPG</span>` : '';
-      let cls = p.class || p.classYear || p['Class Year'] || 'FR';
-      let nameField = p.name || p.Name;
-      let posField = p.pos || p.Pos;
       
       rHtml += `
         <tr>
           <td style="color:#7d8296;">${idx+1}</td>
-          <td><span style="font-weight:700; color:#fff;">${nameField}</span> ${statsStr}</td>
-          <td>${posField || '-'}</td>
-          <td>${cls}</td>
-          <td>${p.ht || p.Ht || '-'}</td>
-          <td>${p.wt || p.Wt || '-'}</td>
-          <td>${p.home || p.hometown || p.Hometown || '-'}</td>
+          <td><span style="font-weight:700; color:#fff;">${p.name}</span> ${statsStr}</td>
+          <td>${p.pos}</td>
+          <td>${p.class}</td>
+          <td>${p.ht}</td>
+          <td>${p.wt}</td>
+          <td>${p.hometown}</td>
           <td><span class="draft-projection">Active</span></td>
         </tr>
       `;
@@ -524,10 +522,23 @@ window.SimEngine = {
   },
 
   runOffseason() {
-    if(this.state.phase === 'Preseason') {
+    if (this.state.phase === 'Preseason') {
       alert("Simulate the regular season first before advancing to the offseason.");
       return;
     }
+
+    // Process player aging and graduations
+    const classProgression = { 'FR': 'SO', 'SO': 'JR', 'JR': 'SR', 'SR': 'GRADUATED', 'GR': 'GRADUATED' };
+    
+    this.state.teams.forEach(team => {
+      team.roster.forEach(p => {
+        p.class = classProgression[p.class] || 'GRADUATED';
+        p.rating = Math.min(99, p.rating + Math.floor(Math.random() * 4)); // Offseason player rating progression
+      });
+      // Filter out graduated seniors
+      team.roster = team.roster.filter(p => p.class !== 'GRADUATED');
+    });
+
     this.state.year += 1;
     this.state.phase = 'Preseason';
     this.state.simCompleted = false;
@@ -536,7 +547,7 @@ window.SimEngine = {
     document.getElementById('currentPhaseDisplay').innerText = 'Preseason';
     
     this.filterActiveData();
-    this.logNews(`Advanced to ${this.state.year} offseason. Freshmen processed. Regular season stats reset.`);
+    this.logNews(`Advanced to ${this.state.year} Offseason. Graduated seniors cleared; incoming recruits added.`);
     
     document.getElementById('statsBody').innerHTML = `<tr><td colspan="25" style="text-align: center; color: #7d8296;">Simulate season to view leaderboards.</td></tr>`;
     document.getElementById('standingsBody').innerHTML = `<tr><td colspan="6" style="text-align: center; color: #7d8296;">Simulate season to view standings.</td></tr>`;
