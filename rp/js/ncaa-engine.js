@@ -15,32 +15,101 @@ window.SimEngine = {
     this.fetchData();
   },
 
-    async fetchData() {
+  async fetchData() {
     try {
-      // Updated path to target the current directory on GitHub Pages
-      const dbUrl = './db.json'; 
-      const response = await fetch(dbUrl);
+      const recruitsUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTWvXoqFJkVFqt36wbBBfgFYUvPKhWCZIztoLIB9sjpc55AiFTdFpJZHMztVgJHyFyy0mtO_MYGD76N/pub?gid=0&single=true&output=csv";
+      const rostersUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_KgPla_wVF3w_s8PGVIreieVKkfOuVuFqt1K25i3gHNa_NpL6MDPST1qnIw12V61COFsSkf2C03Q-/pub?gid=0&single=true&output=csv";
+
+      const [recruitsRes, rostersRes] = await Promise.all([
+        fetch(recruitsUrl),
+        fetch(rostersUrl)
+      ]);
       
-      if(!response.ok) {
-        throw new Error(`HTTP ${response.status} - Path not found`);
+      if(!recruitsRes.ok || !rostersRes.ok) {
+        throw new Error("Could not load Google Sheets CSVs");
       }
       
-      const data = await response.json();
+      const recruitsText = await recruitsRes.text();
+      const rostersText = await rostersRes.text();
       
-      this.state.teams = data.teams || [];
-      this.state.recruits = data.recruits || [];
+      const recruitsData = this.parseCSV(recruitsText);
+      const rostersData = this.parseCSV(rostersText);
+      
+      // Group flat roster CSV into team arrays
+      const teamsMap = {};
+      rostersData.forEach(player => {
+        // Fallback for capitalization variants in CSV headers
+        const school = player.school || player.School;
+        if(!school) return;
+        
+        if(!teamsMap[school]) {
+          teamsMap[school] = {
+            school: school,
+            logo: player.logo || player.school_logo || '', 
+            roster: []
+          };
+        }
+        
+        // Nest high school stats for simulation formulas
+        player.hs_stats = {
+          ppg: parseFloat(player.ppg || player.hs_ppg || player.PPG || 0),
+          rpg: parseFloat(player.rpg || player.hs_rpg || player.RPG || 0),
+          apg: parseFloat(player.apg || player.hs_apg || player.APG || 0),
+          bpm: parseFloat(player.bpm || player.hs_bpm || player.BPM || 0)
+        };
+        
+        teamsMap[school].roster.push(player);
+      });
+      
+      this.state.teams = Object.values(teamsMap);
+      this.state.recruits = recruitsData;
       
       this.filterActiveData();
       
       document.getElementById('currentYearDisplay').innerText = `${this.state.year}-${(this.state.year+1).toString().slice(2)}`;
-      
       this.logNews(`Loaded ${this.state.teams.length} teams and ${this.state.activePlayers.length} active players for the ${this.state.year} season.`);
+      
     } catch(err) {
       console.error("Database Fetch Error:", err);
-      this.logNews(`Database Error: ${err.message}. Check file casing and GitHub cache.`);
+      this.logNews(`Database Error: ${err.message}. Check your published Google Sheets links.`);
     }
   },
 
+  // Helper function to handle commas inside text fields gracefully
+  parseCSV(csvData) {
+    const lines = csvData.split(/\r?\n/);
+    const result = [];
+    if(lines.length === 0) return result;
+
+    const headers = lines[0].split(',').map(h => h.trim().replace(/(^"|"$)/g, ''));
+    
+    for(let i = 1; i < lines.length; i++) {
+      if(!lines[i].trim()) continue;
+      
+      let rowValues = [];
+      let inQuotes = false;
+      let currentValue = '';
+      
+      for (let char of lines[i]) {
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          rowValues.push(currentValue.trim());
+          currentValue = '';
+        } else {
+          currentValue += char;
+        }
+      }
+      rowValues.push(currentValue.trim());
+      
+      let obj = {};
+      headers.forEach((header, index) => {
+        obj[header] = rowValues[index] ? rowValues[index].replace(/(^"|"$)/g, '') : '';
+      });
+      result.push(obj);
+    }
+    return result;
+  },
   
   filterActiveData() {
     let players = [];
@@ -55,10 +124,14 @@ window.SimEngine = {
     });
 
     this.state.recruits.forEach(rec => {
-      if(rec.committedTo && parseInt(rec.classYear) <= this.state.year) {
-        let team = this.state.teams.find(t => t.school === rec.committedTo);
+      // Fallback for CSV casing variations
+      let committedTo = rec.committedTo || rec['Committed To'] || rec.school;
+      let classYear = rec.classYear || rec['Class Year'] || rec.class;
+
+      if(committedTo && parseInt(classYear) <= this.state.year) {
+        let team = this.state.teams.find(t => t.school === committedTo);
         let schoolLogo = team ? team.logo : '';
-        let p = { ...rec, school: rec.committedTo, school_logo: schoolLogo, isRecruit: true, class: 'FR' };
+        let p = { ...rec, school: committedTo, school_logo: schoolLogo, isRecruit: true, class: 'FR' };
         players.push(p);
       }
     });
@@ -99,9 +172,9 @@ window.SimEngine = {
 
   calculatePlayerSeason(player) {
     const hs = player.hs_stats || {};
-    let rating = parseFloat(player.rating) || 75;
+    let rating = parseFloat(player.rating || player.Rating) || 75;
     
-    let pClass = player.class || player.classYear || 'FR';
+    let pClass = player.class || player.classYear || player['Class Year'] || 'FR';
     let isUpper = ['JR', 'SR', 'GR', 'Jr', 'Sr'].includes(pClass.toString().toUpperCase());
     let isElite = rating >= 88;
     
@@ -122,7 +195,7 @@ window.SimEngine = {
     let rpg = (hs.rpg || (Math.random() * 5 + 2)) * scale * 0.9 * rng();
     let apg = (hs.apg || (Math.random() * 4 + 1)) * scale * 0.9 * rng();
     
-    const posStr = (player.pos || '').toUpperCase();
+    const posStr = (player.pos || player.Pos || '').toUpperCase();
     const isBig = posStr.includes('C') || (posStr.includes('F') && !posStr.includes('G'));
     
     let stl = (0.3 + (Math.random() * 1.2) * (isBig ? 0.7 : 1.2) * (mpg/20));
@@ -257,8 +330,8 @@ window.SimEngine = {
       let valB = b.stats ? b.stats[col] : 0;
 
       if(['name', 'school', 'pos', 'class'].includes(col)) {
-        valA = a[col] || a.classYear || '';
-        valB = b[col] || b.classYear || '';
+        valA = a[col] || a.name || a.Name || '';
+        valB = b[col] || b.name || b.Name || '';
         return valA.toString().localeCompare(valB.toString()) * dir;
       }
 
@@ -304,9 +377,11 @@ window.SimEngine = {
     this.state.activePlayers.forEach((p) => {
       tbodyHtml += `<tr>`;
       currentHeaders.forEach(h => {
-        if(h.id === 'name') tbodyHtml += `<td style="font-weight:700; color:#fff;">${p.name}</td>`;
+        let nameField = p.name || p.Name;
+        let posField = p.pos || p.Pos;
+        if(h.id === 'name') tbodyHtml += `<td style="font-weight:700; color:#fff;">${nameField}</td>`;
         else if(h.id === 'school') tbodyHtml += `<td>${p.school}</td>`;
-        else if(h.id === 'pos') tbodyHtml += `<td>${p.pos || '-'}</td>`;
+        else if(h.id === 'pos') tbodyHtml += `<td>${posField || '-'}</td>`;
         else tbodyHtml += `<td>${p.stats[h.id] || '-'}</td>`;
       });
       tbodyHtml += `</tr>`;
@@ -342,8 +417,9 @@ window.SimEngine = {
     let html = '';
     for(let i=0; i<5; i++){
       if(sorted[i]) {
+        let nameField = sorted[i].name || sorted[i].Name;
         html += `<div class="leader-row">
-          <span>${i+1}. ${sorted[i].name} <span style="font-size:0.75rem;">(${sorted[i].school})</span></span>
+          <span>${i+1}. ${nameField} <span style="font-size:0.75rem;">(${sorted[i].school})</span></span>
           <span>${sorted[i].stats[statKey]}</span>
         </div>`;
       }
@@ -377,9 +453,10 @@ window.SimEngine = {
     for(let i=0; i<15; i++) {
       if(candidates[i]) {
         let p = candidates[i];
+        let nameField = p.name || p.Name;
         html += `<tr>
           <td style="font-weight:800; color:var(--brand-color);">#${i+1}</td>
-          <td style="font-weight:700; color:#fff;">${p.name}</td>
+          <td style="font-weight:700; color:#fff;">${nameField}</td>
           <td>${p.school}</td>
           <td style="color:#a1a5b8;">${p.stats.ppg} PTS, ${p.stats.rpg} REB, ${p.stats.apg} AST</td>
           <td style="font-weight:700;">${p.stats.bpm}</td>
@@ -422,17 +499,19 @@ window.SimEngine = {
     let rHtml = '';
     rPlayers.forEach((p, idx) => {
       let statsStr = this.state.simCompleted ? `<span style="display:block; font-size:0.8rem; color:var(--brand-color); margin-top:4px;">${p.stats.ppg} PPG | ${p.stats.mpg} MPG</span>` : '';
-      let cls = p.class || p.classYear || 'FR';
+      let cls = p.class || p.classYear || p['Class Year'] || 'FR';
+      let nameField = p.name || p.Name;
+      let posField = p.pos || p.Pos;
       
       rHtml += `
         <tr>
           <td style="color:#7d8296;">${idx+1}</td>
-          <td><span style="font-weight:700; color:#fff;">${p.name}</span> ${statsStr}</td>
-          <td>${p.pos || '-'}</td>
+          <td><span style="font-weight:700; color:#fff;">${nameField}</span> ${statsStr}</td>
+          <td>${posField || '-'}</td>
           <td>${cls}</td>
-          <td>${p.ht || '-'}</td>
-          <td>${p.wt || '-'}</td>
-          <td>${p.home || p.hometown || '-'}</td>
+          <td>${p.ht || p.Ht || '-'}</td>
+          <td>${p.wt || p.Wt || '-'}</td>
+          <td>${p.home || p.hometown || p.Hometown || '-'}</td>
           <td><span class="draft-projection">Active</span></td>
         </tr>
       `;
