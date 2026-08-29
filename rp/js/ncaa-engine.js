@@ -1,6 +1,8 @@
 window.SimEngine = {
   state: {
     year: 2028,
+    week: 0,
+    maxWeeks: 15,
     phase: 'Preseason',
     teams: [],
     recruits: [],
@@ -18,7 +20,6 @@ window.SimEngine = {
     this.fetchData();
   },
 
-  // Helper to fetch logos directly from the schoollogos directory in the repository
   getTeamLogo(schoolName) {
     if (!schoolName || schoolName === 'Free Agent' || schoolName === 'Uncommitted') return '';
     return `../schoollogos/${schoolName}.png`;
@@ -79,7 +80,6 @@ window.SimEngine = {
   parseCSV(csvData) {
     const lines = csvData.split(/\r?\n/).filter(line => line.trim() !== '');
     if (lines.length === 0) return [];
-
     const headers = lines[0].split(',').map(h => h.trim().replace(/(^"|"$)/g, '').toLowerCase().replace(/[^a-z0-9]/g, ''));
     
     const result = [];
@@ -87,16 +87,10 @@ window.SimEngine = {
       let rowValues = [];
       let inQuotes = false;
       let currentValue = '';
-      
       for (let char of lines[i]) {
-        if (char === '"') {
-          inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-          rowValues.push(currentValue.trim());
-          currentValue = '';
-        } else {
-          currentValue += char;
-        }
+        if (char === '"') inQuotes = !inQuotes;
+        else if (char === ',' && !inQuotes) { rowValues.push(currentValue.trim()); currentValue = ''; }
+        else currentValue += char;
       }
       rowValues.push(currentValue.trim());
       
@@ -111,12 +105,9 @@ window.SimEngine = {
 
   normalizePlayerObj(raw, isRecruit = false) {
     const getVal = (keys, fallback = '') => {
-      for (let k of keys) {
-        if (raw[k] !== undefined && raw[k] !== '') return raw[k];
-      }
+      for (let k of keys) if (raw[k] !== undefined && raw[k] !== '') return raw[k];
       return fallback;
     };
-
     const rating = parseFloat(getVal(['rating', 'ovr', 'grade', 'stars'], 75)) || 75;
     const school = getVal(['school', 'team', 'committedto', 'college'], 'Free Agent');
     
@@ -133,27 +124,19 @@ window.SimEngine = {
       rating: rating,
       isRecruit: isRecruit,
       recClassYear: parseInt(getVal(['classyear', 'recclass'], this.state.year)),
-      hs_stats: {
-        ppg: parseFloat(getVal(['ppg', 'hsppg'], 12.0)),
-        rpg: parseFloat(getVal(['rpg', 'hsrpg'], 4.0)),
-        apg: parseFloat(getVal(['apg', 'hsapg'], 2.5)),
-        bpm: parseFloat(getVal(['bpm', 'hsbpm'], 0.0))
-      },
-      stats: null,       
-      statsFull: null,   
-      statsConf: null    
+      gameLog: [],
+      stats: this.getZeroStats(),       
+      statsFull: this.getZeroStats(),   
+      statsConf: this.getZeroStats()    
     };
   },
   
   filterActiveData() {
     let players = [];
-    
     this.state.teams.forEach(team => {
       if (team.roster) {
         team.roster.forEach(player => {
-          if (player.class !== 'GRADUATED') {
-            players.push(player);
-          }
+          if (player.class !== 'GRADUATED') players.push(player);
         });
       }
     });
@@ -162,46 +145,241 @@ window.SimEngine = {
       if (rec.recClassYear <= this.state.year && rec.school && rec.school !== 'Uncommitted') {
         const team = this.state.teams.find(t => t.school.toLowerCase() === rec.school.toLowerCase());
         if (team && !team.roster.some(p => p.name === rec.name)) {
-          rec.school = team.school;
-          rec.school_logo = this.getTeamLogo(team.school);
-          rec.class = 'FR';
-          team.roster.push(rec);
-          players.push(rec);
+          rec.school = team.school; rec.school_logo = this.getTeamLogo(team.school); rec.class = 'FR';
+          team.roster.push(rec); players.push(rec);
         }
       }
     });
-    
     this.state.activePlayers = players;
   },
 
-  simulateSeason() {
-    if (this.state.phase !== 'Preseason') {
-      alert("Season already simulated! Advance offseason to start a new year.");
+  getZeroStats() {
+    const z1 = "0.0", z3 = ".000";
+    return {
+      mpg: z1, ppg: z1, rpg: z1, apg: z1, stl: z1, blk: z1, tov: z1, pf: z1,
+      fgm: z1, fga: z1, fgPct: z3, twoPm: z1, twoPa: z1, twoPPct: z3,
+      threePm: z1, threePa: z1, threePPct: z3, ftm: z1, fta: z1, ftPct: z3,
+      bpm: z1, obpm: z1, dbpm: z1, tsPct: z3, rTsPct: z1, eFgPct: z3,
+      orebPct: '0.0%', drebPct: '0.0%', trbPct: '0.0%', astPct: '0.0%',
+      tovPct: '0.0%', blkPct: '0.0%', usg: '0.0%', ftr: z3, threePar: z3,
+      ortg: z1, drtg: z1, netRtg: z1
+    };
+  },
+
+  initSeasonData() {
+    this.state.teams.forEach(team => {
+      let roster = this.state.activePlayers.filter(p => p.school === team.school);
+      roster.sort((a, b) => b.rating - a.rating);
+
+      const rawWeights = roster.map((p, idx) => Math.max(0.1, (p.rating - 55) * Math.pow(0.78, idx)));
+      const totalWeight = rawWeights.reduce((a, b) => a + b, 0) || 1;
+
+      const top8 = roster.slice(0, 8);
+      const teamOvr = top8.reduce((sum, p) => sum + p.rating, 0) / Math.min(8, top8.length);
+      const winPct = Math.min(0.94, Math.max(0.06, 0.50 + (teamOvr - 78) * 0.038));
+      
+      team.expectedWinPct = winPct;
+      team.simData = { teamOvr, wins: 0, losses: 0, confWins: 0, confLosses: 0, rosterRef: roster, winPct: '.000' };
+
+      roster.forEach((p, idx) => {
+        let allocatedMpg = (rawWeights[idx] / totalWeight) * 200;
+        if (idx > 9) allocatedMpg = 0; 
+        p.isBench = idx >= 5;
+        p.expectedStats = this.buildBaseStatExpectations(p, Math.min(35.5, allocatedMpg));
+        p.gameLog = [];
+        p.statsFull = this.getZeroStats();
+        p.statsConf = this.getZeroStats();
+        p.stats = p.statsFull;
+        p.accolades = [];
+      });
+    });
+  },
+
+  buildBaseStatExpectations(player, mpg) {
+    if (mpg <= 0.5) return this.getZeroStats();
+    
+    const r = player.rating; const pos = player.pos;
+    const isBig = pos.includes('C') || (pos.includes('F') && !pos.includes('G'));
+    
+    const usageScale = (mpg / 28) * (r / 78);
+    let ppg = Math.max(0.5, (r * 0.18) * usageScale);
+    let rpg = Math.max(0.2, (isBig ? 6.5 : 2.5) * usageScale);
+    let apg = Math.max(0.1, (!isBig ? 4.0 : 1.2) * usageScale);
+    let stl = Math.max(0.1, (!isBig ? 1.2 : 0.5) * usageScale);
+    let blk = Math.max(0.1, (isBig ? 1.6 : 0.3) * usageScale);
+    let tov = Math.max(0.2, (apg * 0.4 + 0.8));
+    let pf = Math.min(3.8, Math.max(0.8, (mpg / 8)));
+
+    let bpm = ((r - 76) * 0.45);
+    let obpm = bpm * (isBig ? 0.45 : 0.60);
+    let dbpm = bpm - obpm;
+
+    let ftPct = Math.min(0.92, Math.max(0.48, (isBig ? 0.64 : 0.78)));
+    let fta = Math.max(0.2, (ppg * (isBig ? 0.35 : 0.22)));
+    let threePar = isBig ? 0.12 : 0.38;
+    let threePPct = Math.min(0.46, Math.max(0.20, (isBig ? 0.30 : 0.36)));
+    let twoPPct = Math.min(0.68, Math.max(0.38, (isBig ? 0.56 : 0.46)));
+    
+    let ortg = 95 + (obpm * 3.2);
+    let drtg = 105 - (dbpm * 3.2);
+
+    return {
+      mpg, ppg, rpg, apg, stl, blk, tov, pf, ftPct, fta,
+      threePar, threePPct, twoPPct, bpm, obpm, dbpm, ortg, drtg,
+      orebPct: (isBig ? 9.5 : 3.0) + '%', drebPct: (isBig ? 21.0 : 10.5) + '%', trbPct: (isBig ? 15.0 : 6.8) + '%',
+    };
+  },
+
+  simulateWeek() {
+    if (this.state.simCompleted) {
+      alert("Season already complete! Advance offseason to start a new year.");
       return;
     }
     
+    if (this.state.week === 0) {
+      this.initSeasonData();
+    }
+
+    this.state.week++;
+    let isConf = this.state.week > 6;
+
+    // Sim 2 games per week
+    this.state.teams.forEach(team => {
+       for(let i=0; i<2; i++) {
+         let win = Math.random() < team.expectedWinPct;
+         if (win) team.simData.wins++; else team.simData.losses++;
+         if (isConf) {
+           if (win) team.simData.confWins++; else team.simData.confLosses++;
+         }
+       }
+    });
+
+    this.state.activePlayers.forEach(p => {
+       for(let i=0; i<2; i++) {
+          p.gameLog.push(this.generateSingleGameBox(p, isConf, this.state.week, i+1));
+       }
+       this.recalculateAverages(p);
+    });
+
+    document.getElementById('currentPhaseDisplay').innerText = `Week ${this.state.week}`;
+    
+    if (this.state.week >= this.state.maxWeeks) {
+       this.finalizeSeason();
+    } else {
+       document.getElementById('simWeekBtn').innerText = `Simulate Week ${this.state.week + 1}`;
+       this.updateDashboard();
+       this.sortAndRenderStatsTable();
+       this.updateStandingsTab();
+       this.logNews(`Week ${this.state.week} simulation complete.`);
+    }
+  },
+
+  generateSingleGameBox(player, isConf, week, gameNum) {
+     const exp = player.expectedStats;
+     const gameMin = Math.round(parseFloat(exp.mpg) * (0.8 + Math.random()*0.4));
+     
+     if (gameMin <= 0) {
+       return { week, isConf, min:0, pts:0, reb:0, ast:0, stl:0, blk:0, tov:0, pf:0, fgm:0, fga:0, twoPm:0, twoPa:0, threePm:0, threePa:0, ftm:0, fta:0 };
+     }
+
+     const variance = () => 0.5 + (Math.random() * 1.0); 
+     const scale = gameMin / parseFloat(exp.mpg);
+     
+     let expected3PA = parseFloat(exp.fta) > 0 ? (parseFloat(exp.ppg) - (parseFloat(exp.fta)*parseFloat(exp.ftPct))) * parseFloat(exp.threePar) / 3 : 0;
+     let expected2PA = parseFloat(exp.fta) > 0 ? ((parseFloat(exp.ppg) - (parseFloat(exp.fta)*parseFloat(exp.ftPct))) - (expected3PA*3)) / 2 : 0;
+     if(expected2PA < 0) expected2PA = 1; if(expected3PA < 0) expected3PA = 1;
+
+     const threePa = Math.round(expected3PA * scale * variance());
+     let threePm = 0;
+     for(let i=0; i<threePa; i++) if (Math.random() < parseFloat(exp.threePPct)) threePm++;
+     
+     const twoPa = Math.round(expected2PA * scale * variance());
+     let twoPm = 0;
+     for(let i=0; i<twoPa; i++) if (Math.random() < parseFloat(exp.twoPPct)) twoPm++;
+     
+     const fta = Math.round(parseFloat(exp.fta) * scale * variance());
+     let ftm = 0;
+     for(let i=0; i<fta; i++) if (Math.random() < parseFloat(exp.ftPct)) ftm++;
+     
+     const reb = Math.round(parseFloat(exp.rpg) * scale * variance());
+     const ast = Math.round(parseFloat(exp.apg) * scale * variance());
+     const stl = Math.round(parseFloat(exp.stl) * (0.3 + Math.random()*1.4));
+     const blk = Math.round(parseFloat(exp.blk) * (0.3 + Math.random()*1.4));
+     const tov = Math.round(parseFloat(exp.tov) * scale * variance());
+     const pf = Math.min(5, Math.round(parseFloat(exp.pf) * scale * variance()));
+
+     return {
+       week, isConf, min: gameMin,
+       pts: (threePm * 3) + (twoPm * 2) + ftm,
+       reb, ast, stl, blk, tov, pf,
+       fgm: twoPm + threePm, fga: twoPa + threePa,
+       twoPm, twoPa, threePm, threePa, ftm, fta
+     };
+  },
+
+  recalculateAverages(player) {
+    if (!player.gameLog || player.gameLog.length === 0) return;
+    
+    const calc = (logs) => {
+       if (logs.length === 0) return this.getZeroStats();
+       let s = { min:0, pts:0, reb:0, ast:0, stl:0, blk:0, tov:0, pf:0, fgm:0, fga:0, twoPm:0, twoPa:0, threePm:0, threePa:0, ftm:0, fta:0 };
+       logs.forEach(g => { for(let k in s) s[k] += g[k]; });
+       
+       const g = logs.length;
+       const t1 = v => (v/g).toFixed(1);
+       const t3 = (m,a) => a > 0 ? (m/a).toFixed(3).replace(/^0+/,'') : '.000';
+       
+       let mpg = s.min/g; let ppg = s.pts/g;
+       let usg = ((s.fga + 0.44 * s.fta + s.tov) / Math.max(1, mpg)) * (40/Math.max(1, mpg)) * 100; // rough estimation
+       
+       return {
+          mpg: t1(s.min), ppg: t1(s.pts), rpg: t1(s.reb), apg: t1(s.ast),
+          stl: t1(s.stl), blk: t1(s.blk), tov: t1(s.tov), pf: t1(s.pf),
+          fgm: t1(s.fgm), fga: t1(s.fga), fgPct: t3(s.fgm, s.fga),
+          twoPm: t1(s.twoPm), twoPa: t1(s.twoPa), twoPPct: t3(s.twoPm, s.twoPa),
+          threePm: t1(s.threePm), threePa: t1(s.threePa), threePPct: t3(s.threePm, s.threePa),
+          ftm: t1(s.ftm), fta: t1(s.fta), ftPct: t3(s.ftm, s.fta),
+          bpm: (player.expectedStats.bpm || 0).toFixed(1), 
+          obpm: (player.expectedStats.obpm || 0).toFixed(1), 
+          dbpm: (player.expectedStats.dbpm || 0).toFixed(1),
+          tsPct: (2*(s.fga + 0.44*s.fta)) > 0 ? t3(s.pts, 2*(s.fga + 0.44*s.fta)) : '.000',
+          rTsPct: ((player.expectedStats.tsPct || 0)*100 - 53.5).toFixed(1), 
+          eFgPct: s.fga > 0 ? t3(s.fgm + 0.5*s.threePm, s.fga) : '.000',
+          orebPct: player.expectedStats.orebPct, drebPct: player.expectedStats.drebPct, trbPct: player.expectedStats.trbPct,
+          astPct: mpg>0 ? ((s.ast/g)/mpg * 60).toFixed(1) + '%' : '0.0%',
+          tovPct: (s.fga + 0.44*s.fta + s.tov) > 0 ? ((s.tov/(s.fga + 0.44*s.fta + s.tov))*100).toFixed(1) + '%' : '0.0%',
+          blkPct: mpg>0 ? ((s.blk/g)/mpg * 40).toFixed(1) + '%' : '0.0%',
+          usg: Math.min(45.0, Math.max(5.0, usg)).toFixed(1) + '%', 
+          ftr: t3(s.fta, s.fga), threePar: t3(s.threePa, s.fga),
+          ortg: (player.expectedStats.ortg || 100).toFixed(1), 
+          drtg: (player.expectedStats.drtg || 100).toFixed(1), 
+          netRtg: ((player.expectedStats.ortg||100) - (player.expectedStats.drtg||100)).toFixed(1)
+       };
+    };
+
+    player.statsFull = calc(player.gameLog);
+    player.statsConf = calc(player.gameLog.filter(g => g.isConf));
+    player.stats = this.state.scopeFilter === 'conf' ? player.statsConf : player.statsFull;
+  },
+
+  finalizeSeason() {
     this.state.phase = 'Regular Season Final';
     document.getElementById('currentPhaseDisplay').innerText = 'Regular Season Final';
     
-    this.state.teams.forEach(team => {
-      team.simData = this.calculateTeamSeason(team);
+    this.state.teams.forEach(t => {
+       t.simData.winPct = (t.simData.wins / Math.max(1, t.simData.wins + t.simData.losses)).toFixed(3).replace(/^0+/, '');
     });
-    
-    // Sort overall by win count & team OVR
+
     this.state.teams.sort((a,b) => {
       if (b.simData.wins !== a.simData.wins) return b.simData.wins - a.simData.wins;
       return b.simData.teamOvr - a.simData.teamOvr;
     });
 
-    // Assign AP Top 25 ranks
-    this.state.teams.forEach((t, i) => {
-      t.apRank = (i < 25) ? (i + 1) : null;
-    });
+    this.state.teams.forEach((t, i) => t.apRank = (i < 25) ? (i + 1) : null);
 
-    // Calculate overall player scores incorporating team success
     this.state.activePlayers.forEach(p => {
       const team = this.state.teams.find(t => t.school === p.school);
-      const teamWinPct = team ? (team.simData.wins / (team.simData.wins + team.simData.losses)) : 0.5;
+      const teamWinPct = team ? (team.simData.wins / Math.max(1, team.simData.wins + team.simData.losses)) : 0.5;
       const bpm = parseFloat(p.stats ? p.stats.bpm : 0);
       const ppg = parseFloat(p.stats ? p.stats.ppg : 0);
       const apg = parseFloat(p.stats ? p.stats.apg : 0);
@@ -210,14 +388,13 @@ window.SimEngine = {
       const stl = parseFloat(p.stats ? p.stats.stl : 0);
       const blk = parseFloat(p.stats ? p.stats.blk : 0);
 
-      // Best player per category on best team weighting
       p.awardScore = (bpm * 2.5) + (ppg * 0.8) + (apg * 0.4) + (rpg * 0.4) + (teamWinPct * 15);
       p.defensiveScore = (dbpm * 3.5) + (stl * 2.5) + (blk * 2.5) + (teamWinPct * 10);
     });
     
     this.state.simCompleted = true;
-    this.state.sortCol = 'ppg';
-    this.state.sortDir = 'desc';
+    document.getElementById('simWeekBtn').innerText = `Calculate Awards`;
+    document.getElementById('simWeekBtn').disabled = true;
 
     this.updateDashboard();
     this.sortAndRenderStatsTable();
@@ -225,136 +402,6 @@ window.SimEngine = {
     this.updateAwardsTab();
     
     this.logNews("Regular season complete. National and Conference awards awarded.");
-  },
-
-  calculateTeamSeason(team) {
-    let roster = this.state.activePlayers.filter(p => p.school === team.school);
-    if (roster.length === 0) return { teamOvr: 70, wins: 0, losses: 31, confWins: 0, confLosses: 18, winPct: '.000', rosterRef: [] };
-
-    roster.sort((a, b) => b.rating - a.rating);
-
-    const rawWeights = roster.map((p, idx) => Math.max(0.1, (p.rating - 55) * Math.pow(0.78, idx)));
-    const totalWeight = rawWeights.reduce((a, b) => a + b, 0) || 1;
-
-    roster.forEach((p, idx) => {
-      let allocatedMpg = (rawWeights[idx] / totalWeight) * 200;
-      if (idx > 9) allocatedMpg = 0; 
-      p.isBench = idx >= 5;
-      p.stats = this.calculatePlayerSeason(p, Math.min(35.5, allocatedMpg));
-    });
-
-    const top8 = roster.slice(0, 8);
-    const teamOvr = top8.reduce((sum, p) => sum + p.rating, 0) / Math.min(8, top8.length);
-    
-    const winPct = Math.min(0.94, Math.max(0.06, 0.50 + (teamOvr - 78) * 0.038 + (Math.random() * 0.1 - 0.05)));
-    const gamesPlayed = 31;
-    const wins = Math.round(gamesPlayed * winPct);
-    const losses = gamesPlayed - wins;
-
-    // Simulate 18 Conference Games
-    const confGames = 18;
-    const confWinPct = Math.min(0.94, Math.max(0.06, winPct + (Math.random() * 0.12 - 0.06)));
-    const confWins = Math.round(confGames * confWinPct);
-    const confLosses = confGames - confWins;
-    
-    return {
-      teamOvr: teamOvr,
-      wins: wins,
-      losses: losses,
-      confWins: confWins,
-      confLosses: confLosses,
-      winPct: (wins / gamesPlayed).toFixed(3).replace(/^0+/, ''),
-      rosterRef: roster
-    };
-  },
-
-  calculatePlayerSeason(player, mpg) {
-    const fullStats = this.buildStatSet(player, mpg, 1.0);
-    const confStats = this.buildStatSet(player, mpg, 0.96);
-
-    player.statsFull = fullStats;
-    player.statsConf = confStats;
-
-    return this.state.scopeFilter === 'conf' ? confStats : fullStats;
-  },
-
-  buildStatSet(player, mpg, scaleFactor = 1.0) {
-    if (mpg <= 0.5) {
-      const z1 = "0.0", z3 = ".000";
-      return {
-        mpg: z1, ppg: z1, rpg: z1, apg: z1, stl: z1, blk: z1, tov: z1, pf: z1,
-        fgm: z1, fga: z1, fgPct: z3, twoPm: z1, twoPa: z1, twoPPct: z3,
-        threePm: z1, threePa: z1, threePPct: z3, ftm: z1, fta: z1, ftPct: z3,
-        bpm: z1, obpm: z1, dbpm: z1, tsPct: z3, rTsPct: z1, eFgPct: z3,
-        orebPct: '0.0%', drebPct: '0.0%', trbPct: '0.0%', astPct: '0.0%',
-        tovPct: '0.0%', blkPct: '0.0%', usg: '0.0%', ftr: z3, threePar: z3,
-        ortg: '0.0', drtg: '0.0', netRtg: '0.0'
-      };
-    }
-
-    const rng = () => 0.88 + (Math.random() * 0.24);
-    const r = player.rating;
-    const pos = player.pos;
-    const isBig = pos.includes('C') || (pos.includes('F') && !pos.includes('G'));
-    
-    const usageScale = (mpg / 28) * (r / 78) * scaleFactor;
-    let ppg = Math.max(0.5, (r * 0.18) * usageScale * rng());
-    let rpg = Math.max(0.2, (isBig ? 6.5 : 2.5) * usageScale * rng());
-    let apg = Math.max(0.1, (!isBig ? 4.0 : 1.2) * usageScale * rng());
-    let stl = Math.max(0.1, (!isBig ? 1.2 : 0.5) * usageScale * rng());
-    let blk = Math.max(0.1, (isBig ? 1.6 : 0.3) * usageScale * rng());
-    let tov = Math.max(0.2, (apg * 0.4 + 0.8) * rng());
-    let pf = Math.min(3.8, Math.max(0.8, (mpg / 8) * rng()));
-
-    let bpm = ((r - 76) * 0.45) * rng() * scaleFactor;
-    let obpm = bpm * (isBig ? 0.45 : 0.60);
-    let dbpm = bpm - obpm;
-
-    let ftPct = Math.min(0.92, Math.max(0.48, (isBig ? 0.64 : 0.78) * rng()));
-    let fta = Math.max(0.2, (ppg * (isBig ? 0.35 : 0.22)));
-    let ftm = fta * ftPct;
-
-    let ptsFromFg = Math.max(0, ppg - ftm);
-    let threePar = isBig ? 0.12 * rng() : 0.38 * rng();
-    let threePPct = Math.min(0.46, Math.max(0.20, (isBig ? 0.30 : 0.36) * rng()));
-    let threePm = Math.max(0, (ptsFromFg * threePar) / 3);
-    let threePa = threePPct > 0 ? threePm / threePPct : 0;
-
-    let twoPm = Math.max(0, (ptsFromFg - (threePm * 3)) / 2);
-    let twoPPct = Math.min(0.68, Math.max(0.38, (isBig ? 0.56 : 0.46) * rng()));
-    let twoPa = twoPPct > 0 ? twoPm / twoPPct : 0;
-
-    let fgm = twoPm + threePm;
-    let fga = twoPa + threePa;
-    let fgPct = fga > 0 ? fgm / fga : 0;
-
-    let tsPct = (2 * (fga + 0.44 * fta)) > 0 ? ppg / (2 * (fga + 0.44 * fta)) : 0;
-    let rTsPct = (tsPct * 100) - 53.5;
-    let eFgPct = fga > 0 ? (fgm + 0.5 * threePm) / fga : 0;
-    
-    let usg = ((fga + 0.44 * fta + tov) / mpg) * 40;
-    let ftr = fga > 0 ? fta / fga : 0;
-
-    let ortg = 95 + (obpm * 3.2);
-    let drtg = 105 - (dbpm * 3.2);
-
-    const t1 = (val) => (isNaN(val) || !isFinite(val)) ? "0.0" : Number(val).toFixed(1);
-    const t3 = (val) => (isNaN(val) || !isFinite(val)) ? ".000" : Number(val).toFixed(3).replace(/^0+/, '');
-
-    return {
-      mpg: t1(mpg), ppg: t1(ppg), rpg: t1(rpg), apg: t1(apg),
-      stl: t1(stl), blk: t1(blk), tov: t1(tov), pf: t1(pf),
-      fgm: t1(fgm), fga: t1(fga), fgPct: t3(fgPct),
-      twoPm: t1(twoPm), twoPa: t1(twoPa), twoPPct: t3(twoPPct),
-      threePm: t1(threePm), threePa: t1(threePa), threePPct: t3(threePPct),
-      ftm: t1(ftm), fta: t1(fta), ftPct: t3(ftPct),
-      bpm: t1(bpm), obpm: t1(obpm), dbpm: t1(dbpm),
-      tsPct: t3(tsPct), rTsPct: t1(rTsPct), eFgPct: t3(eFgPct),
-      orebPct: t1(isBig ? 9.5 : 3.0) + '%', drebPct: t1(isBig ? 21.0 : 10.5) + '%', trbPct: t1(isBig ? 15.0 : 6.8) + '%',
-      astPct: t1((apg / mpg) * 60) + '%', tovPct: t1((tov / (fga + 0.44 * fta + tov)) * 100) + '%', blkPct: t1((blk / mpg) * 40) + '%',
-      usg: t1(usg) + '%', ftr: t3(ftr), threePar: t3(threePar),
-      ortg: t1(ortg), drtg: t1(drtg), netRtg: t1(ortg - drtg)
-    };
   },
 
   setConfFilter(val) {
@@ -376,7 +423,7 @@ window.SimEngine = {
   },
 
   handleSort(colId) {
-    if (!this.state.simCompleted) return;
+    if (!this.state.simCompleted && this.state.week === 0) return;
     if (this.state.sortCol === colId) {
       this.state.sortDir = this.state.sortDir === 'desc' ? 'asc' : 'desc';
     } else {
@@ -387,11 +434,10 @@ window.SimEngine = {
   },
 
   sortAndRenderStatsTable() {
-    if (!this.state.simCompleted) return;
+    if (this.state.week === 0) return;
     
     let col = this.state.sortCol;
     let dir = this.state.sortDir === 'desc' ? -1 : 1;
-
     let pool = this.state.activePlayers.filter(p => {
       if (this.state.confFilter === 'ALL') return true;
       return (p.conference || '').toUpperCase() === this.state.confFilter.toUpperCase();
@@ -400,16 +446,12 @@ window.SimEngine = {
     pool.sort((a, b) => {
       let valA = a.stats ? a.stats[col] : 0;
       let valB = b.stats ? b.stats[col] : 0;
-
       if (['name', 'school', 'pos', 'class'].includes(col)) {
-        valA = a[col] || '';
-        valB = b[col] || '';
+        valA = a[col] || ''; valB = b[col] || '';
         return valA.toString().localeCompare(valB.toString()) * dir;
       }
-
       if (typeof valA === 'string') valA = parseFloat(valA.replace('%','')) || 0;
       if (typeof valB === 'string') valB = parseFloat(valB.replace('%','')) || 0;
-
       return (valA - valB) * dir;
     });
 
@@ -434,7 +476,6 @@ window.SimEngine = {
     ];
 
     let currentHeaders = this.state.statView === 'box' ? boxHeaders : advHeaders;
-
     let theadHtml = `<tr>`;
     currentHeaders.forEach(h => {
       let isSort = this.state.sortCol === h.id;
@@ -451,9 +492,10 @@ window.SimEngine = {
     } else {
       pool.forEach((p) => {
         tbodyHtml += `<tr>`;
+        const safeName = p.name.replace(/'/g, "\\'");
         currentHeaders.forEach(h => {
-          if (h.id === 'name') tbodyHtml += `<td style="font-weight:700; color:#fff;">${p.name}</td>`;
-          else if (h.id === 'school') tbodyHtml += `<td>${p.school}</td>`;
+          if (h.id === 'name') tbodyHtml += `<td class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${p.name}</td>`;
+          else if (h.id === 'school') tbodyHtml += `<td class="clickable-school" onclick="SimEngine.openTeamModal('${p.school}')">${p.school}</td>`;
           else if (h.id === 'pos') tbodyHtml += `<td>${p.pos}</td>`;
           else tbodyHtml += `<td>${p.stats ? p.stats[h.id] : '-'}</td>`;
         });
@@ -467,7 +509,7 @@ window.SimEngine = {
   updateDashboard() {
     let topTeamsHtml = '';
     for (let i = 0; i < 10; i++) {
-      if (this.state.teams[i]) {
+      if (this.state.teams[i] && this.state.week > 0) {
         topTeamsHtml += `
           <div class="team-badge clickable-school" onclick="SimEngine.openTeamModal('${this.state.teams[i].school}')">
             <span class="team-rank">#${i+1}</span>
@@ -477,13 +519,15 @@ window.SimEngine = {
         `;
       }
     }
-    document.getElementById('dashTopTeams').innerHTML = topTeamsHtml;
+    document.getElementById('dashTopTeams').innerHTML = topTeamsHtml || `<p style="color:#7d8296;">Simulate games to generate rankings.</p>`;
     
-    this.populateDashList('dashPts', 'ppg');
-    this.populateDashList('dashReb', 'rpg');
-    this.populateDashList('dashAst', 'apg');
-    this.populateDashList('dashStl', 'stl');
-    this.populateDashList('dashBlk', 'blk');
+    if(this.state.week > 0) {
+      this.populateDashList('dashPts', 'ppg');
+      this.populateDashList('dashReb', 'rpg');
+      this.populateDashList('dashAst', 'apg');
+      this.populateDashList('dashStl', 'stl');
+      this.populateDashList('dashBlk', 'blk');
+    }
   },
 
   populateDashList(elementId, statKey) {
@@ -491,8 +535,9 @@ window.SimEngine = {
     let html = '';
     for (let i = 0; i < 5; i++) {
       if (sorted[i]) {
+        const safeName = sorted[i].name.replace(/'/g, "\\'");
         html += `<div class="leader-row">
-          <span>${i+1}. ${sorted[i].name} <span style="font-size:0.75rem;">(${sorted[i].school})</span></span>
+          <span>${i+1}. <span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${sorted[i].name}</span> <span style="font-size:0.75rem;">(${sorted[i].school})</span></span>
           <span>${sorted[i].stats[statKey]}</span>
         </div>`;
       }
@@ -501,10 +546,7 @@ window.SimEngine = {
   },
 
   updateStandingsTab() {
-    if (!this.state.simCompleted) {
-      document.getElementById('standingsContainer').innerHTML = `<p style="text-align: center; color: #7d8296;">Simulate season to view standings.</p>`;
-      return;
-    }
+    if (this.state.week === 0) return;
 
     let apTop25 = this.state.teams.slice(0, 25);
     let apHtml = `
@@ -523,7 +565,7 @@ window.SimEngine = {
       let isHidden = idx >= 10 ? 'class="ap-extra-row" style="display:none;"' : '';
       apHtml += `
         <tr ${isHidden}>
-          <td style="font-weight:800; color:var(--brand-color);">#${t.apRank}</td>
+          <td style="font-weight:800; color:var(--brand-color);">#${idx + 1}</td>
           <td>
             <div style="display:flex; align-items:center; gap:8px;" class="clickable-school" onclick="SimEngine.openTeamModal('${t.school}')">
               <img src="${this.getTeamLogo(t.school)}" style="width:20px; height:20px; object-fit:contain;">
@@ -602,16 +644,13 @@ window.SimEngine = {
               </tbody>
             </table>
           </div>`;
-      
       if (confTeams.length > 5) {
         confsHtml += `<button class="sim-btn sim-btn-secondary" style="margin-top:0.75rem; padding:6px 10px; font-size:0.85rem;" onclick="SimEngine.toggleConfStandings('${confSafeId}', this)">See More (${confTeams.length - 5} Teams)</button>`;
       }
-
       confsHtml += `</div>`;
     });
 
     confsHtml += `</div>`;
-
     document.getElementById('standingsContainer').innerHTML = apHtml + confsHtml;
   },
 
@@ -631,16 +670,13 @@ window.SimEngine = {
 
   updateAwardsTab() {
     if (!this.state.simCompleted) {
-      document.getElementById('nationalAwardsGrid').innerHTML = `<p style="color: #7d8296;">Simulate season to calculate National Award winners.</p>`;
-      document.getElementById('allAmericanContainer').innerHTML = `<p style="color: #7d8296;">Simulate season to view All-American teams.</p>`;
-      document.getElementById('confAwardsContainer').innerHTML = `<p style="color: #7d8296;">Simulate season to view conference award winners.</p>`;
+      document.getElementById('nationalAwardsGrid').innerHTML = `<p style="color: #7d8296;">Complete the season to calculate National Award winners.</p>`;
+      document.getElementById('allAmericanContainer').innerHTML = `<p style="color: #7d8296;">Complete the season to view All-American teams.</p>`;
+      document.getElementById('confAwardsContainer').innerHTML = `<p style="color: #7d8296;">Complete the season to view conference award winners.</p>`;
       return;
     }
 
-    // 1. Calculate Major National Awards
     const players = [...this.state.activePlayers];
-    
-    // Position filters
     const isPG = p => p.pos === 'PG' || (p.pos === 'G' && parseFloat(p.stats.apg) >= 3.5);
     const isSG = p => p.pos === 'SG' || (p.pos === 'G' && parseFloat(p.stats.apg) < 3.5);
     const isSF = p => p.pos === 'SF' || (p.pos === 'F' && parseFloat(p.stats.rpg) < 6.5);
@@ -657,6 +693,10 @@ window.SimEngine = {
     const malone = [...players].filter(isPF).sort((a,b) => b.awardScore - a.awardScore)[0] || npoy;
     const abdulJabbar = [...players].filter(isC).sort((a,b) => b.awardScore - a.awardScore)[0] || npoy;
 
+    // Award tags dynamically populated for modal display
+    if(npoy && !npoy.accolades.includes("National POY")) npoy.accolades.push("National POY");
+    if(dpoy && !dpoy.accolades.includes("National DPOY")) dpoy.accolades.push("National DPOY");
+
     const majorAwards = [
       { title: "National Player of the Year", sub: "Naismith / Wooden Trophy", winner: npoy, major: true },
       { title: "Defensive Player of the Year", sub: "NABC National DPOY", winner: dpoy, major: true },
@@ -671,6 +711,7 @@ window.SimEngine = {
     let natHtml = '';
     majorAwards.forEach(a => {
       if (!a.winner) return;
+      const safeName = a.winner.name.replace(/'/g, "\\'");
       natHtml += `
         <div class="award-card ${a.major ? 'major-award' : ''}">
           <div class="award-title">${a.title}</div>
@@ -678,7 +719,7 @@ window.SimEngine = {
           <div class="award-winner">
             <img src="${this.getTeamLogo(a.winner.school)}" style="width:36px; height:36px; object-fit:contain;">
             <div class="award-winner-info">
-              <span class="award-winner-name">${a.winner.name}</span>
+              <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${a.winner.name}</span>
               <span class="award-winner-school">${a.winner.school} (${a.winner.pos} &bull; ${a.winner.class})</span>
               <span class="award-winner-stats">${a.winner.stats.ppg} PPG, ${a.winner.stats.rpg} RPG, ${a.winner.stats.apg} APG</span>
             </div>
@@ -688,22 +729,24 @@ window.SimEngine = {
     });
     document.getElementById('nationalAwardsGrid').innerHTML = natHtml;
 
-    // 2. All-American Teams (1st, 2nd, 3rd)
     const sortedAll = [...players].sort((a,b) => b.awardScore - a.awardScore);
     const aa1 = sortedAll.slice(0, 5);
     const aa2 = sortedAll.slice(5, 10);
     const aa3 = sortedAll.slice(10, 15);
 
+    aa1.forEach(p => { if(!p.accolades.includes("1st Team All-American")) p.accolades.push("1st Team All-American"); });
+
     const renderAaCard = (teamName, teamList) => {
       let rows = '';
       teamList.forEach((p, idx) => {
+        const safeName = p.name.replace(/'/g, "\\'");
         rows += `
           <tr>
             <td style="font-weight:800; color:var(--brand-color);">${idx+1}</td>
             <td>
               <div style="display:flex; align-items:center; gap:6px;">
                 <img src="${this.getTeamLogo(p.school)}" style="width:16px; height:16px; object-fit:contain;">
-                <span style="font-weight:700; color:#fff;">${p.name}</span>
+                <span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${p.name}</span>
               </div>
             </td>
             <td>${p.school}</td>
@@ -729,7 +772,6 @@ window.SimEngine = {
       renderAaCard("2nd Team All-American", aa2) +
       renderAaCard("3rd Team All-American", aa3);
 
-    // 3. Render Conference Awards for currently selected conference
     this.renderConferenceAwards(this.state.selectedAwardConf);
   },
 
@@ -738,12 +780,11 @@ window.SimEngine = {
     document.getElementById('confAwardsTitle').innerText = `${confName} Conference Honors`;
     
     if (!this.state.simCompleted) {
-      document.getElementById('confAwardsContainer').innerHTML = `<p style="color: #7d8296;">Simulate season to view conference awards.</p>`;
+      document.getElementById('confAwardsContainer').innerHTML = `<p style="color: #7d8296;">Complete the season to view conference awards.</p>`;
       return;
     }
 
     const confPlayers = this.state.activePlayers.filter(p => (p.conference || '').toLowerCase() === confName.toLowerCase());
-    
     if (confPlayers.length === 0) {
       document.getElementById('confAwardsContainer').innerHTML = `<p style="color: #7d8296;">No players found for conference: ${confName}</p>`;
       return;
@@ -759,9 +800,13 @@ window.SimEngine = {
     const croty = sortedFresh[0] || sortedConf[1];
     const c6moy = sorted6m[0] || sortedConf[4];
 
+    if(cpoy && !cpoy.accolades.includes(`${confName} POY`)) cpoy.accolades.push(`${confName} POY`);
+    
     const conf1st = sortedConf.slice(0, 5);
     const conf2nd = sortedConf.slice(5, 10);
     const confFreshTeam = sortedFresh.slice(0, 5);
+
+    const safeN = p => p.name.replace(/'/g, "\\'");
 
     let html = `
       <div class="awards-grid">
@@ -771,7 +816,7 @@ window.SimEngine = {
           <div class="award-winner">
             <img src="${this.getTeamLogo(cpoy.school)}" style="width:32px; height:32px; object-fit:contain;">
             <div class="award-winner-info">
-              <span class="award-winner-name">${cpoy.name}</span>
+              <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeN(cpoy)}')">${cpoy.name}</span>
               <span class="award-winner-school">${cpoy.school} &bull; ${cpoy.stats.ppg} PPG, ${cpoy.stats.rpg} RPG</span>
             </div>
           </div>
@@ -783,7 +828,7 @@ window.SimEngine = {
           <div class="award-winner">
             <img src="${this.getTeamLogo(cdpoy.school)}" style="width:32px; height:32px; object-fit:contain;">
             <div class="award-winner-info">
-              <span class="award-winner-name">${cdpoy.name}</span>
+              <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeN(cdpoy)}')">${cdpoy.name}</span>
               <span class="award-winner-school">${cdpoy.school} &bull; ${cdpoy.stats.stl} SPG, ${cdpoy.stats.blk} BPG</span>
             </div>
           </div>
@@ -795,7 +840,7 @@ window.SimEngine = {
           <div class="award-winner">
             <img src="${this.getTeamLogo(croty.school)}" style="width:32px; height:32px; object-fit:contain;">
             <div class="award-winner-info">
-              <span class="award-winner-name">${croty.name}</span>
+              <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeN(croty)}')">${croty.name}</span>
               <span class="award-winner-school">${croty.school} &bull; ${croty.stats.ppg} PPG</span>
             </div>
           </div>
@@ -807,7 +852,7 @@ window.SimEngine = {
           <div class="award-winner">
             <img src="${this.getTeamLogo(c6moy.school)}" style="width:32px; height:32px; object-fit:contain;">
             <div class="award-winner-info">
-              <span class="award-winner-name">${c6moy.name}</span>
+              <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeN(c6moy)}')">${c6moy.name}</span>
               <span class="award-winner-school">${c6moy.school} &bull; ${c6moy.stats.ppg} PPG</span>
             </div>
           </div>
@@ -827,13 +872,14 @@ window.SimEngine = {
   renderConfTeamTable(title, playerList) {
     let rows = '';
     playerList.forEach((p, idx) => {
+      const safeName = p.name.replace(/'/g, "\\'");
       rows += `
         <tr>
           <td style="font-weight:700; color:#a1a5b8;">${idx+1}</td>
           <td>
             <div style="display:flex; align-items:center; gap:6px;">
               <img src="${this.getTeamLogo(p.school)}" style="width:16px; height:16px; object-fit:contain;">
-              <span style="font-weight:700; color:#fff;">${p.name}</span>
+              <span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${p.name}</span>
             </div>
           </td>
           <td>${p.school}</td>
@@ -860,13 +906,12 @@ window.SimEngine = {
     if (!team) return;
 
     let rank = team.apRank;
-    
     document.getElementById('modalTeamLogo').src = this.getTeamLogo(team.school);
     document.getElementById('modalTeamName').innerText = team.school;
     document.getElementById('modalTeamYear').innerText = `${this.state.year}-${(this.state.year+1).toString().slice(2)}`;
     
-    if (this.state.simCompleted) {
-      if (rank && rank <= 25) {
+    if (this.state.week > 0) {
+      if (this.state.simCompleted && rank && rank <= 25) {
         document.getElementById('modalTeamRank').style.display = 'block';
         document.getElementById('modalTeamRank').innerText = `#${rank}`;
       } else {
@@ -888,18 +933,18 @@ window.SimEngine = {
     }
 
     let rPlayers = this.state.activePlayers.filter(p => p.school === schoolName);
-    if (this.state.simCompleted) {
+    if (this.state.week > 0) {
       rPlayers.sort((a,b) => parseFloat(b.stats.mpg) - parseFloat(a.stats.mpg));
     }
     
     let rHtml = '';
     rPlayers.forEach((p, idx) => {
-      let statsStr = this.state.simCompleted ? `<span style="display:block; font-size:0.8rem; color:var(--brand-color); margin-top:4px;">${p.stats.ppg} PPG | ${p.stats.mpg} MPG</span>` : '';
-      
+      let statsStr = this.state.week > 0 ? `<span style="display:block; font-size:0.8rem; color:var(--brand-color); margin-top:4px;">${p.stats.ppg} PPG | ${p.stats.mpg} MPG</span>` : '';
+      const safeName = p.name.replace(/'/g, "\\'");
       rHtml += `
         <tr>
           <td style="color:#7d8296;">${idx+1}</td>
-          <td><span style="font-weight:700; color:#fff;">${p.name}</span> ${statsStr}</td>
+          <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${p.name}</span> ${statsStr}</td>
           <td>${p.pos}</td>
           <td>${p.class}</td>
           <td>${p.ht}</td>
@@ -918,9 +963,62 @@ window.SimEngine = {
     document.getElementById('teamModal').classList.remove('active');
   },
 
+  openPlayerModal(playerName) {
+    let player = this.state.activePlayers.find(p => p.name === playerName);
+    if (!player) return;
+
+    document.getElementById('modalPlayerLogo').src = this.getTeamLogo(player.school);
+    document.getElementById('modalPlayerName').innerText = player.name;
+    document.getElementById('modalPlayerBio').innerText = `${player.school} | ${player.pos} | ${player.class} | ${player.ht} | ${player.wt} | ${player.hometown}`;
+    
+    let accoladesText = (player.accolades && player.accolades.length > 0) ? player.accolades.join(' • ') : '';
+    document.getElementById('modalPlayerAccolades').innerText = accoladesText;
+
+    document.getElementById('modalPlayerPPG').innerText = player.stats.ppg;
+    document.getElementById('modalPlayerRPG').innerText = player.stats.rpg;
+    document.getElementById('modalPlayerAPG').innerText = player.stats.apg;
+    document.getElementById('modalPlayerFG').innerText = player.stats.fgPct;
+
+    let glHtml = '';
+    if (!player.gameLog || player.gameLog.length === 0) {
+      glHtml = `<tr><td colspan="12" style="text-align: center; color: #7d8296;">No games played yet.</td></tr>`;
+    } else {
+      player.gameLog.forEach(g => {
+        let type = g.isConf ? 'Conf' : 'Non-Conf';
+        glHtml += `
+          <tr>
+            <td style="font-weight: 700;">Wk ${g.week}</td>
+            <td style="color: #a1a5b8; font-size: 0.9rem;">${type}</td>
+            <td>${g.min}</td>
+            <td style="font-weight: 800; color: var(--brand-color);">${g.pts}</td>
+            <td>${g.reb}</td>
+            <td>${g.ast}</td>
+            <td>${g.stl}</td>
+            <td>${g.blk}</td>
+            <td>${g.tov}</td>
+            <td>${g.fgm}-${g.fga}</td>
+            <td>${g.threePm}-${g.threePa}</td>
+            <td>${g.ftm}-${g.fta}</td>
+          </tr>
+        `;
+      });
+    }
+
+    document.getElementById('modalPlayerGameLog').innerHTML = glHtml;
+    document.getElementById('playerModal').classList.add('active');
+  },
+
+  closePlayerModal() {
+    document.getElementById('playerModal').classList.remove('active');
+  },
+
   runOffseason() {
     if (this.state.phase === 'Preseason') {
       alert("Simulate the regular season first before advancing to the offseason.");
+      return;
+    }
+    if (!this.state.simCompleted) {
+      alert("Finish the current season before advancing.");
       return;
     }
 
@@ -935,17 +1033,22 @@ window.SimEngine = {
     });
 
     this.state.year += 1;
+    this.state.week = 0;
     this.state.phase = 'Preseason';
     this.state.simCompleted = false;
     
     document.getElementById('currentYearDisplay').innerText = `${this.state.year}-${(this.state.year+1).toString().slice(2)}`;
     document.getElementById('currentPhaseDisplay').innerText = 'Preseason';
     
+    let btn = document.getElementById('simWeekBtn');
+    btn.innerText = `Simulate Week 1`;
+    btn.disabled = false;
+    
     this.filterActiveData();
     this.logNews(`Advanced to ${this.state.year} Offseason. Graduated seniors cleared; incoming recruits added.`);
     
-    document.getElementById('statsBody').innerHTML = `<tr><td colspan="25" style="text-align: center; color: #7d8296;">Simulate season to view leaderboards.</td></tr>`;
-    document.getElementById('standingsContainer').innerHTML = `<p style="text-align: center; color: #7d8296;">Simulate season to view standings.</p>`;
+    document.getElementById('statsBody').innerHTML = `<tr><td colspan="25" style="text-align: center; color: #7d8296;">Simulate games to view leaderboards.</td></tr>`;
+    document.getElementById('standingsContainer').innerHTML = `<p style="text-align: center; color: #7d8296;">Simulate games to view standings.</p>`;
     this.updateAwardsTab();
   },
 
