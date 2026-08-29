@@ -75,7 +75,6 @@
       width: 320px;
     }
 
-    /* Main Grid Layout for Articles + Power Rankings */
     .content-layout {
       display: grid;
       grid-template-columns: 1fr 340px;
@@ -117,7 +116,7 @@
     }
 
     .post-badge {
-      color: #38bdf8;
+      color: var(--brand-color, #ff5500);
       font-weight: 800;
       font-size: 0.85rem;
       text-transform: uppercase;
@@ -154,7 +153,7 @@
     }
 
     .fallback-link a {
-      color: #38bdf8;
+      color: var(--brand-color, #ff5500);
       text-decoration: none;
       font-weight: 700;
       text-transform: uppercase;
@@ -167,7 +166,6 @@
       color: #ffffff;
     }
 
-    /* Power Rankings Sidebar Styles */
     .power-rankings-card {
       background: #0a0a0e;
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -214,6 +212,11 @@
       border-bottom: 1px solid rgba(255, 255, 255, 0.04);
     }
 
+    .rank-number {
+      font-weight: 800;
+      color: var(--brand-color, #ff5500);
+    }
+
     .stock-up {
       color: #22c55e;
       font-weight: 800;
@@ -232,7 +235,6 @@
       font-size: 0.85rem;
     }
 
-    /* Responsive adjustment for mobile screens */
     @media (max-width: 900px) {
       .content-layout {
         grid-template-columns: 1fr;
@@ -274,7 +276,6 @@
       </div>
     </div>
 
-    <!-- Layout Container: Left Articles, Right Power Rankings -->
     <div class="content-layout">
       
       <!-- Automated Substack Articles Feed -->
@@ -313,7 +314,7 @@
           return;
         }
 
-        feedContainer.innerHTML = ''; // Clear loading message
+        feedContainer.innerHTML = '';
 
         data.items.forEach(post => {
           const pubDate = new Date(post.pubDate).toLocaleDateString('en-US', {
@@ -322,7 +323,6 @@
             year: 'numeric'
           });
 
-          // Clean HTML tags and trim description snippet
           const cleanSnippet = post.description
             .replace(/<[^>]*>?/gm, '')
             .replace(/&nbsp;/g, ' ')
@@ -381,7 +381,6 @@
         `;
 
         rows.forEach(row => {
-          // Fallback field mapping for header variants
           const rank = row.Rank || row.rank || '';
           const stockVal = (row.Stock || row.stock || '').trim();
           const team = row.Team || row.team || '';
@@ -395,7 +394,7 @@
 
           tableHtml += `
             <tr>
-              <td style="font-weight: 800; color: #38bdf8;">#${rank}</td>
+              <td class="rank-number">#${rank}</td>
               <td style="text-align: center;">${stockIcon}</td>
               <td style="font-weight: 700; color: #ffffff;">${team}</td>
             </tr>
