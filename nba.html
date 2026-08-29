@@ -9,19 +9,15 @@
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
 
   <style>
     body {
-      background-color: #050507;
-      color: #e2e8f0;
+      background-color: var(--bg-color);
+      color: var(--text-main);
       font-family: 'Asap Condensed', sans-serif;
       font-size: 1.1rem;
       margin: 0;
-    }
-
-    h1, h2, h3, h4, h5, h6, .brand-logo {
-      font-family: 'Anantason Condensed', 'Asap Condensed', sans-serif;
     }
 
     .container {
@@ -30,39 +26,41 @@
       padding: 0 1rem;
     }
 
+    /* Page Header Card */
     .header-card {
-      background: linear-gradient(180deg, #121218 0%, #0a0a0f 100%);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
-      padding: 1.75rem 2rem;
+      background: linear-gradient(180deg, var(--card-bg) 0%, var(--bg-color) 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
       margin-bottom: 2rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
       gap: 1.5rem;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
     }
 
     .header-title h1 {
-      font-size: 2.4rem;
-      font-weight: 800;
-      letter-spacing: 0.03em;
+      font-family: 'Oswald', sans-serif;
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: 1px;
       text-transform: uppercase;
-      color: #ffffff;
+      color: var(--text-main);
       margin: 0;
     }
 
     .header-title p {
-      color: #8a8d9b;
-      font-size: 1rem;
-      margin-top: 4px;
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      margin-top: 6px;
     }
 
     .substack-subscribe-box {
-      background: #000000;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 12px;
+      background: var(--bg-color);
+      border: 1px solid var(--border);
+      border-radius: 8px;
       padding: 0.25rem 0.5rem;
       display: flex;
       align-items: center;
@@ -75,6 +73,7 @@
       width: 320px;
     }
 
+    /* Main Two-Column Layout */
     .content-layout {
       display: grid;
       grid-template-columns: 1fr 340px;
@@ -88,18 +87,20 @@
       gap: 1.75rem;
     }
 
+    /* Substack Post Cards */
     .post-card {
-      background: #0a0a0e;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
-      transition: transform 0.2s ease, border-color 0.2s ease;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+      transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
     }
 
     .post-card:hover {
-      border-color: rgba(255, 255, 255, 0.2);
-      transform: translateY(-2px);
+      background-color: var(--card-hover);
+      border-color: var(--accent);
+      transform: translateY(-3px);
     }
 
     .post-content {
@@ -116,79 +117,84 @@
     }
 
     .post-badge {
-      color: var(--brand-color, #ff5500);
-      font-weight: 800;
+      color: var(--accent);
+      font-weight: 700;
       font-size: 0.85rem;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 1px;
     }
 
     .post-date {
-      color: #7d8296;
+      color: var(--text-muted);
       font-size: 0.9rem;
     }
 
     .post-title {
-      font-size: 1.75rem;
-      font-weight: 800;
-      color: #ffffff;
+      font-family: 'Oswald', sans-serif;
+      font-size: 1.8rem;
+      font-weight: 700;
+      color: var(--text-main);
       margin: 0;
-      line-height: 1.2;
+      line-height: 1.25;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .post-snippet {
-      color: #a1a5b8;
+      color: var(--text-muted);
       font-size: 1.05rem;
       line-height: 1.6;
       margin: 0;
     }
 
     .fallback-link {
-      padding: 1.1rem 2rem;
-      background: #111117;
-      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 1rem 2rem;
+      background: var(--bg-color);
+      border-top: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
 
     .fallback-link a {
-      color: var(--brand-color, #ff5500);
+      color: var(--accent);
       text-decoration: none;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.5px;
       font-size: 0.95rem;
       transition: color 0.2s ease;
     }
 
     .fallback-link a:hover {
-      color: #ffffff;
+      color: var(--text-main);
     }
 
+    /* Power Rankings Sidebar */
     .power-rankings-card {
-      background: #0a0a0e;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
       padding: 1.5rem;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
       position: sticky;
-      top: 2rem;
+      top: 6rem;
     }
 
     .rankings-header {
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--border);
       padding-bottom: 0.75rem;
       margin-bottom: 1rem;
     }
 
     .rankings-header h2 {
+      font-family: 'Oswald', sans-serif;
       font-size: 1.5rem;
-      font-weight: 800;
-      color: #ffffff;
+      font-weight: 700;
+      color: var(--text-main);
       margin: 0;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 1px;
     }
 
     .rankings-table {
@@ -199,22 +205,22 @@
 
     .rankings-table th {
       text-align: left;
-      color: #7d8296;
+      color: var(--text-muted);
       font-size: 0.8rem;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 1px;
       padding-bottom: 0.6rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--border);
     }
 
     .rankings-table td {
-      padding: 0.55rem 0;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      padding: 0.6rem 0;
+      border-bottom: 1px solid rgba(56, 66, 107, 0.4);
     }
 
     .rank-number {
       font-weight: 800;
-      color: var(--brand-color, #ff5500);
+      color: var(--accent);
     }
 
     .stock-up {
@@ -230,7 +236,7 @@
     }
 
     .stock-same {
-      color: #6b7280;
+      color: var(--text-muted);
       font-weight: 800;
       font-size: 0.85rem;
     }
@@ -248,7 +254,7 @@
 </head>
 <body>
 
-  <!-- Navigation Bar Header -->
+  <!-- Navigation Bar -->
   <header class="navbar">
     <a href="./" class="brand-logo">
       <img src="logo.png" alt="BYTHERIM Logo" class="logo-img">
@@ -256,12 +262,12 @@
     <nav class="nav-links">
       <a href="podcast.html">Podcast</a>
       <a href="draft.html">Draft</a>
-      <a href="nba.html" style="font-weight: 800; color: #ffffff;">NBA</a>
+      <a href="nba.html" style="color: var(--text-main); font-weight: 700;">NBA</a>
       <a href="./rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
     </nav>
   </header>
 
-  <!-- Main Content -->
+  <!-- Main Content Container -->
   <div class="container">
     
     <div class="header-card">
@@ -276,20 +282,21 @@
       </div>
     </div>
 
+    <!-- Layout: Substack Feed + Power Rankings Sidebar -->
     <div class="content-layout">
       
       <!-- Automated Substack Articles Feed -->
       <div class="articles-feed" id="articlesFeed">
-        <p style="color: #8a8d9b; text-align: center; padding: 3rem 0;">Loading latest articles...</p>
+        <p style="color: var(--text-muted); text-align: center; padding: 3rem 0;">Loading latest articles...</p>
       </div>
 
-      <!-- NBA Power Rankings Sidebar -->
+      <!-- Live NBA Power Rankings Sidebar -->
       <aside class="power-rankings-card">
         <div class="rankings-header">
           <h2>POWER RANKINGS</h2>
         </div>
         <div id="rankingsContainer">
-          <p style="color: #8a8d9b; text-align: center; padding: 1.5rem 0; margin: 0;">Loading rankings...</p>
+          <p style="color: var(--text-muted); text-align: center; padding: 1.5rem 0; margin: 0;">Loading rankings...</p>
         </div>
       </aside>
 
@@ -310,7 +317,7 @@
         const data = await response.json();
 
         if (data.status !== 'ok' || !data.items || !data.items.length) {
-          feedContainer.innerHTML = '<p style="color: #8a8d9b; text-align: center; padding: 3rem 0;">No articles found.</p>';
+          feedContainer.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 3rem 0;">No articles found.</p>';
           return;
         }
 
@@ -341,7 +348,7 @@
               <p class="post-snippet">${cleanSnippet}</p>
             </div>
             <div class="fallback-link">
-              <span style="color: #7d8296; font-size: 0.9rem;">By Collin</span>
+              <span style="color: var(--text-muted); font-size: 0.9rem;">By Collin</span>
               <a href="${post.link}" target="_blank" rel="noopener">Read Full Article on Substack &rarr;</a>
             </div>
           `;
@@ -364,7 +371,7 @@
         const rows = parseCSV(csvText);
 
         if (!rows.length) {
-          rankingsContainer.innerHTML = '<p style="color: #8a8d9b; text-align: center;">No rankings available.</p>';
+          rankingsContainer.innerHTML = '<p style="color: var(--text-muted); text-align: center;">No rankings available.</p>';
           return;
         }
 
@@ -396,7 +403,7 @@
             <tr>
               <td class="rank-number">#${rank}</td>
               <td style="text-align: center;">${stockIcon}</td>
-              <td style="font-weight: 700; color: #ffffff;">${team}</td>
+              <td style="font-weight: 600; color: var(--text-main);">${team}</td>
             </tr>
           `;
         });
