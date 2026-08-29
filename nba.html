@@ -103,6 +103,25 @@
       transform: translateY(-3px);
     }
 
+    .post-thumb {
+      width: 100%;
+      height: 220px;
+      overflow: hidden;
+      background: var(--bg-color);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .post-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.3s ease;
+    }
+
+    .post-card:hover .post-thumb img {
+      transform: scale(1.03);
+    }
+
     .post-content {
       padding: 1.75rem 2rem;
       display: flex;
@@ -330,15 +349,23 @@
             year: 'numeric'
           });
 
+          // Extract thumbnail image URL from feed properties or description HTML
+          let imgUrl = post.thumbnail || post.enclosure?.link;
+          if (!imgUrl) {
+            const imgMatch = post.description.match(/<img[^>]+src="([^">]+)"/);
+            if (imgMatch) imgUrl = imgMatch[1];
+          }
+
           const cleanSnippet = post.description
             .replace(/<[^>]*>?/gm, '')
             .replace(/&nbsp;/g, ' ')
             .trim()
-            .slice(0, 220) + '...';
+            .slice(0, 200) + '...';
 
           const postCard = document.createElement('article');
           postCard.className = 'post-card';
           postCard.innerHTML = `
+            ${imgUrl ? `<div class="post-thumb"><img src="${imgUrl}" alt="${post.title}" loading="lazy"></div>` : ''}
             <div class="post-content">
               <div class="post-meta">
                 <span class="post-badge">Substack Essay</span>
