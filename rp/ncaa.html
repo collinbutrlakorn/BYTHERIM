@@ -75,7 +75,9 @@
       transition: all 0.2s ease;
     }
 
-    .sim-btn:hover { background: #ffffff; transform: translateY(-1px); }
+    .sim-btn:hover:not(:disabled) { background: #ffffff; transform: translateY(-1px); }
+    .sim-btn:disabled { background: #333; color: #666; cursor: not-allowed; transform: none; }
+    
     .sim-btn-secondary { background: #161622; color: #e2e8f0; border: 1px solid rgba(255, 255, 255, 0.12); }
     .sim-btn-secondary:hover { background: #222234; color: #ffffff; }
 
@@ -259,16 +261,22 @@
       line-height: 1;
     }
     .close-btn:hover { color: #fff; }
+    
     .team-header { display: flex; align-items: center; gap: 1.5rem; margin-bottom: 2rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 1.5rem; }
     .team-logo { width: 100px; height: 100px; object-fit: contain; }
     .ap-rank { background: var(--brand-color); color: #000; font-weight: 800; padding: 4px 10px; border-radius: 6px; font-size: 1.2rem; display: none; }
     .team-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem; }
     .stat-box { background: #111118; border: 1px solid rgba(255, 255, 255, 0.04); padding: 1rem; border-radius: 8px; text-align: center; }
-    .stat-label { display: block; color: #7d8296; font-size: 0.85rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .stat-label { display: block; color: #7d8296; font-size: 0.85rem; font-weight: 700; margin-bottom: 0.5rem; text-transform: uppercase; }
     .stat-value { display: block; color: #fff; font-size: 1.75rem; font-weight: 800; }
+    
     .draft-projection { background: var(--brand-color-light); color: var(--brand-color); border: 1px solid var(--brand-color-border); padding: 4px 8px; border-radius: 4px; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; transition: all 0.2s; }
+    
     .clickable-school { cursor: pointer; color: var(--brand-color); font-weight: 700; transition: color 0.2s; }
     .clickable-school:hover { color: #fff; text-decoration: underline; }
+    
+    .clickable-player { cursor: pointer; color: #fff; font-weight: 700; transition: color 0.2s; }
+    .clickable-player:hover { color: var(--brand-color); text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -290,8 +298,8 @@
       <div class="panel-card">
         <span class="status-badge" id="currentPhaseDisplay">Preseason</span>
         <h2 style="margin: 0 0 0.5rem 0; font-size: 2rem; color: #fff;"><span id="currentYearDisplay">2028-29</span> SEASON</h2>
-        <p style="color: #7d8296; font-size: 0.95rem; margin-bottom: 1.5rem;">Simulate the active collegiate universe, team standings, and individual awards.</p>
-        <button class="sim-btn" onclick="SimEngine.simulateSeason()">Simulate Season</button>
+        <p style="color: #7d8296; font-size: 0.95rem; margin-bottom: 1.5rem;">Simulate the active collegiate universe, team standings, and individual box scores week-by-week.</p>
+        <button class="sim-btn" id="simWeekBtn" onclick="SimEngine.simulateWeek()">Simulate Week 1</button>
         <button class="sim-btn sim-btn-secondary" onclick="SimEngine.runOffseason()">Advance Offseason</button>
       </div>
       <div class="panel-card">
@@ -317,7 +325,7 @@
           <button style="background:transparent; border:1px solid var(--brand-color); color:var(--brand-color); border-radius:4px; padding:4px 8px; cursor:pointer;" onclick="switchTab('standingsTab', document.querySelectorAll('.tab-btn')[2])">View Standings &rarr;</button>
         </div>
         <div class="top-teams-container" id="dashTopTeams">
-          <p style="color:#7d8296;">Simulate season to generate rankings.</p>
+          <p style="color:#7d8296;">Simulate games to generate rankings.</p>
         </div>
         
         <h3 style="margin: 2rem 0 0 0; color:#fff;">Stat Leaders (Top 5)</h3>
@@ -366,7 +374,7 @@
           <table>
             <thead id="statsHeader"></thead>
             <tbody id="statsBody">
-              <tr><td colspan="25" style="text-align: center; color: #7d8296;">Simulate season to view leaderboards.</td></tr>
+              <tr><td colspan="25" style="text-align: center; color: #7d8296;">Simulate games to view leaderboards.</td></tr>
             </tbody>
           </table>
         </div>
@@ -375,7 +383,7 @@
       <!-- Standings Tab -->
       <div id="standingsTab" class="tab-content">
         <div id="standingsContainer">
-          <p style="text-align: center; color: #7d8296;">Simulate season to view standings.</p>
+          <p style="text-align: center; color: #7d8296;">Simulate games to view standings.</p>
         </div>
       </div>
 
@@ -399,17 +407,17 @@
 
         <h4 style="color: var(--brand-color); margin: 0 0 1rem 0; font-size: 1.2rem; text-transform: uppercase;">Major National Honors</h4>
         <div class="awards-grid" id="nationalAwardsGrid">
-          <p style="color: #7d8296;">Simulate season to calculate National Award winners.</p>
+          <p style="color: #7d8296;">Complete the season to view National Award winners.</p>
         </div>
 
         <h4 style="color: var(--brand-color); margin: 2rem 0 1rem 0; font-size: 1.2rem; text-transform: uppercase;">All-American Teams</h4>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.25rem; margin-bottom: 2rem;" id="allAmericanContainer">
-          <p style="color: #7d8296;">Simulate season to view All-American teams.</p>
+          <p style="color: #7d8296;">Complete the season to view All-American teams.</p>
         </div>
 
         <h4 style="color: var(--brand-color); margin: 2rem 0 1rem 0; font-size: 1.2rem; text-transform: uppercase;" id="confAwardsTitle">Conference Honors</h4>
         <div id="confAwardsContainer">
-          <p style="color: #7d8296;">Simulate season to view conference award winners.</p>
+          <p style="color: #7d8296;">Complete the season to view conference award winners.</p>
         </div>
       </div>
     </main>
@@ -425,6 +433,7 @@
     }
   </script>
   
+  <!-- Team Modal -->
   <div id="teamModal" class="modal-overlay">
     <div class="modal-content">
       <button class="close-btn" onclick="SimEngine.closeTeamModal()">&times;</button>
@@ -463,6 +472,53 @@
             </tr>
           </thead>
           <tbody id="modalRosterBody">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Player Modal -->
+  <div id="playerModal" class="modal-overlay">
+    <div class="modal-content">
+      <button class="close-btn" onclick="SimEngine.closePlayerModal()">&times;</button>
+      
+      <div class="team-header">
+        <img id="modalPlayerLogo" src="" alt="School Logo" class="team-logo">
+        <div class="team-title-block">
+          <h2 id="modalPlayerName" style="margin: 0; font-size: 2.5rem; color: #fff; text-transform: uppercase;"></h2>
+          <span id="modalPlayerBio" style="color: var(--brand-color); font-weight: 700; font-size: 1.1rem; display: block; margin-top: 4px;"></span>
+          <span id="modalPlayerAccolades" style="color: #FFD700; font-weight: 800; font-size: 0.95rem; display: block; margin-top: 6px;"></span>
+        </div>
+      </div>
+
+      <div class="team-stats-grid">
+        <div class="stat-box"><span class="stat-label">PPG</span><span id="modalPlayerPPG" class="stat-value">0.0</span></div>
+        <div class="stat-box"><span class="stat-label">RPG</span><span id="modalPlayerRPG" class="stat-value">0.0</span></div>
+        <div class="stat-box"><span class="stat-label">APG</span><span id="modalPlayerAPG" class="stat-value">0.0</span></div>
+        <div class="stat-box"><span class="stat-label">FG%</span><span id="modalPlayerFG" class="stat-value">.000</span></div>
+      </div>
+
+      <h3 style="color: #fff; margin-bottom: 1rem; text-transform: uppercase;">Game Log <span style="font-size: 0.8rem; color: #7d8296; margin-left: 8px;">(Current Season)</span></h3>
+      <div class="table-scroll">
+        <table style="width: 100%; border-collapse: collapse; text-align: left;">
+          <thead>
+            <tr>
+              <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #7d8296;">Wk</th>
+              <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #7d8296;">Type</th>
+              <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #7d8296;">MIN</th>
+              <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--brand-color);">PTS</th>
+              <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #7d8296;">REB</th>
+              <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #7d8296;">AST</th>
+              <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #7d8296;">STL</th>
+              <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #7d8296;">BLK</th>
+              <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #7d8296;">TOV</th>
+              <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #7d8296;">FGM-A</th>
+              <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #7d8296;">3PM-A</th>
+              <th style="padding: 1rem; border-bottom: 1px solid rgba(255,255,255,0.05); color: #7d8296;">FTM-A</th>
+            </tr>
+          </thead>
+          <tbody id="modalPlayerGameLog">
           </tbody>
         </table>
       </div>
