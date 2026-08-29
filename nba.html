@@ -75,6 +75,14 @@
       width: 320px;
     }
 
+    /* Main Grid Layout for Articles + Power Rankings */
+    .content-layout {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: 2rem;
+      align-items: start;
+    }
+
     .articles-feed {
       display: flex;
       flex-direction: column;
@@ -158,6 +166,82 @@
     .fallback-link a:hover {
       color: #ffffff;
     }
+
+    /* Power Rankings Sidebar Styles */
+    .power-rankings-card {
+      background: #0a0a0e;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+      position: sticky;
+      top: 2rem;
+    }
+
+    .rankings-header {
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .rankings-header h2 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #ffffff;
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .rankings-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 1rem;
+    }
+
+    .rankings-table th {
+      text-align: left;
+      color: #7d8296;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .rankings-table td {
+      padding: 0.55rem 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .stock-up {
+      color: #22c55e;
+      font-weight: 800;
+      font-size: 0.85rem;
+    }
+
+    .stock-down {
+      color: #ef4444;
+      font-weight: 800;
+      font-size: 0.85rem;
+    }
+
+    .stock-same {
+      color: #6b7280;
+      font-weight: 800;
+      font-size: 0.85rem;
+    }
+
+    /* Responsive adjustment for mobile screens */
+    @media (max-width: 900px) {
+      .content-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .power-rankings-card {
+        position: static;
+      }
+    }
   </style>
 </head>
 <body>
@@ -190,9 +274,24 @@
       </div>
     </div>
 
-    <!-- Automated Substack Articles Feed -->
-    <div class="articles-feed" id="articlesFeed">
-      <p style="color: #8a8d9b; text-align: center; padding: 3rem 0;">Loading latest articles...</p>
+    <!-- Layout Container: Left Articles, Right Power Rankings -->
+    <div class="content-layout">
+      
+      <!-- Automated Substack Articles Feed -->
+      <div class="articles-feed" id="articlesFeed">
+        <p style="color: #8a8d9b; text-align: center; padding: 3rem 0;">Loading latest articles...</p>
+      </div>
+
+      <!-- NBA Power Rankings Sidebar -->
+      <aside class="power-rankings-card">
+        <div class="rankings-header">
+          <h2>POWER RANKINGS</h2>
+        </div>
+        <div id="rankingsContainer">
+          <p style="color: #8a8d9b; text-align: center; padding: 1.5rem 0; margin: 0;">Loading rankings...</p>
+        </div>
+      </aside>
+
     </div>
 
   </div>
@@ -200,6 +299,7 @@
   <script>
     const SUBSTACK_RSS_URL = 'https://collindunks.substack.com/feed';
     const RSS2JSON_API = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(SUBSTACK_RSS_URL)}`;
+    const POWER_RANKINGS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQMJMNBf3_TF9bQZrCrIo1WmJZH0LmM5oc-CRFx4orZyY4GHeVeSpEiKr7366GxcOnX0BZrfW1InNE-/pub?gid=0&single=true&output=csv';
 
     async function fetchSubstackPosts() {
       const feedContainer = document.getElementById('articlesFeed');
@@ -253,7 +353,103 @@
       }
     }
 
-    document.addEventListener('DOMContentLoaded', fetchSubstackPosts);
+    async function fetchPowerRankings() {
+      const rankingsContainer = document.getElementById('rankingsContainer');
+
+      try {
+        const response = await fetch(POWER_RANKINGS_CSV_URL);
+        if (!response.ok) throw new Error('Failed to fetch Power Rankings CSV');
+        
+        const csvText = await response.text();
+        const rows = parseCSV(csvText);
+
+        if (!rows.length) {
+          rankingsContainer.innerHTML = '<p style="color: #8a8d9b; text-align: center;">No rankings available.</p>';
+          return;
+        }
+
+        let tableHtml = `
+          <table class="rankings-table">
+            <thead>
+              <tr>
+                <th style="width: 20%;">Rank</th>
+                <th style="width: 20%; text-align: center;">Stock</th>
+                <th style="width: 60%;">Team</th>
+              </tr>
+            </thead>
+            <tbody>
+        `;
+
+        rows.forEach(row => {
+          // Fallback field mapping for header variants
+          const rank = row.Rank || row.rank || '';
+          const stockVal = (row.Stock || row.stock || '').trim();
+          const team = row.Team || row.team || '';
+
+          let stockIcon = '<span class="stock-same">&mdash;</span>';
+          if (stockVal.toLowerCase() === 'up') {
+            stockIcon = '<span class="stock-up">&#9650;</span>';
+          } else if (stockVal.toLowerCase() === 'down') {
+            stockIcon = '<span class="stock-down">&#9660;</span>';
+          }
+
+          tableHtml += `
+            <tr>
+              <td style="font-weight: 800; color: #38bdf8;">#${rank}</td>
+              <td style="text-align: center;">${stockIcon}</td>
+              <td style="font-weight: 700; color: #ffffff;">${team}</td>
+            </tr>
+          `;
+        });
+
+        tableHtml += '</tbody></table>';
+        rankingsContainer.innerHTML = tableHtml;
+
+      } catch (error) {
+        console.error("Power Rankings Fetch Error:", error);
+        rankingsContainer.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 1rem 0;">Unable to load rankings.</p>';
+      }
+    }
+
+    function parseCSV(csvData) {
+      const lines = csvData.split(/\r?\n/);
+      const result = [];
+      if (lines.length === 0) return result;
+
+      const headers = lines[0].split(',').map(h => h.trim().replace(/(^"|"$)/g, ''));
+
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+
+        let rowValues = [];
+        let inQuotes = false;
+        let currentValue = '';
+
+        for (let char of lines[i]) {
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            rowValues.push(currentValue.trim());
+            currentValue = '';
+          } else {
+            currentValue += char;
+          }
+        }
+        rowValues.push(currentValue.trim());
+
+        let obj = {};
+        headers.forEach((header, index) => {
+          obj[header] = rowValues[index] ? rowValues[index].replace(/(^"|"$)/g, '') : '';
+        });
+        result.push(obj);
+      }
+      return result;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchSubstackPosts();
+      fetchPowerRankings();
+    });
   </script>
 
 </body>
