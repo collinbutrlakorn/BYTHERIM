@@ -842,4 +842,26 @@ img {
     background: rgba(15, 15, 18, 0.85); /* Darkens banner background on mobile screens */
   }
 }
+/* RP Card Header Layout */
+.rp-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+  gap: 1rem;
+}
+
+.rp-module-logo {
+  height: 48px;
+  max-width: 150px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
+}
+
+@media (max-width: 480px) {
+  .rp-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
 
