@@ -596,22 +596,12 @@ h1, h2, h3, .section-title, .hero h1, .card h3 {
 /* Automatically switch colors when the device is set to Light Mode */
 @media (prefers-color-scheme: light) {
   :root {
-    --bg-color: #f4f5f9;
-    --card-bg: #ffffff;
-    --card-hover: #eaedf5;
-    --accent: #964282;
-    --accent-dark: #5e2a4f;
-    --text-main: #171b2e;
-    --text-muted: #5a6282;
-    --border: #d0d5e5;
-  }
-
-  .navbar,
-  .footer {
-    background-color: rgba(244, 245, 249, 0.98);
-  }
-
-  .connect-btn {
-    background: rgba(0, 0, 0, 0.04);
+    --bg-color: #e2e8f0;        /* Deeper cool slate instead of bright white */
+    --card-bg: #f8fafc;        /* Soft off-white for cards */
+    --card-hover: #ffffff;
+    --text-main: #1e293b;      /* Slate dark grey instead of sharp black */
+    --text-muted: #64748b;
+    --border: #cbd5e1;
   }
 }
+
