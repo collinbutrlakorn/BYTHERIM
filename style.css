@@ -567,3 +567,75 @@ h1, h2, h3, .section-title, .hero h1, .card h3 {
   cursor: not-allowed;
   opacity: 0.6;
 }
+/* Social & Platform Connect Hub */
+.connect-hub {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.25rem 1.75rem;
+  margin-bottom: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.connect-hub-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-main);
+  white-space: nowrap;
+}
+
+.connect-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.connect-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  color: var(--text-main);
+  text-decoration: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.connect-btn:hover {
+  background: var(--card-hover);
+  transform: translateY(-2px);
+}
+
+.connect-btn.yt:hover { border-color: #FF0000; color: #FF0000; }
+.connect-btn.spotify:hover { border-color: #1DB954; color: #1DB954; }
+.connect-btn.x-twitter:hover { border-color: #ffffff; color: #ffffff; }
+.connect-btn.substack:hover { border-color: #FF6719; color: #FF6719; }
+
+@media (max-width: 768px) {
+  .connect-hub {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .connect-links {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .connect-btn {
+    justify-content: center;
+  }
+}
