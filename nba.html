@@ -264,7 +264,7 @@
     .team-cell {
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.6rem;
       font-weight: 600;
       color: var(--text-main);
     }
@@ -433,12 +433,11 @@
         rows.forEach(row => {
           const rank = row.Rank || row.rank || '';
           const stockVal = (row.Stock || row.stock || '').trim();
-          const team = row.Team || row.team || '';
+          const team = (row.Team || row.team || '').trim();
           
-          // Determine logo filename from CSV column (if present) or team slug
-          const customLogo = row.Logo || row.logo || '';
-          const teamSlug = team.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const logoFileName = customLogo ? customLogo : `${teamSlug}.png`;
+          // Match precise logo filename format "Atlanta Hawks.png" in the nbalogos directory
+          const customLogo = (row.Logo || row.logo || '').trim();
+          const logoFileName = customLogo ? customLogo : `${team}.png`;
           const logoPath = `nbalogos/${logoFileName}`;
 
           let stockIcon = '<span class="stock-same">&mdash;</span>';
