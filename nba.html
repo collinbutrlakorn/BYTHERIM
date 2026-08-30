@@ -73,7 +73,7 @@
       width: 320px;
     }
 
-    /* Main Two-Column Layout */
+    /* Main Two-Column Layout (Feed Left, Power Rankings Right) */
     .content-layout {
       display: grid;
       grid-template-columns: 1fr 340px;
@@ -260,6 +260,22 @@
       font-size: 0.85rem;
     }
 
+    /* Team Cell & Logo Styling */
+    .team-cell {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .team-logo {
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+
     @media (max-width: 900px) {
       .content-layout {
         grid-template-columns: 1fr;
@@ -301,7 +317,7 @@
       </div>
     </div>
 
-    <!-- Layout: Substack Feed + Power Rankings Sidebar -->
+    <!-- Layout: Automated Articles Feed (Left) + Power Rankings Sidebar (Right) -->
     <div class="content-layout">
       
       <!-- Automated Substack Articles Feed -->
@@ -309,7 +325,7 @@
         <p style="color: var(--text-muted); text-align: center; padding: 3rem 0;">Loading latest articles...</p>
       </div>
 
-      <!-- Live NBA Power Rankings Sidebar -->
+      <!-- Live NBA Power Rankings Sidebar (Right) -->
       <aside class="power-rankings-card">
         <div class="rankings-header">
           <h2>POWER RANKINGS</h2>
@@ -418,6 +434,12 @@
           const rank = row.Rank || row.rank || '';
           const stockVal = (row.Stock || row.stock || '').trim();
           const team = row.Team || row.team || '';
+          
+          // Determine logo filename from CSV column (if present) or team slug
+          const customLogo = row.Logo || row.logo || '';
+          const teamSlug = team.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const logoFileName = customLogo ? customLogo : `${teamSlug}.png`;
+          const logoPath = `nbalogos/${logoFileName}`;
 
           let stockIcon = '<span class="stock-same">&mdash;</span>';
           if (stockVal.toLowerCase() === 'up') {
@@ -430,7 +452,12 @@
             <tr>
               <td class="rank-number">#${rank}</td>
               <td style="text-align: center;">${stockIcon}</td>
-              <td style="font-weight: 600; color: var(--text-main);">${team}</td>
+              <td>
+                <div class="team-cell">
+                  <img src="${logoPath}" alt="${team} Logo" class="team-logo" onerror="this.style.display='none'">
+                  <span>${team}</span>
+                </div>
+              </td>
             </tr>
           `;
         });
