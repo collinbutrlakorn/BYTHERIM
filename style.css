@@ -718,4 +718,31 @@ h1, h2, h3, .section-title, .hero h1, .card h3 {
 .donate-btn:hover .btn-icon {
   transform: scale(1.15) rotate(-5deg);
 }
+/* Responsive Image Defaults */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Card Image Containers */
+.card-img-wrapper {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 8px 8px 0 0;
+  background: var(--border);
+  margin-bottom: 1rem;
+}
+
+.card-img-wrapper img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.card:hover .card-img-wrapper img {
+  transform: scale(1.04);
+}
 
