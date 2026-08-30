@@ -593,3 +593,25 @@ h1, h2, h3, .section-title, .hero h1, .card h3 {
     gap: 2rem;
   }
 }
+/* Automatically switch colors when the device is set to Light Mode */
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-color: #f4f5f9;
+    --card-bg: #ffffff;
+    --card-hover: #eaedf5;
+    --accent: #964282;
+    --accent-dark: #5e2a4f;
+    --text-main: #171b2e;
+    --text-muted: #5a6282;
+    --border: #d0d5e5;
+  }
+
+  .navbar,
+  .footer {
+    background-color: rgba(244, 245, 249, 0.98);
+  }
+
+  .connect-btn {
+    background: rgba(0, 0, 0, 0.04);
+  }
+}
