@@ -83,6 +83,14 @@
       <a href="./rp/" class="cta-btn">Enter the RP Experience &rarr;</a>
     </div>
   </section>
+<div class="search-box">
+  <input 
+    type="text" 
+    id="cardSearch" 
+    placeholder="Search articles, film breakdowns, or rankings..." 
+    aria-label="Search site content"
+  >
+</div>
 
   <!-- Content Carousel -->
   <main class="container">
@@ -218,6 +226,20 @@
     });
   }
 </script>
+<script>
+  const searchInput = document.getElementById('cardSearch');
+  const cards = document.querySelectorAll('.card, .media-card');
 
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase().trim();
+
+      cards.forEach(card => {
+        const text = card.textContent.toLowerCase();
+        card.style.display = text.includes(query) ? '' : 'none';
+      });
+    });
+  }
+</script>
 </body>
 </html>
