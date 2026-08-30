@@ -793,19 +793,28 @@ img {
   align-items: center;
 }
 
+/* Hero Banner Background Gradient (Tightened to Left Side) */
 .hero-banner::before {
   content: '';
   position: absolute;
   inset: 0;
-  /* Gradient overlay ensures graphic shows through while text remains 100% readable */
+  /* Dark shadow holds tight on the left behind text, then rapidly clears to show artwork */
   background: linear-gradient(
     90deg, 
     rgba(15, 15, 18, 0.95) 0%, 
-    rgba(15, 15, 18, 0.8) 50%, 
-    rgba(15, 15, 18, 0.35) 100%
+    rgba(15, 15, 18, 0.85) 30%, 
+    rgba(15, 15, 18, 0.2) 60%, 
+    rgba(15, 15, 18, 0) 80%
   );
   z-index: 1;
 }
+
+/* Optional: Adds subtle drop shadow directly to text to ensure readability over brighter graphics */
+.hero-banner .hero-content h1,
+.hero-banner .hero-content p {
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+}
+
 
 .hero-banner .hero-content {
   position: relative;
