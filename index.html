@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-   <!-- Primary Meta Tags -->
+  <!-- Primary Meta Tags -->
   <meta name="title" content="BYTHERIM | NBA Draft Analysis & Film Breakdown">
   <meta name="description" content="In-depth NBA draft analysis, prospect scouting reports, film breakdowns, and NBA discourse.">
   
@@ -19,7 +19,6 @@
   <meta property="twitter:description" content="In-depth NBA draft analysis, prospect scouting reports, film breakdowns, and NBA discourse.">
   <meta property="twitter:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
 
-  
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png">
 
@@ -27,7 +26,7 @@
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -48,9 +47,11 @@
     <a href="podcast.html">Podcast</a>
     <a href="draft.html">Draft</a>
     <a href="nba.html">NBA</a>
+    <a href="about.html">About</a>
     <a href="./rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
   </nav>
 </header>
+
 <!-- Social & Platform Connect Hub -->
 <div class="connect-hub">
   <div class="connect-hub-title">CONNECT & FOLLOW</div>
@@ -74,106 +75,99 @@
   </div>
 </div>
 
-  <!-- Hero Feature Section -->
-  <section class="hero">
-    <div class="hero-content">
-      <span class="tag">UNBIASED BASKETBALL COVERAGE</span>
-      <h1>UNBIASED HOOPS ANALYSIS</h1>
-      <p>BYTHERIM is an unbiased basketball platform dedicated to pure love of the game where we deliver deep-dives & scouting reports, basketball commentary, and an interactive role-playing database.</p>
-      <a href="./rp/" class="cta-btn">Enter the RP Experience &rarr;</a>
-    </div>
-  </section>
-<div class="search-box">
-  <input 
-    type="text" 
-    id="cardSearch" 
-    placeholder="Search articles, film breakdowns, or rankings..." 
-    aria-label="Search site content"
-  >
-</div>
+<!-- Hero Feature Section -->
+<section class="hero">
+  <div class="hero-content">
+    <span class="tag">UNBIASED BASKETBALL COVERAGE</span>
+    <h1>UNBIASED HOOPS ANALYSIS</h1>
+    <p>BYTHERIM is an unbiased basketball platform dedicated to pure love of the game where we deliver deep-dives & scouting reports, basketball commentary, and an interactive role-playing database.</p>
+    <a href="./rp/" class="cta-btn">Enter the RP Experience &rarr;</a>
+  </div>
+</section>
 
-  <!-- Content Carousel -->
-  <main class="container">
-    <div class="carousel-header">
-      <h2 class="section-title">LATEST INSIGHTS</h2>
-      <div class="carousel-controls">
-        <button class="carousel-btn" id="prevBtn" aria-label="Previous posts">&larr;</button>
-        <button class="carousel-btn" id="nextBtn" aria-label="Next posts">&rarr;</button>
+<!-- Main Section with Search & Carousel -->
+<main class="container">
+  
+  <!-- Search Input Bar -->
+  <div class="search-box">
+    <input 
+      type="text" 
+      id="cardSearch" 
+      placeholder="Search articles, film breakdowns, or rankings..." 
+      aria-label="Search site content"
+    >
+  </div>
+
+  <div class="carousel-header">
+    <h2 class="section-title">LATEST INSIGHTS</h2>
+    <div class="carousel-controls">
+      <button class="carousel-btn" id="prevBtn" aria-label="Previous posts">&larr;</button>
+      <button class="carousel-btn" id="nextBtn" aria-label="Next posts">&rarr;</button>
+    </div>
+  </div>
+
+  <div class="carousel-track" id="carouselTrack">
+    <article class="card slide">
+      <div class="card-tag">ANALYSIS</div>
+      <h3>Modern Offense & Court Geometry</h3>
+      <p>Breaking down dynamic pick-and-roll spacing and how ball-handler mechanics alter defense rotations.</p>
+    </article>
+    <article class="card slide">
+      <div class="card-tag">PODCAST</div>
+      <h3>Episode 01: The Draft Hub</h3>
+      <p>Analyzing elite high school prospects making their mark on national scouting radars.</p>
+    </article>
+    <article class="card slide">
+      <div class="card-tag">SIMULATION</div>
+      <h3>RP High School Recruiting Live</h3>
+      <p>Track class ratings, offer sheets, and commit announcements in our custom RP universe.</p>
+    </article>
+    <article class="card slide">
+      <div class="card-tag">SCOUTING</div>
+      <h3>Mid-Major Sleepers to Watch</h3>
+      <p>Highlighting under-the-radar wing prospects with high translation efficiency.</p>
+    </article>
+    <article class="card slide">
+      <div class="card-tag">CULTURE</div>
+      <h3>The Unbiased Eye Test</h3>
+      <p>Why raw context and tape breakdown beat relying strictly on surface-level box scores.</p>
+    </article>
+  </div>
+</main>
+
+<!-- Social & Media Feeds Section -->
+<section class="container social-section">
+  <h2 class="section-title">MEDIA & COMMUNITY</h2>
+  <div class="media-grid">
+    
+    <!-- YouTube Video / Channel Embed -->
+    <div class="media-card">
+      <h3 class="media-header">LATEST VIDEO</h3>
+      <div class="video-container">
+        <iframe 
+          src="https://www.youtube.com/embed/videoseries?list=PL86AVwi1070FWesM2xzcu3ul8QPEMaSlx" 
+          title="BYTHERIM YouTube" 
+          frameborder="0" 
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+          allowfullscreen>
+        </iframe>
       </div>
     </div>
 
-    <div class="carousel-track" id="carouselTrack">
-      <article class="card slide">
-        <div class="card-tag">ANALYSIS</div>
-        <h3>Modern Offense & Court Geometry</h3>
-        <p>Breaking down dynamic pick-and-roll spacing and how ball-handler mechanics alter defense rotations.</p>
-      </article>
-      <article class="card slide">
-        <div class="card-tag">PODCAST</div>
-        <h3>Episode 01: The Draft Hub</h3>
-        <p>Analyzing elite high school prospects making their mark on national scouting radars.</p>
-      </article>
-      <article class="card slide">
-        <div class="card-tag">SIMULATION</div>
-        <h3>RP High School Recruiting Live</h3>
-        <p>Track class ratings, offer sheets, and commit announcements in our custom RP universe.</p>
-      </article>
-      <article class="card slide">
-        <div class="card-tag">SCOUTING</div>
-        <h3>Mid-Major Sleepers to Watch</h3>
-        <p>Highlighting under-the-radar wing prospects with high translation efficiency.</p>
-      </article>
-      <article class="card slide">
-        <div class="card-tag">CULTURE</div>
-        <h3>The Unbiased Eye Test</h3>
-        <p>Why raw context and tape breakdown beat relying strictly on surface-level box scores.</p>
-      </article>
-    </div>
-  </main>
-
-  <!-- Social & Media Feeds Section -->
-  <section class="container social-section">
-    <h2 class="section-title">MEDIA & COMMUNITY</h2>
-    <div class="media-grid">
-      
-      <!-- YouTube Video / Channel Embed -->
-      <div class="media-card">
-        <h3 class="media-header">LATEST VIDEO</h3>
-        <div class="video-container">
-          <iframe 
-            src="https://www.youtube.com/embed/videoseries?list=PL86AVwi1070FWesM2xzcu3ul8QPEMaSlx" 
-            title="BYTHERIM YouTube" 
-            frameborder="0" 
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-            allowfullscreen>
-          </iframe>
-        </div>
+    <!-- Twitter / X Brand Card -->
+    <div class="media-card twitter-brand-card">
+      <h3 class="media-header">COMMUNITY & UPDATES</h3>
+      <div class="twitter-cta-box">
+        <div class="x-logo">𝕏</div>
+        <h4>JOIN THE CONVERSATION</h4>
+        <p>Follow @collinbutr on X for live game reactions, recruiting alerts, and daily hoops analysis.</p>
+        <a href="https://x.com/collinbutr" target="_blank" rel="noopener" class="x-follow-btn">Follow @collinbutr</a>
       </div>
-
-      <!-- Twitter / X Brand Card -->
-      <div class="media-card twitter-brand-card">
-        <h3 class="media-header">COMMUNITY & UPDATES</h3>
-        <div class="twitter-cta-box">
-          <div class="x-logo">𝕏</div>
-          <h4>JOIN THE CONVERSATION</h4>
-          <p>Follow @collinbutr on X for live game reactions, recruiting alerts, and daily hoops analysis.</p>
-          <a href="https://x.com/collinbutr" target="_blank" rel="noopener" class="x-follow-btn">Follow @collinbutr</a>
-        </div>
-      </div>
-
     </div>
-  </section>
 
-  <!-- Carousel Scroll Script -->
-  <script>
-    const track = document.getElementById('carouselTrack');
-    document.getElementById('nextBtn').addEventListener('click', () => {
-      track.scrollBy({ left: 320, behavior: 'smooth' });
-    });
-    document.getElementById('prevBtn').addEventListener('click', () => {
-      track.scrollBy({ left: -320, behavior: 'smooth' });
-    });
-  </script>
+  </div>
+</section>
+
 <!-- Global Footer -->
 <footer class="footer">
   <div class="footer-container">
@@ -188,6 +182,7 @@
       <a href="podcast.html">Podcast</a>
       <a href="draft.html">Draft</a>
       <a href="nba.html">NBA</a>
+      <a href="about.html">About</a>
       <a href="./rp/">BYTHERIM RP</a>
     </div>
 
@@ -204,7 +199,24 @@
     <p>&copy; 2026 BYTHERIM. All rights reserved.</p>
   </div>
 </footer>
+
+<!-- Scripts -->
 <script>
+  // Carousel Navigation Controls
+  const track = document.getElementById('carouselTrack');
+  const nextBtn = document.getElementById('nextBtn');
+  const prevBtn = document.getElementById('prevBtn');
+
+  if (track && nextBtn && prevBtn) {
+    nextBtn.addEventListener('click', () => {
+      track.scrollBy({ left: 320, behavior: 'smooth' });
+    });
+    prevBtn.addEventListener('click', () => {
+      track.scrollBy({ left: -320, behavior: 'smooth' });
+    });
+  }
+
+  // Mobile Menu Toggle
   const navToggle = document.getElementById('navToggle');
   const navLinks = document.getElementById('navLinks');
 
@@ -214,19 +226,8 @@
       navLinks.classList.toggle('active');
     });
   }
-</script>
-<script>
-  const navToggle = document.getElementById('navToggle');
-  const navLinks = document.getElementById('navLinks');
 
-  if (navToggle && navLinks) {
-    navToggle.addEventListener('click', () => {
-      navToggle.classList.toggle('active');
-      navLinks.classList.toggle('active');
-    });
-  }
-</script>
-<script>
+  // Live Card Search Filter
   const searchInput = document.getElementById('cardSearch');
   const cards = document.querySelectorAll('.card, .media-card');
 
