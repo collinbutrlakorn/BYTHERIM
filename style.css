@@ -749,4 +749,88 @@ img {
   color: var(--accent);
   border-bottom: 2px solid var(--accent);
 }
+/* Split Hero Layout (Text Left, Graphic Right) */
+.hero {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 2.5rem;
+  align-items: center;
+  padding: 4rem 2rem;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border);
+  min-height: 420px;
+}
+
+.hero-content {
+  max-width: 600px;
+}
+
+.hero-graphic {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.hero-graphic img {
+  width: 100%;
+  max-height: 380px;
+  object-fit: contain;
+  filter: drop-shadow(0 15px 25px rgba(0, 0, 0, 0.45));
+}
+
+/* Full Width Banner Hero (Background Graphic with Text Overlay) */
+.hero-banner {
+  position: relative;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  padding: 5rem 2rem;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  min-height: 380px;
+  display: flex;
+  align-items: center;
+}
+
+.hero-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* Gradient overlay ensures graphic shows through while text remains 100% readable */
+  background: linear-gradient(
+    90deg, 
+    rgba(15, 15, 18, 0.95) 0%, 
+    rgba(15, 15, 18, 0.8) 50%, 
+    rgba(15, 15, 18, 0.35) 100%
+  );
+  z-index: 1;
+}
+
+.hero-banner .hero-content {
+  position: relative;
+  z-index: 2;
+  max-width: 650px;
+}
+
+/* Mobile Responsive Adjustments */
+@media (max-width: 768px) {
+  .hero {
+    grid-template-columns: 1fr;
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+  }
+
+  .hero-graphic {
+    order: -1; /* Displays graphic above text on mobile screens */
+  }
+
+  .hero-graphic img {
+    max-height: 260px;
+  }
+
+  .hero-banner::before {
+    background: rgba(15, 15, 18, 0.85); /* Darkens banner background on mobile screens */
+  }
+}
 
