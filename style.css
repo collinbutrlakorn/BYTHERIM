@@ -636,4 +636,86 @@ h1, h2, h3, .section-title, .hero h1, .card h3 {
   line-height: 1.6;
   padding: 1.25rem;
 }
+/* Optimized Donation Card Container */
+.donate-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 3rem 2rem;
+  text-align: center;
+  margin-top: 3.5rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Accent Top Glow Highlight */
+.donate-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+}
+
+.donate-card h3 {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.75rem;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.75rem;
+  color: var(--text-main);
+  text-transform: uppercase;
+}
+
+.donate-card p {
+  color: var(--text-muted);
+  font-size: 1.05rem;
+  max-width: 580px;
+  margin: 0 auto 2rem auto;
+  line-height: 1.6;
+}
+
+/* Custom Gradient Button Component */
+.donate-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-dark) 100%);
+  color: #ffffff !important;
+  padding: 0.95rem 2.25rem;
+  border-radius: 50px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-decoration: none;
+  box-shadow: 0 4px 15px rgba(150, 66, 130, 0.35);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.donate-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(150, 66, 130, 0.55);
+  background: linear-gradient(135deg, #a74891 0%, #6e305e 100%);
+}
+
+.donate-btn:active {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(150, 66, 130, 0.4);
+}
+
+.donate-btn .btn-icon {
+  display: inline-flex;
+  align-items: center;
+  transition: transform 0.2s ease;
+}
+
+.donate-btn:hover .btn-icon {
+  transform: scale(1.15) rotate(-5deg);
+}
 
