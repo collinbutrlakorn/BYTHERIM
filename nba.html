@@ -1,26 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
- <!-- Primary Meta Tags -->
-<title>BYTHERIM | NBA Analysis & Discourse</title>
-<meta name="title" content="BYTHERIM | NBA Analysis & Discourse">
-<meta name="description" content="Tactical NBA analysis, team breakdowns, roster construction evaluations, and league discourse.">
+  <title>BYTHERIM | NBA Analysis & Discourse</title>
+  <meta name="title" content="BYTHERIM | NBA Analysis & Discourse">
+  <meta name="description" content="Tactical NBA analysis, team breakdowns, roster construction evaluations, and league discourse.">
 
-<!-- Open Graph / Facebook / Discord / iMessage -->
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://collinbutrlakorn.github.io/BYTHERIM/nba.html">
-<meta property="og:title" content="BYTHERIM | NBA Analysis & Discourse">
-<meta property="og:description" content="Tactical NBA analysis, team breakdowns, roster construction evaluations, and league discourse.">
-<meta property="og:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://collinbutrlakorn.github.io/BYTHERIM/nba.html">
+  <meta property="og:title" content="BYTHERIM | NBA Analysis & Discourse">
+  <meta property="og:description" content="Tactical NBA analysis, team breakdowns, roster construction evaluations, and league discourse.">
+  <meta property="og:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
 
-<!-- X (Twitter) Card -->
-<meta property="twitter:card" content="summary_large_image">
-<meta property="twitter:url" content="https://collinbutrlakorn.github.io/BYTHERIM/nba.html">
-<meta property="twitter:title" content="BYTHERIM | NBA Analysis & Discourse">
-<meta property="twitter:description" content="Tactical NBA analysis, team breakdowns, roster construction evaluations, and league discourse.">
-<meta property="twitter:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://collinbutrlakorn.github.io/BYTHERIM/nba.html">
+  <meta property="twitter:title" content="BYTHERIM | NBA Analysis & Discourse">
+  <meta property="twitter:description" content="Tactical NBA analysis, team breakdowns, roster construction evaluations, and league discourse.">
+  <meta property="twitter:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
 
-  
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -48,7 +44,7 @@
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 2rem;
-      margin-bottom: 2rem;
+      margin-bottom: 1.5rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -89,12 +85,103 @@
       width: 320px;
     }
 
-    /* Main Two-Column Layout (Feed Left, Power Rankings Right) */
+    /* Social & Platform Connect Hub */
+    .connect-hub {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.5rem;
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1.5rem;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .connect-hub-title {
+      font-family: 'Oswald', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--text-main);
+      white-space: nowrap;
+    }
+
+    .connect-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .connect-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.45rem 0.9rem;
+      color: var(--text-main);
+      text-decoration: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+
+    .connect-btn:hover {
+      background: var(--card-hover);
+      transform: translateY(-2px);
+    }
+
+    .connect-btn.yt:hover { border-color: #FF0000; color: #FF0000; }
+    .connect-btn.spotify:hover { border-color: #1DB954; color: #1DB954; }
+    .connect-btn.x-twitter:hover { border-color: #ffffff; color: #ffffff; }
+    .connect-btn.substack:hover { border-color: #FF6719; color: #FF6719; }
+
+    /* Category Filter Bar */
+    .filter-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .filter-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 0.45rem 1.1rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .filter-btn:hover {
+      color: var(--text-main);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .filter-btn.active {
+      background: var(--accent, #3b82f6);
+      color: #ffffff;
+      border-color: var(--accent, #3b82f6);
+    }
+
+    /* Main Two-Column Layout */
     .content-layout {
       display: grid;
       grid-template-columns: 1fr 340px;
       gap: 2rem;
       align-items: start;
+    }
+
+    .feed-column {
+      display: flex;
+      flex-direction: column;
     }
 
     .articles-feed {
@@ -111,6 +198,10 @@
       overflow: hidden;
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
       transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+    }
+
+    .post-card.is-hidden {
+      display: none !important;
     }
 
     .post-card:hover {
@@ -276,7 +367,6 @@
       font-size: 0.85rem;
     }
 
-    /* Team Cell & Logo Styling */
     .team-cell {
       display: flex;
       align-items: center;
@@ -300,34 +390,46 @@
       .power-rankings-card {
         position: static;
       }
+
+      .connect-hub {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+      }
+
+      .connect-links {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .connect-btn {
+        justify-content: center;
+      }
     }
   </style>
 </head>
 <body>
 
- <!-- Navigation Bar Header -->
-<header class="navbar">
-  <a href="./" class="brand-logo">
-    <img src="logo.png" alt="BYTHERIM Logo" class="logo-img">
-  </a>
+  <header class="navbar">
+    <a href="./" class="brand-logo">
+      <img src="logo.png" alt="BYTHERIM Logo" class="logo-img">
+    </a>
 
-  <!-- Mobile Toggle Button -->
-  <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
-    <span class="bar"></span>
-    <span class="bar"></span>
-    <span class="bar"></span>
-  </button>
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+      <span class="bar"></span>
+      <span class="bar"></span>
+      <span class="bar"></span>
+    </button>
 
-  <nav class="nav-links" id="navLinks">
-    <a href="podcast.html">Podcast</a>
-    <a href="draft.html">Draft</a>
-    <a href="nba.html">NBA</a>
-    <a href="./rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
-  </nav>
-</header>
+    <nav class="nav-links" id="navLinks">
+      <a href="podcast.html">Podcast</a>
+      <a href="draft.html">Draft</a>
+      <a href="nba.html">NBA</a>
+      <a href="./rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
+    </nav>
+  </header>
 
-
-  <!-- Main Content Container -->
   <div class="container">
     
     <div class="header-card">
@@ -336,21 +438,48 @@
         <p>Long-form essays, tactical breakdowns, and Substack newsletters</p>
       </div>
 
-      <!-- Substack Inline Subscribe Widget -->
       <div class="substack-subscribe-box">
         <iframe src="https://collindunks.substack.com/embed" scrolling="no"></iframe>
       </div>
     </div>
 
-    <!-- Layout: Automated Articles Feed (Left) + Power Rankings Sidebar (Right) -->
+    <div class="connect-hub">
+      <div class="connect-hub-title">CONNECT & FOLLOW</div>
+      <div class="connect-links">
+        <a href="https://youtube.com" target="_blank" rel="noopener" class="connect-btn yt">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+          <span>YouTube</span>
+        </a>
+        <a href="https://open.spotify.com" target="_blank" rel="noopener" class="connect-btn spotify">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.376 0 0 5.376 0 12s5.376 12 12 12 12-5.376 12-12S18.624 0 12 0zm5.521 17.341c-.218.358-.684.474-1.041.256-2.857-1.746-6.456-2.141-10.697-1.173-.404.093-.811-.162-.904-.566-.093-.404.162-.811.566-.904 4.644-1.061 8.624-.613 11.82 1.346.357.218.473.684.256 1.041zm1.472-3.276c-.274.446-.86.588-1.306.314-3.27-2.009-8.254-2.593-12.121-1.419-.506.153-1.04-.135-1.193-.64-.153-.506.135-1.04.64-1.193 4.417-1.341 9.907-.69 13.666 1.623.446.274.588.86.314 1.306zm.131-3.419C15.225 8.35 8.8 8.134 5.12 9.252c-.624.19-1.285-.164-1.474-.788-.19-.625.163-1.285.788-1.475 4.234-1.285 11.319-1.033 15.91 1.693.56.332.748 1.056.417 1.616-.333.56-1.057.749-1.617.417z"/></svg>
+          <span>Spotify</span>
+        </a>
+        <a href="https://x.com" target="_blank" rel="noopener" class="connect-btn x-twitter">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+          <span>X / Twitter</span>
+        </a>
+        <a href="https://substack.com" target="_blank" rel="noopener" class="connect-btn substack">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.539 0H1.46v2.836h21.08V0z"/></svg>
+          <span>Substack</span>
+        </a>
+      </div>
+    </div>
+
     <div class="content-layout">
       
-      <!-- Automated Substack Articles Feed -->
-      <div class="articles-feed" id="articlesFeed">
-        <p style="color: var(--text-muted); text-align: center; padding: 3rem 0;">Loading latest articles...</p>
+      <div class="feed-column">
+        <div class="filter-container" id="filterBar">
+          <button class="filter-btn active" data-filter="all">All Articles</button>
+          <button class="filter-btn" data-filter="tactical">Film & Tactics</button>
+          <button class="filter-btn" data-filter="roster">Roster & Cap</button>
+          <button class="filter-btn" data-filter="discourse">Discourse</button>
+        </div>
+
+        <div class="articles-feed" id="articlesFeed">
+          <p style="color: var(--text-muted); text-align: center; padding: 3rem 0;">Loading latest articles...</p>
+        </div>
       </div>
 
-      <!-- Live NBA Power Rankings Sidebar (Right) -->
       <aside class="power-rankings-card">
         <div class="rankings-header">
           <h2>POWER RANKINGS</h2>
@@ -390,7 +519,6 @@
             year: 'numeric'
           });
 
-          // Extract thumbnail image URL from feed properties or description HTML
           let imgUrl = post.thumbnail || post.enclosure?.link;
           if (!imgUrl) {
             const imgMatch = post.description.match(/<img[^>]+src="([^">]+)"/);
@@ -403,13 +531,25 @@
             .trim()
             .slice(0, 200) + '...';
 
+          // Automatically assign category tag based on keywords or RSS categories
+          let category = 'discourse';
+          const postTags = (post.categories || []).map(c => c.toLowerCase()).join(' ');
+          const fullText = `${post.title} ${post.description} ${postTags}`.toLowerCase();
+
+          if (fullText.includes('film') || fullText.includes('tactics') || fullText.includes('scout') || fullText.includes('defense') || fullText.includes('offense')) {
+            category = 'tactical';
+          } else if (fullText.includes('roster') || fullText.includes('trade') || fullText.includes('cap') || fullText.includes('contract') || fullText.includes('free agency')) {
+            category = 'roster';
+          }
+
           const postCard = document.createElement('article');
           postCard.className = 'post-card';
+          postCard.setAttribute('data-category', category);
           postCard.innerHTML = `
             ${imgUrl ? `<div class="post-thumb"><img src="${imgUrl}" alt="${post.title}" loading="lazy"></div>` : ''}
             <div class="post-content">
               <div class="post-meta">
-                <span class="post-badge">Substack Essay</span>
+                <span class="post-badge">${category === 'tactical' ? 'Film & Tactics' : category === 'roster' ? 'Roster & Cap' : 'Substack Essay'}</span>
                 <span class="post-date">${pubDate}</span>
               </div>
               <h2 class="post-title">${post.title}</h2>
@@ -417,15 +557,40 @@
             </div>
             <div class="fallback-link">
               <span style="color: var(--text-muted); font-size: 0.9rem;">By Collin</span>
-              <a href="${post.link}" target="_blank" rel="noopener">Read Full Article on Substack &rarr;</a>
+              <a href="${post.link}" target="_blank" rel="noopener">Read Full Article on Substack →</a>
             </div>
           `;
 
           feedContainer.appendChild(postCard);
         });
+
+        setupFilterListeners();
       } catch (error) {
         feedContainer.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 3rem 0;">Unable to load Substack posts at this time.</p>';
       }
+    }
+
+    function setupFilterListeners() {
+      const filterBtns = document.querySelectorAll('.filter-btn');
+      const contentCards = document.querySelectorAll('.post-card');
+
+      filterBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          filterBtns.forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+
+          const selectedFilter = btn.getAttribute('data-filter');
+
+          contentCards.forEach(card => {
+            const category = card.getAttribute('data-category');
+            if (selectedFilter === 'all' || category === selectedFilter) {
+              card.classList.remove('is-hidden');
+            } else {
+              card.classList.add('is-hidden');
+            }
+          });
+        });
+      });
     }
 
     async function fetchPowerRankings() {
@@ -460,16 +625,15 @@
           const stockVal = (row.Stock || row.stock || '').trim();
           const team = (row.Team || row.team || '').trim();
           
-          // Match precise logo filename format "Atlanta Hawks.png" in the nbalogos directory
           const customLogo = (row.Logo || row.logo || '').trim();
           const logoFileName = customLogo ? customLogo : `${team}.png`;
           const logoPath = `nbalogos/${logoFileName}`;
 
-          let stockIcon = '<span class="stock-same">&mdash;</span>';
+          let stockIcon = '<span class="stock-same">—</span>';
           if (stockVal.toLowerCase() === 'up') {
-            stockIcon = '<span class="stock-up">&#9650;</span>';
+            stockIcon = '<span class="stock-up">▲</span>';
           } else if (stockVal.toLowerCase() === 'down') {
-            stockIcon = '<span class="stock-down">&#9660;</span>';
+            stockIcon = '<span class="stock-down">▼</span>';
           }
 
           tableHtml += `
@@ -535,47 +699,48 @@
       fetchPowerRankings();
     });
   </script>
-<!-- Global Footer -->
-<footer class="footer">
-  <div class="footer-container">
-    <div class="footer-brand">
-      <img src="logo.png" alt="BYTHERIM Logo" class="footer-logo">
-      <p class="footer-desc">In-depth draft analysis, film breakdowns, and NBA discourse.</p>
-    </div>
-    
-    <div class="footer-column">
-      <h4>Navigation</h4>
-      <a href="./">Home</a>
-      <a href="podcast.html">Podcast</a>
-      <a href="draft.html">Draft</a>
-      <a href="nba.html">NBA</a>
-      <a href="./rp/">BYTHERIM RP</a>
+
+  <footer class="footer">
+    <div class="footer-container">
+      <div class="footer-brand">
+        <img src="logo.png" alt="BYTHERIM Logo" class="footer-logo">
+        <p class="footer-desc">In-depth draft analysis, film breakdowns, and NBA discourse.</p>
+      </div>
+      
+      <div class="footer-column">
+        <h4>Navigation</h4>
+        <a href="./">Home</a>
+        <a href="podcast.html">Podcast</a>
+        <a href="draft.html">Draft</a>
+        <a href="nba.html">NBA</a>
+        <a href="./rp/">BYTHERIM RP</a>
+      </div>
+
+      <div class="footer-column">
+        <h4>Platforms</h4>
+        <a href="https://youtube.com" target="_blank" rel="noopener">YouTube</a>
+        <a href="https://open.spotify.com" target="_blank" rel="noopener">Spotify</a>
+        <a href="https://x.com" target="_blank" rel="noopener">X / Twitter</a>
+        <a href="https://substack.com" target="_blank" rel="noopener">Substack</a>
+      </div>
     </div>
 
-    <div class="footer-column">
-      <h4>Platforms</h4>
-      <a href="https://youtube.com" target="_blank" rel="noopener">YouTube</a>
-      <a href="https://open.spotify.com" target="_blank" rel="noopener">Spotify</a>
-      <a href="https://x.com" target="_blank" rel="noopener">X / Twitter</a>
-      <a href="https://substack.com" target="_blank" rel="noopener">Substack</a>
+    <div class="footer-bottom">
+      <p>© 2026 BYTHERIM. All rights reserved.</p>
     </div>
-  </div>
+  </footer>
 
-  <div class="footer-bottom">
-    <p>&copy; 2026 BYTHERIM. All rights reserved.</p>
-  </div>
-</footer>
   <script>
-  const navToggle = document.getElementById('navToggle');
-  const navLinks = document.getElementById('navLinks');
+    const navToggle = document.getElementById('navToggle');
+    const navLinks = document.getElementById('navLinks');
 
-  if (navToggle && navLinks) {
-    navToggle.addEventListener('click', () => {
-      navToggle.classList.toggle('active');
-      navLinks.classList.toggle('active');
-    });
-  }
-</script>
+    if (navToggle && navLinks) {
+      navToggle.addEventListener('click', () => {
+        navToggle.classList.toggle('active');
+        navLinks.classList.toggle('active');
+      });
+    }
+  </script>
 
 </body>
 </html>
