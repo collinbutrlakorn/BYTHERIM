@@ -9,19 +9,15 @@
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
 
   <style>
     body {
-      background-color: #050507;
-      color: #e2e8f0;
+      background-color: var(--bg-color);
+      color: var(--text-main);
       font-family: 'Asap Condensed', sans-serif;
       font-size: 1.1rem;
       margin: 0;
-    }
-
-    h1, h2, h3, h4, h5, h6, .brand-logo {
-      font-family: 'Anantason Condensed', 'Asap Condensed', sans-serif;
     }
 
     .container {
@@ -30,82 +26,96 @@
       padding: 0 1rem;
     }
 
+    /* Page Header Card */
     .header-card {
-      background: linear-gradient(180deg, #121218 0%, #0a0a0f 100%);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
-      padding: 1.75rem 2rem;
+      background: linear-gradient(180deg, var(--card-bg) 0%, var(--bg-color) 100%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
       margin-bottom: 2rem;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
     }
 
     .header-card h1 {
-      font-size: 2.4rem;
-      font-weight: 800;
-      letter-spacing: 0.03em;
+      font-family: 'Oswald', sans-serif;
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: 1px;
       text-transform: uppercase;
-      color: #ffffff;
+      color: var(--text-main);
       margin: 0;
     }
 
     .header-card p {
-      color: #8a8d9b;
-      font-size: 1rem;
-      margin-top: 4px;
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      margin-top: 6px;
     }
 
+    /* Episode Feed Container */
     .episodes-grid {
       display: flex;
       flex-direction: column;
       gap: 2rem;
     }
 
+    /* Episode Card Styling */
     .episode-card {
-      background: #0a0a0e;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
-      padding: 1.75rem;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2rem;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
       display: flex;
       flex-direction: column;
       gap: 1.5rem;
+      transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+    }
+
+    .episode-card:hover {
+      background-color: var(--card-hover);
+      border-color: var(--accent);
     }
 
     .episode-meta {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      border-bottom: 1px solid var(--border);
       padding-bottom: 1rem;
     }
 
     .ep-tag {
-      background: #161622;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      color: #38bdf8;
-      font-weight: 800;
+      background: var(--accent-dark);
+      border: 1px solid var(--accent);
+      color: #ffffff;
+      font-weight: 700;
       font-size: 0.85rem;
-      padding: 4px 10px;
+      padding: 4px 12px;
       border-radius: 6px;
       text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .ep-date {
-      color: #7d8296;
+      color: var(--text-muted);
       font-size: 0.95rem;
     }
 
     .episode-title {
+      font-family: 'Oswald', sans-serif;
       font-size: 1.8rem;
-      font-weight: 800;
-      color: #ffffff;
-      margin: 0;
+      font-weight: 700;
+      color: var(--text-main);
+      margin: 0 0 0.5rem 0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .episode-desc {
-      color: #a1a5b8;
+      color: var(--text-muted);
       font-size: 1.05rem;
-      line-height: 1.5;
+      line-height: 1.6;
       margin: 0;
     }
 
@@ -125,9 +135,10 @@
       position: relative;
       padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
       height: 0;
-      border-radius: 12px;
+      border-radius: 8px;
       overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--border);
+      background: var(--bg-color);
     }
 
     .video-wrapper iframe {
@@ -140,11 +151,12 @@
     }
 
     .spotify-wrapper {
-      border-radius: 12px;
+      border-radius: 8px;
       overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--border);
       height: 100%;
       min-height: 152px;
+      background: var(--bg-color);
     }
 
     .spotify-wrapper iframe {
@@ -156,27 +168,29 @@
 </head>
 <body>
 
-  <!-- Navigation Bar Header -->
+  <!-- Navigation Bar -->
   <header class="navbar">
     <a href="./" class="brand-logo">
       <img src="logo.png" alt="BYTHERIM Logo" class="logo-img">
     </a>
     <nav class="nav-links">
-      <a href="podcast.html" style="font-weight: 800; color: #ffffff;">Podcast</a>
+      <a href="podcast.html" style="color: var(--text-main); font-weight: 700;">Podcast</a>
       <a href="draft.html">Draft</a>
       <a href="nba.html">NBA</a>
       <a href="./rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
     </nav>
   </header>
 
-  <!-- Main Content -->
+  <!-- Main Content Container -->
   <div class="container">
     
+    <!-- Page Header -->
     <div class="header-card">
       <h1>BYTHERIM PODCAST</h1>
       <p>In-depth draft analysis, film breakdowns, and NBA discourse</p>
     </div>
 
+    <!-- Episode Feed -->
     <div class="episodes-grid">
 
       <!-- Episode Item 1 -->
