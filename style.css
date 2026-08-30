@@ -604,4 +604,25 @@ h1, h2, h3, .section-title, .hero h1, .card h3 {
     --border: #cbd5e1;
   }
 }
+.search-box {
+  margin-bottom: 2rem;
+  width: 100%;
+}
+
+#cardSearch {
+  width: 100%;
+  padding: 0.85rem 1.25rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+}
+
+#cardSearch:focus {
+  outline: none;
+  border-color: var(--accent);
+}
 
