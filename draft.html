@@ -336,19 +336,26 @@
   </style>
 </head>
 <body>
+<!-- Navigation Bar Header -->
+<header class="navbar">
+  <a href="./" class="brand-logo">
+    <img src="logo.png" alt="BYTHERIM Logo" class="logo-img">
+  </a>
 
-  <!-- Navigation Bar Header -->
-  <header class="navbar">
-    <a href="./" class="brand-logo">
-      <img src="logo.png" alt="BYTHERIM Logo" class="logo-img">
-    </a>
-    <nav class="nav-links">
-      <a href="podcast.html">Podcast</a>
-      <a href="draft.html" style="font-weight: 800; color: #ffffff;">Draft</a>
-      <a href="nba.html">NBA</a>
-      <a href="./rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
-    </nav>
-  </header>
+  <!-- Mobile Toggle Button -->
+  <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+    <span class="bar"></span>
+    <span class="bar"></span>
+    <span class="bar"></span>
+  </button>
+
+  <nav class="nav-links" id="navLinks">
+    <a href="podcast.html">Podcast</a>
+    <a href="draft.html">Draft</a>
+    <a href="nba.html">NBA</a>
+    <a href="./rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
+  </nav>
+</header>
 
   <!-- Main Content -->
   <div class="draft-container">
@@ -693,5 +700,17 @@
     <p>&copy; 2026 BYTHERIM. All rights reserved.</p>
   </div>
 </footer>
+  <script>
+  const navToggle = document.getElementById('navToggle');
+  const navLinks = document.getElementById('navLinks');
+
+  if (navToggle && navLinks) {
+    navToggle.addEventListener('click', () => {
+      navToggle.classList.toggle('active');
+      navLinks.classList.toggle('active');
+    });
+  }
+</script>
+
 </body>
 </html>
