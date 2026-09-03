@@ -33,6 +33,18 @@
 
   <!-- Async X / Twitter Widgets SDK -->
   <script async src="https://platform.x.com/widgets.js" charset="utf-8"></script>
+
+  <style>
+    /* Styling wrapper for Twitter feed embedded iframe */
+    .twitter-timeline-container {
+      width: 100%;
+      height: 480px;
+      overflow-y: auto;
+      border-radius: 8px;
+      background: var(--bg-color, #0e1117);
+      padding: 0.5rem;
+    }
+  </style>
 </head>
 <body>
 
@@ -160,24 +172,18 @@
       </div>
     </div>
 
-    <!-- Twitter / X Community & Embed Card -->
+    <!-- Twitter / X Live Feed Card -->
     <div class="media-card twitter-brand-card">
-      <h3 class="media-header">COMMUNITY & UPDATES</h3>
-      <div class="twitter-cta-box">
-        <div class="x-logo">𝕏</div>
-        <h4>JOIN THE CONVERSATION</h4>
-        <p>Follow @collinbutr on X for live game reactions, recruiting alerts, and daily hoops analysis.</p>
-
-        <!-- X Embed Actions Container -->
-        <div class="twitter-embed-wrapper" style="margin-top: 1.25rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
-          
-          <!-- Hashtag Post Embed Button -->
-          <a href="https://x.com/intent/tweet?button_hashtag=collinbutr&ref_src=twsrc%5Etfw" class="twitter-hashtag-button" data-show-count="false">Post #collinbutr</a>
-          
-          <!-- Profile Direct Link Button -->
-          <a href="https://x.com/collinbutr" target="_blank" rel="noopener" class="x-follow-btn" style="margin-top: 0.25rem;">Follow @collinbutr</a>
-        </div>
-
+      <h3 class="media-header">LIVE X / TWITTER FEED</h3>
+      <div class="twitter-timeline-container">
+        <a class="twitter-timeline" 
+           data-height="480" 
+           data-theme="dark" 
+           data-chrome="noheader nofooter transparent" 
+           href="https://x.com/Collinbutr?ref_src=twsrc%5Etfw">
+          Posts by Collinbutr
+        </a>
+        <script async src="https://platform.x.com/widgets.js" charset="utf-8"></script>
       </div>
     </div>
 
