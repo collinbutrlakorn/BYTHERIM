@@ -1,20 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
- <!-- Inside podcast.html <head> -->
-<title>BYTHERIM | Podcast</title>
-<meta name="title" content="BYTHERIM | Podcast">
-<meta name="description" content="Listen to the latest episodes of the BYTHERIM podcast featuring draft breakdowns and NBA discourse.">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Primary Meta Tags -->
+  <title>BYTHERIM | Podcast</title>
+  <meta name="title" content="BYTHERIM | Podcast">
+  <meta name="description" content="Listen to the latest episodes of the BYTHERIM podcast featuring draft breakdowns, film analysis, and NBA discourse.">
 
-<meta property="og:url" content="https://collinbutrlakorn.github.io/BYTHERIM/podcast.html">
-<meta property="og:title" content="BYTHERIM | Podcast">
-<meta property="og:description" content="Listen to the latest episodes of the BYTHERIM podcast featuring draft breakdowns and NBA discourse.">
+  <!-- Open Graph / Twitter -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://collinbutrlakorn.github.io/BYTHERIM/podcast.html">
+  <meta property="og:title" content="BYTHERIM | Podcast">
+  <meta property="og:description" content="Listen to the latest episodes of the BYTHERIM podcast featuring draft breakdowns, film analysis, and NBA discourse.">
+  <meta property="og:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
 
-<meta property="twitter:url" content="https://collinbutrlakorn.github.io/BYTHERIM/podcast.html">
-<meta property="twitter:title" content="BYTHERIM | Podcast">
-<meta property="twitter:description" content="Listen to the latest episodes of the BYTHERIM podcast featuring draft breakdowns and NBA discourse.">
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://collinbutrlakorn.github.io/BYTHERIM/podcast.html">
+  <meta property="twitter:title" content="BYTHERIM | Podcast">
+  <meta property="twitter:description" content="Listen to the latest episodes of the BYTHERIM podcast featuring draft breakdowns, film analysis, and NBA discourse.">
+  <meta property="twitter:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
 
-  
   <link rel="icon" type="image/png" href="favicon.png">
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -36,31 +42,57 @@
       padding: 0 1rem;
     }
 
-    /* Page Header Card */
-    .header-card {
-      background: linear-gradient(180deg, var(--card-bg) 0%, var(--bg-color) 100%);
+    /* Platform Switcher Bar */
+    .podcast-platforms {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 2rem;
+      background: var(--card-bg);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 2rem;
-      margin-bottom: 2rem;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      padding: 1.25rem 1.5rem;
+      align-items: center;
+      justify-content: space-between;
     }
 
-    .header-card h1 {
+    .platform-title {
       font-family: 'Oswald', sans-serif;
-      font-size: 2.5rem;
-      font-weight: 700;
-      letter-spacing: 1px;
+      font-size: 1.1rem;
       text-transform: uppercase;
-      color: var(--text-main);
-      margin: 0;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
     }
 
-    .header-card p {
-      color: var(--text-muted);
-      font-size: 1.1rem;
-      margin-top: 6px;
+    .platform-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
     }
+
+    .app-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: 50px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+      color: #ffffff;
+      border: 1px solid var(--border);
+      background: var(--bg-color);
+      transition: all 0.2s ease;
+    }
+
+    .app-btn:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+    }
+
+    .app-btn.spotify:hover { background: #1DB954; color: #000000; }
+    .app-btn.apple:hover { background: #FA243C; color: #ffffff; }
+    .app-btn.substack:hover { background: #FF6719; color: #ffffff; }
 
     /* Episode Feed Container */
     .episodes-grid {
@@ -78,12 +110,11 @@
       box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
       display: flex;
       flex-direction: column;
-      gap: 1.5rem;
-      transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+      gap: 1.25rem;
+      transition: transform 0.2s ease, border-color 0.2s ease;
     }
 
     .episode-card:hover {
-      background-color: var(--card-hover);
       border-color: var(--accent);
     }
 
@@ -92,10 +123,10 @@
       justify-content: space-between;
       align-items: center;
       border-bottom: 1px solid var(--border);
-      padding-bottom: 1rem;
+      padding-bottom: 0.75rem;
     }
 
-    .ep-tag {
+    .ep-badge {
       background: var(--accent-dark);
       border: 1px solid var(--accent);
       color: #ffffff;
@@ -122,6 +153,15 @@
       letter-spacing: 0.5px;
     }
 
+    .episode-title a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    .episode-title a:hover {
+      color: var(--accent);
+    }
+
     .episode-desc {
       color: var(--text-muted);
       font-size: 1.05rem;
@@ -129,197 +169,296 @@
       margin: 0;
     }
 
-    .media-container {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1.5rem;
-    }
-
-    @media (max-width: 900px) {
-      .media-container {
-        grid-template-columns: 1fr;
-      }
-    }
-
-    .video-wrapper {
-      position: relative;
-      padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
-      height: 0;
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid var(--border);
+    /* Audio Player Component */
+    .audio-player-wrapper {
+      margin-top: 0.5rem;
       background: var(--bg-color);
-    }
-
-    .video-wrapper iframe {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      border: 0;
-    }
-
-    .spotify-wrapper {
+      padding: 0.75rem;
       border-radius: 8px;
-      overflow: hidden;
       border: 1px solid var(--border);
-      height: 100%;
-      min-height: 152px;
-      background: var(--bg-color);
     }
 
-    .spotify-wrapper iframe {
+    audio {
       width: 100%;
-      height: 100%;
-      border: 0;
+      height: 40px;
+      outline: none;
+    }
+
+    /* Card Footer Action Links */
+    .card-actions {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+      padding-top: 0.5rem;
+    }
+
+    .read-more-btn {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      transition: opacity 0.2s ease;
+    }
+
+    .read-more-btn:hover {
+      opacity: 0.8;
+      text-decoration: underline;
+    }
+
+    /* Loading State */
+    .loading-state {
+      text-align: center;
+      padding: 3rem 1rem;
+      color: var(--text-muted);
+      font-size: 1.2rem;
+    }
+
+    .spinner {
+      border: 3px solid var(--border);
+      border-top: 3px solid var(--accent);
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
   </style>
 </head>
 <body>
 
- <!-- Navigation Bar Header -->
-<header class="navbar">
-  <a href="./" class="brand-logo">
-    <img src="logo.png" alt="BYTHERIM Logo" class="logo-img">
-  </a>
-
-  <!-- Mobile Toggle Button -->
-  <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
-    <span class="bar"></span>
-    <span class="bar"></span>
-    <span class="bar"></span>
-  </button>
-
-  <nav class="nav-links" id="navLinks">
-    <a href="podcast.html">Podcast</a>
-    <a href="draft.html">Draft</a>
-    <a href="nba.html">NBA</a>
-    <a href="about.html">About</a>
-    <a href="./rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
-  </nav>
-</header>
-<!-- Social & Platform Connect Hub -->
-<div class="connect-hub">
-  <div class="connect-hub-title">CONNECT & FOLLOW</div>
-  <div class="connect-links">
-    <a href="https://youtube.com/@bytherim" target="_blank" rel="noopener" class="connect-btn yt">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-      <span>YouTube</span>
+  <!-- Navigation Bar Header -->
+  <header class="navbar">
+    <a href="./" class="brand-logo">
+      <img src="logo.png" alt="BYTHERIM Logo" class="logo-img">
     </a>
-    <a href="https://open.spotify.com" target="_blank" rel="noopener" class="connect-btn spotify">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.376 0 0 5.376 0 12s5.376 12 12 12 12-5.376 12-12S18.624 0 12 0zm5.521 17.341c-.218.358-.684.474-1.041.256-2.857-1.746-6.456-2.141-10.697-1.173-.404.093-.811-.162-.904-.566-.093-.404.162-.811.566-.904 4.644-1.061 8.624-.613 11.82 1.346.357.218.473.684.256 1.041zm1.472-3.276c-.274.446-.86.588-1.306.314-3.27-2.009-8.254-2.593-12.121-1.419-.506.153-1.04-.135-1.193-.64-.153-.506.135-1.04.64-1.193 4.417-1.341 9.907-.69 13.666 1.623.446.274.588.86.314 1.306zm.131-3.419C15.225 8.35 8.8 8.134 5.12 9.252c-.624.19-1.285-.164-1.474-.788-.19-.625.163-1.285.788-1.475 4.234-1.285 11.319-1.033 15.91 1.693.56.332.748 1.056.417 1.616-.333.56-1.057.749-1.617.417z"/></svg>
-      <span>Spotify</span>
-    </a>
-    <a href="https://x.com/collinbutr" target="_blank" rel="noopener" class="connect-btn x-twitter">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-      <span>X / Twitter</span>
-    </a>
-    <a href="https://collindunks.substack.com" target="_blank" rel="noopener" class="connect-btn substack">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.539 0H1.46v2.836h21.08V0z"/></svg>
-      <span>Substack</span>
-    </a>
-  </div>
-</div>
 
-  <!-- Main Content Container -->
-  <div class="container">
-    
-    <!-- Page Header -->
-    <div class="header-card">
-      <h1>BYTHERIM PODCAST</h1>
-      <p>In-depth draft analysis, film breakdowns, and NBA discourse</p>
-    </div>
+    <!-- Mobile Toggle Button -->
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
+      <span class="bar"></span>
+      <span class="bar"></span>
+      <span class="bar"></span>
+    </button>
 
-    <!-- Episode Feed -->
-    <div class="episodes-grid">
-
-      <!-- Episode Item 1 -->
-      <article class="episode-card">
-        <div class="episode-meta">
-          <span class="ep-tag">Episode 12</span>
-          <span class="ep-date">August 2026</span>
-        </div>
-        <div>
-          <h2 class="episode-title">2027 Draft Class Deep Dive & Summer Standouts</h2>
-          <p class="episode-desc">Breaking down early tape on top prospects, scouting reports, and initial tier list observations ahead of the college season.</p>
-        </div>
-        <div class="media-container">
-          <!-- YouTube Embed -->
-          <div class="video-wrapper">
-            <iframe src="https://www.youtube.com/embed/VIDEO_ID_HERE" title="YouTube video player" allowfullscreen></iframe>
-          </div>
-          <!-- Spotify Embed -->
-          <div class="spotify-wrapper">
-            <iframe src="https://open.spotify.com/embed/episode/EPISODE_ID_HERE?utm_source=generator&theme=0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
-          </div>
-        </div>
-      </article>
-
-      <!-- Episode Item 2 -->
-      <article class="episode-card">
-        <div class="episode-meta">
-          <span class="ep-tag">Episode 11</span>
-          <span class="ep-date">July 2026</span>
-        </div>
-        <div>
-          <h2 class="episode-title">Rookie Class Breakdown & Offseason Roster Fits</h2>
-          <p class="episode-desc">Evaluating high-upside rookies, rotation opportunities, and system fit across all 30 NBA teams.</p>
-        </div>
-        <div class="media-container">
-          <div class="video-wrapper">
-            <iframe src="https://www.youtube.com/embed/VIDEO_ID_HERE" title="YouTube video player" allowfullscreen></iframe>
-          </div>
-          <div class="spotify-wrapper">
-            <iframe src="https://open.spotify.com/embed/episode/EPISODE_ID_HERE?utm_source=generator&theme=0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
-          </div>
-        </div>
-      </article>
-
-    </div>
-
-  </div>
-<!-- Global Footer -->
-<footer class="footer">
-  <div class="footer-container">
-    <div class="footer-brand">
-      <img src="logo.png" alt="BYTHERIM Logo" class="footer-logo">
-      <p class="footer-desc">In-depth draft analysis, film breakdowns, and NBA discourse.</p>
-    </div>
-    
-    <div class="footer-column">
-      <h4>Navigation</h4>
-      <a href="./">Home</a>
-      <a href="podcast.html">Podcast</a>
+    <nav class="nav-links" id="navLinks">
+      <a href="podcast.html" class="active">Podcast</a>
       <a href="draft.html">Draft</a>
       <a href="nba.html">NBA</a>
-      <a href="./rp/">BYTHERIM RP</a>
-    </div>
+      <a href="about.html">About</a>
+      <a href="./rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
+    </nav>
+  </header>
 
-    <div class="footer-column">
-      <h4>Platforms</h4>
-      <a href="https://youtube.com" target="_blank" rel="noopener">YouTube</a>
-      <a href="https://open.spotify.com" target="_blank" rel="noopener">Spotify</a>
-      <a href="https://x.com" target="_blank" rel="noopener">X / Twitter</a>
-      <a href="https://substack.com" target="_blank" rel="noopener">Substack</a>
+  <!-- Connect Hub Banner -->
+  <div class="connect-hub">
+    <div class="connect-hub-title">CONNECT & FOLLOW</div>
+    <div class="connect-links">
+      <a href="https://youtube.com/@bytherim" target="_blank" rel="noopener" class="connect-btn yt">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+        <span>YouTube</span>
+      </a>
+      <a href="https://open.spotify.com" target="_blank" rel="noopener" class="connect-btn spotify">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.376 0 0 5.376 0 12s5.376 12 12 12 12-5.376 12-12S18.624 0 12 0zm5.521 17.341c-.218.358-.684.474-1.041.256-2.857-1.746-6.456-2.141-10.697-1.173-.404.093-.811-.162-.904-.566-.093-.404.162-.811.566-.904 4.644-1.061 8.624-.613 11.82 1.346.357.218.473.684.256 1.041zm1.472-3.276c-.274.446-.86.588-1.306.314-3.27-2.009-8.254-2.593-12.121-1.419-.506.153-1.04-.135-1.193-.64-.153-.506.135-1.04.64-1.193 4.417-1.341 9.907-.69 13.666 1.623.446.274.588.86.314 1.306zm.131-3.419C15.225 8.35 8.8 8.134 5.12 9.252c-.624.19-1.285-.164-1.474-.788-.19-.625.163-1.285.788-1.475 4.234-1.285 11.319-1.033 15.91 1.693.56.332.748 1.056.417 1.616-.333.56-1.057.749-1.617.417z"/></svg>
+        <span>Spotify</span>
+      </a>
+      <a href="https://x.com/collinbutr" target="_blank" rel="noopener" class="connect-btn x-twitter">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        <span>X / Twitter</span>
+      </a>
+      <a href="https://collindunks.substack.com" target="_blank" rel="noopener" class="connect-btn substack">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.539 0H1.46v2.836h21.08V0z"/></svg>
+        <span>Substack</span>
+      </a>
     </div>
   </div>
 
-  <div class="footer-bottom">
-    <p>&copy; 2026 BYTHERIM. All rights reserved.</p>
+  <!-- Hero Section -->
+  <section class="hero-banner" style="background-image: url('assets/hero-podcast-banner.jpg');">
+    <div class="hero-content">
+      <span class="tag">AUDIO & FILM BREAKDOWNS</span>
+      <h1>BYTHERIM PODCAST</h1>
+      <p>In-depth draft analysis, film breakdowns, and NBA discourse streamed live directly from Substack.</p>
+    </div>
+  </section>
+
+  <!-- Main Content Container -->
+  <main class="container">
+    
+    <!-- Platform App Bar -->
+    <div class="podcast-platforms">
+      <span class="platform-title">Listen on your preferred app:</span>
+      <div class="platform-buttons">
+        <a href="https://open.spotify.com" target="_blank" rel="noopener" class="app-btn spotify">
+          <span>Spotify</span>
+        </a>
+        <a href="https://podcasts.apple.com" target="_blank" rel="noopener" class="app-btn apple">
+          <span>Apple Podcasts</span>
+        </a>
+        <a href="https://collindunks.substack.com" target="_blank" rel="noopener" class="app-btn substack">
+          <span>Substack Feed</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Live Episode Feed Container -->
+    <div id="episodesGrid" class="episodes-grid">
+      <div class="loading-state" id="loadingState">
+        <div class="spinner"></div>
+        <p>Fetching latest episodes from Substack RSS...</p>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Donate Section -->
+  <div class="donate-card container">
+    <h3>Fuel Independent Scouting</h3>
+    <p>
+      BYTHERIM is self-funded and operated independently. Contributions directly support server compute for the Recruiting Portal database, live scouting event operations, and video editing tools.
+    </p>
+    <a href="https://ko-fi.com" target="_blank" rel="noopener" class="donate-btn">
+      <span class="btn-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M2 21h18v-2H2v2zm2-4h14V5H4v12zm2-10h10v8H6V7zm14 1h2v5h-2V8zm0-2c1.1 0 2 .9 2 2v5c0 1.1-.9 2-2 2h-2V6h2z"/>
+        </svg>
+      </span>
+      <span>Support the Platform</span>
+    </a>
   </div>
-</footer>
+
+  <!-- Global Footer -->
+  <footer class="footer">
+    <div class="footer-container">
+      <div class="footer-brand">
+        <img src="logo.png" alt="BYTHERIM Logo" class="footer-logo">
+        <p class="footer-desc">In-depth draft analysis, film breakdowns, and NBA discourse.</p>
+      </div>
+      
+      <div class="footer-column">
+        <h4>Navigation</h4>
+        <a href="./">Home</a>
+        <a href="podcast.html">Podcast</a>
+        <a href="draft.html">Draft</a>
+        <a href="nba.html">NBA</a>
+        <a href="about.html">About</a>
+        <a href="./rp/">BYTHERIM RP</a>
+      </div>
+
+      <div class="footer-column">
+        <h4>Platforms</h4>
+        <a href="https://youtube.com/@bytherim" target="_blank" rel="noopener">YouTube</a>
+        <a href="https://open.spotify.com" target="_blank" rel="noopener">Spotify</a>
+        <a href="https://x.com/collinbutr" target="_blank" rel="noopener">X / Twitter</a>
+        <a href="https://collindunks.substack.com" target="_blank" rel="noopener">Substack</a>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p>© 2026 BYTHERIM. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <!-- Scripts -->
   <script>
-  const navToggle = document.getElementById('navToggle');
-  const navLinks = document.getElementById('navLinks');
+    // Navigation Toggle Logic
+    const navToggle = document.getElementById('navToggle');
+    const navLinks = document.getElementById('navLinks');
 
-  if (navToggle && navLinks) {
-    navToggle.addEventListener('click', () => {
-      navToggle.classList.toggle('active');
-      navLinks.classList.toggle('active');
-    });
-  }
-</script>
+    if (navToggle && navLinks) {
+      navToggle.addEventListener('click', () => {
+        navToggle.classList.toggle('active');
+        navLinks.classList.toggle('active');
+      });
+    }
+
+    // Direct Substack Podcast RSS Feed Integration
+    const SUBSTACK_PODCAST_FEED = 'https://api.substack.com/feed/podcast/9314968.rss';
+    const RSS2JSON_API = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(SUBSTACK_PODCAST_FEED)}`;
+
+    async function loadPodcastEpisodes() {
+      const episodesGrid = document.getElementById('episodesGrid');
+
+      try {
+        const response = await fetch(RSS2JSON_API);
+        const data = await response.json();
+
+        if (data.status === 'ok' && data.items && data.items.length > 0) {
+          episodesGrid.innerHTML = ''; // Clear loading state
+
+          data.items.forEach((item) => {
+            const pubDate = new Date(item.pubDate).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric'
+            });
+
+            // Clean description preview text
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = item.description || item.content || '';
+            const cleanText = tempDiv.textContent || tempDiv.innerText || '';
+            const truncatedDesc = cleanText.length > 280 ? cleanText.substring(0, 280) + '...' : cleanText;
+
+            // Extract audio link from enclosure
+            const audioUrl = item.enclosure && item.enclosure.link ? item.enclosure.link : null;
+
+            const article = document.createElement('article');
+            article.className = 'episode-card';
+
+            article.innerHTML = `
+              <div class="episode-meta">
+                <span class="ep-badge">Podcast Episode</span>
+                <span class="ep-date">${pubDate}</span>
+              </div>
+              <div>
+                <h2 class="episode-title">
+                  <a href="${item.link}" target="_blank" rel="noopener">${item.title}</a>
+                </h2>
+                <p class="episode-desc">${truncatedDesc}</p>
+              </div>
+
+              ${audioUrl ? `
+                <div class="audio-player-wrapper">
+                  <audio controls preload="none">
+                    <source src="${audioUrl}" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                  </audio>
+                </div>
+              ` : ''}
+
+              <div class="card-actions">
+                <a href="${item.link}" target="_blank" rel="noopener" class="read-more-btn">
+                  Listen & Read on Substack &rarr;
+                </a>
+              </div>
+            `;
+
+            episodesGrid.appendChild(article);
+          });
+        } else {
+          episodesGrid.innerHTML = '<p class="loading-state">No podcast episodes found in feed.</p>';
+        }
+      } catch (error) {
+        console.error('Error fetching Substack podcast feed:', error);
+        episodesGrid.innerHTML = `
+          <div class="episode-card">
+            <h3>Unable to load live feed</h3>
+            <p class="episode-desc">Check out the latest podcast episodes directly on Substack.</p>
+            <a href="https://collindunks.substack.com" target="_blank" rel="noopener" class="read-more-btn">
+              Visit Substack &rarr;
+            </a>
+          </div>
+        `;
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadPodcastEpisodes);
+  </script>
 
 </body>
 </html>
