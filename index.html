@@ -172,20 +172,21 @@
       </div>
     </div>
 
-    <!-- Twitter / X Live Feed Card -->
-    <div class="media-card twitter-brand-card">
-      <h3 class="media-header">LIVE X / TWITTER FEED</h3>
-      <div class="twitter-timeline-container">
-        <a class="twitter-timeline" 
-           data-height="480" 
-           data-theme="dark" 
-           data-chrome="noheader nofooter transparent" 
-           href="https://x.com/Collinbutr?ref_src=twsrc%5Etfw">
-          Posts by Collinbutr
-        </a>
-        <script async src="https://platform.x.com/widgets.js" charset="utf-8"></script>
-      </div>
+   <!-- Twitter / X Live Feed Card -->
+  <div class="media-card twitter-brand-card">
+    <h3 class="media-header">LIVE X / TWITTER FEED</h3>
+    <div class="twitter-timeline-container">
+      <a class="twitter-timeline" 
+         data-height="480" 
+         data-theme="dark" 
+         data-chrome="noheader nofooter transparent" 
+         href="https://twitter.com/collinbutr?ref_src=twsrc%5Etfw">
+        Posts by @collinbutr
+      </a>
+      <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
     </div>
+  </div>
+
 
   </div>
 </section>
@@ -263,6 +264,12 @@
       });
     });
   }
+  // Force Twitter Widget Initialization
+window.addEventListener('DOMContentLoaded', () => {
+  if (window.twttr && window.twttr.widgets) {
+    window.twttr.widgets.load();
+  }
+});
 </script>
 </body>
 </html>
