@@ -3,36 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Primary Meta Tags -->
   <title>BYTHERIM | NBA Draft Analysis & Film Breakdown</title>
   <meta name="title" content="BYTHERIM | NBA Draft Analysis & Film Breakdown">
   <meta name="description" content="In-depth NBA draft analysis, prospect scouting reports, film breakdowns, and NBA discourse.">
   
-  <!-- Open Graph / Facebook / Discord / iMessage -->
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://collinbutrlakorn.github.io/BYTHERIM/">
   <meta property="og:title" content="BYTHERIM | NBA Draft Analysis & Film Breakdown">
   <meta property="og:description" content="In-depth NBA draft analysis, prospect scouting reports, film breakdowns, and NBA discourse.">
   <meta property="og:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
   
-  <!-- X (Twitter) Card -->
   <meta property="twitter:card" content="summary_large_image">
   <meta property="twitter:url" content="https://collinbutrlakorn.github.io/BYTHERIM/">
   <meta property="twitter:title" content="BYTHERIM | NBA Draft Analysis & Film Breakdown">
   <meta property="twitter:description" content="In-depth NBA draft analysis, prospect scouting reports, film breakdowns, and NBA discourse.">
   <meta property="twitter:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
 
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png">
 
   <link rel="stylesheet" href="style.css">
-  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
 
-  <!-- Async X / Twitter Widgets SDK -->
-  <script async src="https://platform.x.com/widgets.js" charset="utf-8"></script>
+  <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 
   <style>
     /* Styling wrapper for Twitter feed embedded iframe */
@@ -48,13 +42,11 @@
 </head>
 <body>
 
-<!-- Navigation Bar Header -->
 <header class="navbar">
   <a href="./" class="brand-logo">
     <img src="logo.png" alt="BYTHERIM Logo" class="logo-img">
   </a>
 
-  <!-- Mobile Toggle Button -->
   <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
     <span class="bar"></span>
     <span class="bar"></span>
@@ -70,7 +62,6 @@
   </nav>
 </header>
 
-<!-- Social & Platform Connect Hub -->
 <div class="connect-hub">
   <div class="connect-hub-title">CONNECT & FOLLOW</div>
   <div class="connect-links">
@@ -93,20 +84,17 @@
   </div>
 </div>
 
-<!-- Hero Feature Section -->
 <section class="hero-banner" style="background-image: url('assets/hero-home-banner.jpg');">
   <div class="hero-content">
     <span class="tag">UNBIASED BASKETBALL COVERAGE</span>
     <h1>UNBIASED HOOPS ANALYSIS</h1>
     <p>BYTHERIM is an unbiased basketball platform dedicated to pure love of the game where we deliver deep-dives & scouting reports, basketball commentary, and an interactive role-playing database.</p>
-    <a href="./rp/" class="cta-btn">Enter the RP Experience &rarr;</a>
+    <a href="./rp/" class="cta-btn">Enter the RP Experience →</a>
   </div>
 </section>
 
-<!-- Main Section with Search & Carousel -->
 <main class="container">
   
-  <!-- Search Input Bar -->
   <div class="search-box">
     <input 
       type="text" 
@@ -119,8 +107,8 @@
   <div class="carousel-header">
     <h2 class="section-title">LATEST INSIGHTS</h2>
     <div class="carousel-controls">
-      <button class="carousel-btn" id="prevBtn" aria-label="Previous posts">&larr;</button>
-      <button class="carousel-btn" id="nextBtn" aria-label="Next posts">&rarr;</button>
+      <button class="carousel-btn" id="prevBtn" aria-label="Previous posts">←</button>
+      <button class="carousel-btn" id="nextBtn" aria-label="Next posts">→</button>
     </div>
   </div>
 
@@ -153,12 +141,10 @@
   </div>
 </main>
 
-<!-- Social & Media Feeds Section -->
 <section class="container social-section">
   <h2 class="section-title">MEDIA & COMMUNITY</h2>
   <div class="media-grid">
     
-    <!-- YouTube Video / Channel Embed -->
     <div class="media-card">
       <h3 class="media-header">LATEST VIDEO</h3>
       <div class="video-container">
@@ -172,18 +158,16 @@
       </div>
     </div>
 
-   <!-- Twitter / X Live Feed Card -->
-  <div class="media-card twitter-brand-card">
+   <div class="media-card twitter-brand-card">
     <h3 class="media-header">LIVE X / TWITTER FEED</h3>
-    <div class="x-timeline-container">
-      <a class="x-timeline" 
+    <div class="twitter-timeline-container">
+      <a class="twitter-timeline" 
          data-height="480" 
          data-theme="dark" 
          data-chrome="noheader nofooter transparent" 
-         href="https://x.com/collinbutr?ref_src=twsrc%5Etfw">
+         href="https://twitter.com/collinbutr?ref_src=twsrc%5Etfw">
         Posts by @collinbutr
       </a>
-      <script async src="https://platform.x.com/widgets.js" charset="utf-8"></script>
     </div>
   </div>
 
@@ -191,7 +175,6 @@
   </div>
 </section>
 
-<!-- Global Footer -->
 <footer class="footer">
   <div class="footer-container">
     <div class="footer-brand">
@@ -219,11 +202,10 @@
   </div>
 
   <div class="footer-bottom">
-    <p>&copy; 2026 BYTHERIM. All rights reserved.</p>
+    <p>© 2026 BYTHERIM. All rights reserved.</p>
   </div>
 </footer>
 
-<!-- Scripts -->
 <script>
   // Carousel Navigation Controls
   const track = document.getElementById('carouselTrack');
@@ -264,12 +246,13 @@
       });
     });
   }
+  
   // Force Twitter Widget Initialization
-window.addEventListener('DOMContentLoaded', () => {
-  if (window.twttr && window.twttr.widgets) {
-    window.twttr.widgets.load();
-  }
-});
+  window.addEventListener('DOMContentLoaded', () => {
+    if (window.twttr && window.twttr.widgets) {
+      window.twttr.widgets.load();
+    }
+  });
 </script>
 </body>
 </html>
