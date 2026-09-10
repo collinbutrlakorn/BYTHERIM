@@ -54,9 +54,25 @@
     <main class="panel-card">
       <div class="tab-bar">
         <button class="tab-btn active" data-tab="dashTab">Dashboard</button>
+        <button class="tab-btn" data-tab="scheduleTab">Schedule</button>
         <button class="tab-btn" data-tab="statsTab">Stat Leaders</button>
         <button class="tab-btn" data-tab="standingsTab">Standings</button>
+        <button class="tab-btn" data-tab="postseasonTab">Postseason</button>
         <button class="tab-btn" data-tab="awardsTab">Awards</button>
+      </div>
+
+      <div id="scheduleTab" class="tab-content">
+        <h3 class="mb-1">Schedule &amp; Results</h3>
+        <div id="scheduleContainer">
+          <p class="empty-table-msg">Simulate the season to generate a schedule.</p>
+        </div>
+      </div>
+
+      <div id="postseasonTab" class="tab-content">
+        <h3 class="mb-1">Postseason</h3>
+        <div id="postseasonContainer">
+          <p class="empty-table-msg">Complete the regular season to unlock Conference Championships and the NCAA Tournament.</p>
+        </div>
       </div>
 
       <div id="dashTab" class="tab-content active">
@@ -209,7 +225,7 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>Wk</th><th>Type</th><th>MIN</th><th class="highlight-col">PTS</th>
+              <th>Wk</th><th>Opponent</th><th>MIN</th><th class="highlight-col">PTS</th>
               <th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th>
               <th>FGM-A</th><th>3PM-A</th><th>FTM-A</th>
             </tr>
@@ -222,6 +238,9 @@
 
   <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
   <script src="js/db.js"></script>
+  <script src="js/schedule-core.js"></script>
+  <script src="js/game-core.js"></script>
+  <script src="js/tournament-core.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/ui.js"></script>
   <script>
