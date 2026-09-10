@@ -165,83 +165,97 @@ window.SimEngine = {
   },
 
   async fetchData() {
+    let realTeamsMap = {};
+    let rawRecruits = [];
+    let sheetsReachable = true;
+
     try {
       const recruitsUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTWvXoqFJkVFqt36wbBBfgFYUvPKhWCZIztoLIB9sjpc55AiFTdFpJZHMztVgJHyFyy0mtO_MYGD76N/pub?gid=0&single=true&output=csv";
       const rostersUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_KgPla_wVF3w_s8PGVIreieVKkfOuVuFqt1K25i3gHNa_NpL6MDPST1qnIw12V61COFsSkf2C03Q-/pub?gid=0&single=true&output=csv";
 
       const [recruitsRes, rostersRes] = await Promise.all([ fetch(recruitsUrl), fetch(rostersUrl) ]);
-      
-      if (!recruitsRes.ok || !rostersRes.ok) throw new Error("Could not load Google Sheets CSVs");
-      
-      const rawRecruits = this.parseCSV(await recruitsRes.text());
-      const rawRosters = this.parseCSV(await rostersRes.text());
-      
-      this.state.recruits = rawRecruits.map(r => this.normalizePlayerObj(r, true));
-      
-      const teamsMap = {};
-      rawRosters.forEach(rawPlayer => {
-        const player = this.normalizePlayerObj(rawPlayer, false);
-        if (!player.school) return;
 
-        if (!teamsMap[player.school]) {
-          teamsMap[player.school] = {
-            school: player.school,
-            conference: player.conference || 'NCAA',
-            logo: this.getTeamLogo(player.school), 
-            roster: [],
-            simData: { teamOvr: 0, wins: 0, losses: 0, confWins: 0, confLosses: 0, rosterRef: [], winPct: '.000' }
-          };
-        } else if (player.conference && player.conference !== 'NCAA') {
-          teamsMap[player.school].conference = player.conference;
-        }
-        teamsMap[player.school].roster.push(player);
-      });
-      
-      this.state.teams = Object.values(teamsMap);
-      
-      if(this.state.teams.length === 0) throw new Error("No teams parsed from sheets.");
-
-      this.filterActiveData();
-      this.syncUI();
-      await this.saveStateToDB();
-      this.logNews(`Loaded ${this.state.teams.length} teams and ${this.state.activePlayers.length} players for ${this.state.year}.`);
-    } catch(err) {
+      if (recruitsRes.ok) {
+        rawRecruits = this.parseCSV(await recruitsRes.text());
+      }
+      if (rostersRes.ok) {
+        const rawRosters = this.parseCSV(await rostersRes.text());
+        rawRosters.forEach(rawPlayer => {
+          const player = this.normalizePlayerObj(rawPlayer, false);
+          if (!player.school) return;
+          if (!realTeamsMap[player.school]) {
+            realTeamsMap[player.school] = { school: player.school, conference: player.conference || 'NCAA', roster: [] };
+          } else if (player.conference && player.conference !== 'NCAA') {
+            realTeamsMap[player.school].conference = player.conference;
+          }
+          realTeamsMap[player.school].roster.push(player);
+        });
+      }
+      if (!recruitsRes.ok && !rostersRes.ok) sheetsReachable = false;
+    } catch (err) {
       console.error("Database Fetch Error:", err);
-      this.logNews(`Failed to reach sheets. Generating Basketball GM Fallback Universe...`);
-      this.generateMockUniverse(); 
+      sheetsReachable = false;
+    }
+
+    this.state.recruits = rawRecruits.map(r => this.normalizePlayerObj(r, true));
+    this.buildFullD1Universe(Object.values(realTeamsMap));
+
+    if (this.state.teams.length === 0) {
+      this.logNews("Could not build a universe from sheets or the master team list. Check your data sources.");
+      return;
+    }
+
+    this.syncUI();
+    await this.saveStateToDB();
+    const realCount = Object.keys(realTeamsMap).length;
+    if (!sheetsReachable) {
+      this.logNews(`Could not reach Google Sheets — generated a full ${this.state.teams.length}-team universe from scratch.`);
+    } else {
+      this.logNews(`Loaded ${this.state.teams.length} teams (${realCount} with real roster data, the rest auto-filled) and ${this.state.activePlayers.length} players for ${this.state.year}.`);
     }
   },
 
-  generateMockUniverse() {
-    const confs = ['ACC', 'Big Ten', 'SEC', 'Pac-12', 'Big 12', 'Big East'];
-    const mockTeams = ['Duke', 'North Carolina', 'Kentucky', 'Kansas', 'Villanova', 'UCLA', 'Gonzaga', 'Michigan', 'Texas', 'Arizona', 'Baylor', 'Purdue', 'Virginia', 'Houston', 'UConn', 'Arkansas'];
-    this.state.teams = [];
-    this.state.activePlayers = [];
-    
-    mockTeams.forEach((school, i) => {
-      let conf = confs[i % confs.length];
-      let team = { 
-        school, conference: conf, logo: this.getTeamLogo(school), roster: [],
+  // Builds the full D1 universe: every school in TeamsMaster gets a team,
+  // using real roster data wherever the Google Sheet has it and filling
+  // every remaining roster spot (or an entire roster, for schools with no
+  // real data yet) with generated players. This is what lets 300+ teams
+  // exist and be playable without hand-entering thousands of players.
+  buildFullD1Universe(realTeams) {
+    if (typeof TeamsMaster === 'undefined' || typeof RosterGen === 'undefined') {
+      console.error('TeamsMaster/RosterGen not loaded — check that teams-master.js and roster-gen.js are included before engine.js. Falling back to real sheet data only.');
+      this.state.teams = realTeams.map(t => ({
+        school: t.school, conference: t.conference, logo: this.getTeamLogo(t.school),
+        roster: t.roster,
         simData: { teamOvr: 0, wins: 0, losses: 0, confWins: 0, confLosses: 0, rosterRef: [], winPct: '.000' }
-      };
-      
-      for(let j=0; j<12; j++) {
-        let pos = ['PG', 'SG', 'SF', 'PF', 'C'][Math.floor(Math.random()*5)];
-        let cls = ['FR', 'SO', 'JR', 'SR'][Math.floor(Math.random()*4)];
-        let rating = Math.floor(Math.random()*25) + 70;
-        let p = {
-          id: `${school}_${j}`, name: `${school} Player ${j+1}`, school, conference: conf, 
-          pos, class: cls, rating, ht: "6'5", wt: "200", hometown: "USA", 
-          gameLog: [], accolades: [], stats: this.getZeroStats(), statsFull: this.getZeroStats(), statsConf: this.getZeroStats()
-        };
-        team.roster.push(p);
-        this.state.activePlayers.push(p);
-      }
-      this.state.teams.push(team);
-    });
-    this.syncUI();
-    this.saveStateToDB();
+      }));
+      this.filterActiveData();
+      return;
+    }
+
+    const { teams, unmatchedRealTeams } = RosterGen.buildFullUniverse(TeamsMaster, realTeams, { targetRosterSize: 13 });
+    if (unmatchedRealTeams.length > 0) {
+      console.warn('Schools in your sheet not found in the master D1 list (kept as their own team rather than dropped):', unmatchedRealTeams);
+    }
+
+    this.state.teams = teams.map(t => ({
+      school: t.school,
+      conference: t.conference,
+      logo: this.getTeamLogo(t.school),
+      roster: t.roster.map(p => ({
+        ...p,
+        school_logo: this.getTeamLogo(t.school),
+        gameLog: p.gameLog || [],
+        accolades: p.accolades || [],
+        stats: this.getZeroStats(),
+        statsFull: this.getZeroStats(),
+        statsConf: this.getZeroStats()
+      })),
+      simData: { teamOvr: 0, wins: 0, losses: 0, confWins: 0, confLosses: 0, rosterRef: [], winPct: '.000' }
+    }));
+
+    this.filterActiveData();
   },
+
 
   parseCSV(csvData) {
     const lines = csvData.split(/\r?\n/).filter(line => line.trim() !== '');
