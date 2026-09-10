@@ -13,7 +13,17 @@ window.SimEngine = {
     sortDir: 'desc',
     confFilter: 'ALL',   
     scopeFilter: 'full',
-    selectedAwardConf: 'ACC'
+    selectedAwardConf: 'ACC',
+    // --- Real schedule / postseason state ---
+    schedule: [],           // flat list of {id, week, phase, isConf, home, away, played, result}
+    nonConfEnd: 0,          // last week number of the non-conference slate
+    confEnd: 0,             // last week number of the conference slate
+    regularSeasonDone: false,
+    confChampsDone: false,
+    ncaaDone: false,
+    confTournaments: {},    // confName -> bracket result from TournamentCore
+    ncaaTournament: null,   // bracket result from TournamentCore
+    scheduleViewWeek: 1
   },
 
   async init() {
@@ -251,6 +261,14 @@ window.SimEngine = {
   },
 
   initSeasonData() {
+    this.state.schedule = [];
+    this.state.regularSeasonDone = false;
+    this.state.confChampsDone = false;
+    this.state.ncaaDone = false;
+    this.state.confTournaments = {};
+    this.state.ncaaTournament = null;
+    this.state.scheduleViewWeek = 1;
+
     this.state.teams.forEach(team => {
       let roster = this.state.activePlayers.filter(p => p.school === team.school);
       roster.sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
@@ -277,6 +295,27 @@ window.SimEngine = {
         p.accolades = [];
       });
     });
+
+    this.generateSeasonSchedule();
+  },
+
+  generateSeasonSchedule() {
+    if (typeof ScheduleCore === 'undefined') {
+      console.error('ScheduleCore not loaded — check that schedule-core.js is included before engine.js');
+      return;
+    }
+    const teamRefs = this.state.teams.map(t => ({ school: t.school, conference: t.conference || 'Independent' }));
+    const { schedule, nonConfEnd, confEnd } = ScheduleCore.generateFullSchedule(teamRefs, {
+      nonConfGamesPerTeam: 12,
+      nonConfStartWeek: 1,
+      nonConfWeeks: 9,
+      confGamesPerWeek: 2
+    });
+    this.state.schedule = schedule;
+    this.state.nonConfEnd = nonConfEnd;
+    this.state.confEnd = confEnd;
+    this.state.maxWeeks = confEnd;
+    this.state.scheduleViewWeek = 1;
   },
 
   buildBaseStatExpectations(player, mpg) {
@@ -314,91 +353,110 @@ window.SimEngine = {
     };
   },
 
+  // Public entry point wired to the "Simulate..." button. Dispatches to
+  // whichever phase of the season is next, so the HTML/UI never needs to
+  // know which specific step is happening.
   async simulateWeek() {
     if (this.state.teams.length === 0) {
       alert("No active teams detected. Please refresh or check data sources.");
       return;
     }
-    if (this.state.simCompleted) {
+    if (this.state.ncaaDone) {
       alert("Season already complete! Advance offseason to start a new year.");
       return;
     }
-    
     if (this.state.week === 0) {
       this.initSeasonData();
     }
 
-    this.state.week++;
-    let isConf = this.state.week > 6;
-
-    this.state.teams.forEach(team => {
-       for(let i=0; i<2; i++) {
-         let win = Math.random() < team.expectedWinPct;
-         if (win) team.simData.wins++; else team.simData.losses++;
-         if (isConf) {
-           if (win) team.simData.confWins++; else team.simData.confLosses++;
-         }
-       }
-    });
-
-    this.state.activePlayers.forEach(p => {
-       for(let i=0; i<2; i++) {
-          p.gameLog.push(this.generateSingleGameBox(p, isConf, this.state.week, i+1));
-       }
-       this.recalculateAverages(p);
-    });
-
-    if (this.state.week >= this.state.maxWeeks) {
-       this.finalizeSeason();
-    } else {
-       this.syncUI();
-       this.logNews(`Week ${this.state.week} simulation complete.`);
+    if (!this.state.regularSeasonDone) {
+      await this.simulateRegularSeasonWeek();
+    } else if (!this.state.confChampsDone) {
+      await this.simulateConferenceChampionships();
+    } else if (!this.state.ncaaDone) {
+      await this.simulateNCAATournament();
     }
-
-    await this.saveStateToDB();
   },
 
-  generateSingleGameBox(player, isConf, week, gameNum) {
-     const exp = player.expectedStats || this.getZeroStats();
-     const gameMin = Math.round(parseFloat(exp.mpg || 0) * (0.8 + Math.random()*0.4));
-     
-     if (gameMin <= 0) {
-       return { week, isConf, min:0, pts:0, reb:0, ast:0, stl:0, blk:0, tov:0, pf:0, fgm:0, fga:0, twoPm:0, twoPa:0, threePm:0, threePa:0, ftm:0, fta:0 };
-     }
+  // Finds a team object by school name — schedule entries store school
+  // names (strings) rather than object references so they stay simple
+  // to generate, serialize, and save.
+  findTeam(schoolName) {
+    return this.state.teams.find(t => t.school === schoolName);
+  },
 
-     const variance = () => 0.5 + (Math.random() * 1.0); 
-     const scale = gameMin / Math.max(1, parseFloat(exp.mpg || 1));
-     
-     let expected3PA = parseFloat(exp.fta || 0) > 0 ? (parseFloat(exp.ppg || 0) - (parseFloat(exp.fta || 0)*parseFloat(exp.ftPct || 0))) * parseFloat(exp.threePar || 0) / 3 : 0;
-     let expected2PA = parseFloat(exp.fta || 0) > 0 ? ((parseFloat(exp.ppg || 0) - (parseFloat(exp.fta || 0)*parseFloat(exp.ftPct || 0))) - (expected3PA*3)) / 2 : 0;
-     if(expected2PA < 0) expected2PA = 1; if(expected3PA < 0) expected3PA = 1;
+  // Runs every scheduled game for the upcoming week: real head-to-head
+  // matchups via GameCore, with both teams' records and every player's
+  // game log updated from the same simulated result.
+  async simulateRegularSeasonWeek() {
+    this.state.week++;
+    const gamesThisWeek = this.state.schedule.filter(g => g.week === this.state.week && !g.played);
 
-     const threePa = Math.round(expected3PA * scale * variance());
-     let threePm = 0;
-     for(let i=0; i<threePa; i++) if (Math.random() < parseFloat(exp.threePPct || 0)) threePm++;
-     
-     const twoPa = Math.round(expected2PA * scale * variance());
-     let twoPm = 0;
-     for(let i=0; i<twoPa; i++) if (Math.random() < parseFloat(exp.twoPPct || 0)) twoPm++;
-     
-     const fta = Math.round(parseFloat(exp.fta || 0) * scale * variance());
-     let ftm = 0;
-     for(let i=0; i<fta; i++) if (Math.random() < parseFloat(exp.ftPct || 0)) ftm++;
-     
-     const reb = Math.round(parseFloat(exp.rpg || 0) * scale * variance());
-     const ast = Math.round(parseFloat(exp.apg || 0) * scale * variance());
-     const stl = Math.round(parseFloat(exp.stl || 0) * (0.3 + Math.random()*1.4));
-     const blk = Math.round(parseFloat(exp.blk || 0) * (0.3 + Math.random()*1.4));
-     const tov = Math.round(parseFloat(exp.tov || 0) * scale * variance());
-     const pf = Math.min(5, Math.round(parseFloat(exp.pf || 0) * scale * variance()));
+    gamesThisWeek.forEach(g => {
+      const home = this.findTeam(g.home);
+      const away = this.findTeam(g.away);
+      if (!home || !away) return;
+      this.playGame(home, away, g, g.isConf ? 'conf' : 'nonconf');
+    });
 
-     return {
-       week, isConf, min: gameMin,
-       pts: (threePm * 3) + (twoPm * 2) + ftm,
-       reb, ast, stl, blk, tov, pf,
-       fgm: twoPm + threePm, fga: twoPa + threePa,
-       twoPm, twoPa, threePm, threePa, ftm, fta
-     };
+    this.recalculateAllAverages();
+    await this.saveStateToDB();
+
+    if (this.state.week >= this.state.confEnd) {
+      this.finalizeRegularSeason();
+    } else {
+      if (this.state.week === this.state.nonConfEnd) this.state.phase = 'Conference Play';
+      this.state.scheduleViewWeek = this.state.week;
+      this.syncUI();
+      this.logNews(`Week ${this.state.week} simulation complete (${gamesThisWeek.length} games).`);
+    }
+  },
+
+  // Simulates one real game between two teams via GameCore, updating
+  // records and attaching a real game-log entry (with opponent, home/
+  // away, and result) to every player who appeared.
+  playGame(home, away, scheduleEntry, gamePhaseLabel) {
+    const result = GameCore.simulateSingleGame(home, away);
+    const homeWin = result.homeScore > result.awayScore;
+
+    home.simData.wins += homeWin ? 1 : 0;
+    home.simData.losses += homeWin ? 0 : 1;
+    away.simData.wins += homeWin ? 0 : 1;
+    away.simData.losses += homeWin ? 1 : 0;
+
+    if (scheduleEntry && scheduleEntry.isConf) {
+      home.simData.confWins += homeWin ? 1 : 0;
+      home.simData.confLosses += homeWin ? 0 : 1;
+      away.simData.confWins += homeWin ? 0 : 1;
+      away.simData.confLosses += homeWin ? 1 : 0;
+    }
+
+    const attachLogs = (boxes, teamScore, oppScore, oppSchool, isHome) => {
+      boxes.forEach(({ player, box }) => {
+        player.gameLog.push({
+          ...box,
+          week: scheduleEntry ? scheduleEntry.week : this.state.week,
+          isConf: scheduleEntry ? !!scheduleEntry.isConf : false,
+          phase: gamePhaseLabel,
+          opponent: oppSchool,
+          isHome,
+          teamScore, oppScore,
+          won: teamScore > oppScore
+        });
+      });
+    };
+    attachLogs(result.homePlayerBoxes, result.homeScore, result.awayScore, away.school, true);
+    attachLogs(result.awayPlayerBoxes, result.awayScore, result.homeScore, home.school, false);
+
+    if (scheduleEntry) {
+      scheduleEntry.played = true;
+      scheduleEntry.result = { homeScore: result.homeScore, awayScore: result.awayScore };
+    }
+    return result;
+  },
+
+  recalculateAllAverages() {
+    this.state.activePlayers.forEach(p => this.recalculateAverages(p));
   },
 
   recalculateAverages(player) {
@@ -455,7 +513,7 @@ window.SimEngine = {
     player.stats = this.state.scopeFilter === 'conf' ? player.statsConf : player.statsFull;
   },
 
-  finalizeSeason() {
+  finalizeRegularSeason() {
     this.state.phase = 'Regular Season Final';
     
     this.state.teams.forEach(t => {
@@ -484,9 +542,121 @@ window.SimEngine = {
       p.defensiveScore = (dbpm * 3.5) + (stl * 2.5) + (blk * 2.5) + (teamWinPct * 10);
     });
     
-    this.state.simCompleted = true;
+    this.state.regularSeasonDone = true;
     this.syncUI();
-    this.logNews("Regular season complete. National and Conference awards calculated.");
+    this.logNews("Regular season complete. National and Conference awards calculated. Conference Championships are up next.");
+  },
+
+  // Seeds each conference by conference record (matching the standings
+  // sort), runs a real single-elimination bracket for every conference
+  // with 2+ teams, and grants the champion an automatic NCAA bid.
+  async simulateConferenceChampionships() {
+    const confMap = {};
+    this.state.teams.forEach(t => {
+      const c = t.conference || 'Independent';
+      if (!confMap[c]) confMap[c] = [];
+      confMap[c].push(t);
+    });
+
+    this.state.confTournaments = {};
+    Object.keys(confMap).forEach(confName => {
+      const confTeams = confMap[confName];
+      if (confTeams.length < 2) return;
+
+      confTeams.sort((a, b) => {
+        if (b.simData.confWins !== a.simData.confWins) return b.simData.confWins - a.simData.confWins;
+        if (b.simData.wins !== a.simData.wins) return b.simData.wins - a.simData.wins;
+        return b.simData.teamOvr - a.simData.teamOvr;
+      });
+
+      // Reuse GameCore for every bracket game, logging them like any
+      // other real game (marked as conference-tournament games).
+      const bracket = TournamentCore.simulateBracket(confTeams, { homeCourtEdge: 0 });
+      [...bracket.playIn, ...bracket.rounds.flat()].forEach(g => {
+        this.attachBracketGameLogs(g, 'conftourney');
+      });
+
+      bracket.champion.wonConfTourney = true;
+      this.state.confTournaments[confName] = bracket;
+    });
+
+    this.recalculateAllAverages();
+    this.state.confChampsDone = true;
+    await this.saveStateToDB();
+    this.syncUI();
+    this.logNews("Conference Championships complete. On to the NCAA Tournament.");
+  },
+
+  // Builds the NCAA field: conference tournament champions get automatic
+  // bids, the rest of the field is filled by at-large teams ranked by
+  // season resume (wins, then team strength) until we hit a target size.
+  buildNCAAField() {
+    const autoBids = Object.values(this.state.confTournaments).map(b => b.champion);
+    const autoBidSchools = new Set(autoBids.map(t => t.school));
+
+    const atLargePool = this.state.teams
+      .filter(t => !autoBidSchools.has(t.school))
+      .sort((a, b) => {
+        if (b.simData.wins !== a.simData.wins) return b.simData.wins - a.simData.wins;
+        return b.simData.teamOvr - a.simData.teamOvr;
+      });
+
+    const targetSize = Math.max(autoBids.length, Math.min(68, Math.round(this.state.teams.length * 0.19)));
+    const atLargeNeeded = Math.max(0, targetSize - autoBids.length);
+    const atLarge = atLargePool.slice(0, atLargeNeeded);
+
+    const field = [...autoBids, ...atLarge].sort((a, b) => {
+      if (b.simData.wins !== a.simData.wins) return b.simData.wins - a.simData.wins;
+      return b.simData.teamOvr - a.simData.teamOvr;
+    });
+    field.forEach((t, i) => t.ncaaSeed = i + 1);
+    return field;
+  },
+
+  async simulateNCAATournament() {
+    const field = this.buildNCAAField();
+    const bracket = TournamentCore.simulateBracket(field, { homeCourtEdge: 0 });
+    [...bracket.playIn, ...bracket.rounds.flat()].forEach(g => {
+      this.attachBracketGameLogs(g, 'ncaa');
+    });
+
+    bracket.champion.wonNationalTitle = true;
+    this.state.ncaaTournament = bracket;
+
+    this.recalculateAllAverages();
+    this.state.ncaaDone = true;
+    this.state.simCompleted = true;
+    this.state.phase = `National Champion: ${bracket.champion.school}`;
+    await this.saveStateToDB();
+    this.syncUI();
+    this.logNews(`${bracket.champion.school} wins the National Championship!`);
+  },
+
+  // Shared helper: attaches real game-log entries (with opponent, score,
+  // and result) for one already-simulated bracket game, and updates the
+  // records of both participating teams.
+  attachBracketGameLogs(bracketGame, phaseLabel) {
+    const { teamA, teamB, result, winner } = bracketGame;
+    const aIsWinner = winner === teamA;
+    winner.simData.wins++;
+    (aIsWinner ? teamB : teamA).simData.losses++;
+
+    const attach = (boxes, team, opp, teamScore, oppScore) => {
+      boxes.forEach(({ player, box }) => {
+        player.gameLog.push({
+          ...box,
+          week: this.state.week,
+          isConf: false,
+          phase: phaseLabel,
+          opponent: opp.school,
+          isHome: team === teamA,
+          teamScore, oppScore,
+          won: teamScore > oppScore
+        });
+      });
+    };
+    attach(result.homePlayerBoxes, teamA, teamB, result.homeScore, result.awayScore);
+    attach(result.awayPlayerBoxes, teamB, teamA, result.awayScore, result.homeScore);
   },
 
   async runOffseason() {
@@ -494,8 +664,8 @@ window.SimEngine = {
       alert("Simulate the regular season first before advancing to the offseason.");
       return;
     }
-    if (!this.state.simCompleted) {
-      alert("Finish the current season before advancing.");
+    if (!this.state.ncaaDone) {
+      alert("Finish the current season (through the NCAA Tournament) before advancing.");
       return;
     }
 
@@ -508,12 +678,22 @@ window.SimEngine = {
       });
       team.roster = team.roster.filter(p => p.class !== 'GRADUATED');
       team.simData = { teamOvr: 0, wins: 0, losses: 0, confWins: 0, confLosses: 0, rosterRef: team.roster, winPct: '.000' };
+      team.apRank = null;
+      team.ncaaSeed = null;
+      team.wonConfTourney = false;
+      team.wonNationalTitle = false;
     });
 
     this.state.year += 1;
     this.state.week = 0;
     this.state.phase = 'Preseason';
     this.state.simCompleted = false;
+    this.state.regularSeasonDone = false;
+    this.state.confChampsDone = false;
+    this.state.ncaaDone = false;
+    this.state.schedule = [];
+    this.state.confTournaments = {};
+    this.state.ncaaTournament = null;
     
     this.filterActiveData();
     this.logNews(`Advanced to ${this.state.year} Offseason. Graduated seniors cleared; incoming recruits added.`);
@@ -531,14 +711,25 @@ window.SimEngine = {
 
     const phaseElem = document.getElementById('currentPhaseDisplay');
     if (phaseElem) {
-      phaseElem.innerText = this.state.simCompleted ? 'Regular Season Final' : (this.state.week === 0 ? 'Preseason' : `Week ${this.state.week}`);
+      if (this.state.ncaaDone) phaseElem.innerText = this.state.phase;
+      else if (this.state.confChampsDone) phaseElem.innerText = 'NCAA Tournament';
+      else if (this.state.regularSeasonDone) phaseElem.innerText = 'Conference Championships';
+      else if (this.state.week === 0) phaseElem.innerText = 'Preseason';
+      else if (this.state.week > this.state.nonConfEnd) phaseElem.innerText = `Conference — Week ${this.state.week}`;
+      else phaseElem.innerText = `Non-Conference — Week ${this.state.week}`;
     }
 
     const btn = document.getElementById('simWeekBtn');
     if (btn) {
-      if (this.state.simCompleted) {
+      if (this.state.ncaaDone) {
         btn.innerText = `Season Complete`;
         btn.disabled = true;
+      } else if (this.state.confChampsDone) {
+        btn.innerText = `Simulate NCAA Tournament`;
+        btn.disabled = false;
+      } else if (this.state.regularSeasonDone) {
+        btn.innerText = `Simulate Conference Championships`;
+        btn.disabled = false;
       } else {
         btn.innerText = `Simulate Week ${this.state.week + 1}`;
         btn.disabled = false;
@@ -549,6 +740,8 @@ window.SimEngine = {
     this.sortAndRenderStatsTable();
     this.updateStandingsTab();
     this.updateAwardsTab();
+    this.updateScheduleTab();
+    this.updatePostseasonTab();
   },
 
   setConfFilter(val) {
@@ -828,7 +1021,7 @@ window.SimEngine = {
   },
 
   updateAwardsTab() {
-    if (!this.state.simCompleted) {
+    if (!this.state.regularSeasonDone) {
       document.getElementById('nationalAwardsGrid').innerHTML = `<p class="sub-text">Complete the season to calculate National Award winners.</p>`;
       document.getElementById('allAmericanContainer').innerHTML = `<p class="sub-text">Complete the season to view All-American teams.</p>`;
       document.getElementById('confAwardsContainer').innerHTML = `<p class="sub-text">Complete the season to view conference award winners.</p>`;
@@ -937,7 +1130,7 @@ window.SimEngine = {
     this.state.selectedAwardConf = confName;
     document.getElementById('confAwardsTitle').innerText = `${confName} Conference Honors`;
     
-    if (!this.state.simCompleted) {
+    if (!this.state.regularSeasonDone) {
       document.getElementById('confAwardsContainer').innerHTML = `<p class="sub-text">Complete the season to view conference awards.</p>`;
       return;
     }
@@ -1069,7 +1262,7 @@ window.SimEngine = {
     document.getElementById('modalTeamYear').innerText = `${this.state.year}-${(this.state.year+1).toString().slice(2)}`;
     
     if (this.state.week > 0) {
-      if (this.state.simCompleted && rank && rank <= 25) {
+      if (this.state.regularSeasonDone && rank && rank <= 25) {
         document.getElementById('modalTeamRank').style.display = 'block';
         document.getElementById('modalTeamRank').innerText = `#${rank}`;
       } else {
@@ -1078,10 +1271,17 @@ window.SimEngine = {
 
       document.getElementById('modalTeamRecord').innerText = `${team.simData.wins}-${team.simData.losses}`;
       document.getElementById('modalConfRecord').innerText = `${team.simData.confWins}-${team.simData.confLosses}`;
-      
-      let teamPpg = team.simData.rosterRef.reduce((sum, p) => sum + parseFloat(p.stats.ppg), 0);
-      document.getElementById('modalTeamPPG').innerText = teamPpg.toFixed(1);
-      document.getElementById('modalOppPPG').innerText = (teamPpg + (team.simData.losses - team.simData.wins) * 0.4).toFixed(1);
+
+      const playedGames = this.state.schedule.filter(g => g.played && g.result && (g.home === team.school || g.away === team.school));
+      const gp = playedGames.length || 1;
+      let ownPtsTotal = 0, oppPtsTotal = 0;
+      playedGames.forEach(g => {
+        const isHome = g.home === team.school;
+        ownPtsTotal += isHome ? g.result.homeScore : g.result.awayScore;
+        oppPtsTotal += isHome ? g.result.awayScore : g.result.homeScore;
+      });
+      document.getElementById('modalTeamPPG').innerText = (ownPtsTotal / gp).toFixed(1);
+      document.getElementById('modalOppPPG').innerText = (oppPtsTotal / gp).toFixed(1);
     } else {
       document.getElementById('modalTeamRank').style.display = 'none';
       document.getElementById('modalTeamRecord').innerText = "0-0";
@@ -1142,11 +1342,13 @@ window.SimEngine = {
       glHtml = `<tr><td colspan="12" class="empty-table-msg">No games played yet.</td></tr>`;
     } else {
       player.gameLog.forEach(g => {
-        let type = g.isConf ? 'Conf' : 'Non-Conf';
+        let matchup = g.opponent
+          ? `${g.isHome ? 'vs' : '@'} ${g.opponent}${g.teamScore !== undefined ? ` (${g.won ? 'W' : 'L'} ${g.teamScore}-${g.oppScore})` : ''}`
+          : (g.isConf ? 'Conf' : 'Non-Conf');
         glHtml += `
           <tr>
             <td class="bold-text">Wk ${g.week}</td>
-            <td class="sub-text-sm">${type}</td>
+            <td class="sub-text-sm">${matchup}</td>
             <td>${g.min}</td>
             <td class="highlight-col">${g.pts}</td>
             <td>${g.reb}</td>
@@ -1179,19 +1381,119 @@ window.SimEngine = {
     feed.prepend(item);
   },
 
-  simulateGame(homeTeam, awayTeam) {
-    if (!homeTeam || !homeTeam.roster || homeTeam.roster.length === 0) {
-      console.warn(`Skipping game: Home team has no players.`);
-      return;
-    }
-    if (!awayTeam || !awayTeam.roster || awayTeam.roster.length === 0) {
-      console.warn(`Skipping game: Away team has no players.`);
+  // --- Schedule & Postseason rendering ---
+
+  updateScheduleTab() {
+    const container = document.getElementById('scheduleContainer');
+    if (!container) return;
+    if (this.state.week === 0 && this.state.schedule.length === 0) {
+      container.innerHTML = `<p class="empty-table-msg">Simulate the season to generate a schedule.</p>`;
       return;
     }
 
-    const getActivePlayer = (roster) => {
-      const player = roster[Math.floor(Math.random() * roster.length)];
-      return player || { name: "Bench Fill", pts: 0, reb: 0, ast: 0 };
+    const maxViewableWeek = Math.max(1, this.state.week || 1);
+    if (!this.state.scheduleViewWeek || this.state.scheduleViewWeek > maxViewableWeek) {
+      this.state.scheduleViewWeek = maxViewableWeek;
+    }
+    const viewWeek = this.state.scheduleViewWeek;
+
+    let weekTabsHtml = `<div class="filters-container mb-1">`;
+    weekTabsHtml += `<select id="scheduleWeekSelect" class="filter-select" onchange="SimEngine.setScheduleWeek(this.value)">`;
+    for (let w = 1; w <= maxViewableWeek; w++) {
+      const label = w > this.state.nonConfEnd ? `Conf Wk ${w}` : `Non-Conf Wk ${w}`;
+      weekTabsHtml += `<option value="${w}" ${w === viewWeek ? 'selected' : ''}>${label}</option>`;
+    }
+    weekTabsHtml += `</select></div>`;
+
+    const games = this.state.schedule.filter(g => g.week === viewWeek);
+    let gamesHtml = `<div class="table-scroll"><table class="data-table"><thead><tr><th>Away</th><th></th><th>Home</th><th>Result</th></tr></thead><tbody>`;
+    if (games.length === 0) {
+      gamesHtml += `<tr><td colspan="4" class="empty-table-msg">No games scheduled this week.</td></tr>`;
+    } else {
+      games.forEach(g => {
+        const homeTeam = this.findTeam(g.home);
+        const awayTeam = this.findTeam(g.away);
+        let resultHtml = '<span class="sub-text">Not yet played</span>';
+        if (g.played && g.result) {
+          const homeWin = g.result.homeScore > g.result.awayScore;
+          resultHtml = `<span class="${homeWin ? '' : 'bold-text'}">${g.result.awayScore}</span> @ <span class="${homeWin ? 'bold-text' : ''}">${g.result.homeScore}</span>`;
+        }
+        gamesHtml += `
+          <tr>
+            <td><span class="clickable-school" onclick="SimEngine.openTeamModal('${(awayTeam ? awayTeam.school : g.away).replace(/'/g, "\\'")}')">${g.away}</span></td>
+            <td class="sub-text-sm">at</td>
+            <td><span class="clickable-school" onclick="SimEngine.openTeamModal('${(homeTeam ? homeTeam.school : g.home).replace(/'/g, "\\'")}')">${g.home}</span></td>
+            <td>${resultHtml}</td>
+          </tr>`;
+      });
+    }
+    gamesHtml += `</tbody></table></div>`;
+
+    container.innerHTML = weekTabsHtml + gamesHtml;
+  },
+
+  setScheduleWeek(weekNum) {
+    this.state.scheduleViewWeek = parseInt(weekNum, 10);
+    this.updateScheduleTab();
+  },
+
+  updatePostseasonTab() {
+    const container = document.getElementById('postseasonContainer');
+    if (!container) return;
+
+    if (!this.state.regularSeasonDone) {
+      container.innerHTML = `<p class="empty-table-msg">Complete the regular season to unlock Conference Championships and the NCAA Tournament.</p>`;
+      return;
+    }
+
+    const renderBracketGame = g => {
+      const homeWin = g.result.homeScore > g.result.awayScore;
+      return `<div class="leader-row">
+        <span>${g.teamB.school} <span class="sub-text-sm">at</span> ${g.teamA.school}</span>
+        <span class="${homeWin ? 'bold-text' : ''}">${g.result.awayScore}-${g.result.homeScore}</span>
+        <span class="sub-text-sm">${g.winner.school} advances</span>
+      </div>`;
     };
+
+    let html = '';
+
+    html += `<h4 class="award-section-title">Conference Championships</h4>`;
+    if (Object.keys(this.state.confTournaments).length === 0) {
+      html += `<p class="sub-text">Not yet simulated.</p>`;
+    } else {
+      html += `<div class="all-american-container">`;
+      Object.entries(this.state.confTournaments).forEach(([confName, bracket]) => {
+        html += `<div class="award-table-card"><h5 class="award-table-title">${confName} — Champion: ${bracket.champion.school}</h5>`;
+        if (bracket.playIn.length > 0) {
+          html += `<p class="sub-text-sm">Play-in:</p>`;
+          bracket.playIn.forEach(g => html += renderBracketGame(g));
+        }
+        bracket.rounds.forEach((round, i) => {
+          html += `<p class="sub-text-sm">Round ${i + 1}:</p>`;
+          round.forEach(g => html += renderBracketGame(g));
+        });
+        html += `</div>`;
+      });
+      html += `</div>`;
+    }
+
+    html += `<h4 class="award-section-title mt-2">NCAA Tournament</h4>`;
+    if (!this.state.ncaaTournament) {
+      html += `<p class="sub-text">Not yet simulated.</p>`;
+    } else {
+      const bracket = this.state.ncaaTournament;
+      html += `<div class="award-card major-award"><div class="award-title">National Champion</div><div class="award-sub">${bracket.champion.school}</div></div>`;
+      if (bracket.playIn.length > 0) {
+        html += `<p class="sub-text-sm mt-1">First Four:</p>`;
+        bracket.playIn.forEach(g => html += renderBracketGame(g));
+      }
+      const roundNames = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8', 'Final Four', 'Championship'];
+      bracket.rounds.forEach((round, i) => {
+        html += `<p class="sub-text-sm mt-1">${roundNames[i] || `Round ${i + 1}`}:</p>`;
+        round.forEach(g => html += renderBracketGame(g));
+      });
+    }
+
+    container.innerHTML = html;
   }
 };
