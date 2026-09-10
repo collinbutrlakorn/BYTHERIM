@@ -13,6 +13,8 @@ window.SimEngine = {
     sortDir: 'desc',
     confFilter: 'ALL',   
     scopeFilter: 'full',
+    scheduleConfFilter: 'ALL',
+    scheduleTop25Only: false,
     selectedAwardConf: 'ACC',
     // --- Real schedule / postseason state ---
     schedule: [],           // flat list of {id, week, phase, isConf, home, away, played, result}
@@ -1143,13 +1145,15 @@ window.SimEngine = {
               <tbody>`;
 
       confTeams.forEach((t, idx) => {
-        let isHidden = idx >= 5 ? `class="conf-row-${confSafeId}" style="display:none;"` : '';
-        let isApRanked = t.apRank !== null && t.apRank <= 25;
-        let rowStyleClass = isApRanked ? 'ap-ranked-row' : '';
-        let apTag = isApRanked ? ` <span class="ap-rank-tag">(#${t.apRank})</span>` : '';
+        const isApRanked = t.apRank !== null && t.apRank <= 25;
+        const hiddenClass = idx >= 5 ? `conf-row-${confSafeId}` : '';
+        const rankClass = isApRanked ? 'ap-ranked-row' : '';
+        const rowClasses = [hiddenClass, rankClass].filter(Boolean).join(' ');
+        const rowStyle = idx >= 5 ? 'style="display:none;"' : '';
+        const apTag = isApRanked ? ` <span class="ap-rank-tag">(#${t.apRank})</span>` : '';
 
         confsHtml += `
-          <tr class="${isHidden} ${rowStyleClass}">
+          <tr class="${rowClasses}" ${rowStyle}>
             <td class="bold-sub-text">${idx+1}</td>
             <td>
               <div class="team-cell-wrap clickable-school" onclick="SimEngine.openTeamModal('${t.school.replace(/'/g, "\\'")}')">
@@ -1567,24 +1571,70 @@ window.SimEngine = {
     }
     const viewWeek = this.state.scheduleViewWeek;
 
-    let weekTabsHtml = `<div class="filters-container mb-1">`;
-    weekTabsHtml += `<select id="scheduleWeekSelect" class="filter-select" onchange="SimEngine.setScheduleWeek(this.value)">`;
+    const confList = [...new Set(this.state.teams.map(t => (t.conference || 'NCAA').trim()))].filter(Boolean).sort();
+
+    let filtersHtml = `<div class="filters-container mb-1">`;
+    filtersHtml += `<select id="scheduleWeekSelect" class="filter-select" onchange="SimEngine.setScheduleWeek(this.value)">`;
     for (let w = 1; w <= maxViewableWeek; w++) {
       const label = w > this.state.nonConfEnd ? `Conf Wk ${w}` : `Non-Conf Wk ${w}`;
-      weekTabsHtml += `<option value="${w}" ${w === viewWeek ? 'selected' : ''}>${label}</option>`;
+      filtersHtml += `<option value="${w}" ${w === viewWeek ? 'selected' : ''}>${label}</option>`;
     }
-    weekTabsHtml += `</select></div>`;
+    filtersHtml += `</select>`;
 
-    const games = this.state.schedule.filter(g => g.week === viewWeek);
+    filtersHtml += `<select id="scheduleConfSelect" class="filter-select" onchange="SimEngine.setScheduleConfFilter(this.value)">`;
+    filtersHtml += `<option value="ALL" ${this.state.scheduleConfFilter === 'ALL' ? 'selected' : ''}>All Conferences</option>`;
+    confList.forEach(c => {
+      filtersHtml += `<option value="${c}" ${this.state.scheduleConfFilter === c ? 'selected' : ''}>${c}</option>`;
+    });
+    filtersHtml += `</select>`;
+
+    filtersHtml += `<select id="scheduleTop25Select" class="filter-select" onchange="SimEngine.setScheduleTop25Only(this.value)">`;
+    filtersHtml += `<option value="0" ${!this.state.scheduleTop25Only ? 'selected' : ''}>All Games</option>`;
+    filtersHtml += `<option value="1" ${this.state.scheduleTop25Only ? 'selected' : ''}>AP Top 25 Only</option>`;
+    filtersHtml += `</select>`;
+    filtersHtml += `</div>`;
+
+    let games = this.state.schedule.filter(g => g.week === viewWeek);
+
+    if (this.state.scheduleConfFilter !== 'ALL') {
+      games = games.filter(g => {
+        const homeTeam = this.findTeam(g.home);
+        const awayTeam = this.findTeam(g.away);
+        return (homeTeam && homeTeam.conference === this.state.scheduleConfFilter) ||
+               (awayTeam && awayTeam.conference === this.state.scheduleConfFilter);
+      });
+    }
+
+    let top25Unavailable = false;
+    if (this.state.scheduleTop25Only) {
+      const anyRanked = this.state.teams.some(t => t.apRank !== null && t.apRank !== undefined && t.apRank <= 25);
+      if (!anyRanked) {
+        top25Unavailable = true;
+        games = [];
+      } else {
+        games = games.filter(g => {
+          const homeTeam = this.findTeam(g.home);
+          const awayTeam = this.findTeam(g.away);
+          const homeRanked = homeTeam && homeTeam.apRank !== null && homeTeam.apRank !== undefined && homeTeam.apRank <= 25;
+          const awayRanked = awayTeam && awayTeam.apRank !== null && awayTeam.apRank !== undefined && awayTeam.apRank <= 25;
+          return homeRanked || awayRanked;
+        });
+      }
+    }
+
     let gamesHtml = `<div class="schedule-pill-list">`;
-    if (games.length === 0) {
-      gamesHtml += `<p class="empty-table-msg">No games scheduled this week.</p>`;
+    if (top25Unavailable) {
+      gamesHtml += `<p class="empty-table-msg">AP rankings aren't available until the regular season ends.</p>`;
+    } else if (games.length === 0) {
+      gamesHtml += `<p class="empty-table-msg">No games match these filters this week.</p>`;
     } else {
       games.forEach(g => {
         const homeTeam = this.findTeam(g.home);
         const awayTeam = this.findTeam(g.away);
         const homeSafe = (homeTeam ? homeTeam.school : g.home).replace(/'/g, "\\'");
         const awaySafe = (awayTeam ? awayTeam.school : g.away).replace(/'/g, "\\'");
+        const homeRankTag = (homeTeam && homeTeam.apRank && homeTeam.apRank <= 25) ? `<span class="ap-rank-tag">#${homeTeam.apRank}</span> ` : '';
+        const awayRankTag = (awayTeam && awayTeam.apRank && awayTeam.apRank <= 25) ? `<span class="ap-rank-tag">#${awayTeam.apRank}</span> ` : '';
 
         let resultHtml = `<span class="schedule-pill-pending">Not yet played</span>`;
         if (g.played && g.result) {
@@ -1598,10 +1648,10 @@ window.SimEngine = {
           <div class="schedule-pill">
             <div class="schedule-pill-matchup">
               <img src="${this.getTeamLogo(g.away)}" class="xs-logo">
-              <span class="clickable-school" onclick="SimEngine.openTeamModal('${awaySafe}')">${g.away}</span>
+              ${awayRankTag}<span class="clickable-school" onclick="SimEngine.openTeamModal('${awaySafe}')">${g.away}</span>
               <span class="schedule-pill-at">at</span>
               <img src="${this.getTeamLogo(g.home)}" class="xs-logo">
-              <span class="clickable-school" onclick="SimEngine.openTeamModal('${homeSafe}')">${g.home}</span>
+              ${homeRankTag}<span class="clickable-school" onclick="SimEngine.openTeamModal('${homeSafe}')">${g.home}</span>
             </div>
             ${resultHtml}
           </div>`;
@@ -1609,7 +1659,17 @@ window.SimEngine = {
     }
     gamesHtml += `</div>`;
 
-    container.innerHTML = weekTabsHtml + gamesHtml;
+    container.innerHTML = filtersHtml + gamesHtml;
+  },
+
+  setScheduleConfFilter(val) {
+    this.state.scheduleConfFilter = val;
+    this.updateScheduleTab();
+  },
+
+  setScheduleTop25Only(val) {
+    this.state.scheduleTop25Only = val === '1';
+    this.updateScheduleTab();
   },
 
   setScheduleWeek(weekNum) {
