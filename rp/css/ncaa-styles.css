@@ -7,6 +7,9 @@
   --text-main: #f5f6fa;
   --text-muted: #949cb3;
   --border: #252b3b;
+  --win: #3ddc84;
+  --loss: #e5484d;
+  --gold: #d4af37;
 }
 
 * {
@@ -400,6 +403,30 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   object-fit: contain;
 }
 
+/* Logo sizes for every other context they appear in — these were
+   missing entirely, which is why logos rendered at native image size
+   (some source files are 1900px+ wide) instead of as icons. */
+.award-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.sm-logo {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.xs-logo {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
 .team-stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -433,8 +460,389 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
 .w-100 { width: 100%; }
 .mb-1 { margin-bottom: 1rem; }
 .mb-1-5 { margin-bottom: 1.5rem; }
+.mt-1 { margin-top: 1rem; }
 .mt-2 { margin-top: 2rem; }
 .flex-between { display: flex; justify-content: space-between; align-items: center; }
 .wrap-gap { flex-wrap: wrap; gap: 1rem; }
 .sub-text { color: var(--text-muted); font-size: 0.9rem; }
 .sub-text-sm { color: var(--text-muted); font-size: 0.8rem; font-weight: normal; }
+
+/* ============================================================
+   Everything below fills in classes the JS-generated markup
+   already relies on. Without these, logos and team names were
+   stacking on top of each other instead of sitting inline, and
+   cards/tables had no visual hierarchy at all.
+   ============================================================ */
+
+/* Logo + name pairing, used anywhere a team appears in a row */
+.team-cell-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.team-name-cell {
+  font-weight: 600;
+}
+
+/* Clickable player/team names — the entire point of the sim's
+   density is that everything drills in, so the hover state needs
+   to read as "this opens something," not just decoration. */
+.clickable-player, .clickable-school {
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.clickable-player:hover, .clickable-school:hover {
+  color: var(--accent);
+}
+
+/* Dashboard: AP Top 10 badges */
+.top-teams-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.team-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.75rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.team-badge:hover {
+  background: var(--card-hover);
+  border-color: var(--accent);
+}
+
+.team-rank {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 1.75rem;
+  font-size: 0.95rem;
+}
+
+/* Dashboard: stat leader lists — value is the point, so it gets
+   the visual weight, not the row chrome around it. */
+.leader-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.92rem;
+}
+
+.leader-row:last-child {
+  border-bottom: none;
+}
+
+.leader-row > span:last-child {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.leader-school {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+/* Standings */
+.standings-card {
+  margin-bottom: 1.5rem;
+}
+
+.standings-header {
+  color: var(--accent);
+  margin-bottom: 0.75rem;
+  font-size: 1.1rem;
+}
+
+.rank-cell {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  color: var(--accent);
+  width: 3rem;
+}
+
+.ap-ranked-row {
+  background: rgba(150, 66, 130, 0.08);
+  border-left: 2px solid var(--accent);
+}
+
+.ap-rank-tag {
+  color: var(--gold);
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-left: 0.35rem;
+}
+
+.conf-standings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.conf-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.conf-card-title {
+  color: var(--text-main);
+  font-size: 1rem;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.btn-sm {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+/* Sortable table headers */
+.data-table th[onclick] {
+  cursor: pointer;
+  user-select: none;
+}
+
+.data-table th.active-sort {
+  color: var(--accent);
+}
+
+.bold-text {
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.bold-sub-text {
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.highlight-text {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.highlight-col {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* Awards */
+.award-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.award-card.major-award {
+  border-color: var(--accent);
+  background: linear-gradient(160deg, rgba(150, 66, 130, 0.12), var(--card-bg) 60%);
+}
+
+.award-title {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 1rem;
+  letter-spacing: 0.4px;
+}
+
+.award-sub {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-bottom: 0.85rem;
+}
+
+.award-winner {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.award-winner-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.award-winner-name {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.award-winner-school {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.award-winner-stats {
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.award-table-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.award-table-title {
+  font-size: 0.95rem;
+  color: var(--text-main);
+  margin-bottom: 0.5rem;
+}
+
+/* Team & player modal headers */
+.team-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.modal-team-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ap-rank {
+  color: var(--gold);
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.modal-team-name, .modal-player-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.modal-team-year, .modal-player-bio {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.modal-player-accolades {
+  color: var(--accent);
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-top: 0.15rem;
+}
+
+.player-modal-substat {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin-left: 0.5rem;
+}
+
+.draft-projection {
+  display: inline-block;
+  background: var(--bg-color);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Schedule tab — game results as compact pills rather than a plain
+   table row, closer to how a dashboard-style sim usually shows a
+   week's slate. */
+.schedule-pill-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.schedule-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 1rem;
+}
+
+.schedule-pill-matchup {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.schedule-pill-at {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.schedule-pill-result {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.schedule-pill-result .win { color: var(--win); }
+.schedule-pill-result .loss { color: var(--text-muted); }
+
+.schedule-pill-pending {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* Postseason bracket games as connected result cards */
+.bracket-game {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  background: var(--bg-color);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.88rem;
+}
+
+.bracket-game-teams {
+  color: var(--text-muted);
+}
+
+.bracket-game-score {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.bracket-game-advances {
+  color: var(--win);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
