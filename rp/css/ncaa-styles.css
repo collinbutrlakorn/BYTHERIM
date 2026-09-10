@@ -101,6 +101,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1.5rem;
+  min-width: 0; /* grid/flex items default to min-width:auto, which lets a wide table blow out the whole page instead of scrolling internally */
 }
 
 .season-title {
@@ -295,6 +296,8 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
 /* Tables */
 .table-scroll {
   overflow-x: auto;
+  width: 100%;
+  min-width: 0;
 }
 
 .data-table {
