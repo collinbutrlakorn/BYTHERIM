@@ -1576,28 +1576,38 @@ window.SimEngine = {
     weekTabsHtml += `</select></div>`;
 
     const games = this.state.schedule.filter(g => g.week === viewWeek);
-    let gamesHtml = `<div class="table-scroll"><table class="data-table"><thead><tr><th>Away</th><th></th><th>Home</th><th>Result</th></tr></thead><tbody>`;
+    let gamesHtml = `<div class="schedule-pill-list">`;
     if (games.length === 0) {
-      gamesHtml += `<tr><td colspan="4" class="empty-table-msg">No games scheduled this week.</td></tr>`;
+      gamesHtml += `<p class="empty-table-msg">No games scheduled this week.</p>`;
     } else {
       games.forEach(g => {
         const homeTeam = this.findTeam(g.home);
         const awayTeam = this.findTeam(g.away);
-        let resultHtml = '<span class="sub-text">Not yet played</span>';
+        const homeSafe = (homeTeam ? homeTeam.school : g.home).replace(/'/g, "\\'");
+        const awaySafe = (awayTeam ? awayTeam.school : g.away).replace(/'/g, "\\'");
+
+        let resultHtml = `<span class="schedule-pill-pending">Not yet played</span>`;
         if (g.played && g.result) {
           const homeWin = g.result.homeScore > g.result.awayScore;
-          resultHtml = `<span class="${homeWin ? '' : 'bold-text'}">${g.result.awayScore}</span> @ <span class="${homeWin ? 'bold-text' : ''}">${g.result.homeScore}</span>`;
+          resultHtml = `<span class="schedule-pill-result">
+            <span class="${homeWin ? 'loss' : 'win'}">${g.result.awayScore}</span> - <span class="${homeWin ? 'win' : 'loss'}">${g.result.homeScore}</span>
+          </span>`;
         }
+
         gamesHtml += `
-          <tr>
-            <td><span class="clickable-school" onclick="SimEngine.openTeamModal('${(awayTeam ? awayTeam.school : g.away).replace(/'/g, "\\'")}')">${g.away}</span></td>
-            <td class="sub-text-sm">at</td>
-            <td><span class="clickable-school" onclick="SimEngine.openTeamModal('${(homeTeam ? homeTeam.school : g.home).replace(/'/g, "\\'")}')">${g.home}</span></td>
-            <td>${resultHtml}</td>
-          </tr>`;
+          <div class="schedule-pill">
+            <div class="schedule-pill-matchup">
+              <img src="${this.getTeamLogo(g.away)}" class="xs-logo">
+              <span class="clickable-school" onclick="SimEngine.openTeamModal('${awaySafe}')">${g.away}</span>
+              <span class="schedule-pill-at">at</span>
+              <img src="${this.getTeamLogo(g.home)}" class="xs-logo">
+              <span class="clickable-school" onclick="SimEngine.openTeamModal('${homeSafe}')">${g.home}</span>
+            </div>
+            ${resultHtml}
+          </div>`;
       });
     }
-    gamesHtml += `</tbody></table></div>`;
+    gamesHtml += `</div>`;
 
     container.innerHTML = weekTabsHtml + gamesHtml;
   },
@@ -1618,10 +1628,14 @@ window.SimEngine = {
 
     const renderBracketGame = g => {
       const homeWin = g.result.homeScore > g.result.awayScore;
-      return `<div class="leader-row">
-        <span>${g.teamB.school} <span class="sub-text-sm">at</span> ${g.teamA.school}</span>
-        <span class="${homeWin ? 'bold-text' : ''}">${g.result.awayScore}-${g.result.homeScore}</span>
-        <span class="sub-text-sm">${g.winner.school} advances</span>
+      return `<div class="bracket-game">
+        <div class="bracket-game-teams">
+          <img src="${this.getTeamLogo(g.teamB.school)}" class="xs-logo"> ${g.teamB.school}
+          <span class="schedule-pill-at">at</span>
+          <img src="${this.getTeamLogo(g.teamA.school)}" class="xs-logo"> ${g.teamA.school}
+        </div>
+        <span class="bracket-game-score">${g.result.awayScore}-${g.result.homeScore}</span>
+        <span class="bracket-game-advances">${g.winner.school} advances</span>
       </div>`;
     };
 
