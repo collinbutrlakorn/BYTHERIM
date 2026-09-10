@@ -23,6 +23,7 @@ window.SimEngine = {
     ncaaDone: false,
     confTournaments: {},    // confName -> bracket result from TournamentCore
     ncaaTournament: null,   // bracket result from TournamentCore
+    draftDeclarations: [],  // players leaving for the draft, computed when the season ends
     scheduleViewWeek: 1
   },
 
@@ -41,6 +42,16 @@ window.SimEngine = {
           this.state.week = savedState.currentWeek || 0;
           this.state.phase = savedState.currentPhase || 'Preseason';
           this.state.simCompleted = savedState.simCompleted || false;
+          this.state.schedule = savedState.schedule || [];
+          this.state.nonConfEnd = savedState.nonConfEnd || 0;
+          this.state.confEnd = savedState.confEnd || 0;
+          this.state.regularSeasonDone = savedState.regularSeasonDone || false;
+          this.state.confChampsDone = savedState.confChampsDone || false;
+          this.state.ncaaDone = savedState.ncaaDone || false;
+          this.state.confTournaments = savedState.confTournaments || {};
+          this.state.ncaaTournament = savedState.ncaaTournament || null;
+          this.state.draftDeclarations = savedState.draftDeclarations || [];
+          this.state.scheduleViewWeek = savedState.scheduleViewWeek || 1;
 
           const savedTeams = await db.teams.toArray();
           const savedPlayers = await db.players.toArray();
@@ -64,16 +75,53 @@ window.SimEngine = {
     }
   },
 
+  // Brackets hold live references to team/player objects (handy for
+  // rendering during the session), but persisting those directly would
+  // duplicate full player records — including game logs — inside every
+  // bracket game. The detailed box scores already live on each player's
+  // own gameLog (which IS persisted via db.players), so the saved copy
+  // of a bracket only needs the school names and final scores it
+  // actually renders.
+  serializeBracket(bracket) {
+    if (!bracket) return null;
+    const slimGame = g => ({
+      teamA: { school: g.teamA.school },
+      teamB: { school: g.teamB.school },
+      winner: { school: g.winner.school },
+      result: { homeScore: g.result.homeScore, awayScore: g.result.awayScore }
+    });
+    return {
+      champion: { school: bracket.champion.school },
+      playIn: bracket.playIn.map(slimGame),
+      rounds: bracket.rounds.map(round => round.map(slimGame))
+    };
+  },
+
   async saveStateToDB() {
     if (typeof db === 'undefined' || !db.leagueState) return;
     try {
+      const slimConfTournaments = {};
+      Object.entries(this.state.confTournaments).forEach(([confName, bracket]) => {
+        slimConfTournaments[confName] = this.serializeBracket(bracket);
+      });
+
       await db.transaction('rw', db.leagueState, db.teams, db.players, async () => {
         await db.leagueState.put({
           id: 1,
           currentYear: this.state.year,
           currentWeek: this.state.week,
           currentPhase: this.state.phase,
-          simCompleted: this.state.simCompleted
+          simCompleted: this.state.simCompleted,
+          schedule: this.state.schedule,
+          nonConfEnd: this.state.nonConfEnd,
+          confEnd: this.state.confEnd,
+          regularSeasonDone: this.state.regularSeasonDone,
+          confChampsDone: this.state.confChampsDone,
+          ncaaDone: this.state.ncaaDone,
+          confTournaments: slimConfTournaments,
+          ncaaTournament: this.serializeBracket(this.state.ncaaTournament),
+          draftDeclarations: this.state.draftDeclarations,
+          scheduleViewWeek: this.state.scheduleViewWeek
         });
         await db.teams.clear();
         await db.teams.bulkAdd(this.state.teams);
@@ -85,9 +133,33 @@ window.SimEngine = {
     }
   },
 
+  // Maps schools whose logo filename doesn't derive from a simple
+  // lowercase-and-strip-punctuation of any reasonable display name
+  // (e.g. "Georgia Tech" -> gtech.png, not georgiatech.png). Add more
+  // entries here (normalized-name -> filename-without-.png) if a
+  // specific school's logo still doesn't show after this fix — the key
+  // just needs to be the school name run through the same normalization
+  // (lowercase, letters/numbers only).
+  LOGO_ALIASES: {
+    georgiatech: 'gtech',
+    gt: 'gtech',
+    pittsburgh: 'pitt',
+    northcarolina: 'unc',
+    uconn: 'connecticut',
+    california: 'cal',
+    southcarolina: 'scar',
+    sandiegostate: 'sdsu',
+    washingtonstate: 'wazzou',
+    wazzu: 'wazzou',
+    olemiss: 'olemiss',
+    stjohn: 'stjohns'
+  },
+
   getTeamLogo(schoolName) {
     if (!schoolName || schoolName === 'Free Agent' || schoolName === 'Uncommitted') return '';
-    return `../schoollogos/${schoolName}.png`;
+    const normalized = String(schoolName).toLowerCase().replace(/[^a-z0-9]/g, '');
+    const fileBase = this.LOGO_ALIASES[normalized] || normalized;
+    return `../schoollogos/${fileBase}.png`;
   },
 
   async fetchData() {
@@ -195,6 +267,40 @@ window.SimEngine = {
     return result;
   },
 
+  // Recognizes many real-world ways a spreadsheet might express a
+  // player's current college class standing, and maps them to the
+  // canonical FR/SO/JR/SR/GR codes the rest of the engine expects.
+  // Returns null if nothing recognizable is found (caller decides the
+  // safe fallback) rather than guessing.
+  normalizeClassStanding(raw) {
+    if (raw === undefined || raw === null || raw === '') return null;
+    let s = String(raw).toLowerCase().trim();
+    s = s.replace(/^r[\-\s]?/, ''); // strip a leading "redshirt" marker like "R-FR" / "R Jr"
+    s = s.replace(/[^a-z0-9]/g, '');
+    const map = {
+      fr: 'FR', freshman: 'FR', firstyear: 'FR', '1': 'FR', '1st': 'FR',
+      so: 'SO', soph: 'SO', sophomore: 'SO', secondyear: 'SO', '2': 'SO', '2nd': 'SO',
+      jr: 'JR', junior: 'JR', thirdyear: 'JR', '3': 'JR', '3rd': 'JR',
+      sr: 'SR', senior: 'SR', fourthyear: 'SR', '4': 'SR', '4th': 'SR',
+      gr: 'GR', grad: 'GR', graduate: 'GR', graduatestudent: 'GR', gs: 'GR',
+      fifthyear: 'GR', '5': 'GR', '5th': 'GR', supersenior: 'GR'
+    };
+    return map[s] || null;
+  },
+
+  // Pulls a 4-digit year out of things like "Class of 2028", "'28",
+  // "2028-29", or a bare "2028" — used for recruiting class year, which
+  // is a different concept from college class standing (see above).
+  parseClassYear(raw, fallback) {
+    if (raw === undefined || raw === null || raw === '') return fallback;
+    const match = String(raw).match(/(20\d{2})/);
+    if (match) return parseInt(match[1], 10);
+    const twoDigit = String(raw).match(/'?(\d{2})\b/);
+    if (twoDigit) return 2000 + parseInt(twoDigit[1], 10);
+    const n = parseInt(raw, 10);
+    return isNaN(n) ? fallback : n;
+  },
+
   normalizePlayerObj(raw, isRecruit = false) {
     const getVal = (keys, fallback = '') => {
       for (let k of keys) if (raw[k] !== undefined && raw[k] !== '') return raw[k];
@@ -202,7 +308,14 @@ window.SimEngine = {
     };
     const rating = parseFloat(getVal(['rating', 'ovr', 'grade', 'stars'], 75)) || 75;
     const school = getVal(['school', 'team', 'committedto', 'college'], 'Free Agent');
-    
+
+    // Deliberately does NOT fall back to 'classyear' here — that column
+    // means "recruiting class" (e.g. Class of 2028), a different concept
+    // from current college class standing, and conflating the two was
+    // causing roster players' standings to come through as raw years.
+    const rawClassStanding = getVal(['class', 'yr', 'classstanding', 'year'], '');
+    const classStanding = this.normalizeClassStanding(rawClassStanding) || (isRecruit ? 'FR' : 'SO');
+
     return {
       id: getVal(['id', 'playerid'], `${getVal(['name', 'player'], 'unknown')}_${school}_${Math.random().toString(36).substr(2, 5)}`),
       name: getVal(['name', 'player', 'fullname'], 'Unknown Player'),
@@ -210,13 +323,13 @@ window.SimEngine = {
       conference: getVal(['conf', 'conference', 'league'], 'NCAA'),
       school_logo: this.getTeamLogo(school),
       pos: getVal(['pos', 'position'], 'G').toUpperCase(),
-      class: getVal(['class', 'classyear', 'yr'], isRecruit ? 'FR' : 'SO').toUpperCase(),
+      class: classStanding,
       ht: getVal(['ht', 'height'], "6'4"),
       wt: getVal(['wt', 'weight'], "190"),
       hometown: getVal(['from', 'hometown', 'home'], 'N/A'),
       rating: rating,
       isRecruit: isRecruit,
-      recClassYear: parseInt(getVal(['classyear', 'recclass'], this.state.year)),
+      recClassYear: this.parseClassYear(getVal(['classyear', 'recclass'], ''), this.state.year),
       gameLog: [],
       accolades: [],
       stats: this.getZeroStats(),       
@@ -267,6 +380,7 @@ window.SimEngine = {
     this.state.ncaaDone = false;
     this.state.confTournaments = {};
     this.state.ncaaTournament = null;
+    this.state.draftDeclarations = [];
     this.state.scheduleViewWeek = 1;
 
     this.state.teams.forEach(team => {
@@ -627,9 +741,50 @@ window.SimEngine = {
     this.state.ncaaDone = true;
     this.state.simCompleted = true;
     this.state.phase = `National Champion: ${bracket.champion.school}`;
+    this.state.draftDeclarations = this.computeDraftDeclarations();
     await this.saveStateToDB();
     this.syncUI();
     this.logNews(`${bracket.champion.school} wins the National Championship!`);
+  },
+
+  // Decides who's leaving school for the draft, right as the season ends
+  // (so the Postseason tab can show it before Advance Offseason actually
+  // removes anyone). Seniors/grad players always exhaust eligibility, but
+  // are only listed as real "draft" prospects if good enough to plausibly
+  // get drafted — otherwise they're just graduating, not headed pro.
+  // Underclassmen can declare early with a chance that scales with rating.
+  computeDraftDeclarations() {
+    const declarations = [];
+    this.state.activePlayers.forEach(p => {
+      if (p.isRecruit) return;
+      const cls = this.normalizeClassStanding(p.class) || 'SO';
+      const rating = parseFloat(p.rating) || 0;
+      let declares = false;
+      let mandatory = false;
+
+      if (cls === 'SR' || cls === 'GR') {
+        mandatory = true;
+        declares = rating >= 78;
+      } else if (cls === 'JR') {
+        const chance = rating >= 90 ? 0.70 : rating >= 85 ? 0.40 : rating >= 80 ? 0.15 : 0.02;
+        declares = Math.random() < chance;
+      } else if (cls === 'SO' || cls === 'FR') {
+        const chance = rating >= 93 ? 0.35 : rating >= 88 ? 0.12 : 0.01;
+        declares = Math.random() < chance;
+      }
+
+      if (declares) {
+        declarations.push({
+          id: p.id, name: p.name, school: p.school, pos: p.pos, class: cls,
+          rating, mandatory,
+          ppg: p.stats ? p.stats.ppg : '0.0',
+          rpg: p.stats ? p.stats.rpg : '0.0',
+          apg: p.stats ? p.stats.apg : '0.0'
+        });
+      }
+    });
+    declarations.sort((a, b) => b.rating - a.rating);
+    return declarations;
   },
 
   // Shared helper: attaches real game-log entries (with opponent, score,
@@ -669,14 +824,28 @@ window.SimEngine = {
       return;
     }
 
-    const classProgression = { 'FR': 'SO', 'SO': 'JR', 'JR': 'SR', 'SR': 'GRADUATED', 'GR': 'GRADUATED' };
-    
+    const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
+    const classProgression = { 'FR': 'SO', 'SO': 'JR', 'JR': 'SR' }; // SR/GR intentionally absent: eligibility is exhausted either way
+
     this.state.teams.forEach(team => {
+      // Repair the class field defensively before deciding anyone's fate —
+      // this is what stops an unrecognized/stale value from being treated
+      // as an automatic graduation.
       team.roster.forEach(p => {
-        p.class = classProgression[p.class] || 'GRADUATED';
-        p.rating = Math.min(99, parseFloat(p.rating) + Math.floor(Math.random() * 4)); 
+        p.class = this.normalizeClassStanding(p.class) || 'SO';
       });
-      team.roster = team.roster.filter(p => p.class !== 'GRADUATED');
+
+      team.roster = team.roster.filter(p => {
+        if (declaredIds.has(p.id)) return false; // left early or exhausted eligibility for the draft
+        const nextClass = classProgression[p.class];
+        if (nextClass) { p.class = nextClass; return true; }
+        return false; // SR/GR (or still-unrecognized) — final year is over
+      });
+
+      team.roster.forEach(p => {
+        p.rating = Math.min(99, parseFloat(p.rating) + Math.floor(Math.random() * 4));
+      });
+
       team.simData = { teamOvr: 0, wins: 0, losses: 0, confWins: 0, confLosses: 0, rosterRef: team.roster, winPct: '.000' };
       team.apRank = null;
       team.ncaaSeed = null;
@@ -694,6 +863,7 @@ window.SimEngine = {
     this.state.schedule = [];
     this.state.confTournaments = {};
     this.state.ncaaTournament = null;
+    this.state.draftDeclarations = [];
     
     this.filterActiveData();
     this.logNews(`Advanced to ${this.state.year} Offseason. Graduated seniors cleared; incoming recruits added.`);
@@ -1492,6 +1662,29 @@ window.SimEngine = {
         html += `<p class="sub-text-sm mt-1">${roundNames[i] || `Round ${i + 1}`}:</p>`;
         round.forEach(g => html += renderBracketGame(g));
       });
+    }
+
+    html += `<h4 class="award-section-title mt-2">Draft Declarations</h4>`;
+    if (!this.state.ncaaDone) {
+      html += `<p class="sub-text">Finish the NCAA Tournament to see who's leaving for the draft.</p>`;
+    } else if (!this.state.draftDeclarations || this.state.draftDeclarations.length === 0) {
+      html += `<p class="sub-text">No players declared for the draft this year.</p>`;
+    } else {
+      html += `<div class="table-scroll"><table class="data-table">
+        <thead><tr><th>Player</th><th>School</th><th>Pos</th><th>Class</th><th>PPG</th><th>Status</th></tr></thead>
+        <tbody>`;
+      this.state.draftDeclarations.forEach(d => {
+        const safeName = d.name.replace(/'/g, "\\'");
+        html += `<tr>
+          <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${d.name}</span></td>
+          <td>${d.school}</td>
+          <td class="sub-text">${d.pos}</td>
+          <td class="sub-text">${d.class}</td>
+          <td class="bold-text">${d.ppg}</td>
+          <td class="sub-text-sm">${d.mandatory ? 'Exhausted Eligibility' : 'Early Entry'}</td>
+        </tr>`;
+      });
+      html += `</tbody></table></div>`;
     }
 
     container.innerHTML = html;
