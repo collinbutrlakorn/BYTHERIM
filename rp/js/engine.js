@@ -30,14 +30,101 @@ window.SimEngine = {
   },
 
   async init() {
-    await this.initDatabase();
+    await this.setupHomeScreen();
   },
 
-  async initDatabase() {
+  // Shows the home screen and enables/disables "Load Existing" depending
+  // on whether a save actually exists — the sim no longer auto-loads or
+  // auto-generates on page load, so there's always a clean way back to a
+  // true fresh start via "New Save".
+  async setupHomeScreen() {
+    const hasSave = await this.checkForExistingSave();
+    const loadBtn = document.getElementById('loadSaveBtn');
+    const noSaveMsg = document.getElementById('noSaveMessage');
+    if (loadBtn) loadBtn.disabled = !hasSave;
+    if (noSaveMsg) noSaveMsg.style.display = hasSave ? 'none' : 'block';
+  },
+
+  async checkForExistingSave() {
+    try {
+      if (typeof db === 'undefined' || !db.leagueState) return false;
+      const savedState = await db.leagueState.get(1);
+      if (!savedState) return false;
+      const teamCount = await db.teams.count();
+      return teamCount > 0;
+    } catch (err) {
+      console.error('Error checking for existing save:', err);
+      return false;
+    }
+  },
+
+  // Wipes any existing save and builds a genuinely new universe from
+  // scratch. This is the actual fix for "can't reset to the beginning" —
+  // previously there was no way to clear IndexedDB from the UI at all.
+  async startNewGame() {
+    const hasSave = await this.checkForExistingSave();
+    if (hasSave && !confirm("Starting a new save will permanently erase your current save. Continue?")) {
+      return;
+    }
+
+    try {
+      if (typeof db !== 'undefined' && db.leagueState) {
+        await db.leagueState.clear();
+        await db.teams.clear();
+        await db.players.clear();
+      }
+    } catch (err) {
+      console.error('Error clearing old save:', err);
+    }
+
+    this.resetStateToDefaults();
+    this.enterSimUI();
+    await this.fetchData();
+  },
+
+  async continueGame() {
+    const hasSave = await this.checkForExistingSave();
+    if (!hasSave) {
+      alert("No existing save found. Start a New Save instead.");
+      return;
+    }
+    this.enterSimUI();
+    await this.loadSavedGame();
+  },
+
+  enterSimUI() {
+    const home = document.getElementById('homeScreen');
+    const layout = document.querySelector('.sim-layout');
+    if (home) home.style.display = 'none';
+    if (layout) layout.style.display = 'grid';
+  },
+
+  resetStateToDefaults() {
+    this.state.year = 2028;
+    this.state.week = 0;
+    this.state.maxWeeks = 15;
+    this.state.phase = 'Preseason';
+    this.state.teams = [];
+    this.state.recruits = [];
+    this.state.activePlayers = [];
+    this.state.simCompleted = false;
+    this.state.schedule = [];
+    this.state.nonConfEnd = 0;
+    this.state.confEnd = 0;
+    this.state.regularSeasonDone = false;
+    this.state.confChampsDone = false;
+    this.state.ncaaDone = false;
+    this.state.confTournaments = {};
+    this.state.ncaaTournament = null;
+    this.state.draftDeclarations = [];
+    this.state.scheduleViewWeek = 1;
+  },
+
+  async loadSavedGame() {
     try {
       if (typeof db !== 'undefined' && db.leagueState) {
         const savedState = await db.leagueState.get(1);
-        
+
         if (savedState) {
           this.logNews("Loading save state from IndexedDB...");
           this.state.year = savedState.currentYear || 2028;
@@ -67,12 +154,12 @@ window.SimEngine = {
           }
         }
       }
-      
-      this.logNews("No active save file found. Initializing universe from Google Sheets...");
+
+      this.logNews("No valid save data found. Initializing a fresh universe...");
       await this.fetchData();
     } catch (err) {
-      console.error("Database Init Error:", err);
-      this.logNews("Error initializing database. Loading fresh data...");
+      console.error("Error loading save:", err);
+      this.logNews("Error loading save. Initializing fresh data...");
       await this.fetchData();
     }
   },
