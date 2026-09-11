@@ -849,3 +849,42 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   font-weight: 600;
   white-space: nowrap;
 }
+
+/* Home screen */
+.home-screen-overlay {
+  min-height: calc(100vh - 70px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.home-screen-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 2.5rem;
+  max-width: 440px;
+  width: 100%;
+  text-align: center;
+}
+
+.home-screen-logo {
+  width: 88px;
+  height: 88px;
+  object-fit: contain;
+  margin: 0 auto 1rem;
+}
+
+.home-screen-title {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 1.6rem;
+  margin-bottom: 0.75rem;
+}
+
+#loadSaveBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
