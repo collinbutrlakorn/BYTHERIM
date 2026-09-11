@@ -57,13 +57,33 @@
     </aside>
 
     <main class="panel-card">
-      <div class="tab-bar">
-        <button class="tab-btn active" data-tab="dashTab">Dashboard</button>
-        <button class="tab-btn" data-tab="scheduleTab">Schedule</button>
-        <button class="tab-btn" data-tab="statsTab">Stat Leaders</button>
-        <button class="tab-btn" data-tab="standingsTab">Standings</button>
-        <button class="tab-btn" data-tab="postseasonTab">Postseason</button>
-        <button class="tab-btn" data-tab="awardsTab">Awards</button>
+      <div class="mega-menu">
+        <div class="mega-menu-group">
+          <button class="mega-menu-trigger active" data-menu="season">Season</button>
+          <div class="mega-menu-dropdown" data-menu-panel="season">
+            <button class="tab-btn active" data-tab="dashTab">Dashboard</button>
+            <button class="tab-btn" data-tab="scheduleTab">Schedule</button>
+            <button class="tab-btn" data-tab="standingsTab">Standings</button>
+            <button class="tab-btn" data-tab="postseasonTab">Bracketology</button>
+          </div>
+        </div>
+        <div class="mega-menu-group">
+          <button class="mega-menu-trigger" data-menu="team">Team</button>
+          <div class="mega-menu-dropdown" data-menu-panel="team">
+            <button class="tab-btn" data-tab="teamTab">Team Page</button>
+            <button class="tab-btn" data-tab="teamStatsTab">Team Stats</button>
+            <button class="tab-btn" data-tab="statsTab">All Player Stats</button>
+          </div>
+        </div>
+        <div class="mega-menu-group">
+          <button class="mega-menu-trigger" data-menu="archive">The Archive</button>
+          <div class="mega-menu-dropdown" data-menu-panel="archive">
+            <button class="tab-btn" data-tab="recruitsTab">Incoming Recruits</button>
+            <button class="tab-btn" data-tab="draftBoardTab">Draft Board</button>
+            <button class="tab-btn" data-tab="awardsTab">Season Awards</button>
+            <button class="tab-btn" data-tab="historyTab">Historical Seasons</button>
+          </div>
+        </div>
       </div>
 
       <div id="scheduleTab" class="tab-content">
@@ -74,7 +94,7 @@
       </div>
 
       <div id="postseasonTab" class="tab-content">
-        <h3 class="mb-1">Postseason</h3>
+        <h3 class="mb-1">Bracketology</h3>
         <div id="postseasonContainer">
           <p class="empty-table-msg">Complete the regular season to unlock Conference Championships and the NCAA Tournament.</p>
         </div>
@@ -96,6 +116,47 @@
           <div class="dash-box"><h4>Assists (APG)</h4><div id="dashAst"></div></div>
           <div class="dash-box"><h4>Steals (SPG)</h4><div id="dashStl"></div></div>
           <div class="dash-box"><h4>Blocks (BPG)</h4><div id="dashBlk"></div></div>
+        </div>
+      </div>
+
+      <div id="teamTab" class="tab-content">
+        <div class="flex-between wrap-gap mb-1">
+          <h3>Team Page</h3>
+          <div class="filters-container">
+            <select id="teamPageSelect" onchange="SimEngine.setTeamPageSelection(this.value)" class="filter-select">
+              <option value="">Select a team...</option>
+            </select>
+            <select id="teamPageViewToggle" onchange="SimEngine.setTeamPageView(this.value)" class="filter-select">
+              <option value="current">Current Season</option>
+              <option value="history">Team History</option>
+            </select>
+          </div>
+        </div>
+        <div id="teamPageContainer">
+          <p class="empty-table-msg">Simulate the season to browse team pages.</p>
+        </div>
+      </div>
+
+      <div id="teamStatsTab" class="tab-content">
+        <h3 class="mb-1">Team Stats</h3>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th data-sort="school" onclick="SimEngine.handleTeamStatSort('school')">Team</th>
+                <th data-sort="conference" onclick="SimEngine.handleTeamStatSort('conference')">Conf</th>
+                <th data-sort="wins" onclick="SimEngine.handleTeamStatSort('wins')">W</th>
+                <th data-sort="losses" onclick="SimEngine.handleTeamStatSort('losses')">L</th>
+                <th data-sort="confWins" onclick="SimEngine.handleTeamStatSort('confWins')">Conf W</th>
+                <th data-sort="confLosses" onclick="SimEngine.handleTeamStatSort('confLosses')">Conf L</th>
+                <th data-sort="ppg" onclick="SimEngine.handleTeamStatSort('ppg')">PPG</th>
+                <th data-sort="oppg" onclick="SimEngine.handleTeamStatSort('oppg')">OPP PPG</th>
+              </tr>
+            </thead>
+            <tbody id="teamStatsBody">
+              <tr><td colspan="8" class="empty-table-msg">Simulate games to view team stats.</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -142,9 +203,42 @@
         </div>
       </div>
 
+      <div id="recruitsTab" class="tab-content">
+        <div class="flex-between wrap-gap mb-1">
+          <h3>Incoming Recruits</h3>
+          <div class="filters-container">
+            <select id="recruitsClassFilter" onchange="SimEngine.setRecruitsClassFilter(this.value)" class="filter-select">
+              <option value="ALL">All Classes</option>
+            </select>
+            <select id="recruitsStatusFilter" onchange="SimEngine.setRecruitsStatusFilter(this.value)" class="filter-select">
+              <option value="ALL">All</option>
+              <option value="committed">Committed</option>
+              <option value="uncommitted">Uncommitted</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr><th>Name</th><th>Pos</th><th>Rating</th><th>Class</th><th>Committed To</th></tr>
+            </thead>
+            <tbody id="recruitsBody">
+              <tr><td colspan="5" class="empty-table-msg">No recruit data loaded yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="draftBoardTab" class="tab-content">
+        <h3 class="mb-1">Draft Board</h3>
+        <div id="draftBoardContainer">
+          <p class="empty-table-msg">Finish the NCAA Tournament to see who's declared for the draft.</p>
+        </div>
+      </div>
+
       <div id="awardsTab" class="tab-content">
         <div class="flex-between wrap-gap mb-1-5">
-          <h3>National & Conference Awards</h3>
+          <h3>Season Awards</h3>
           <select id="awardConfFilter" onchange="SimEngine.renderConferenceAwards(this.value)" class="filter-select">
             <option value="ACC">ACC</option>
             <option value="AAC">AAC</option>
@@ -172,6 +266,13 @@
         <h4 class="award-section-title mt-2" id="confAwardsTitle">Conference Honors</h4>
         <div id="confAwardsContainer">
           <p class="sub-text">Complete the season to view conference award winners.</p>
+        </div>
+      </div>
+
+      <div id="historyTab" class="tab-content">
+        <h3 class="mb-1">Historical Seasons</h3>
+        <div id="historyContainer">
+          <p class="empty-table-msg">Complete a season to begin building history.</p>
         </div>
       </div>
     </main>
