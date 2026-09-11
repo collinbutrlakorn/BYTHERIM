@@ -1,11 +1,33 @@
 window.UIController = {
   init() {
     this.setupTabNavigation();
+    this.setupMegaMenu();
     this.setupActionButtons();
     this.setupModalListeners();
     this.setupSearchInput();
     this.setupSaveManagement();
     console.log("UI Controller initialized.");
+  },
+
+  setupMegaMenu() {
+    const triggers = document.querySelectorAll('.mega-menu-trigger');
+    triggers.forEach(trigger => {
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const menuName = trigger.getAttribute('data-menu');
+        const panel = document.querySelector(`.mega-menu-dropdown[data-menu-panel="${menuName}"]`);
+        const isOpen = panel && panel.classList.contains('open');
+
+        document.querySelectorAll('.mega-menu-dropdown').forEach(p => p.classList.remove('open'));
+        if (panel && !isOpen) panel.classList.add('open');
+      });
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.mega-menu-group')) {
+        document.querySelectorAll('.mega-menu-dropdown').forEach(p => p.classList.remove('open'));
+      }
+    });
   },
 
   setupTabNavigation() {
@@ -25,10 +47,40 @@ window.UIController = {
         const targetContent = document.getElementById(targetTabId);
         if (targetContent) targetContent.classList.add('active');
 
+        // Keep the top-level menu trigger in sync with whichever tab is
+        // active, so it's clear which section you're in even after the
+        // dropdown closes (this also handles "View Standings ->" style
+        // shortcut buttons that live outside any dropdown).
+        const parentDropdown = btn.closest('.mega-menu-dropdown');
+        document.querySelectorAll('.mega-menu-trigger').forEach(t => t.classList.remove('active'));
+        if (parentDropdown) {
+          const menuName = parentDropdown.getAttribute('data-menu-panel');
+          const trigger = document.querySelector(`.mega-menu-trigger[data-menu="${menuName}"]`);
+          if (trigger) trigger.classList.add('active');
+          parentDropdown.classList.remove('open');
+        } else {
+          // A shortcut button (e.g. "View Standings ->") outside the menu —
+          // find whichever dropdown actually contains a matching tab-btn.
+          const owningPanel = document.querySelector(`.mega-menu-dropdown button[data-tab="${targetTabId}"]`)?.closest('.mega-menu-dropdown');
+          if (owningPanel) {
+            const menuName = owningPanel.getAttribute('data-menu-panel');
+            const trigger = document.querySelector(`.mega-menu-trigger[data-menu="${menuName}"]`);
+            if (trigger) trigger.classList.add('active');
+            document.querySelectorAll('.tab-btn').forEach(b => {
+              if (b.getAttribute('data-tab') === targetTabId) b.classList.add('active');
+            });
+          }
+        }
+
         // Trigger updates if engine is ready
         if (window.SimEngine) {
           if (targetTabId === 'awardsTab') SimEngine.updateAwardsTab();
           else if (targetTabId === 'standingsTab') SimEngine.updateStandingsTab();
+          else if (targetTabId === 'teamTab') SimEngine.updateTeamTab();
+          else if (targetTabId === 'teamStatsTab') SimEngine.updateTeamStatsTab();
+          else if (targetTabId === 'recruitsTab') SimEngine.updateRecruitsTab();
+          else if (targetTabId === 'draftBoardTab') SimEngine.updateDraftBoardTab();
+          else if (targetTabId === 'historyTab') SimEngine.updateHistoryTab();
         }
       });
     });
