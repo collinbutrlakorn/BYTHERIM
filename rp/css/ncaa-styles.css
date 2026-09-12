@@ -1,4 +1,13 @@
 :root {
+  /* Radius scale — the old design used 6-8px everywhere, which read as
+     boxy. These are deliberately rounder and used consistently. */
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-pill: 999px;
+  --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.28);
+  --shadow-lift: 0 10px 28px rgba(0, 0, 0, 0.4);
+
   --bg-color: #0d0f14;
   --card-bg: #161a23;
   --card-hover: #1f2430;
@@ -75,7 +84,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   color: #fff;
   font-size: 0.65rem;
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   margin-left: 4px;
 }
 
@@ -99,7 +108,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
 .panel-card {
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   padding: 1.5rem;
   min-width: 0; /* grid/flex items default to min-width:auto, which lets a wide table blow out the whole page instead of scrolling internally */
 }
@@ -121,7 +130,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   background: var(--accent-dark);
   color: #ffffff;
   padding: 0.2rem 0.6rem;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -132,7 +141,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
 .news-feed-container {
   background: var(--bg-color);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 1rem;
   max-height: 250px;
   overflow-y: auto;
@@ -162,7 +171,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   color: #ffffff;
   border: 1px solid var(--accent);
   padding: 0.75rem 1.25rem;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   font-family: 'Oswald', sans-serif;
   font-size: 1.05rem;
   font-weight: 600;
@@ -193,7 +202,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   border: 1px solid var(--border);
   color: var(--accent);
   padding: 0.4rem 0.8rem;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -274,7 +283,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   font-family: 'Oswald', sans-serif;
   cursor: pointer;
   text-align: left;
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   padding: 0.6rem 0.85rem;
   font-size: 0.95rem;
   transition: color 0.15s ease, background 0.15s ease;
@@ -323,7 +332,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   background: var(--bg-color);
   border: 1px solid var(--border);
   padding: 1rem;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
 }
 
 .dash-box h4 {
@@ -335,7 +344,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
 .top-teams-container {
   background: var(--bg-color);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 1rem;
 }
 
@@ -351,7 +360,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   border: 1px solid var(--border);
   color: var(--text-main);
   padding: 0.5rem 0.8rem;
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   font-family: inherit;
   font-size: 0.95rem;
   outline: none;
@@ -435,7 +444,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
 .modal-content {
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   width: 100%;
   max-width: 850px;
   max-height: 90vh;
@@ -508,7 +517,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
 .stat-box {
   background: var(--bg-color);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 0.75rem;
   text-align: center;
 }
@@ -582,7 +591,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   padding: 0.55rem 0.75rem;
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
@@ -666,7 +675,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
 .conf-card {
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   padding: 1rem;
 }
 
@@ -717,7 +726,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
 .award-card {
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   padding: 1.25rem;
 }
 
@@ -772,7 +781,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
 .award-table-card {
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   padding: 1rem;
 }
 
@@ -833,7 +842,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   color: var(--text-muted);
   border: 1px solid var(--border);
   padding: 0.15rem 0.5rem;
-  border-radius: 4px;
+  border-radius: var(--r-sm);
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -855,7 +864,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   gap: 1rem;
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--r-sm);
   padding: 0.7rem 1rem;
 }
 
@@ -895,7 +904,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   background: var(--bg-color);
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 0.6rem 0.9rem;
   margin-bottom: 0.4rem;
   font-size: 0.88rem;
@@ -930,7 +939,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
 .home-screen-card {
   background: var(--card-bg);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-md);
   padding: 2.5rem;
   max-width: 440px;
   width: 100%;
@@ -1009,7 +1018,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   padding: 0.55rem 0.7rem;
   background: var(--bg-color);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   color: var(--text-main);
   font-family: 'Asap Condensed', sans-serif;
   font-size: 0.95rem;
@@ -1048,7 +1057,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
 .team-stat-cell {
   background: var(--bg-color);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--r-sm);
   padding: 0.55rem 0.4rem;
   text-align: center;
   display: flex;
@@ -1114,7 +1123,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
 .pstat-cell {
   background: var(--bg-color);
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   padding: 0.45rem 0.3rem;
   text-align: center;
   display: flex;
@@ -1171,7 +1180,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
 .quick-link {
   background: var(--bg-color);
   border: 1px solid var(--border);
-  border-radius: 5px;
+  border-radius: var(--r-sm);
   color: var(--text-muted);
   font-family: 'Asap Condensed', sans-serif;
   font-size: 0.85rem;
@@ -1206,3 +1215,489 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   from { opacity: 0; }
   to { opacity: 1; }
 }
+
+/* ============================================================
+   Aesthetic pass: softer geometry, warmer surfaces
+   ============================================================ */
+
+.panel-card {
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-soft);
+}
+
+.data-table th {
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table tbody tr {
+  transition: background 0.12s ease;
+}
+
+.data-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.status-badge,
+.badge,
+.ap-rank-tag,
+.draft-projection,
+.accolade-tag {
+  border-radius: var(--r-pill);
+}
+
+.sim-btn,
+.outline-btn,
+.filter-select,
+.quick-link {
+  border-radius: var(--r-pill);
+}
+
+.sim-btn {
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.15s ease;
+}
+
+.sim-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-soft);
+}
+
+.sim-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.modal-content {
+  border-radius: var(--r-lg);
+}
+
+/* ============================================================
+   Always-visible toolbar + slide-out drawer
+   ============================================================ */
+
+.sim-toolbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 0.55rem 0.8rem;
+  margin-bottom: 1.25rem;
+  box-shadow: var(--shadow-soft);
+  position: sticky;
+  top: 0.75rem;
+  z-index: 60;
+}
+
+.drawer-toggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-pill);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.drawer-toggle:hover { background: var(--card-hover); }
+
+.drawer-toggle span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: var(--text-main);
+  border-radius: var(--r-pill);
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.drawer-toggle.active span:nth-child(1) { transform: translateY(6px) rotate(45deg); }
+.drawer-toggle.active span:nth-child(2) { opacity: 0; }
+.drawer-toggle.active span:nth-child(3) { transform: translateY(-6px) rotate(-45deg); }
+
+.toolbar-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  margin-right: auto;
+  min-width: 0;
+}
+
+.toolbar-phase {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toolbar-year {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+}
+
+.toolbar-sim {
+  flex-shrink: 0;
+  padding: 0.55rem 1.4rem;
+}
+
+.side-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 288px;
+  max-width: 84vw;
+  background: var(--card-bg);
+  border-right: 1px solid var(--border);
+  transform: translateX(-100%);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 200;
+  overflow-y: auto;
+  box-shadow: var(--shadow-lift);
+}
+
+.side-drawer.open { transform: translateX(0); }
+
+.drawer-inner { padding: 1.5rem 1.15rem; }
+
+.drawer-section {
+  padding-bottom: 1.25rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.drawer-section:last-child { border-bottom: none; margin-bottom: 0; }
+
+.drawer-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+  z-index: 150;
+}
+
+.drawer-scrim.visible { opacity: 1; pointer-events: auto; }
+
+/* Main layout is now a single column since the sidebar became a drawer */
+.sim-layout {
+  display: block;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 1.5rem 4%;
+}
+
+/* ============================================================
+   Dashboard: AP bubbles, top performances, brackets
+   ============================================================ */
+
+.ap-bubble-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.65rem;
+}
+
+.ap-bubble {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.9rem 0.45rem 0.7rem;
+  background: var(--bg-color);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  color: var(--text-main);
+  font-family: 'Asap Condensed', sans-serif;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.ap-bubble:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  background: var(--card-hover);
+}
+
+.ap-bubble-rank {
+  position: absolute;
+  top: 0.35rem;
+  left: 0.45rem;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.ap-bubble-logo {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+
+.ap-bubble-name {
+  font-size: 0.76rem;
+  text-align: center;
+  line-height: 1.15;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.ap-bubble-record {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 720px) {
+  .ap-bubble-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+.perf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.perf-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: var(--bg-color);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 0.65rem 0.9rem;
+}
+
+.perf-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-right: auto;
+}
+
+.perf-name { font-weight: 700; }
+.perf-meta { font-size: 0.75rem; color: var(--text-muted); }
+.perf-line { font-size: 0.82rem; color: var(--accent); font-weight: 600; }
+
+.perf-score {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--gold);
+  flex-shrink: 0;
+}
+
+/* Brackets */
+.bracket-scroll { overflow-x: auto; padding-bottom: 0.5rem; }
+
+.bracket-columns {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  min-width: min-content;
+}
+
+.bracket-round {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 200px;
+}
+
+.bracket-round-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.bracket-game-card {
+  background: var(--bg-color);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+}
+
+.bracket-team {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.15s ease;
+}
+
+.bracket-team:hover { background: var(--card-hover); }
+.bracket-team + .bracket-team { border-top: 1px solid var(--border); }
+
+.bracket-team.winner {
+  background: rgba(61, 220, 132, 0.08);
+  font-weight: 700;
+  border-left: 3px solid var(--win);
+}
+
+.bracket-team-name {
+  margin-right: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracket-team-score {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.bracket-champion {
+  margin-top: 0.75rem;
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.bracket-conf-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+  width: 100%;
+}
+
+.conf-bracket-block {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.conf-bracket-block.high-major { border-color: var(--accent); }
+
+/* Selection day */
+.selection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 0.45rem;
+}
+
+.selection-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg-color);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+  color: var(--text-main);
+  font-family: 'Asap Condensed', sans-serif;
+  font-size: 0.85rem;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.selection-chip:hover { border-color: var(--accent); background: var(--card-hover); }
+.selection-chip.auto-bid { border-left: 3px solid var(--gold); }
+
+.selection-seed {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 1.4rem;
+}
+
+.selection-name {
+  margin-right: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selection-tag {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  letter-spacing: 0.4px;
+}
+
+/* Awards: horizontal cards, stacked All-American tables */
+.award-card-horizontal {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.award-heading {
+  min-width: 210px;
+  flex-shrink: 0;
+}
+
+.award-card-horizontal .award-winner { margin-left: auto; }
+
+.aa-team-block { margin-bottom: 1.25rem; }
+
+/* Offseason */
+.champion-spotlight {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.14), var(--card-bg) 65%);
+  border: 1px solid var(--gold);
+  border-radius: var(--r-lg);
+  margin-bottom: 1.5rem;
+}
+
+.champion-logo { width: 74px; height: 74px; object-fit: contain; }
+
+.champion-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+.champion-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.7rem;
+  font-weight: 700;
+}
+
+.champion-record { color: var(--text-muted); font-size: 0.9rem; }
+
+.transfer-arrow { color: var(--accent); font-weight: 700; }
+
+.declared-tag {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  background: rgba(150, 66, 130, 0.25);
+  color: var(--accent);
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--r-pill);
+  margin-left: 0.35rem;
+}
+
+.profile-stat-table td {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 600;
+}
+
+.mb-2 { margin-bottom: 2rem; }
