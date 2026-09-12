@@ -1,12 +1,58 @@
 window.UIController = {
   init() {
+    // Guard against double-initialisation: attaching the event listeners
+    // twice would make every toggle fire two handlers and cancel itself out
+    // (the drawer would appear not to open at all).
+    if (this._initialized) return;
+    this._initialized = true;
+
     this.setupTabNavigation();
     this.setupMegaMenu();
+    this.setupDrawer();
     this.setupActionButtons();
     this.setupModalListeners();
     this.setupSearchInput();
     this.setupSaveManagement();
     console.log("UI Controller initialized.");
+  },
+
+
+  // Slide-out side menu. The simulate button lives in the always-visible
+  // toolbar instead, so the drawer only holds things you reach for
+  // occasionally (offseason, quick links, save management).
+  setupDrawer() {
+    const drawer = document.getElementById('sideDrawer');
+    const toggle = document.getElementById('drawerToggle');
+    const scrim = document.getElementById('drawerScrim');
+    if (!drawer || !toggle) return;
+
+    const close = () => {
+      drawer.classList.remove('open');
+      toggle.classList.remove('active');
+      if (scrim) scrim.classList.remove('visible');
+    };
+    const open = () => {
+      drawer.classList.add('open');
+      toggle.classList.add('active');
+      if (scrim) scrim.classList.add('visible');
+    };
+
+    toggle.addEventListener('click', (e) => {
+      e.stopPropagation();
+      drawer.classList.contains('open') ? close() : open();
+    });
+    if (scrim) scrim.addEventListener('click', close);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+    // Picking a destination from the drawer should dismiss it.
+    drawer.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', close));
+  },
+
+  // Programmatic tab switch, used when the engine navigates for the user
+  // (e.g. clicking a team bubble on the dashboard jumps to its team page).
+  activateTab(tabId) {
+    const btn = document.querySelector(`.mega-menu-dropdown button[data-tab="${tabId}"]`)
+             || document.querySelector(`[data-tab="${tabId}"]`);
+    if (btn) btn.click();
   },
 
   setupMegaMenu() {
@@ -81,6 +127,8 @@ window.UIController = {
           else if (targetTabId === 'recruitsTab') SimEngine.updateRecruitsTab();
           else if (targetTabId === 'draftBoardTab') SimEngine.updateDraftBoardTab();
           else if (targetTabId === 'historyTab') SimEngine.updateHistoryTab();
+          else if (targetTabId === 'offseasonTab') SimEngine.updateOffseasonTab();
+          else if (targetTabId === 'dashTab') SimEngine.updateDashboard();
         }
       });
     });
