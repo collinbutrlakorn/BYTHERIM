@@ -120,12 +120,43 @@ function nextNeededPosition(currentRoster, fillIndex) {
 // whatever real teams/players already exist (from the Google Sheets),
 // returns a complete set of teams where every master-list school has a
 // full roster — real players kept exactly as-is, gaps filled generated.
+function normalizeSchoolKey(name) {
+  return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+// Builds a lookup from every known spelling of a school (canonical name
+// plus aliases) to its canonical master name, so a roster sheet that says
+// "Texas Christian" resolves to the same team as one that says "TCU"
+// instead of creating a duplicate program.
+function buildSchoolAliasIndex(masterTeamList) {
+  const index = {};
+  masterTeamList.forEach(entry => {
+    index[normalizeSchoolKey(entry.name)] = entry.name;
+    (entry.aliases || []).forEach(a => {
+      const k = normalizeSchoolKey(a);
+      if (!index[k]) index[k] = entry.name;
+    });
+  });
+  return index;
+}
+
 function buildFullUniverse(masterTeamList, existingTeams, opts = {}) {
   const targetRosterSize = opts.targetRosterSize || 13;
   const rng = opts.rng || Math.random;
 
+  const aliasIndex = buildSchoolAliasIndex(masterTeamList);
+
+  // Group incoming real teams by their CANONICAL name, merging any that
+  // arrived under different spellings of the same school.
   const existingByName = {};
-  existingTeams.forEach(t => { existingByName[t.school] = t; });
+  existingTeams.forEach(t => {
+    const canonical = aliasIndex[normalizeSchoolKey(t.school)] || t.school;
+    if (!existingByName[canonical]) {
+      existingByName[canonical] = { ...t, school: canonical, roster: [...(t.roster || [])] };
+    } else {
+      existingByName[canonical].roster.push(...(t.roster || []));
+    }
+  });
 
   const finalTeams = masterTeamList.map(masterEntry => {
     const existing = existingByName[masterEntry.name];
@@ -155,14 +186,14 @@ function buildFullUniverse(masterTeamList, existingTeams, opts = {}) {
   // typo, or a fictional school) still gets included as-is rather than
   // silently dropped — better to surface a mismatch than lose real data.
   const masterNames = new Set(masterTeamList.map(t => t.name));
-  const unmatched = existingTeams.filter(t => !masterNames.has(t.school));
+  const unmatched = Object.values(existingByName).filter(t => !masterNames.has(t.school));
 
   return { teams: [...finalTeams, ...unmatched], unmatchedRealTeams: unmatched.map(t => t.school) };
 }
 
 const RosterGen = {
   FIRST_NAMES, LAST_NAMES, HOMETOWNS, CONFERENCE_TIERS, TIER_RANGES,
-  getConferenceTier, generatePlayerName, generateFillerPlayer, nextNeededPosition, buildFullUniverse
+  getConferenceTier, normalizeSchoolKey, buildSchoolAliasIndex, generatePlayerName, generateFillerPlayer, nextNeededPosition, buildFullUniverse
 };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = RosterGen;
