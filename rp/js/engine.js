@@ -28,6 +28,9 @@ window.SimEngine = {
     draftDeclarations: [],  // players leaving for the draft, computed when the season ends
     seasonHistory: [],      // league-wide archive: one entry per completed season
     preseasonAwards: null,  // projected honours, computed before week 1
+    apPollTop25: [],
+    lastTransfers: [],      // portal moves from the most recent offseason
+    returningPlayers: [],   // early entrants who withdrew and came back
     seasonInitialized: false,
     scheduleViewWeek: 1,
     teamPageSelection: '',
@@ -155,6 +158,8 @@ window.SimEngine = {
           this.state.draftDeclarations = savedState.draftDeclarations || [];
           this.state.seasonHistory = savedState.seasonHistory || [];
           this.state.seasonInitialized = savedState.seasonInitialized || false;
+          this.state.lastTransfers = savedState.lastTransfers || [];
+          this.state.returningPlayers = savedState.returningPlayers || [];
           this.state.scheduleViewWeek = savedState.scheduleViewWeek || 1;
 
           const savedTeams = await db.teams.toArray();
@@ -227,6 +232,8 @@ window.SimEngine = {
           draftDeclarations: this.state.draftDeclarations,
           seasonHistory: this.state.seasonHistory,
           seasonInitialized: this.state.seasonInitialized,
+          lastTransfers: this.state.lastTransfers,
+          returningPlayers: this.state.returningPlayers,
           scheduleViewWeek: this.state.scheduleViewWeek
         });
         await db.teams.clear();
@@ -353,8 +360,9 @@ window.SimEngine = {
       if (rostersRes.ok) {
         const rawRosters = this.parseCSV(await rostersRes.text());
         rawRosters.forEach(rawPlayer => {
+          if (!this.rowHasPlayerName(rawPlayer)) return;
           const player = this.normalizePlayerObj(rawPlayer, false);
-          if (!player.school) return;
+          if (!player.school || player.school === 'Free Agent') return;
           if (!realTeamsMap[player.school]) {
             realTeamsMap[player.school] = { school: player.school, conference: player.conference || 'NCAA', roster: [] };
           } else if (player.conference && player.conference !== 'NCAA') {
@@ -369,7 +377,9 @@ window.SimEngine = {
       sheetsReachable = false;
     }
 
-    this.state.recruits = rawRecruits.map(r => this.normalizePlayerObj(r, true));
+    this.state.recruits = rawRecruits
+      .filter(r => this.rowHasPlayerName(r))
+      .map(r => this.normalizePlayerObj(r, true));
     this.buildFullD1Universe(Object.values(realTeamsMap));
 
     if (this.state.teams.length === 0) {
@@ -488,6 +498,20 @@ window.SimEngine = {
     if (twoDigit) return 2000 + parseInt(twoDigit[1], 10);
     const n = parseInt(raw, 10);
     return isNaN(n) ? fallback : n;
+  },
+
+  // A CSV export usually carries trailing blank rows. Those were being
+  // turned into a player literally named "Unknown Player" who, being the
+  // only person on their team, had the entire team score reconciled onto
+  // them — hence the 70-point scoring averages. Anything without a real
+  // name in a name column is skipped outright.
+  rowHasPlayerName(raw) {
+    if (!raw || typeof raw !== 'object') return false;
+    for (const key of ['name', 'player', 'fullname']) {
+      const v = raw[key];
+      if (typeof v === 'string' && v.trim().length > 1) return true;
+    }
+    return false;
   },
 
   normalizePlayerObj(raw, isRecruit = false) {
@@ -636,6 +660,136 @@ window.SimEngine = {
     const fallback = this.generateFallbackLogo(conference);
     return `<img src="${this.getConferenceLogo(conference)}" class="${className}" alt="${conference}" ` +
            `onerror="this.onerror=null;this.src='${fallback}';">`;
+  },
+
+  // --- In-season AP poll, game score, and draft big board ---
+
+  // In-season AP Top 25. Unlike the preseason poll (pure roster strength),
+  // this weighs what has actually happened: winning percentage, quality of
+  // schedule faced, and underlying talent as a tiebreaker — which is
+  // roughly how real voters behave once there are results to look at.
+  computeAPPoll() {
+    if (this.state.teams.length === 0) return;
+    const sosValues = this.state.teams.map(t => t.sos || 0);
+    const sosMin = Math.min(...sosValues), sosMax = Math.max(...sosValues);
+    const sosRange = Math.max(0.001, sosMax - sosMin);
+
+    this.state.teams.forEach(t => {
+      const gp = t.simData.wins + t.simData.losses;
+      const winPct = gp > 0 ? t.simData.wins / gp : 0;
+      // Normalised 0-1 schedule difficulty, so beating good teams counts.
+      const sosNorm = ((t.sos || 0) - sosMin) / sosRange;
+      const talent = (t.simData.teamOvr || 0);
+
+      // Winning is the dominant term; schedule strength rewards teams that
+      // earned their record; talent keeps early-season noise sane before
+      // many games have been played.
+      const resumeWeight = Math.min(1, gp / 12);
+      t.apScore = (winPct * 55 * resumeWeight)
+                + (sosNorm * 18 * resumeWeight)
+                + (talent * 0.42)
+                + (t.simData.wins * 0.35);
+    });
+
+    const sorted = [...this.state.teams].sort((a, b) => b.apScore - a.apScore);
+    sorted.forEach((t, i) => { t.apRank = i < 25 ? i + 1 : null; });
+    this.state.apPollTop25 = sorted.slice(0, 25);
+  },
+
+  // Hollinger's Game Score — a single-number summary of one box score.
+  // Used to surface the week's best individual performances.
+  gameScore(g) {
+    if (!g) return 0;
+    return (g.pts || 0)
+      + 0.4 * (g.fgm || 0)
+      - 0.7 * (g.fga || 0)
+      - 0.4 * ((g.fta || 0) - (g.ftm || 0))
+      + 0.7 * (g.oreb || 0)
+      + 0.3 * (g.dreb !== undefined ? g.dreb : Math.max(0, (g.reb || 0) - (g.oreb || 0)))
+      + (g.stl || 0)
+      + 0.7 * (g.ast || 0)
+      + 0.7 * (g.blk || 0)
+      - 0.4 * (g.pf || 0)
+      - (g.tov || 0);
+  },
+
+  // Best individual box scores from a given week, ranked by Game Score.
+  getTopPerformances(week, limit = 5) {
+    const target = week || this.state.week;
+    const out = [];
+    this.state.activePlayers.forEach(p => {
+      (p.gameLog || []).forEach(g => {
+        if (g.week !== target || !g.min) return;
+        out.push({ player: p, game: g, score: this.gameScore(g) });
+      });
+    });
+    return out.sort((a, b) => b.score - a.score).slice(0, limit);
+  },
+
+  // Live NBA draft big board, recomputed as the season progresses.
+  // Weighted by: youth, positional size, on-court production and winning,
+  // and incoming recruit pedigree — with pedigree fading as real game
+  // evidence accumulates, so a highly-ranked recruit who plays badly slides.
+  computeDraftBigBoard(limit = 60) {
+    const classYouth = { FR: 10, SO: 6, JR: 2.5, SR: 0, GR: -1.5 };
+    const posSizeTarget = { PG: 75, SG: 78, SF: 80, PF: 82, C: 84 };
+
+    const parseHeightInches = (ht) => {
+      if (!ht) return null;
+      const m = String(ht).match(/(\d+)\s*['\u2019-]\s*(\d+)?/);
+      if (m) return parseInt(m[1], 10) * 12 + (parseInt(m[2] || '0', 10));
+      const n = parseFloat(ht);
+      return isNaN(n) ? null : n;
+    };
+
+    const scored = this.state.activePlayers.map(p => {
+      const st = p.stats || this.getZeroStats();
+      const gp = st.gp || 0;
+      const team = this.state.teams.find(t => t.school === p.school);
+      const teamGp = team ? team.simData.wins + team.simData.losses : 0;
+      const teamWinPct = teamGp > 0 ? team.simData.wins / teamGp : 0.5;
+
+      // How much real evidence exists yet. Early on, pedigree and raw
+      // ability carry the board; by March, production dominates.
+      const evidence = Math.min(1, gp / 15);
+
+      const youth = classYouth[p.class] !== undefined ? classYouth[p.class] : 3;
+
+      const hIn = parseHeightInches(p.ht);
+      const target = posSizeTarget[p.pos] || 79;
+      // Positional size: being taller than typical for the position helps,
+      // being undersized hurts, with diminishing returns either way.
+      const sizeEdge = hIn ? Math.max(-6, Math.min(8, (hIn - target) * 1.6)) : 0;
+
+      const production = (parseFloat(st.p40pts) || 0) * 0.55
+                       + (parseFloat(st.p40reb) || 0) * 0.45
+                       + (parseFloat(st.p40ast) || 0) * 0.70
+                       + (parseFloat(st.p40stl) || 0) * 1.1
+                       + (parseFloat(st.p40blk) || 0) * 1.0
+                       - (parseFloat(st.p40tov) || 0) * 0.9
+                       + (parseFloat(st.bpm) || 0) * 1.3;
+
+      const efficiency = ((parseFloat(st.tsPct) || 0) - 0.53) * 40;
+      const winning = (teamWinPct - 0.5) * 8;
+
+      // Recruit pedigree: RSCI ranking if the sheet supplies one, else the
+      // incoming rating. Weighted heavily before games, lightly after.
+      const rsci = parseFloat(p.rsci) || null;
+      const pedigree = rsci ? Math.max(0, 30 - Math.log2(rsci + 1) * 5) : ((parseFloat(p.rating) || 70) - 70) * 0.9;
+
+      const score = (parseFloat(p.rating) || 70) * 0.75
+                  + youth
+                  + sizeEdge
+                  + pedigree * (1 - evidence * 0.65)
+                  + (production + efficiency + winning) * evidence * 1.15;
+
+      return { player: p, score, gp, production, pedigree };
+    });
+
+    return scored
+      .filter(x => (parseFloat(x.player.rating) || 0) >= 70 || x.gp > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
   },
 
   // --- Preseason rankings & strength of schedule ---
@@ -876,11 +1030,14 @@ window.SimEngine = {
     
     const usageScale = (mpg / 28) * (r / 78);
     let ppg = Math.max(0.5, (r * 0.18) * usageScale);
-    let rpg = Math.max(0.2, (isBig ? 6.5 : 2.5) * usageScale);
-    let apg = Math.max(0.1, (!isBig ? 4.0 : 1.2) * usageScale);
-    let stl = Math.max(0.1, (!isBig ? 1.2 : 0.5) * usageScale);
-    let blk = Math.max(0.1, (isBig ? 1.6 : 0.3) * usageScale);
-    let tov = Math.max(0.2, (apg * 0.4 + 0.8));
+    // Per-player baselines tuned so that league-wide team averages land on
+    // real NCAA D1 numbers (~35 reb, ~13.5 ast, ~6.3 stl, ~3.5 blk per team
+    // per game) once these are summed across a full rotation.
+    let rpg = Math.max(0.2, (isBig ? 8.6 : 3.4) * usageScale);
+    let apg = Math.max(0.1, (!isBig ? 3.7 : 1.2) * usageScale);
+    let stl = Math.max(0.1, (!isBig ? 1.70 : 0.72) * usageScale);
+    let blk = Math.max(0.1, (isBig ? 1.40 : 0.24) * usageScale);
+    let tov = Math.max(0.2, (apg * 0.4 + 0.57));
     let pf = Math.min(3.8, Math.max(0.8, (mpg / 8)));
 
     let bpm = ((r - 76) * 0.45);
@@ -888,10 +1045,10 @@ window.SimEngine = {
     let dbpm = bpm - obpm;
 
     let ftPct = Math.min(0.92, Math.max(0.48, (isBig ? 0.64 : 0.78)));
-    let fta = Math.max(0.2, (ppg * (isBig ? 0.35 : 0.22)));
-    let threePar = isBig ? 0.12 : 0.38;
-    let threePPct = Math.min(0.46, Math.max(0.20, (isBig ? 0.30 : 0.36)));
-    let twoPPct = Math.min(0.68, Math.max(0.38, (isBig ? 0.56 : 0.46)));
+    let fta = Math.max(0.2, (ppg * (isBig ? 0.29 : 0.18)));
+    let threePar = isBig ? 0.18 : 0.55;
+    let threePPct = Math.min(0.46, Math.max(0.20, (isBig ? 0.295 : 0.345)));
+    let twoPPct = Math.min(0.68, Math.max(0.38, (isBig ? 0.545 : 0.445)));
     
     let ortg = 95 + (obpm * 3.2);
     let drtg = 105 - (dbpm * 3.2);
@@ -950,6 +1107,7 @@ window.SimEngine = {
     });
 
     this.recalculateAllAverages();
+    this.computeAPPoll();
     await this.saveStateToDB();
 
     if (this.state.week >= this.state.confEnd) {
@@ -1080,12 +1238,7 @@ window.SimEngine = {
        t.simData.winPct = (t.simData.wins / Math.max(1, t.simData.wins + t.simData.losses)).toFixed(3).replace(/^0+/, '');
     });
 
-    this.state.teams.sort((a,b) => {
-      if (b.simData.wins !== a.simData.wins) return b.simData.wins - a.simData.wins;
-      return b.simData.teamOvr - a.simData.teamOvr;
-    });
-
-    this.state.teams.forEach((t, i) => t.apRank = (i < 25) ? (i + 1) : null);
+    this.computeAPPoll();
 
     this.state.activePlayers.forEach(p => {
       const team = this.state.teams.find(t => t.school === p.school);
@@ -1313,6 +1466,101 @@ window.SimEngine = {
     });
   },
 
+  // --- Offseason: transfer portal ---
+
+  // Decides who enters the portal and where they land. Two real patterns
+  // drive it: productive players at low-strength-of-schedule programs get
+  // pulled upward, and highly-rated recruits who underperformed or barely
+  // played look for a new situation.
+  computeTransfers() {
+    const transfers = [];
+    const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
+
+    // Destination pool, best programs first.
+    const destinations = [...this.state.teams].sort((a, b) => (b.simData.teamOvr || 0) - (a.simData.teamOvr || 0));
+
+    this.state.teams.forEach(team => {
+      const sosPercentile = team.sosRank ? 1 - (team.sosRank / this.state.teams.length) : 0.5;
+
+      (team.roster || []).forEach(p => {
+        if (declaredIds.has(p.id)) return;                 // already leaving for the draft
+        if (p.class === 'SR' || p.class === 'GR') return;   // out of eligibility anyway
+
+        const st = p.stats || this.getZeroStats();
+        const mpg = parseFloat(st.mpg) || 0;
+        const bpm = parseFloat(st.bpm) || 0;
+        const rating = parseFloat(p.rating) || 70;
+
+        let chance = 0;
+        let reason = '';
+
+        // Producing well against a weak schedule — a classic "level up" move.
+        if (bpm > 3 && mpg > 20 && sosPercentile < 0.45) {
+          chance = 0.16 + (0.45 - sosPercentile) * 0.35;
+          reason = 'Seeking a higher level';
+        }
+
+        // Highly-rated player who isn't playing or isn't producing.
+        const highPedigree = (p.rsci && parseFloat(p.rsci) <= 100) || rating >= 84;
+        if (highPedigree && (mpg < 15 || bpm < -1)) {
+          chance = Math.max(chance, 0.22);
+          reason = mpg < 15 ? 'Looking for playing time' : 'Underperformed expectations';
+        }
+
+        if (chance > 0 && Math.random() < chance) {
+          // Land somewhere plausibly better, with some randomness so it
+          // isn't always the single strongest program.
+          const better = destinations.filter(d =>
+            d.school !== team.school && (d.simData.teamOvr || 0) > (team.simData.teamOvr || 0));
+          const pool = better.length > 0 ? better.slice(0, Math.max(5, Math.floor(better.length * 0.25))) : destinations.slice(0, 10);
+          const dest = pool[Math.floor(Math.random() * pool.length)];
+          if (dest) transfers.push({ player: p, from: team.school, to: dest.school, reason });
+        }
+      });
+    });
+
+    return transfers;
+  },
+
+  applyTransfers(transfers) {
+    transfers.forEach(({ player, from, to }) => {
+      const fromTeam = this.state.teams.find(t => t.school === from);
+      const toTeam = this.state.teams.find(t => t.school === to);
+      if (!fromTeam || !toTeam) return;
+      fromTeam.roster = fromTeam.roster.filter(x => x.id !== player.id);
+      player.school = to;
+      player.conference = toTeam.conference;
+      player.school_logo = this.getTeamLogo(to);
+      if (!player.collegeHistory) player.collegeHistory = [from];
+      if (player.collegeHistory[player.collegeHistory.length - 1] !== to) player.collegeHistory.push(to);
+      toTeam.roster.push(player);
+    });
+  },
+
+  // Early entrants can withdraw and return to school. Seniors and players
+  // out of eligibility are locked in. The withdrawal odds stand in for a
+  // combine result until the Draft RP page exists to supply a real one.
+  resolveDraftWithdrawals() {
+    const board = this.computeDraftBigBoard(200);
+    const boardRank = {};
+    board.forEach((e, i) => { boardRank[e.player.id] = i + 1; });
+
+    const returning = [];
+    this.state.draftDeclarations = (this.state.draftDeclarations || []).filter(d => {
+      if (d.mandatory) return true;                 // eligibility exhausted, no choice
+      const rank = boardRank[d.id] || 999;
+      // Projected first-rounders almost always stay in; fringe prospects
+      // usually go back to school.
+      const stayChance = rank <= 30 ? 0.94 : rank <= 60 ? 0.62 : 0.22;
+      if (Math.random() < stayChance) return true;
+      returning.push({ ...d, boardRank: rank });
+      return false;
+    });
+
+    this.state.returningPlayers = returning;
+    return returning;
+  },
+
   async runOffseason() {
     if (this.state.phase === 'Preseason') {
       alert("Simulate the regular season first before advancing to the offseason.");
@@ -1324,6 +1572,19 @@ window.SimEngine = {
     }
 
     this.archiveCompletedSeason();
+
+    // Early entrants get their chance to withdraw before rosters are cut.
+    this.resolveDraftWithdrawals();
+
+    // Transfer portal runs against the finished season's production.
+    const transfers = this.computeTransfers();
+    this.state.lastTransfers = transfers.map(t => ({
+      name: t.player.name, pos: t.player.pos, class: t.player.class,
+      rating: parseFloat(t.player.rating) || 0,
+      ppg: t.player.stats ? t.player.stats.ppg : '0.0',
+      from: t.from, to: t.to, reason: t.reason
+    }));
+    this.applyTransfers(transfers);
 
     const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
     const classProgression = { 'FR': 'SO', 'SO': 'JR', 'JR': 'SR' }; // SR/GR intentionally absent: eligibility is exhausted either way
@@ -1371,8 +1632,10 @@ window.SimEngine = {
     this.initSeasonData();
     this.logNews(`Advanced to ${this.state.year} Offseason. Graduated seniors cleared; incoming recruits added.`);
     
-    document.getElementById('statsBody').innerHTML = `<tr><td colspan="25" class="empty-table-msg">Simulate games to view leaderboards.</td></tr>`;
-    document.getElementById('standingsContainer').innerHTML = `<p class="empty-table-msg">Simulate games to view standings.</p>`;
+    const sbEl = document.getElementById('statsBody');
+    if (sbEl) sbEl.innerHTML = `<tr><td colspan="25" class="empty-table-msg">Simulate games to view leaderboards.</td></tr>`;
+    const scEl = document.getElementById('standingsContainer');
+    if (scEl) scEl.innerHTML = `<p class="empty-table-msg">Simulate games to view standings.</p>`;
     
     this.syncUI();
     await this.saveStateToDB();
@@ -1391,6 +1654,12 @@ window.SimEngine = {
       else if (this.state.week > this.state.nonConfEnd) phaseElem.innerText = `Conference — Week ${this.state.week}`;
       else phaseElem.innerText = `Non-Conference — Week ${this.state.week}`;
     }
+
+    // Mirror phase/year into the always-visible toolbar.
+    const tbPhase = document.getElementById('toolbarPhase');
+    const tbYear = document.getElementById('toolbarYear');
+    if (tbPhase && phaseElem) tbPhase.innerText = phaseElem.innerText;
+    if (tbYear) tbYear.innerText = `${this.state.year}-${(this.state.year + 1).toString().slice(2)}`;
 
     const btn = document.getElementById('simWeekBtn');
     if (btn) {
@@ -1420,6 +1689,7 @@ window.SimEngine = {
     this.updateTeamStatsTab();
     this.updateRecruitsTab();
     this.updateDraftBoardTab();
+    this.updateOffseasonTab();
     this.updateHistoryTab();
   },
 
@@ -1528,32 +1798,182 @@ window.SimEngine = {
     statsBody.innerHTML = tbodyHtml;
   },
 
+  // Returns the current Top 25 regardless of phase: the in-season AP poll
+  // once games have been played, otherwise the preseason projection.
+  getCurrentTop25() {
+    if (this.state.week > 0) {
+      const ranked = this.state.teams.filter(t => t.apRank).sort((a, b) => a.apRank - b.apRank);
+      if (ranked.length) return ranked;
+    }
+    return [...this.state.teams]
+      .filter(t => t.preseasonRank)
+      .sort((a, b) => a.preseasonRank - b.preseasonRank)
+      .slice(0, 25);
+  },
+
   updateDashboard() {
     const dashTopTeams = document.getElementById('dashTopTeams');
-    if (!dashTopTeams) return;
-
-    let topTeamsHtml = '';
-    for (let i = 0; i < 10; i++) {
-      if (this.state.teams[i] && this.state.week > 0) {
-        const safeSchool = this.state.teams[i].school.replace(/'/g, "\\'");
-        topTeamsHtml += `
-          <div class="team-badge clickable-school" onclick="SimEngine.openTeamModal('${safeSchool}')">
-            <span class="team-rank">#${i+1}</span>
-            <img src="${this.getTeamLogo(this.state.teams[i].school)}" class="sm-logo">
-            ${this.state.teams[i].school}
-          </div>
-        `;
+    if (dashTopTeams) {
+      const top25 = this.getCurrentTop25().slice(0, 25);
+      const isPreseason = this.state.week === 0;
+      if (top25.length === 0) {
+        dashTopTeams.innerHTML = `<p class="sub-text">Start a save to generate rankings.</p>`;
+      } else {
+        dashTopTeams.innerHTML = `
+          <div class="ap-bubble-grid">
+            ${top25.map((t, i) => {
+              const safe = t.school.replace(/'/g, "\\'");
+              const rec = isPreseason ? '' : `<span class="ap-bubble-record">${t.simData.wins}-${t.simData.losses}</span>`;
+              return `<button class="ap-bubble" onclick="SimEngine.goToTeamPage('${safe}')" title="${t.school}">
+                <span class="ap-bubble-rank">${i + 1}</span>
+                <img src="${this.getTeamLogo(t.school)}" class="ap-bubble-logo" alt="${t.school}">
+                <span class="ap-bubble-name">${t.school}</span>
+                ${rec}
+              </button>`;
+            }).join('')}
+          </div>`;
       }
     }
-    dashTopTeams.innerHTML = topTeamsHtml || `<p class="sub-text">Simulate games to generate rankings.</p>`;
-    
-    if(this.state.week > 0) {
+
+    const labelEl = document.getElementById('dashPollLabel');
+    if (labelEl) labelEl.innerText = this.state.week === 0 ? 'PRESEASON TOP 25' : 'AP TOP 25';
+
+    if (this.state.week > 0) {
       this.populateDashList('dashPts', 'ppg');
       this.populateDashList('dashReb', 'rpg');
       this.populateDashList('dashAst', 'apg');
       this.populateDashList('dashStl', 'stl');
       this.populateDashList('dashBlk', 'blk');
     }
+
+    this.updateTopPerformances();
+    this.updateDashboardBracket();
+  },
+
+  // Jumps straight to a team's page under the Team tab.
+  goToTeamPage(school) {
+    this.state.teamPageSelection = school;
+    this.state.teamPageView = 'team';
+    this.updateTeamTab();
+    if (window.UIController && typeof UIController.activateTab === 'function') {
+      UIController.activateTab('teamTab');
+    }
+  },
+
+  updateTopPerformances() {
+    const el = document.getElementById('dashTopPerformances');
+    if (!el) return;
+    if (this.state.week === 0) {
+      el.innerHTML = `<p class="sub-text">Simulate a week to see standout performances.</p>`;
+      return;
+    }
+    const perfs = this.getTopPerformances(this.state.week, 5);
+    if (perfs.length === 0) {
+      el.innerHTML = `<p class="sub-text">No games played this week.</p>`;
+      return;
+    }
+    el.innerHTML = perfs.map(({ player, game, score }) => {
+      const safe = player.name.replace(/'/g, "\\'");
+      const line = `${game.pts} PTS · ${game.reb} REB · ${game.ast} AST`;
+      return `<div class="perf-row">
+        <img src="${this.getTeamLogo(player.school)}" class="sm-logo">
+        <div class="perf-info">
+          <span class="perf-name clickable-player" onclick="SimEngine.openPlayerModal('${safe}')">${player.name}</span>
+          <span class="perf-meta">${player.school} ${game.isHome ? 'vs' : '@'} ${game.opponent} · ${game.won ? 'W' : 'L'} ${game.teamScore}-${game.oppScore}</span>
+          <span class="perf-line">${line}</span>
+        </div>
+        <span class="perf-score" title="Game Score">${score.toFixed(1)}</span>
+      </div>`;
+    }).join('');
+  },
+
+  // Once the postseason starts, the live bracket is the most interesting
+  // thing on the dashboard, so it takes over the top of the tab.
+  updateDashboardBracket() {
+    const el = document.getElementById('dashBracket');
+    const wrap = document.getElementById('dashBracketSection');
+    if (!el || !wrap) return;
+
+    if (this.state.ncaaDone && this.state.ncaaTournament) {
+      wrap.style.display = 'block';
+      const bt = document.getElementById('dashBracketTitle'); if (bt) bt.innerText = 'NCAA TOURNAMENT';
+      el.innerHTML = this.renderBracketVisual(this.state.ncaaTournament, true);
+      return;
+    }
+    if (this.state.confChampsDone && !this.state.ncaaDone) {
+      wrap.style.display = 'block';
+      const bt = document.getElementById('dashBracketTitle'); if (bt) bt.innerText = 'SELECTION DAY — NCAA FIELD';
+      el.innerHTML = this.renderSelectionField();
+      return;
+    }
+    if (this.state.regularSeasonDone && Object.keys(this.state.confTournaments).length > 0) {
+      wrap.style.display = 'block';
+      const bt = document.getElementById('dashBracketTitle'); if (bt) bt.innerText = 'CONFERENCE TOURNAMENTS';
+      const first = Object.entries(this.state.confTournaments)
+        .sort((a, b) => (this.isHighMajor(b[0]) ? 1 : 0) - (this.isHighMajor(a[0]) ? 1 : 0))[0];
+      el.innerHTML = first ? this.renderBracketVisual(first[1], false, first[0]) : '';
+      return;
+    }
+    wrap.style.display = 'none';
+  },
+
+  // Projected NCAA field, shown on Selection Day between the conference
+  // tournaments and the NCAA tournament itself.
+  renderSelectionField() {
+    const field = this.buildNCAAField();
+    const autoBids = new Set(Object.values(this.state.confTournaments).map(b => b.champion.school));
+    return `<p class="sub-text mb-1">${field.length} teams are in. Auto bids are conference tournament champions; the rest are at-large selections.</p>
+      <div class="selection-grid">
+        ${field.map((t, i) => `
+          <button class="selection-chip ${autoBids.has(t.school) ? 'auto-bid' : ''}" onclick="SimEngine.goToTeamPage('${t.school.replace(/'/g, "\\'")}')">
+            <span class="selection-seed">${i + 1}</span>
+            <img src="${this.getTeamLogo(t.school)}" class="xs-logo">
+            <span class="selection-name">${t.school}</span>
+            <span class="selection-tag">${autoBids.has(t.school) ? 'AUTO' : 'AT-LARGE'}</span>
+          </button>`).join('')}
+      </div>`;
+  },
+
+  // Draws a real bracket: one column per round, matchups stacked inside,
+  // with the winner of each game highlighted.
+  renderBracketVisual(bracket, isNcaa, confName) {
+    if (!bracket || !bracket.rounds || bracket.rounds.length === 0) return '<p class="sub-text">No bracket yet.</p>';
+
+    const roundNames = isNcaa
+      ? ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8', 'Final Four', 'Championship']
+      : ['Round 1', 'Quarterfinals', 'Semifinals', 'Final'];
+    const offset = isNcaa ? 0 : Math.max(0, roundNames.length - bracket.rounds.length);
+
+    const gameEl = (g) => {
+      const aWon = g.winner === g.teamA;
+      const teamRow = (team, score, won) => `
+        <div class="bracket-team ${won ? 'winner' : ''}" onclick="SimEngine.goToTeamPage('${team.school.replace(/'/g, "\\'")}')">
+          <img src="${this.getTeamLogo(team.school)}" class="xs-logo">
+          <span class="bracket-team-name">${team.school}</span>
+          <span class="bracket-team-score">${score}</span>
+        </div>`;
+      return `<div class="bracket-game-card">
+        ${teamRow(g.teamA, g.result.homeScore, aWon)}
+        ${teamRow(g.teamB, g.result.awayScore, !aWon)}
+      </div>`;
+    };
+
+    let html = '';
+    if (confName) html += `<h5 class="bracket-conf-title">${this.getConferenceLogoImg(confName, 'conf-logo-sm')} ${confName}</h5>`;
+    if (bracket.playIn && bracket.playIn.length) {
+      html += `<div class="bracket-round">
+        <div class="bracket-round-title">${isNcaa ? 'First Four' : 'Play-In'}</div>
+        ${bracket.playIn.map(gameEl).join('')}
+      </div>`;
+    }
+    html += bracket.rounds.map((round, i) => `
+      <div class="bracket-round">
+        <div class="bracket-round-title">${roundNames[i + offset] || `Round ${i + 1}`}</div>
+        ${round.map(gameEl).join('')}
+      </div>`).join('');
+
+    return `<div class="bracket-scroll"><div class="bracket-columns">${html}</div></div>
+      <div class="bracket-champion">🏆 ${bracket.champion.school}</div>`;
   },
 
   populateDashList(elementId, statKey) {
@@ -1586,7 +2006,7 @@ window.SimEngine = {
       return;
     }
 
-    let apTop25 = this.state.teams.slice(0, 25);
+    let apTop25 = this.getCurrentTop25().slice(0, 25);
     let apHtml = `
       <div class="standings-card">
         <div class="flex-between mb-1">
@@ -1768,9 +2188,11 @@ window.SimEngine = {
     const card = (title, sub, player) => {
       if (!player) return '';
       const safeName = player.name.replace(/'/g, "\\'");
-      return `<div class="award-card">
-        <div class="award-title">${title}</div>
-        <div class="award-sub">${sub}</div>
+      return `<div class="award-card award-card-horizontal">
+        <div class="award-heading">
+          <div class="award-title">${title}</div>
+          <div class="award-sub">${sub}</div>
+        </div>
         <div class="award-winner">
           <img src="${this.getTeamLogo(player.school)}" class="award-logo">
           <div class="award-winner-info">
@@ -1810,10 +2232,15 @@ window.SimEngine = {
     const preseasonEl = document.getElementById('preseasonAwardsGrid');
     if (preseasonEl) preseasonEl.innerHTML = this.renderPreseasonAwards();
 
+    const natEl = document.getElementById('nationalAwardsGrid');
+    const aaEl = document.getElementById('allAmericanContainer');
+    const confEl = document.getElementById('confAwardsContainer');
+    if (!natEl || !aaEl || !confEl) return;
+
     if (!this.state.regularSeasonDone) {
-      document.getElementById('nationalAwardsGrid').innerHTML = `<p class="sub-text">Complete the season to calculate National Award winners.</p>`;
-      document.getElementById('allAmericanContainer').innerHTML = `<p class="sub-text">Complete the season to view All-American teams.</p>`;
-      document.getElementById('confAwardsContainer').innerHTML = `<p class="sub-text">Complete the season to view conference award winners.</p>`;
+      natEl.innerHTML = `<p class="sub-text">Complete the season to calculate National Award winners.</p>`;
+      aaEl.innerHTML = `<p class="sub-text">Complete the season to view All-American teams.</p>`;
+      confEl.innerHTML = `<p class="sub-text">Complete the season to view conference award winners.</p>`;
       return;
     }
 
@@ -1839,9 +2266,11 @@ window.SimEngine = {
       if (!a.winner) return;
       const safeName = a.winner.name.replace(/'/g, "\\'");
       natHtml += `
-        <div class="award-card ${a.major ? 'major-award' : ''}">
-          <div class="award-title">${a.title}</div>
-          <div class="award-sub">${a.sub}</div>
+        <div class="award-card award-card-horizontal ${a.major ? 'major-award' : ''}">
+          <div class="award-heading">
+            <div class="award-title">${a.title}</div>
+            <div class="award-sub">${a.sub}</div>
+          </div>
           <div class="award-winner">
             <img src="${this.getTeamLogo(a.winner.school)}" class="award-logo">
             <div class="award-winner-info">
@@ -1853,7 +2282,7 @@ window.SimEngine = {
         </div>
       `;
     });
-    document.getElementById('nationalAwardsGrid').innerHTML = natHtml;
+    natEl.innerHTML = natHtml;
 
     const sortedAll = [...players].sort((a,b) => b.awardScore - a.awardScore);
     const aa1 = sortedAll.slice(0, 5);
@@ -1868,7 +2297,7 @@ window.SimEngine = {
         const safeName = p.name.replace(/'/g, "\\'");
         rows += `
           <tr>
-            <td class="highlight-text">${idx+1}</td>
+            <td class="highlight-text">${idx + 1}</td>
             <td>
               <div class="team-cell-wrap">
                 <img src="${this.getTeamLogo(p.school)}" class="xs-logo">
@@ -1877,42 +2306,49 @@ window.SimEngine = {
             </td>
             <td>${p.school}</td>
             <td class="sub-text">${p.pos}</td>
-            <td class="bold-text">${p.stats.ppg} PPG</td>
+            <td class="sub-text">${p.class}</td>
+            <td class="bold-text">${p.stats.ppg}</td>
+            <td>${p.stats.rpg}</td>
+            <td>${p.stats.apg}</td>
+            <td>${p.stats.stl}</td>
+            <td>${p.stats.blk}</td>
           </tr>`;
       });
       return `
-        <div class="award-table-card">
+        <div class="aa-team-block">
           <h5 class="award-table-title">${teamName}</h5>
           <div class="table-scroll">
             <table class="data-table">
-              <thead><tr><th>#</th><th>Player</th><th>School</th><th>Pos</th><th>PPG</th></tr></thead>
+              <thead><tr><th>#</th><th>Player</th><th>School</th><th>Pos</th><th>Cl</th><th>PPG</th><th>RPG</th><th>APG</th><th>SPG</th><th>BPG</th></tr></thead>
               <tbody>${rows}</tbody>
             </table>
           </div>
-        </div>
-      `;
+        </div>`;
     };
 
-    document.getElementById('allAmericanContainer').innerHTML = 
-      renderAaCard("1st Team All-American", aa1) +
-      renderAaCard("2nd Team All-American", aa2) +
-      renderAaCard("3rd Team All-American", aa3);
+    aaEl.innerHTML =
+      renderAaCard("First Team All-American", aa1) +
+      renderAaCard("Second Team All-American", aa2) +
+      renderAaCard("Third Team All-American", aa3);
 
     this.renderConferenceAwards(this.state.selectedAwardConf);
   },
 
   renderConferenceAwards(confName) {
     this.state.selectedAwardConf = confName;
-    document.getElementById('confAwardsTitle').innerText = `${confName} Conference Honors`;
-    
+    const titleEl = document.getElementById('confAwardsTitle');
+    const confBodyEl = document.getElementById('confAwardsContainer');
+    if (!confBodyEl) return;
+    if (titleEl) titleEl.innerText = `${confName} Conference Honors`;
+
     if (!this.state.regularSeasonDone) {
-      document.getElementById('confAwardsContainer').innerHTML = `<p class="sub-text">Complete the season to view conference awards.</p>`;
+      confBodyEl.innerHTML = `<p class="sub-text">Complete the season to view conference awards.</p>`;
       return;
     }
 
     const confPlayers = this.state.activePlayers.filter(p => this.matchesConfFilter(p.conference, confName));
     if (confPlayers.length === 0) {
-      document.getElementById('confAwardsContainer').innerHTML = `<p class="sub-text">No players found for conference: ${confName}</p>`;
+      confBodyEl.innerHTML = `<p class="sub-text">No players found for conference: ${confName}</p>`;
       return;
     }
 
@@ -1992,7 +2428,7 @@ window.SimEngine = {
       </div>
     `;
 
-    document.getElementById('confAwardsContainer').innerHTML = html;
+    confBodyEl.innerHTML = html;
   },
 
   renderConfTeamTable(title, playerList) {
@@ -2032,6 +2468,7 @@ window.SimEngine = {
     if (!team) return;
 
     let rank = team.apRank;
+    if (!document.getElementById('modalTeamLogo')) return;
     document.getElementById('modalTeamLogo').src = this.getTeamLogo(team.school);
     document.getElementById('modalTeamName').innerText = team.school;
     document.getElementById('modalTeamYear').innerText = `${this.state.year}-${(this.state.year+1).toString().slice(2)}`;
@@ -2103,12 +2540,24 @@ window.SimEngine = {
 
     const st = player.stats || this.getZeroStats();
 
+    if (!document.getElementById('modalPlayerLogo')) return;
     document.getElementById('modalPlayerLogo').src = this.getTeamLogo(player.school);
     document.getElementById('modalPlayerName').innerText = player.name;
 
-    const bioBits = [player.pos, player.class, player.ht, player.wt, player.hometown];
-    if (player.hs) bioBits.push(player.hs);
-    document.getElementById('modalPlayerBio').innerText = bioBits.filter(Boolean).join(' | ');
+    // Written out as a sentence rather than pipe-separated fragments.
+    const posNames = { PG: 'Point Guard', SG: 'Shooting Guard', SF: 'Small Forward',
+                       PF: 'Power Forward', C: 'Center', G: 'Guard', F: 'Forward', 'F/C': 'Forward/Center' };
+    const classNames = { FR: 'Freshman', SO: 'Sophomore', JR: 'Junior', SR: 'Senior', GR: 'Graduate Student' };
+    const bioParts = [];
+    const cls = classNames[player.class] || player.class;
+    const posName = posNames[player.pos] || player.pos;
+    if (cls || posName) bioParts.push(`${cls} ${posName}`.trim());
+    if (player.ht) bioParts.push(`${player.ht}`);
+    if (player.wt) bioParts.push(`${player.wt} lbs`);
+    let bio = bioParts.join(', ');
+    if (player.hometown && player.hometown !== 'N/A') bio += `. Hometown: ${player.hometown}`;
+    if (player.hs) bio += `. High school: ${player.hs}`;
+    document.getElementById('modalPlayerBio').innerText = bio + (bio.endsWith('.') ? '' : '.');
 
     const colleges = (player.collegeHistory && player.collegeHistory.length)
       ? player.collegeHistory : [player.school];
@@ -2135,42 +2584,50 @@ window.SimEngine = {
     document.getElementById('modalPlayerAPG').innerText = st.apg;
     document.getElementById('modalPlayerFG').innerText = st.fgPct;
 
-    const pairRow = (label, value) => `<div class="pstat-cell"><span class="pstat-label">${label}</span><span class="pstat-value">${value}</span></div>`;
+    // Rendered as tables so a profile reads the same way as the league
+    // leaderboards, rather than as a wall of separate boxes.
+    const statTable = (cols) => `
+      <div class="table-scroll"><table class="data-table profile-stat-table">
+        <thead><tr>${cols.map(c => `<th>${c[0]}</th>`).join('')}</tr></thead>
+        <tbody><tr>${cols.map(c => `<td>${c[1]}</td>`).join('')}</tr></tbody>
+      </table></div>`;
 
     const boxEl = document.getElementById('modalPlayerBoxStats');
     if (boxEl) {
-      boxEl.innerHTML =
-        pairRow('GP', st.gp) + pairRow('GS', st.gs) + pairRow('MPG', st.mpg) + pairRow('PPG', st.ppg) +
-        pairRow('OREB', st.oreb) + pairRow('DREB', st.dreb) + pairRow('RPG', st.rpg) + pairRow('APG', st.apg) +
-        pairRow('SPG', st.stl) + pairRow('BPG', st.blk) + pairRow('TOV', st.tov) + pairRow('PF', st.pf) +
-        pairRow('FGM', st.fgm) + pairRow('FGA', st.fga) + pairRow('FG%', st.fgPct) +
-        pairRow('3PM', st.threePm) + pairRow('3PA', st.threePa) + pairRow('3P%', st.threePPct) +
-        pairRow('FTM', st.ftm) + pairRow('FTA', st.fta) + pairRow('FT%', st.ftPct);
+      boxEl.innerHTML = statTable([
+        ['GP', st.gp], ['GS', st.gs], ['MPG', st.mpg], ['PPG', st.ppg],
+        ['OREB', st.oreb], ['DREB', st.dreb], ['RPG', st.rpg], ['APG', st.apg],
+        ['SPG', st.stl], ['BPG', st.blk], ['TOV', st.tov], ['PF', st.pf],
+        ['FGM', st.fgm], ['FGA', st.fga], ['FG%', st.fgPct],
+        ['3PM', st.threePm], ['3PA', st.threePa], ['3P%', st.threePPct],
+        ['FTM', st.ftm], ['FTA', st.fta], ['FT%', st.ftPct]
+      ]);
     }
 
     const advEl = document.getElementById('modalPlayerAdvStats');
     if (advEl) {
-      advEl.innerHTML =
-        pairRow('BPM', st.bpm) + pairRow('OBPM', st.obpm) + pairRow('DBPM', st.dbpm) +
-        pairRow('TS%', st.tsPct) + pairRow('eFG%', st.eFgPct) + pairRow('rTS%', st.rTsPct) +
-        pairRow('OREB%', st.orebPct) + pairRow('DREB%', st.drebPct) + pairRow('TRB%', st.trbPct) +
-        pairRow('AST%', st.astPct) + pairRow('TOV%', st.tovPct) + pairRow('BLK%', st.blkPct) +
-        pairRow('USG%', st.usg) + pairRow('FTr', st.ftr) + pairRow('3PAr', st.threePar) +
-        pairRow('ORtg', st.ortg) + pairRow('DRtg', st.drtg) + pairRow('Net', st.netRtg);
+      advEl.innerHTML = statTable([
+        ['BPM', st.bpm], ['OBPM', st.obpm], ['DBPM', st.dbpm],
+        ['TS%', st.tsPct], ['eFG%', st.eFgPct], ['rTS%', st.rTsPct],
+        ['OREB%', st.orebPct], ['DREB%', st.drebPct], ['TRB%', st.trbPct],
+        ['AST%', st.astPct], ['TOV%', st.tovPct], ['BLK%', st.blkPct],
+        ['USG%', st.usg], ['FTr', st.ftr], ['3PAr', st.threePar],
+        ['ORtg', st.ortg], ['DRtg', st.drtg], ['Net', st.netRtg]
+      ]);
     }
 
     const p40El = document.getElementById('modalPlayerPer40Stats');
     if (p40El) {
-      p40El.innerHTML =
-        pairRow('PTS/40', st.p40pts) + pairRow('OREB/40', st.p40oreb) + pairRow('DREB/40', st.p40dreb) +
-        pairRow('REB/40', st.p40reb) + pairRow('AST/40', st.p40ast) + pairRow('STL/40', st.p40stl) +
-        pairRow('BLK/40', st.p40blk) + pairRow('TOV/40', st.p40tov) + pairRow('PF/40', st.p40pf) +
-        pairRow('FGA/40', st.p40fga) + pairRow('3PA/40', st.p40threePa) + pairRow('FTA/40', st.p40fta);
+      p40El.innerHTML = statTable([
+        ['PTS', st.p40pts], ['OREB', st.p40oreb], ['DREB', st.p40dreb], ['REB', st.p40reb],
+        ['AST', st.p40ast], ['STL', st.p40stl], ['BLK', st.p40blk], ['TOV', st.p40tov],
+        ['PF', st.p40pf], ['FGA', st.p40fga], ['3PA', st.p40threePa], ['FTA', st.p40fta]
+      ]);
     }
 
     let glHtml = '';
     if (!player.gameLog || player.gameLog.length === 0) {
-      glHtml = `<tr><td colspan="13" class="empty-table-msg">No games played yet.</td></tr>`;
+      glHtml = `<tr><td colspan="12" class="empty-table-msg">No games played yet.</td></tr>`;
     } else {
       player.gameLog.forEach(g => {
         let matchup = g.opponent
@@ -2178,7 +2635,6 @@ window.SimEngine = {
           : (g.isConf ? 'Conf' : 'Non-Conf');
         glHtml += `
           <tr>
-            <td class="bold-text">Wk ${g.week}</td>
             <td class="sub-text-sm">${matchup}</td>
             <td>${g.min}</td>
             <td class="highlight-col">${g.pts}</td>
@@ -2344,55 +2800,34 @@ window.SimEngine = {
       return;
     }
 
-    const renderBracketGame = g => {
-      const homeWin = g.result.homeScore > g.result.awayScore;
-      return `<div class="bracket-game">
-        <div class="bracket-game-teams">
-          <img src="${this.getTeamLogo(g.teamB.school)}" class="xs-logo"> ${g.teamB.school}
-          <span class="schedule-pill-at">at</span>
-          <img src="${this.getTeamLogo(g.teamA.school)}" class="xs-logo"> ${g.teamA.school}
-        </div>
-        <span class="bracket-game-score">${g.result.awayScore}-${g.result.homeScore}</span>
-        <span class="bracket-game-advances">${g.winner.school} advances</span>
-      </div>`;
-    };
-
     let html = '';
 
-    html += `<h4 class="award-section-title">Conference Championships</h4>`;
-    if (Object.keys(this.state.confTournaments).length === 0) {
-      html += `<p class="sub-text">Not yet simulated.</p>`;
-    } else {
-      html += `<div class="all-american-container">`;
-      Object.entries(this.state.confTournaments).forEach(([confName, bracket]) => {
-        html += `<div class="award-table-card"><h5 class="award-table-title">${confName} — Champion: ${bracket.champion.school}</h5>`;
-        if (bracket.playIn.length > 0) {
-          html += `<p class="sub-text-sm">Play-in:</p>`;
-          bracket.playIn.forEach(g => html += renderBracketGame(g));
-        }
-        bracket.rounds.forEach((round, i) => {
-          html += `<p class="sub-text-sm">Round ${i + 1}:</p>`;
-          round.forEach(g => html += renderBracketGame(g));
-        });
-        html += `</div>`;
-      });
-      html += `</div>`;
+    // The national bracket is the headline event, so it sits at the top
+    // as soon as it exists.
+    if (this.state.ncaaTournament) {
+      html += `<h4 class="award-section-title">NCAA Tournament</h4>`;
+      html += this.renderBracketVisual(this.state.ncaaTournament, true);
+    } else if (this.state.confChampsDone) {
+      html += `<h4 class="award-section-title">Selection Day</h4>`;
+      html += this.renderSelectionField();
     }
 
-    html += `<h4 class="award-section-title mt-2">NCAA Tournament</h4>`;
-    if (!this.state.ncaaTournament) {
-      html += `<p class="sub-text">Not yet simulated.</p>`;
+    const entries = Object.entries(this.state.confTournaments);
+    if (entries.length === 0) {
+      html += `<h4 class="award-section-title mt-2">Conference Championships</h4><p class="sub-text">Not yet simulated.</p>`;
     } else {
-      const bracket = this.state.ncaaTournament;
-      html += `<div class="award-card major-award"><div class="award-title">National Champion</div><div class="award-sub">${bracket.champion.school}</div></div>`;
-      if (bracket.playIn.length > 0) {
-        html += `<p class="sub-text-sm mt-1">First Four:</p>`;
-        bracket.playIn.forEach(g => html += renderBracketGame(g));
-      }
-      const roundNames = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8', 'Final Four', 'Championship'];
-      bracket.rounds.forEach((round, i) => {
-        html += `<p class="sub-text-sm mt-1">${roundNames[i] || `Round ${i + 1}`}:</p>`;
-        round.forEach(g => html += renderBracketGame(g));
+      // High majors first, then everyone else alphabetically.
+      entries.sort((a, b) => {
+        const ha = this.isHighMajor(a[0]) ? 0 : 1;
+        const hb = this.isHighMajor(b[0]) ? 0 : 1;
+        if (ha !== hb) return ha - hb;
+        return a[0].localeCompare(b[0]);
+      });
+      html += `<h4 class="award-section-title mt-2">Conference Championships</h4>`;
+      entries.forEach(([confName, bracket]) => {
+        html += `<div class="conf-bracket-block ${this.isHighMajor(confName) ? 'high-major' : ''}">
+          ${this.renderBracketVisual(bracket, false, confName)}
+        </div>`;
       });
     }
 
@@ -2848,32 +3283,157 @@ window.SimEngine = {
     const container = document.getElementById('draftBoardContainer');
     if (!container) return;
 
-    if (!this.state.ncaaDone) {
-      container.innerHTML = `<p class="empty-table-msg">Finish the NCAA Tournament to see who's declared for the draft.</p>`;
-      return;
-    }
-    if (!this.state.draftDeclarations || this.state.draftDeclarations.length === 0) {
-      container.innerHTML = `<p class="empty-table-msg">No players declared for the draft this year.</p>`;
+    if (this.state.teams.length === 0) {
+      container.innerHTML = `<p class="empty-table-msg">Start a save to view the big board.</p>`;
       return;
     }
 
-    let html = `<div class="table-scroll"><table class="data-table">
-      <thead><tr><th>#</th><th>Player</th><th>School</th><th>Pos</th><th>Class</th><th>PPG</th><th>Status</th></tr></thead>
-      <tbody>`;
-    this.state.draftDeclarations.forEach((d, i) => {
-      const safeName = d.name.replace(/'/g, "\\'");
-      html += `<tr>
-        <td class="bold-sub-text">${i + 1}</td>
-        <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${d.name}</span></td>
-        <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(d.school)}" class="xs-logo">${d.school}</div></td>
-        <td class="sub-text">${d.pos}</td>
-        <td class="sub-text">${d.class}</td>
-        <td class="bold-text">${d.ppg}</td>
-        <td class="sub-text-sm">${d.mandatory ? 'Exhausted Eligibility' : 'Early Entry'}</td>
+    const board = this.computeDraftBigBoard(60);
+    if (board.length === 0) {
+      container.innerHTML = `<p class="empty-table-msg">No prospects to rank yet.</p>`;
+      return;
+    }
+
+    const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
+    const phaseNote = this.state.week === 0
+      ? 'Preseason board — weighted by pedigree, age and physical profile until games are played.'
+      : (this.state.ncaaDone
+          ? 'Final board. Players who declared are tagged.'
+          : `Live board through Week ${this.state.week} — updates every week as production accumulates.`);
+
+    let rows = '';
+    board.forEach((entry, i) => {
+      const p = entry.player;
+      const st = p.stats || this.getZeroStats();
+      const safe = p.name.replace(/'/g, "\\'");
+      const declared = declaredIds.has(p.id);
+      rows += `<tr>
+        <td class="rank-cell">${i + 1}</td>
+        <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safe}')">${p.name}</span>
+            ${declared ? '<span class="declared-tag">DECLARED</span>' : ''}</td>
+        <td><div class="team-cell-wrap clickable-school" onclick="SimEngine.goToTeamPage('${p.school.replace(/'/g, "\\'")}')">
+          <img src="${this.getTeamLogo(p.school)}" class="xs-logo"><span>${p.school}</span></div></td>
+        <td class="sub-text">${p.pos}</td>
+        <td class="sub-text">${p.class}</td>
+        <td class="sub-text">${p.ht || '—'}</td>
+        <td class="bold-text">${st.ppg}</td>
+        <td>${st.rpg}</td>
+        <td>${st.apg}</td>
+        <td>${st.bpm}</td>
+        <td class="sub-text-sm">${entry.score.toFixed(1)}</td>
       </tr>`;
     });
-    html += `</tbody></table></div>`;
-    container.innerHTML = html;
+
+    container.innerHTML = `
+      <p class="sub-text mb-1">${phaseNote}</p>
+      <div class="table-scroll"><table class="data-table">
+        <thead><tr><th>#</th><th>Player</th><th>School</th><th>Pos</th><th>Cl</th><th>HT</th>
+          <th>PPG</th><th>RPG</th><th>APG</th><th>BPM</th><th>Score</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+  },
+
+  // --- Offseason hub ---
+
+  updateOffseasonTab() {
+    const el = document.getElementById('offseasonContainer');
+    if (!el) return;
+
+    if (!this.state.ncaaDone && (this.state.seasonHistory || []).length === 0) {
+      el.innerHTML = `<p class="empty-table-msg">Finish the NCAA Tournament to begin the offseason.</p>`;
+      return;
+    }
+
+    let html = '';
+
+    // 1. Champion spotlight. Once the offseason is advanced the live
+    // tournament object is cleared for the new season, so fall back to the
+    // archived history entry — otherwise this page goes blank at exactly
+    // the moment you'd want to look at it.
+    let champSchool = null, champYear = this.state.year;
+    if (this.state.ncaaTournament && this.state.ncaaTournament.champion) {
+      champSchool = this.state.ncaaTournament.champion.school;
+    } else if ((this.state.seasonHistory || []).length > 0) {
+      const last = this.state.seasonHistory[this.state.seasonHistory.length - 1];
+      champSchool = last.champion;
+      champYear = last.year;
+    }
+
+    if (champSchool) {
+      const t = this.state.teams.find(x => x.school === champSchool);
+      const hist = t && (t.history || []).find(h => h.year === champYear);
+      const recordText = hist ? `${hist.wins}-${hist.losses}` : (t && t.simData ? `${t.simData.wins}-${t.simData.losses}` : '');
+      html += `<div class="champion-spotlight">
+        <img src="${this.getTeamLogo(champSchool)}" class="champion-logo">
+        <div>
+          <div class="champion-label">${champYear}-${(champYear + 1).toString().slice(2)} National Champions</div>
+          <div class="champion-name">${champSchool}</div>
+          <div class="champion-record">${recordText}${t && t.conference ? ' · ' + t.conference : ''}</div>
+        </div>
+      </div>`;
+    }
+
+    // 2. Draft declarations
+    html += `<h4 class="award-section-title mt-2">Draft Declarations</h4>`;
+    const decls = this.state.draftDeclarations || [];
+    if (decls.length === 0) {
+      html += `<p class="sub-text">No players have declared yet.</p>`;
+    } else {
+      html += `<div class="table-scroll"><table class="data-table">
+        <thead><tr><th>#</th><th>Player</th><th>School</th><th>Pos</th><th>Cl</th><th>PPG</th><th>Status</th></tr></thead><tbody>`;
+      decls.forEach((d, i) => {
+        const safe = d.name.replace(/'/g, "\\'");
+        html += `<tr>
+          <td class="bold-sub-text">${i + 1}</td>
+          <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safe}')">${d.name}</span></td>
+          <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(d.school)}" class="xs-logo"><span>${d.school}</span></div></td>
+          <td class="sub-text">${d.pos}</td>
+          <td class="sub-text">${d.class}</td>
+          <td class="bold-text">${d.ppg}</td>
+          <td class="sub-text-sm">${d.mandatory ? 'Auto entry — eligibility exhausted' : 'Early entry'}</td>
+        </tr>`;
+      });
+      html += `</tbody></table></div>`;
+    }
+
+    const returning = this.state.returningPlayers || [];
+    if (returning.length > 0) {
+      html += `<h5 class="award-table-title mt-1">Withdrew and Returning to School</h5>
+        <p class="sub-text-sm mb-1">Early entrants who pulled their name out. Combine results from the Draft RP page will drive this once it's available.</p>
+        <div class="table-scroll"><table class="data-table">
+          <thead><tr><th>Player</th><th>School</th><th>Pos</th><th>Big Board</th></tr></thead><tbody>
+          ${returning.map(r => `<tr>
+            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${r.name.replace(/'/g, "\\'")}')">${r.name}</span></td>
+            <td class="sub-text">${r.school}</td>
+            <td class="sub-text">${r.pos}</td>
+            <td class="sub-text-sm">${r.boardRank <= 200 ? '#' + r.boardRank : 'Unranked'}</td>
+          </tr>`).join('')}
+        </tbody></table></div>`;
+    }
+
+    // 3. Transfer portal
+    html += `<h4 class="award-section-title mt-2">Transfer Portal</h4>`;
+    const transfers = this.state.lastTransfers || [];
+    if (transfers.length === 0) {
+      html += `<p class="sub-text">No transfers yet — the portal opens once you advance the offseason.</p>`;
+    } else {
+      html += `<p class="sub-text mb-1">${transfers.length} players changed schools.</p>
+        <div class="table-scroll"><table class="data-table">
+          <thead><tr><th>Player</th><th>Pos</th><th>Cl</th><th>PPG</th><th>From</th><th></th><th>To</th><th>Reason</th></tr></thead><tbody>
+          ${transfers.map(t => `<tr>
+            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${t.name.replace(/'/g, "\\'")}')">${t.name}</span></td>
+            <td class="sub-text">${t.pos}</td>
+            <td class="sub-text">${t.class}</td>
+            <td class="bold-text">${t.ppg}</td>
+            <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(t.from)}" class="xs-logo"><span>${t.from}</span></div></td>
+            <td class="transfer-arrow">&rarr;</td>
+            <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(t.to)}" class="xs-logo"><span>${t.to}</span></div></td>
+            <td class="sub-text-sm">${t.reason}</td>
+          </tr>`).join('')}
+        </tbody></table></div>`;
+    }
+
+    el.innerHTML = html;
   },
 
   // --- Historical Seasons ---
