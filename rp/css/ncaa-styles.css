@@ -956,3 +956,253 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+/* ============================================================
+   Team page: conference index, team detail, stat cells
+   ============================================================ */
+
+.conf-section {
+  margin-bottom: 1.75rem;
+}
+
+.conf-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.conf-section-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-right: auto;
+}
+
+.conf-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.conf-logo-sm {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  vertical-align: -3px;
+}
+
+.conf-team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.5rem;
+}
+
+.team-index-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  background: var(--bg-color);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-main);
+  font-family: 'Asap Condensed', sans-serif;
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.team-index-card:hover {
+  background: var(--card-hover);
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.team-index-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.season-result-banner {
+  background: linear-gradient(90deg, rgba(150, 66, 130, 0.18), transparent);
+  border-left: 3px solid var(--accent);
+  padding: 0.7rem 1rem;
+  border-radius: 0 6px 6px 0;
+  font-weight: 600;
+}
+
+/* Team stat cells with national rank underneath */
+.team-stat-cell-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+  gap: 0.5rem;
+}
+
+.team-stat-cell {
+  background: var(--bg-color);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.55rem 0.4rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.team-stat-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.team-stat-value {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.team-stat-rank {
+  font-size: 0.68rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Conference standings: cards size to content, no inner side-scrolling */
+.conf-table-wrap {
+  width: 100%;
+}
+
+.conf-table-wrap .data-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.conf-table-wrap .data-table td,
+.conf-table-wrap .data-table th {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-left: 0.4rem;
+  padding-right: 0.4rem;
+}
+
+.conf-table-wrap .data-table td:first-child,
+.conf-table-wrap .data-table th:first-child {
+  width: 2rem;
+}
+
+.conf-table-wrap .team-name-cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Player profile stat grids */
+.pstat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+  gap: 0.4rem;
+}
+
+.pstat-cell {
+  background: var(--bg-color);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.45rem 0.3rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.pstat-label {
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.pstat-value {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.modal-player-colleges {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.accolade-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  margin-right: 0.35rem;
+}
+
+.accolade-tag.preseason {
+  background: rgba(212, 175, 55, 0.18);
+  color: var(--gold);
+}
+
+.accolade-tag.postseason {
+  background: rgba(150, 66, 130, 0.22);
+  color: var(--accent);
+}
+
+/* Sidebar quick links */
+.quick-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+
+.quick-link {
+  background: var(--bg-color);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-muted);
+  font-family: 'Asap Condensed', sans-serif;
+  font-size: 0.85rem;
+  padding: 0.45rem 0.3rem;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.quick-link:hover {
+  background: var(--card-hover);
+  color: var(--text-main);
+  border-color: var(--accent);
+}
+
+.season-control .season-title {
+  margin-bottom: 0.85rem;
+}
+
+.save-panel .section-title {
+  margin-bottom: 0.6rem;
+}
+
+.win-text { color: var(--win); font-weight: 700; }
+.loss-text { color: var(--loss); font-weight: 700; }
+
+/* Row entrance animation for freshly rendered tables */
+.data-table tbody tr {
+  animation: rowFadeIn 0.2s ease both;
+}
+
+@keyframes rowFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
