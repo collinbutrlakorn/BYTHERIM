@@ -27,13 +27,17 @@ window.SimEngine = {
     ncaaTournament: null,   // bracket result from TournamentCore
     draftDeclarations: [],  // players leaving for the draft, computed when the season ends
     seasonHistory: [],      // league-wide archive: one entry per completed season
+    preseasonAwards: null,  // projected honours, computed before week 1
+    seasonInitialized: false,
     scheduleViewWeek: 1,
     teamPageSelection: '',
     teamPageView: 'current',
-    teamStatSortCol: 'wins',
+    teamStatSortCol: 'ppg',
     teamStatSortDir: 'desc',
-    recruitsClassFilter: 'ALL',
-    recruitsStatusFilter: 'ALL'
+    teamStatsConfFilter: 'ALL',
+    teamStatsView: 'box',
+    recruitsStatusFilter: 'ALL',
+    recruitsConfFilter: 'ALL'
   },
 
   async init() {
@@ -125,6 +129,7 @@ window.SimEngine = {
     this.state.ncaaTournament = null;
     this.state.draftDeclarations = [];
     this.state.seasonHistory = [];
+    this.state.seasonInitialized = false;
     this.state.scheduleViewWeek = 1;
   },
 
@@ -149,6 +154,7 @@ window.SimEngine = {
           this.state.ncaaTournament = savedState.ncaaTournament || null;
           this.state.draftDeclarations = savedState.draftDeclarations || [];
           this.state.seasonHistory = savedState.seasonHistory || [];
+          this.state.seasonInitialized = savedState.seasonInitialized || false;
           this.state.scheduleViewWeek = savedState.scheduleViewWeek || 1;
 
           const savedTeams = await db.teams.toArray();
@@ -220,6 +226,7 @@ window.SimEngine = {
           ncaaTournament: this.serializeBracket(this.state.ncaaTournament),
           draftDeclarations: this.state.draftDeclarations,
           seasonHistory: this.state.seasonHistory,
+          seasonInitialized: this.state.seasonInitialized,
           scheduleViewWeek: this.state.scheduleViewWeek
         });
         await db.teams.clear();
@@ -370,6 +377,7 @@ window.SimEngine = {
       return;
     }
 
+    this.initSeasonData();
     this.syncUI();
     await this.saveStateToDB();
     const realCount = Object.keys(realTeamsMap).length;
@@ -508,6 +516,11 @@ window.SimEngine = {
       ht: getVal(['ht', 'height'], "6'4"),
       wt: getVal(['wt', 'weight'], "190"),
       hometown: getVal(['from', 'hometown', 'home'], 'N/A'),
+      hs: getVal(['hs', 'highschool', 'prep', 'prepschool'], ''),
+      // Schools this player has suited up for, oldest first. Transfers
+      // aren't simulated yet, so this is normally just the current school —
+      // but the field exists so a transfer only has to append to it.
+      collegeHistory: [school],
       rating: rating,
       isRecruit: isRecruit,
       recClassYear: this.parseClassYear(getVal(['classyear', 'recclass'], ''), this.state.year),
@@ -544,17 +557,222 @@ window.SimEngine = {
   getZeroStats() {
     const z1 = "0.0", z3 = ".000";
     return {
-      mpg: z1, ppg: z1, rpg: z1, apg: z1, stl: z1, blk: z1, tov: z1, pf: z1,
+      gp: 0, gs: 0,
+      mpg: z1, ppg: z1, oreb: z1, dreb: z1, rpg: z1, apg: z1, stl: z1, blk: z1, tov: z1, pf: z1,
       fgm: z1, fga: z1, fgPct: z3, twoPm: z1, twoPa: z1, twoPPct: z3,
       threePm: z1, threePa: z1, threePPct: z3, ftm: z1, fta: z1, ftPct: z3,
       bpm: z1, obpm: z1, dbpm: z1, tsPct: z3, rTsPct: z1, eFgPct: z3,
       orebPct: '0.0%', drebPct: '0.0%', trbPct: '0.0%', astPct: '0.0%',
       tovPct: '0.0%', blkPct: '0.0%', usg: '0.0%', ftr: z3, threePar: z3,
-      ortg: z1, drtg: z1, netRtg: z1
+      ortg: z1, drtg: z1, netRtg: z1,
+      // Per-40-minute rates — pace/playing-time neutral, so a bench player
+      // with 12 mpg can be compared directly against a 34 mpg starter.
+      p40pts: z1, p40reb: z1, p40oreb: z1, p40dreb: z1, p40ast: z1,
+      p40stl: z1, p40blk: z1, p40tov: z1, p40pf: z1, p40fga: z1, p40threePa: z1, p40fta: z1
     };
   },
 
+  // Conferences generally treated as "high major" — the power leagues whose
+  // teams get at-large bids on resume rather than needing an auto bid.
+  // Used by the "High Majors" option on every conference dropdown.
+  HIGH_MAJOR_CONFERENCES: new Set(['ACC', 'Big Ten', 'Big 12', 'SEC', 'Big East']),
+
+  isHighMajor(conference) {
+    return this.HIGH_MAJOR_CONFERENCES.has(conference);
+  },
+
+  getAllConferences() {
+    return [...new Set(this.state.teams.map(t => t.conference).filter(Boolean))].sort();
+  },
+
+  // Returns true when a team/conference passes a dropdown filter value.
+  // Filter values are 'ALL', 'HIGH_MAJOR', or an exact conference name.
+  matchesConfFilter(conference, filterValue) {
+    if (!filterValue || filterValue === 'ALL') return true;
+    if (filterValue === 'HIGH_MAJOR') return this.isHighMajor(conference);
+    return conference === filterValue;
+  },
+
+  // Fills every conference <select> on the page with the full conference
+  // list plus a High Majors option, preserving the current selection.
+  // Replaces the old hardcoded 10-conference lists in the HTML.
+  populateConferenceDropdowns() {
+    const confs = this.getAllConferences();
+    if (confs.length === 0) return;
+
+    const fill = (id, includeAll, allLabel) => {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      const prev = sel.value;
+      let html = '';
+      if (includeAll) html += `<option value="ALL">${allLabel}</option>`;
+      html += `<option value="HIGH_MAJOR">High Majors</option>`;
+      html += confs.map(c => `<option value="${c}">${c}</option>`).join('');
+      sel.innerHTML = html;
+      const valid = Array.from(sel.options).some(o => o.value === prev);
+      sel.value = valid && prev ? prev : (includeAll ? 'ALL' : (confs[0] || ''));
+    };
+
+    fill('confFilter', true, 'All NCAA');
+    fill('recruitsConfFilter', true, 'All NCAA');
+    fill('teamStatsConfFilter', true, 'All NCAA');
+    fill('awardConfFilter', false, '');
+  },
+
+  _confLogoCache: {},
+
+  // Conference logo path. Files are expected in /conferencelogos as the
+  // conference name lowercased with punctuation stripped ("Pac-12" ->
+  // pac12.png, "Big Ten" -> bigten.png). If the file isn't there yet the
+  // <img> onerror handler swaps in a generated badge, so a missing folder
+  // degrades gracefully instead of showing broken images.
+  getConferenceLogo(conference) {
+    if (!conference) return '';
+    const normalized = String(conference).toLowerCase().replace(/[^a-z0-9]/g, '');
+    return `../conferencelogos/${normalized}.png`;
+  },
+
+  getConferenceLogoImg(conference, className = 'conf-logo') {
+    const fallback = this.generateFallbackLogo(conference);
+    return `<img src="${this.getConferenceLogo(conference)}" class="${className}" alt="${conference}" ` +
+           `onerror="this.onerror=null;this.src='${fallback}';">`;
+  },
+
+  // --- Preseason rankings & strength of schedule ---
+
+  // Preseason poll: driven by roster strength, with a deliberate lean
+  // toward established high-major programs the way real preseason polls
+  // favour brand-name teams before anyone has played a game.
+  computePreseasonRankings() {
+    const tierBonus = { 1: 3.0, 2: 1.2, 3: 0.0, 4: -1.0 };
+    this.state.teams.forEach(t => {
+      const tier = (typeof RosterGen !== 'undefined') ? RosterGen.getConferenceTier(t.conference) : 3;
+      const bonus = (tierBonus[tier] || 0) + (this.isHighMajor(t.conference) ? 1.5 : 0);
+      t.preseasonScore = (t.simData.teamOvr || 0) + bonus;
+    });
+    const sorted = [...this.state.teams].sort((a, b) => b.preseasonScore - a.preseasonScore);
+    sorted.forEach((t, i) => { t.preseasonRank = i + 1; });
+  },
+
+  // Strength of schedule = average team-overall of every opponent on the
+  // slate, then ranked across all teams (1 = toughest schedule).
+  computeStrengthOfSchedule() {
+    const ovrBySchool = {};
+    this.state.teams.forEach(t => { ovrBySchool[t.school] = t.simData.teamOvr || 0; });
+
+    const oppTotals = {};
+    this.state.teams.forEach(t => { oppTotals[t.school] = { sum: 0, n: 0 }; });
+
+    this.state.schedule.forEach(g => {
+      if (oppTotals[g.home] && ovrBySchool[g.away] !== undefined) {
+        oppTotals[g.home].sum += ovrBySchool[g.away]; oppTotals[g.home].n++;
+      }
+      if (oppTotals[g.away] && ovrBySchool[g.home] !== undefined) {
+        oppTotals[g.away].sum += ovrBySchool[g.home]; oppTotals[g.away].n++;
+      }
+    });
+
+    this.state.teams.forEach(t => {
+      const rec = oppTotals[t.school];
+      t.sos = rec && rec.n > 0 ? rec.sum / rec.n : 0;
+    });
+    const sorted = [...this.state.teams].sort((a, b) => b.sos - a.sos);
+    sorted.forEach((t, i) => { t.sosRank = i + 1; });
+  },
+
+  // --- Team aggregate statistics ---
+
+  // Aggregates a team's per-game box score and advanced numbers from its
+  // players' game logs plus the real game results (for opponent points).
+  computeTeamStats(team) {
+    const totals = { min:0, pts:0, oreb:0, dreb:0, reb:0, ast:0, stl:0, blk:0, tov:0, pf:0,
+                     fgm:0, fga:0, twoPm:0, twoPa:0, threePm:0, threePa:0, ftm:0, fta:0 };
+    (team.roster || []).forEach(p => {
+      (p.gameLog || []).forEach(log => {
+        for (const k in totals) totals[k] += (log[k] || 0);
+      });
+    });
+
+    const played = this.state.schedule.filter(g => g.played && g.result && (g.home === team.school || g.away === team.school));
+    let oppPts = 0;
+    played.forEach(g => {
+      const isHome = g.home === team.school;
+      oppPts += isHome ? g.result.awayScore : g.result.homeScore;
+    });
+
+    const gp = played.length;
+    const d = Math.max(1, gp);
+    const t1 = v => (v / d).toFixed(1);
+    const t3 = (m, a) => a > 0 ? (m / a).toFixed(3).replace(/^0+/, '') : '.000';
+
+    // Possessions estimate (standard box-score formula) drives the tempo-free
+    // offensive/defensive ratings below.
+    const poss = totals.fga - totals.oreb + totals.tov + 0.44 * totals.fta;
+    const possPerGame = poss / d;
+
+    return {
+      gp,
+      ppg: t1(totals.pts), oppPpg: t1(oppPts), diff: ((totals.pts - oppPts) / d).toFixed(1),
+      oreb: t1(totals.oreb), dreb: t1(totals.dreb), rpg: t1(totals.reb), apg: t1(totals.ast),
+      stl: t1(totals.stl), blk: t1(totals.blk), tov: t1(totals.tov), pf: t1(totals.pf),
+      fgm: t1(totals.fgm), fga: t1(totals.fga), fgPct: t3(totals.fgm, totals.fga),
+      threePm: t1(totals.threePm), threePa: t1(totals.threePa), threePPct: t3(totals.threePm, totals.threePa),
+      ftm: t1(totals.ftm), fta: t1(totals.fta), ftPct: t3(totals.ftm, totals.fta),
+      eFgPct: totals.fga > 0 ? t3(totals.fgm + 0.5 * totals.threePm, totals.fga) : '.000',
+      tsPct: (totals.fga + 0.44 * totals.fta) > 0 ? t3(totals.pts, 2 * (totals.fga + 0.44 * totals.fta)) : '.000',
+      astToRatio: totals.tov > 0 ? (totals.ast / totals.tov).toFixed(2) : '0.00',
+      threePar: t3(totals.threePa, totals.fga),
+      ftr: t3(totals.fta, totals.fga),
+      pace: possPerGame.toFixed(1),
+      ortg: poss > 0 ? ((totals.pts / poss) * 100).toFixed(1) : '0.0',
+      drtg: poss > 0 ? ((oppPts / poss) * 100).toFixed(1) : '0.0',
+      netRtg: poss > 0 ? (((totals.pts - oppPts) / poss) * 100).toFixed(1) : '0.0'
+    };
+  },
+
+  // Computes stats for every team once, then attaches a rank for each
+  // statistic so a team page can show "14.2 (12th)" style context.
+  // Cached per render pass because it touches every player's game log.
+  computeAllTeamStats() {
+    const rows = this.state.teams.map(t => ({
+      school: t.school,
+      conference: t.conference,
+      wins: t.simData.wins,
+      losses: t.simData.losses,
+      confWins: t.simData.confWins,
+      confLosses: t.simData.confLosses,
+      stats: this.computeTeamStats(t)
+    }));
+
+    // Stats where a LOWER value is better get ranked ascending.
+    const lowerIsBetter = new Set(['oppPpg', 'tov', 'pf', 'drtg']);
+    const rankable = ['ppg','oppPpg','diff','oreb','dreb','rpg','apg','stl','blk','tov','pf',
+                      'fgm','fga','fgPct','threePm','threePa','threePPct','ftm','fta','ftPct',
+                      'eFgPct','tsPct','astToRatio','threePar','ftr','pace','ortg','drtg','netRtg'];
+
+    rankable.forEach(key => {
+      const sorted = [...rows].sort((a, b) => {
+        const av = parseFloat(a.stats[key]) || 0;
+        const bv = parseFloat(b.stats[key]) || 0;
+        return lowerIsBetter.has(key) ? av - bv : bv - av;
+      });
+      sorted.forEach((r, i) => {
+        if (!r.ranks) r.ranks = {};
+        r.ranks[key] = i + 1;
+      });
+    });
+
+    return rows;
+  },
+
+  ordinal(n) {
+    if (!n) return '—';
+    const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  },
+
   initSeasonData() {
+    this.state.seasonInitialized = true;
     this.state.schedule = [];
     this.state.regularSeasonDone = false;
     this.state.confChampsDone = false;
@@ -592,6 +810,38 @@ window.SimEngine = {
     });
 
     this.generateSeasonSchedule();
+    this.computePreseasonAwards();
+  },
+
+  // Preseason honours are pure projection: player rating plus a nudge for
+  // playing on a strong team, exactly the way real preseason watchlists
+  // lean toward contenders. Runs before any game is simulated.
+  computePreseasonAwards() {
+    const teamOvrBySchool = {};
+    this.state.teams.forEach(t => { teamOvrBySchool[t.school] = t.simData.teamOvr || 0; });
+
+    const pool = this.state.activePlayers
+      .filter(p => p.expectedStats && parseFloat(p.expectedStats.mpg) > 8)
+      .map(p => ({
+        p,
+        score: parseFloat(p.rating) + ((teamOvrBySchool[p.school] || 70) - 75) * 0.25
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    this.state.preseasonAwards = {
+      poy: pool[0] ? pool[0].p : null,
+      froy: (pool.find(x => x.p.class === 'FR') || {}).p || null,
+      allAmericans: pool.slice(0, 15).map(x => x.p)
+    };
+
+    pool.slice(0, 15).forEach((x, i) => {
+      const team = i < 5 ? '1st' : (i < 10 ? '2nd' : '3rd');
+      const label = `Preseason All-American (${team} Team)`;
+      if (!x.p.accolades.includes(label)) x.p.accolades.push(label);
+    });
+    if (pool[0] && !pool[0].p.accolades.includes('Preseason POY')) pool[0].p.accolades.push('Preseason POY');
+    const fr = pool.find(x => x.p.class === 'FR');
+    if (fr && !fr.p.accolades.includes('Preseason Freshman of the Year')) fr.p.accolades.push('Preseason Freshman of the Year');
   },
 
   generateSeasonSchedule() {
@@ -611,6 +861,11 @@ window.SimEngine = {
     this.state.confEnd = confEnd;
     this.state.maxWeeks = confEnd;
     this.state.scheduleViewWeek = 1;
+
+    // Both depend on the finished schedule and on every team's rating,
+    // so they run here rather than during roster construction.
+    this.computePreseasonRankings();
+    this.computeStrengthOfSchedule();
   },
 
   buildBaseStatExpectations(player, mpg) {
@@ -660,7 +915,7 @@ window.SimEngine = {
       alert("Season already complete! Advance offseason to start a new year.");
       return;
     }
-    if (this.state.week === 0) {
+    if (this.state.week === 0 && !this.state.seasonInitialized) {
       this.initSeasonData();
     }
 
@@ -730,6 +985,7 @@ window.SimEngine = {
       boxes.forEach(({ player, box }) => {
         player.gameLog.push({
           ...box,
+          started: !player.isBench && box.min > 0,
           week: scheduleEntry ? scheduleEntry.week : this.state.week,
           isConf: scheduleEntry ? !!scheduleEntry.isConf : false,
           phase: gamePhaseLabel,
@@ -761,8 +1017,9 @@ window.SimEngine = {
 
     const calc = (logs) => {
        if (logs.length === 0) return this.getZeroStats();
-       let s = { min:0, pts:0, reb:0, ast:0, stl:0, blk:0, tov:0, pf:0, fgm:0, fga:0, twoPm:0, twoPa:0, threePm:0, threePa:0, ftm:0, fta:0 };
-       logs.forEach(g => { for(let k in s) s[k] += g[k]; });
+       let s = { min:0, pts:0, reb:0, oreb:0, dreb:0, ast:0, stl:0, blk:0, tov:0, pf:0, fgm:0, fga:0, twoPm:0, twoPa:0, threePm:0, threePa:0, ftm:0, fta:0 };
+       logs.forEach(g => { for(let k in s) s[k] += (g[k] || 0); });
+       const gamesStarted = logs.filter(g => g.started).length;
        
        const g = logs.length;
        const t1 = v => (v/g).toFixed(1);
@@ -778,8 +1035,13 @@ window.SimEngine = {
        const drtgNum = parseFloat(exp.drtg) || 100;
        const tsPctNum = parseFloat(exp.tsPct) || 0;
        
+       // Per-40 denominators use total minutes, not games, so low-minute
+       // players aren't penalised. Guard against a 0-minute denominator.
+       const p40 = v => s.min > 0 ? ((v / s.min) * 40).toFixed(1) : '0.0';
+
        return {
-          mpg: t1(s.min), ppg: t1(s.pts), rpg: t1(s.reb), apg: t1(s.ast),
+          gp: g, gs: gamesStarted,
+          mpg: t1(s.min), ppg: t1(s.pts), oreb: t1(s.oreb), dreb: t1(s.dreb), rpg: t1(s.reb), apg: t1(s.ast),
           stl: t1(s.stl), blk: t1(s.blk), tov: t1(s.tov), pf: t1(s.pf),
           fgm: t1(s.fgm), fga: t1(s.fga), fgPct: t3(s.fgm, s.fga),
           twoPm: t1(s.twoPm), twoPa: t1(s.twoPa), twoPPct: t3(s.twoPm, s.twoPa),
@@ -799,7 +1061,10 @@ window.SimEngine = {
           ftr: t3(s.fta, s.fga), threePar: t3(s.threePa, s.fga),
           ortg: ortgNum.toFixed(1), 
           drtg: drtgNum.toFixed(1), 
-          netRtg: (ortgNum - drtgNum).toFixed(1)
+          netRtg: (ortgNum - drtgNum).toFixed(1),
+          p40pts: p40(s.pts), p40reb: p40(s.reb), p40oreb: p40(s.oreb), p40dreb: p40(s.dreb),
+          p40ast: p40(s.ast), p40stl: p40(s.stl), p40blk: p40(s.blk), p40tov: p40(s.tov),
+          p40pf: p40(s.pf), p40fga: p40(s.fga), p40threePa: p40(s.threePa), p40fta: p40(s.fta)
        };
     };
 
@@ -1100,8 +1365,10 @@ window.SimEngine = {
     this.state.confTournaments = {};
     this.state.ncaaTournament = null;
     this.state.draftDeclarations = [];
-    
+    this.state.seasonInitialized = false;
+
     this.filterActiveData();
+    this.initSeasonData();
     this.logNews(`Advanced to ${this.state.year} Offseason. Graduated seniors cleared; incoming recruits added.`);
     
     document.getElementById('statsBody').innerHTML = `<tr><td colspan="25" class="empty-table-msg">Simulate games to view leaderboards.</td></tr>`;
@@ -1142,6 +1409,7 @@ window.SimEngine = {
       }
     }
 
+    this.populateConferenceDropdowns();
     this.updateDashboard();
     this.sortAndRenderStatsTable();
     this.updateStandingsTab();
@@ -1191,10 +1459,8 @@ window.SimEngine = {
     
     let col = this.state.sortCol;
     let dir = this.state.sortDir === 'desc' ? -1 : 1;
-    let pool = this.state.activePlayers.filter(p => {
-      if (this.state.confFilter === 'ALL') return true;
-      return (p.conference || '').toUpperCase() === this.state.confFilter.toUpperCase();
-    });
+    let pool = this.state.activePlayers.filter(p =>
+      this.matchesConfFilter(p.conference, this.state.confFilter));
 
     pool.sort((a, b) => {
       let valA = a.stats ? a.stats[col] : 0;
@@ -1209,8 +1475,10 @@ window.SimEngine = {
     });
 
     const boxHeaders = [
-      { id: 'name', label: 'Player' }, { id: 'school', label: 'School' }, { id: 'pos', label: 'Pos' }, { id: 'mpg', label: 'MPG' },
-      { id: 'ppg', label: 'PPG' }, { id: 'rpg', label: 'RPG' }, { id: 'apg', label: 'APG' }, { id: 'stl', label: 'SPG' },
+      { id: 'name', label: 'Player' }, { id: 'school', label: 'School' }, { id: 'pos', label: 'Pos' },
+      { id: 'gp', label: 'GP' }, { id: 'gs', label: 'GS' }, { id: 'mpg', label: 'MPG' },
+      { id: 'ppg', label: 'PPG' }, { id: 'oreb', label: 'OREB' }, { id: 'rpg', label: 'RPG' },
+      { id: 'apg', label: 'APG' }, { id: 'stl', label: 'SPG' },
       { id: 'blk', label: 'BPG' }, { id: 'tov', label: 'TPG' }, { id: 'pf', label: 'PF' },
       { id: 'fgm', label: 'FGM' }, { id: 'fga', label: 'FGA' }, { id: 'fgPct', label: 'FG%' },
       { id: 'twoPm', label: '2P' }, { id: 'twoPa', label: '2PA' }, { id: 'twoPPct', label: '2P%' },
@@ -1308,7 +1576,15 @@ window.SimEngine = {
 
   updateStandingsTab() {
     const standingsContainer = document.getElementById('standingsContainer');
-    if (!standingsContainer || this.state.week === 0) return;
+    if (!standingsContainer) return;
+    if (this.state.teams.length === 0) return;
+
+    // Before tip-off there are no results to rank, so show the projected
+    // preseason poll (roster strength + program tier) instead of a blank tab.
+    if (this.state.week === 0) {
+      standingsContainer.innerHTML = this.renderPreseasonPoll() + this.renderConferenceStandings();
+      return;
+    }
 
     let apTop25 = this.state.teams.slice(0, 25);
     let apHtml = `
@@ -1349,14 +1625,44 @@ window.SimEngine = {
         ${apTop25.length > 10 ? `<button class="sim-btn sim-btn-secondary w-100 mt-1" onclick="SimEngine.toggleApTop25(this)">See More (Top 25)</button>` : ''}
       </div>`;
 
-    const confList = ['ACC', 'AAC', 'A10', 'Big 12', 'Big Ten', 'Big East', 'SEC', 'Pac-12', 'WCC', 'Mountain West'];
-    let allConfsInState = [...new Set(this.state.teams.map(t => (t.conference || 'NCAA').trim()))].filter(Boolean);
-    let displayConfs = [...confList];
-    allConfsInState.forEach(c => {
-      if (!displayConfs.some(existing => existing.toLowerCase() === c.toLowerCase()) && c !== 'NCAA') {
-        displayConfs.push(c);
-      }
+    standingsContainer.innerHTML = apHtml + this.renderConferenceStandings();
+  },
+
+  // Projected preseason Top 25, used before any games are played.
+  renderPreseasonPoll() {
+    const ranked = [...this.state.teams]
+      .filter(t => t.preseasonRank)
+      .sort((a, b) => a.preseasonRank - b.preseasonRank)
+      .slice(0, 25);
+
+    if (ranked.length === 0) return '';
+
+    let html = `<div class="standings-card">
+      <div class="flex-between mb-1"><h3>PRESEASON AP TOP 25</h3></div>
+      <p class="sub-text-sm mb-1">Projected from roster strength and program tier — no games have been played yet.</p>
+      <table class="data-table">
+        <thead><tr><th>Rank</th><th>Team</th><th>Conf</th><th>Team OVR</th><th>SOS</th></tr></thead>
+        <tbody>`;
+    ranked.forEach((t, idx) => {
+      const hidden = idx >= 10 ? 'class="ap-extra-row" style="display:none;"' : '';
+      const safeSchool = t.school.replace(/'/g, "\\'");
+      html += `<tr ${hidden}>
+        <td class="rank-cell">#${idx + 1}</td>
+        <td><div class="team-cell-wrap clickable-school" onclick="SimEngine.setTeamPageSelection('${safeSchool}')">
+          <img src="${this.getTeamLogo(t.school)}" class="sm-logo"><span class="team-name-cell">${t.school}</span></div></td>
+        <td class="sub-text">${t.conference || 'NCAA'}</td>
+        <td class="sub-text">${(t.simData.teamOvr || 0).toFixed(1)}</td>
+        <td class="sub-text">${t.sosRank ? this.ordinal(t.sosRank) : '—'}</td>
+      </tr>`;
     });
+    html += `</tbody></table>
+      ${ranked.length > 10 ? `<button class="sim-btn sim-btn-secondary w-100 mt-1" onclick="SimEngine.toggleApTop25(this)">See More (Top 25)</button>` : ''}
+      </div>`;
+    return html;
+  },
+
+  renderConferenceStandings() {
+    const displayConfs = this.getAllConferences();
 
     let confsHtml = `<h3 class="standings-header">CONFERENCE STANDINGS</h3>`;
     confsHtml += `<div class="conf-standings-grid">`;
@@ -1376,7 +1682,7 @@ window.SimEngine = {
       confsHtml += `
         <div class="conf-card">
           <h4 class="conf-card-title">${confName}</h4>
-          <div class="table-scroll">
+          <div class="conf-table-wrap">
             <table class="data-table">
               <thead>
                 <tr><th>Rank</th><th>Team</th><th>Conf W-L</th><th>Overall</th></tr>
@@ -1416,7 +1722,7 @@ window.SimEngine = {
     });
 
     confsHtml += `</div>`;
-    standingsContainer.innerHTML = apHtml + confsHtml;
+    return confsHtml;
   },
 
   toggleApTop25(btn) {
@@ -1453,7 +1759,57 @@ window.SimEngine = {
     return { npoy, dpoy, froy, cousy, west, erving, malone, abdulJabbar };
   },
 
+  // Projected honours shown from preseason onward, so the Awards tab has
+  // something meaningful before any games are played.
+  renderPreseasonAwards() {
+    const pa = this.state.preseasonAwards;
+    if (!pa || !pa.poy) return `<p class="sub-text">Start a season to generate preseason projections.</p>`;
+
+    const card = (title, sub, player) => {
+      if (!player) return '';
+      const safeName = player.name.replace(/'/g, "\\'");
+      return `<div class="award-card">
+        <div class="award-title">${title}</div>
+        <div class="award-sub">${sub}</div>
+        <div class="award-winner">
+          <img src="${this.getTeamLogo(player.school)}" class="award-logo">
+          <div class="award-winner-info">
+            <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${player.name}</span>
+            <span class="award-winner-school">${player.school} (${player.pos} &bull; ${player.class})</span>
+            <span class="award-winner-stats">Rating ${Math.round(parseFloat(player.rating))}</span>
+          </div>
+        </div>
+      </div>`;
+    };
+
+    let html = card('Preseason Player of the Year', 'Projected from ratings', pa.poy)
+             + card('Preseason Freshman of the Year', 'Top-rated incoming freshman', pa.froy);
+
+    if (pa.allAmericans && pa.allAmericans.length) {
+      const teamNames = ['First Team', 'Second Team', 'Third Team'];
+      for (let t = 0; t < 3; t++) {
+        const group = pa.allAmericans.slice(t * 5, t * 5 + 5);
+        if (group.length === 0) continue;
+        html += `<div class="award-table-card">
+          <h5 class="award-table-title">Preseason All-American — ${teamNames[t]}</h5>
+          ${group.map(p => {
+            const safeName = p.name.replace(/'/g, "\\'");
+            return `<div class="leader-row">
+              <span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${p.name}</span>
+              <span class="leader-school">${p.school}</span>
+              <span>${Math.round(parseFloat(p.rating))}</span>
+            </div>`;
+          }).join('')}
+        </div>`;
+      }
+    }
+    return html;
+  },
+
   updateAwardsTab() {
+    const preseasonEl = document.getElementById('preseasonAwardsGrid');
+    if (preseasonEl) preseasonEl.innerHTML = this.renderPreseasonAwards();
+
     if (!this.state.regularSeasonDone) {
       document.getElementById('nationalAwardsGrid').innerHTML = `<p class="sub-text">Complete the season to calculate National Award winners.</p>`;
       document.getElementById('allAmericanContainer').innerHTML = `<p class="sub-text">Complete the season to view All-American teams.</p>`;
@@ -1554,7 +1910,7 @@ window.SimEngine = {
       return;
     }
 
-    const confPlayers = this.state.activePlayers.filter(p => (p.conference || '').toLowerCase() === confName.toLowerCase());
+    const confPlayers = this.state.activePlayers.filter(p => this.matchesConfFilter(p.conference, confName));
     if (confPlayers.length === 0) {
       document.getElementById('confAwardsContainer').innerHTML = `<p class="sub-text">No players found for conference: ${confName}</p>`;
       return;
@@ -1741,24 +2097,80 @@ window.SimEngine = {
   },
 
   openPlayerModal(playerName) {
-    let player = this.state.activePlayers.find(p => p.name === playerName);
+    let player = this.state.activePlayers.find(p => p.name === playerName)
+      || (this.state.recruits || []).find(p => p.name === playerName);
     if (!player) return;
+
+    const st = player.stats || this.getZeroStats();
 
     document.getElementById('modalPlayerLogo').src = this.getTeamLogo(player.school);
     document.getElementById('modalPlayerName').innerText = player.name;
-    document.getElementById('modalPlayerBio').innerText = `${player.school} | ${player.pos} | ${player.class} | ${player.ht} | ${player.wt} | ${player.hometown}`;
-    
-    let accoladesText = (player.accolades && player.accolades.length > 0) ? player.accolades.join(' • ') : '';
-    document.getElementById('modalPlayerAccolades').innerText = accoladesText;
 
-    document.getElementById('modalPlayerPPG').innerText = player.stats.ppg;
-    document.getElementById('modalPlayerRPG').innerText = player.stats.rpg;
-    document.getElementById('modalPlayerAPG').innerText = player.stats.apg;
-    document.getElementById('modalPlayerFG').innerText = player.stats.fgPct;
+    const bioBits = [player.pos, player.class, player.ht, player.wt, player.hometown];
+    if (player.hs) bioBits.push(player.hs);
+    document.getElementById('modalPlayerBio').innerText = bioBits.filter(Boolean).join(' | ');
+
+    const colleges = (player.collegeHistory && player.collegeHistory.length)
+      ? player.collegeHistory : [player.school];
+    const collegesEl = document.getElementById('modalPlayerColleges');
+    if (collegesEl) {
+      collegesEl.innerHTML = colleges.length > 1
+        ? `Colleges: ${colleges.join(' → ')}`
+        : `College: ${colleges[0] || '—'}`;
+    }
+
+    const accolades = player.accolades || [];
+    const preseason = accolades.filter(a => /preseason/i.test(a));
+    const postseason = accolades.filter(a => !/preseason/i.test(a));
+    const accEl = document.getElementById('modalPlayerAccolades');
+    if (accEl) {
+      let accHtml = '';
+      if (preseason.length) accHtml += `<div><span class="accolade-tag preseason">Preseason</span> ${preseason.join(' • ')}</div>`;
+      if (postseason.length) accHtml += `<div><span class="accolade-tag postseason">Honors</span> ${postseason.join(' • ')}</div>`;
+      accEl.innerHTML = accHtml || '<span class="sub-text-sm">No awards yet.</span>';
+    }
+
+    document.getElementById('modalPlayerPPG').innerText = st.ppg;
+    document.getElementById('modalPlayerRPG').innerText = st.rpg;
+    document.getElementById('modalPlayerAPG').innerText = st.apg;
+    document.getElementById('modalPlayerFG').innerText = st.fgPct;
+
+    const pairRow = (label, value) => `<div class="pstat-cell"><span class="pstat-label">${label}</span><span class="pstat-value">${value}</span></div>`;
+
+    const boxEl = document.getElementById('modalPlayerBoxStats');
+    if (boxEl) {
+      boxEl.innerHTML =
+        pairRow('GP', st.gp) + pairRow('GS', st.gs) + pairRow('MPG', st.mpg) + pairRow('PPG', st.ppg) +
+        pairRow('OREB', st.oreb) + pairRow('DREB', st.dreb) + pairRow('RPG', st.rpg) + pairRow('APG', st.apg) +
+        pairRow('SPG', st.stl) + pairRow('BPG', st.blk) + pairRow('TOV', st.tov) + pairRow('PF', st.pf) +
+        pairRow('FGM', st.fgm) + pairRow('FGA', st.fga) + pairRow('FG%', st.fgPct) +
+        pairRow('3PM', st.threePm) + pairRow('3PA', st.threePa) + pairRow('3P%', st.threePPct) +
+        pairRow('FTM', st.ftm) + pairRow('FTA', st.fta) + pairRow('FT%', st.ftPct);
+    }
+
+    const advEl = document.getElementById('modalPlayerAdvStats');
+    if (advEl) {
+      advEl.innerHTML =
+        pairRow('BPM', st.bpm) + pairRow('OBPM', st.obpm) + pairRow('DBPM', st.dbpm) +
+        pairRow('TS%', st.tsPct) + pairRow('eFG%', st.eFgPct) + pairRow('rTS%', st.rTsPct) +
+        pairRow('OREB%', st.orebPct) + pairRow('DREB%', st.drebPct) + pairRow('TRB%', st.trbPct) +
+        pairRow('AST%', st.astPct) + pairRow('TOV%', st.tovPct) + pairRow('BLK%', st.blkPct) +
+        pairRow('USG%', st.usg) + pairRow('FTr', st.ftr) + pairRow('3PAr', st.threePar) +
+        pairRow('ORtg', st.ortg) + pairRow('DRtg', st.drtg) + pairRow('Net', st.netRtg);
+    }
+
+    const p40El = document.getElementById('modalPlayerPer40Stats');
+    if (p40El) {
+      p40El.innerHTML =
+        pairRow('PTS/40', st.p40pts) + pairRow('OREB/40', st.p40oreb) + pairRow('DREB/40', st.p40dreb) +
+        pairRow('REB/40', st.p40reb) + pairRow('AST/40', st.p40ast) + pairRow('STL/40', st.p40stl) +
+        pairRow('BLK/40', st.p40blk) + pairRow('TOV/40', st.p40tov) + pairRow('PF/40', st.p40pf) +
+        pairRow('FGA/40', st.p40fga) + pairRow('3PA/40', st.p40threePa) + pairRow('FTA/40', st.p40fta);
+    }
 
     let glHtml = '';
     if (!player.gameLog || player.gameLog.length === 0) {
-      glHtml = `<tr><td colspan="12" class="empty-table-msg">No games played yet.</td></tr>`;
+      glHtml = `<tr><td colspan="13" class="empty-table-msg">No games played yet.</td></tr>`;
     } else {
       player.gameLog.forEach(g => {
         let matchup = g.opponent
@@ -1770,6 +2182,7 @@ window.SimEngine = {
             <td class="sub-text-sm">${matchup}</td>
             <td>${g.min}</td>
             <td class="highlight-col">${g.pts}</td>
+            <td>${g.oreb !== undefined ? g.oreb : '—'}</td>
             <td>${g.reb}</td>
             <td>${g.ast}</td>
             <td>${g.stl}</td>
@@ -1988,19 +2401,9 @@ window.SimEngine = {
 
   // --- Team Page ---
 
-  populateTeamPageSelect() {
-    const select = document.getElementById('teamPageSelect');
-    if (!select) return;
-    const current = select.value;
-    const sortedTeams = [...this.state.teams].sort((a, b) => a.school.localeCompare(b.school));
-    select.innerHTML = `<option value="">Select a team...</option>` +
-      sortedTeams.map(t => `<option value="${t.school.replace(/"/g, '&quot;')}">${t.school}</option>`).join('');
-    if (current && sortedTeams.some(t => t.school === current)) select.value = current;
-    else if (this.state.teamPageSelection) select.value = this.state.teamPageSelection;
-  },
-
   setTeamPageSelection(school) {
     this.state.teamPageSelection = school;
+    this.state.teamPageView = school ? 'team' : 'index';
     this.updateTeamTab();
   },
 
@@ -2009,74 +2412,259 @@ window.SimEngine = {
     this.updateTeamTab();
   },
 
+  backToTeamIndex() {
+    this.state.teamPageSelection = '';
+    this.state.teamPageView = 'index';
+    this.updateTeamTab();
+  },
+
   updateTeamTab() {
     const container = document.getElementById('teamPageContainer');
     if (!container) return;
-    this.populateTeamPageSelect();
 
     if (this.state.teams.length === 0) {
-      container.innerHTML = `<p class="empty-table-msg">Simulate the season to browse team pages.</p>`;
+      container.innerHTML = `<p class="empty-table-msg">Start a save to browse teams.</p>`;
       return;
     }
-    const team = this.state.teams.find(t => t.school === this.state.teamPageSelection) || this.state.teams[0];
-    if (!this.state.teamPageSelection) this.state.teamPageSelection = team.school;
 
-    if (this.state.teamPageView === 'history') {
-      container.innerHTML = this.renderTeamHistoryView(team);
-    } else {
-      container.innerHTML = this.renderTeamCurrentView(team);
+    const team = this.state.teamPageSelection
+      ? this.state.teams.find(t => t.school === this.state.teamPageSelection)
+      : null;
+
+    if (!team) {
+      container.innerHTML = this.renderTeamIndex();
+      return;
     }
+
+    if (this.state.teamPageView === 'history') container.innerHTML = this.renderTeamHistoryView(team);
+    else if (this.state.teamPageView === 'gamelog') container.innerHTML = this.renderTeamGameLog(team);
+    else container.innerHTML = this.renderTeamDetail(team);
   },
 
-  renderTeamCurrentView(team) {
-    const playedGames = this.state.schedule.filter(g => g.played && g.result && (g.home === team.school || g.away === team.school));
-    const gp = playedGames.length || 1;
-    let ownPts = 0, oppPts = 0;
-    playedGames.forEach(g => {
-      const isHome = g.home === team.school;
-      ownPts += isHome ? g.result.homeScore : g.result.awayScore;
-      oppPts += isHome ? g.result.awayScore : g.result.homeScore;
+  // Landing view: every school grouped under its conference, with the
+  // conference logo as the section header. This is the default Team page.
+  renderTeamIndex() {
+    const byConf = {};
+    this.state.teams.forEach(t => {
+      const c = t.conference || 'Independent';
+      if (!byConf[c]) byConf[c] = [];
+      byConf[c].push(t);
     });
-    const rankTag = (this.state.regularSeasonDone && team.apRank && team.apRank <= 25) ? `<span class="ap-rank-tag">#${team.apRank}</span> ` : '';
 
-    let rosterRows = '';
-    [...team.roster].sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating)).forEach(p => {
+    let html = `<p class="sub-text mb-1-5">Select a school to open its team page.</p>`;
+    Object.keys(byConf).sort().forEach(conf => {
+      const teams = byConf[conf].sort((a, b) => a.school.localeCompare(b.school));
+      html += `<div class="conf-section">
+        <div class="conf-section-header">
+          ${this.getConferenceLogoImg(conf, 'conf-logo')}
+          <h4 class="conf-section-title">${conf}</h4>
+          <span class="sub-text-sm">${teams.length} teams</span>
+        </div>
+        <div class="conf-team-grid">`;
+      teams.forEach(t => {
+        const safe = t.school.replace(/'/g, "\\'");
+        html += `<button class="team-index-card" onclick="SimEngine.setTeamPageSelection('${safe}')">
+          <img src="${this.getTeamLogo(t.school)}" class="sm-logo">
+          <span class="team-index-name">${t.school}</span>
+        </button>`;
+      });
+      html += `</div></div>`;
+    });
+    return html;
+  },
+
+  // Short human summary of how a team's season ended.
+  getSeasonResultText(team) {
+    if (team.wonNationalTitle) return 'Won the National Championship';
+    if (this.state.ncaaDone && team.ncaaSeed) {
+      const b = this.state.ncaaTournament;
+      if (b) {
+        let lastRoundReached = 'Round of 64';
+        const names = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8', 'Final Four', 'Championship Game'];
+        b.rounds.forEach((round, i) => {
+          if (round.some(g => g.teamA.school === team.school || g.teamB.school === team.school)) {
+            lastRoundReached = names[i] || `Round ${i + 1}`;
+          }
+        });
+        return `Eliminated in the ${lastRoundReached} (#${team.ncaaSeed} seed)`;
+      }
+    }
+    if (this.state.ncaaDone) return 'Did not make the NCAA Tournament';
+    if (team.wonConfTourney) return 'Won the conference tournament';
+    if (this.state.confChampsDone) return 'Eliminated in the conference tournament';
+    if (this.state.regularSeasonDone) return 'Regular season complete — awaiting conference tournaments';
+    if (this.state.week > 0) return `In progress — Week ${this.state.week}`;
+    return 'Preseason';
+  },
+
+  renderTeamDetail(team) {
+    const safe = team.school.replace(/'/g, "\\'");
+    const allRows = this.computeAllTeamStats();
+    const row = allRows.find(r => r.school === team.school) || { stats: this.computeTeamStats(team), ranks: {} };
+    const st = row.stats, rk = row.ranks || {};
+    const apTag = (this.state.regularSeasonDone && team.apRank && team.apRank <= 25)
+      ? `<span class="ap-rank-tag">AP #${team.apRank}</span>` : '';
+
+    const statCell = (label, value, rankKey) => `
+      <div class="team-stat-cell">
+        <span class="team-stat-label">${label}</span>
+        <span class="team-stat-value">${value}</span>
+        <span class="team-stat-rank">${rk[rankKey] ? this.ordinal(rk[rankKey]) : '—'}</span>
+      </div>`;
+
+    let html = `
+      <button class="outline-btn mb-1" onclick="SimEngine.backToTeamIndex()">&larr; All Teams</button>
+      <div class="team-header">
+        <img src="${this.getTeamLogo(team.school)}" class="team-logo">
+        <div class="team-title-block">
+          <div class="modal-team-title-wrap">
+            <h2 class="modal-team-name">${team.school}</h2>${apTag}
+          </div>
+          <span class="modal-team-year">
+            ${this.getConferenceLogoImg(team.conference, 'conf-logo-sm')} ${team.conference}
+            &bull; ${this.state.year}-${(this.state.year + 1).toString().slice(2)}
+          </span>
+        </div>
+      </div>
+
+      <div class="team-stats-grid mb-1-5">
+        <div class="stat-box"><span class="stat-label">RECORD</span><span class="stat-value">${team.simData.wins}-${team.simData.losses}</span><span class="sub-text-sm">(${team.simData.confWins}-${team.simData.confLosses} conf)</span></div>
+        <div class="stat-box"><span class="stat-label">PRESEASON</span><span class="stat-value">${team.preseasonRank ? '#' + team.preseasonRank : '—'}</span><span class="sub-text-sm">roster strength</span></div>
+        <div class="stat-box"><span class="stat-label">SOS</span><span class="stat-value">${team.sosRank ? this.ordinal(team.sosRank) : '—'}</span><span class="sub-text-sm">of ${this.state.teams.length}</span></div>
+        <div class="stat-box"><span class="stat-label">GAMES</span><span class="stat-value">${st.gp}</span><span class="sub-text-sm">played</span></div>
+      </div>
+
+      <div class="season-result-banner mb-1-5">${this.getSeasonResultText(team)}</div>
+
+      <div class="flex-between wrap-gap mb-1">
+        <h3 class="uppercase-title">Team Statistics</h3>
+        <button class="outline-btn btn-sm" onclick="SimEngine.setTeamPageView('gamelog')">View Game Log &rarr;</button>
+      </div>
+      <p class="sub-text-sm mb-1">Small number under each stat is this team's national rank.</p>
+      <div class="team-stat-cell-grid mb-1-5">
+        ${statCell('PPG', st.ppg, 'ppg')}
+        ${statCell('OPP PPG', st.oppPpg, 'oppPpg')}
+        ${statCell('DIFF', st.diff, 'diff')}
+        ${statCell('OREB', st.oreb, 'oreb')}
+        ${statCell('DREB', st.dreb, 'dreb')}
+        ${statCell('RPG', st.rpg, 'rpg')}
+        ${statCell('APG', st.apg, 'apg')}
+        ${statCell('SPG', st.stl, 'stl')}
+        ${statCell('BPG', st.blk, 'blk')}
+        ${statCell('TOV', st.tov, 'tov')}
+        ${statCell('PF', st.pf, 'pf')}
+        ${statCell('FGM', st.fgm, 'fgm')}
+        ${statCell('FGA', st.fga, 'fga')}
+        ${statCell('FG%', st.fgPct, 'fgPct')}
+        ${statCell('3PM', st.threePm, 'threePm')}
+        ${statCell('3PA', st.threePa, 'threePa')}
+        ${statCell('3P%', st.threePPct, 'threePPct')}
+        ${statCell('FTM', st.ftm, 'ftm')}
+        ${statCell('FTA', st.fta, 'fta')}
+        ${statCell('FT%', st.ftPct, 'ftPct')}
+      </div>
+
+      <h4 class="award-section-title">Advanced</h4>
+      <div class="team-stat-cell-grid mb-1-5">
+        ${statCell('ORtg', st.ortg, 'ortg')}
+        ${statCell('DRtg', st.drtg, 'drtg')}
+        ${statCell('Net', st.netRtg, 'netRtg')}
+        ${statCell('Pace', st.pace, 'pace')}
+        ${statCell('eFG%', st.eFgPct, 'eFgPct')}
+        ${statCell('TS%', st.tsPct, 'tsPct')}
+        ${statCell('A/TO', st.astToRatio, 'astToRatio')}
+        ${statCell('3PAr', st.threePar, 'threePar')}
+        ${statCell('FTr', st.ftr, 'ftr')}
+      </div>
+    `;
+
+    html += this.renderTeamPlayerTable(team, 'box');
+    html += this.renderTeamPlayerTable(team, 'adv');
+    html += `<button class="outline-btn mt-1" onclick="SimEngine.setTeamPageView('history')">Team History &rarr;</button>`;
+    return html;
+  },
+
+  // Full player table for a single team — 'box' for box score stats,
+  // 'adv' for the advanced metrics, matching the league-wide leaderboards.
+  renderTeamPlayerTable(team, mode) {
+    const cols = mode === 'box'
+      ? [['name','Player'],['pos','Pos'],['class','Cl'],['gp','GP'],['gs','GS'],['mpg','MPG'],['ppg','PPG'],
+         ['oreb','OREB'],['rpg','RPG'],['apg','APG'],['stl','SPG'],['blk','BPG'],['tov','TOV'],['pf','PF'],
+         ['fgm','FGM'],['fga','FGA'],['fgPct','FG%'],['threePm','3PM'],['threePa','3PA'],['threePPct','3P%'],
+         ['ftm','FTM'],['fta','FTA'],['ftPct','FT%']]
+      : [['name','Player'],['pos','Pos'],['mpg','MPG'],['bpm','BPM'],['obpm','OBPM'],['dbpm','DBPM'],
+         ['tsPct','TS%'],['eFgPct','eFG%'],['orebPct','OREB%'],['drebPct','DREB%'],['trbPct','TRB%'],
+         ['astPct','AST%'],['tovPct','TOV%'],['blkPct','BLK%'],['usg','USG%'],['ftr','FTr'],
+         ['threePar','3PAr'],['ortg','ORtg'],['drtg','DRtg'],['netRtg','Net']];
+
+    const roster = [...(team.roster || [])].sort((a, b) => {
+      const am = parseFloat(a.stats ? a.stats.mpg : 0) || 0;
+      const bm = parseFloat(b.stats ? b.stats.mpg : 0) || 0;
+      if (bm !== am) return bm - am;
+      return parseFloat(b.rating) - parseFloat(a.rating);
+    });
+
+    let rows = '';
+    roster.forEach(p => {
       const safeName = p.name.replace(/'/g, "\\'");
-      rosterRows += `<tr>
-        <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${p.name}</span></td>
-        <td class="sub-text">${p.pos}</td>
-        <td class="sub-text">${p.class}</td>
-        <td class="sub-text">${p.stats ? p.stats.ppg : '0.0'}</td>
-        <td class="sub-text">${p.stats ? p.stats.rpg : '0.0'}</td>
-        <td class="sub-text">${p.stats ? p.stats.apg : '0.0'}</td>
+      rows += '<tr>' + cols.map(([id]) => {
+        if (id === 'name') return `<td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${p.name}</span></td>`;
+        if (id === 'pos' || id === 'class') return `<td class="sub-text">${p[id]}</td>`;
+        return `<td>${p.stats ? p.stats[id] : '—'}</td>`;
+      }).join('') + '</tr>';
+    });
+
+    return `
+      <h4 class="award-section-title">${mode === 'box' ? 'Player Box Score Stats' : 'Player Advanced Stats'}</h4>
+      <div class="table-scroll mb-1-5"><table class="data-table">
+        <thead><tr>${cols.map(([, label]) => `<th>${label}</th>`).join('')}</tr></thead>
+        <tbody>${rows || `<tr><td colspan="${cols.length}" class="empty-table-msg">No games played yet.</td></tr>`}</tbody>
+      </table></div>`;
+  },
+
+  renderTeamGameLog(team) {
+    const games = this.state.schedule
+      .filter(g => g.home === team.school || g.away === team.school)
+      .sort((a, b) => a.week - b.week);
+
+    let rows = '';
+    games.forEach(g => {
+      const isHome = g.home === team.school;
+      const opp = isHome ? g.away : g.home;
+      let resultCell = `<td class="sub-text-sm">—</td><td class="sub-text-sm">Not yet played</td>`;
+      if (g.played && g.result) {
+        const own = isHome ? g.result.homeScore : g.result.awayScore;
+        const oppScore = isHome ? g.result.awayScore : g.result.homeScore;
+        const won = own > oppScore;
+        resultCell = `<td class="${won ? 'win-text' : 'loss-text'}">${won ? 'W' : 'L'}</td><td class="bold-text">${own}-${oppScore}</td>`;
+      }
+      rows += `<tr>
+        <td class="bold-sub-text">${g.week}</td>
+        <td class="sub-text-sm">${isHome ? 'vs' : '@'}</td>
+        <td><div class="team-cell-wrap clickable-school" onclick="SimEngine.setTeamPageSelection('${opp.replace(/'/g, "\\'")}')">
+          <img src="${this.getTeamLogo(opp)}" class="xs-logo"><span>${opp}</span></div></td>
+        <td class="sub-text-sm">${g.isConf ? 'Conf' : 'Non-Conf'}</td>
+        ${resultCell}
       </tr>`;
     });
 
     return `
+      <button class="outline-btn mb-1" onclick="SimEngine.setTeamPageView('team')">&larr; Back to ${team.school}</button>
       <div class="team-header">
         <img src="${this.getTeamLogo(team.school)}" class="team-logo">
-        <div class="team-title-block">
-          <div class="modal-team-title-wrap">${rankTag}<h2 class="modal-team-name">${team.school}</h2></div>
-          <span class="modal-team-year">${team.conference} &bull; ${this.state.year}-${(this.state.year + 1).toString().slice(2)}</span>
-        </div>
+        <div class="team-title-block"><h2 class="modal-team-name">${team.school}</h2><span class="modal-team-year">Game Log</span></div>
       </div>
-      <div class="team-stats-grid">
-        <div class="stat-box"><span class="stat-label">OVERALL</span><span class="stat-value">${team.simData.wins}-${team.simData.losses}</span></div>
-        <div class="stat-box"><span class="stat-label">CONF</span><span class="stat-value">${team.simData.confWins}-${team.simData.confLosses}</span></div>
-        <div class="stat-box"><span class="stat-label">TEAM PPG</span><span class="stat-value">${(ownPts / gp).toFixed(1)}</span></div>
-        <div class="stat-box"><span class="stat-label">OPP PPG</span><span class="stat-value">${(oppPts / gp).toFixed(1)}</span></div>
-      </div>
-      <h3 class="mb-1 uppercase-title">Active Roster</h3>
       <div class="table-scroll"><table class="data-table">
-        <thead><tr><th>Name</th><th>Pos</th><th>Class</th><th>PPG</th><th>RPG</th><th>APG</th></tr></thead>
-        <tbody>${rosterRows}</tbody>
+        <thead><tr><th>Wk</th><th></th><th>Opponent</th><th>Type</th><th>W/L</th><th>Score</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="6" class="empty-table-msg">No games scheduled yet.</td></tr>`}</tbody>
       </table></div>`;
   },
 
   renderTeamHistoryView(team) {
     const history = team.history || [];
+    const back = `<button class="outline-btn mb-1" onclick="SimEngine.setTeamPageView('team')">&larr; Back to ${team.school}</button>`;
     if (history.length === 0) {
-      return `<p class="empty-table-msg">${team.school} has no completed seasons on record yet — advance through a full offseason to start building history.</p>`;
+      return back + `<p class="empty-table-msg">${team.school} has no completed seasons on record yet — finish a season and advance the offseason to start building history.</p>`;
     }
     let rows = '';
     [...history].sort((a, b) => b.year - a.year).forEach(h => {
@@ -2092,7 +2680,7 @@ window.SimEngine = {
         <td class="sub-text-sm">${result}</td>
       </tr>`;
     });
-    return `
+    return back + `
       <div class="team-header">
         <img src="${this.getTeamLogo(team.school)}" class="team-logo">
         <div class="team-title-block"><h2 class="modal-team-name">${team.school}</h2><span class="modal-team-year">Team History</span></div>
@@ -2105,6 +2693,16 @@ window.SimEngine = {
 
   // --- Team Stats ---
 
+  setTeamStatsConfFilter(val) {
+    this.state.teamStatsConfFilter = val;
+    this.updateTeamStatsTab();
+  },
+
+  setTeamStatsView(view) {
+    this.state.teamStatsView = view;
+    this.updateTeamStatsTab();
+  },
+
   handleTeamStatSort(col) {
     if (this.state.teamStatSortCol === col) {
       this.state.teamStatSortDir = this.state.teamStatSortDir === 'desc' ? 'asc' : 'desc';
@@ -2116,106 +2714,130 @@ window.SimEngine = {
   },
 
   updateTeamStatsTab() {
+    const head = document.getElementById('teamStatsHeader');
     const body = document.getElementById('teamStatsBody');
     if (!body) return;
+
     if (this.state.teams.length === 0) {
-      body.innerHTML = `<tr><td colspan="8" class="empty-table-msg">Simulate games to view team stats.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="12" class="empty-table-msg">Start a save to view team stats.</td></tr>`;
       return;
     }
 
-    const rows = this.state.teams.map(t => {
-      const playedGames = this.state.schedule.filter(g => g.played && g.result && (g.home === t.school || g.away === t.school));
-      const gp = playedGames.length || 1;
-      let ownPts = 0, oppPts = 0;
-      playedGames.forEach(g => {
-        const isHome = g.home === t.school;
-        ownPts += isHome ? g.result.homeScore : g.result.awayScore;
-        oppPts += isHome ? g.result.awayScore : g.result.homeScore;
-      });
-      return {
-        school: t.school, conference: t.conference,
-        wins: t.simData.wins, losses: t.simData.losses,
-        confWins: t.simData.confWins, confLosses: t.simData.confLosses,
-        ppg: ownPts / gp, oppg: oppPts / gp
-      };
-    });
+    const cols = this.state.teamStatsView === 'adv'
+      ? [['school','Team'],['conference','Conf'],['ortg','ORtg'],['drtg','DRtg'],['netRtg','Net'],
+         ['pace','Pace'],['eFgPct','eFG%'],['tsPct','TS%'],['astToRatio','A/TO'],
+         ['threePar','3PAr'],['ftr','FTr'],['diff','DIFF']]
+      : [['school','Team'],['conference','Conf'],['gp','GP'],['ppg','PPG'],['oppPpg','OPP'],
+         ['oreb','OREB'],['dreb','DREB'],['rpg','RPG'],['apg','APG'],['stl','SPG'],['blk','BPG'],
+         ['tov','TOV'],['pf','PF'],['fgm','FGM'],['fga','FGA'],['fgPct','FG%'],
+         ['threePm','3PM'],['threePa','3PA'],['threePPct','3P%'],['ftm','FTM'],['fta','FTA'],['ftPct','FT%']];
+
+    let rows = this.computeAllTeamStats()
+      .filter(r => this.matchesConfFilter(r.conference, this.state.teamStatsConfFilter));
 
     const col = this.state.teamStatSortCol;
     const dir = this.state.teamStatSortDir === 'asc' ? 1 : -1;
+    const valueOf = (r, key) => {
+      if (key === 'school' || key === 'conference') return r[key];
+      if (key === 'wins' || key === 'losses' || key === 'confWins' || key === 'confLosses') return r[key];
+      return parseFloat(r.stats[key]) || 0;
+    };
     rows.sort((a, b) => {
-      if (typeof a[col] === 'string') return a[col].localeCompare(b[col]) * dir;
-      return (a[col] - b[col]) * dir;
+      const av = valueOf(a, col), bv = valueOf(b, col);
+      if (typeof av === 'string') return av.localeCompare(bv) * dir;
+      return (av - bv) * dir;
     });
 
-    body.innerHTML = rows.map(r => `
-      <tr>
-        <td><div class="team-cell-wrap clickable-school" onclick="SimEngine.openTeamModal('${r.school.replace(/'/g, "\\'")}')">
-          <img src="${this.getTeamLogo(r.school)}" class="xs-logo"><span class="team-name-cell">${r.school}</span>
-        </div></td>
-        <td class="sub-text">${r.conference}</td>
-        <td class="bold-text">${r.wins}</td>
-        <td class="sub-text">${r.losses}</td>
-        <td class="sub-text">${r.confWins}</td>
-        <td class="sub-text">${r.confLosses}</td>
-        <td class="bold-text">${r.ppg.toFixed(1)}</td>
-        <td class="sub-text">${r.oppg.toFixed(1)}</td>
-      </tr>`).join('');
+    if (head) {
+      head.innerHTML = '<tr>' + cols.map(([id, label]) => {
+        const isSort = this.state.teamStatSortCol === id;
+        const arrow = isSort ? (this.state.teamStatSortDir === 'desc' ? ' &darr;' : ' &uarr;') : '';
+        return `<th class="${isSort ? 'active-sort' : ''}" onclick="SimEngine.handleTeamStatSort('${id}')">${label}${arrow}</th>`;
+      }).join('') + '</tr>';
+    }
+
+    if (rows.length === 0) {
+      body.innerHTML = `<tr><td colspan="${cols.length}" class="empty-table-msg">No teams match this filter.</td></tr>`;
+      return;
+    }
+
+    body.innerHTML = rows.map(r => '<tr>' + cols.map(([id]) => {
+      if (id === 'school') {
+        return `<td><div class="team-cell-wrap clickable-school" onclick="SimEngine.setTeamPageSelection('${r.school.replace(/'/g, "\\'")}')">
+          <img src="${this.getTeamLogo(r.school)}" class="xs-logo"><span class="team-name-cell">${r.school}</span></div></td>`;
+      }
+      if (id === 'conference') return `<td class="sub-text-sm">${r.conference}</td>`;
+      return `<td>${r.stats[id]}</td>`;
+    }).join('') + '</tr>').join('');
   },
 
   // --- Incoming Recruits ---
-
-  setRecruitsClassFilter(val) {
-    this.state.recruitsClassFilter = val;
-    this.updateRecruitsTab();
-  },
 
   setRecruitsStatusFilter(val) {
     this.state.recruitsStatusFilter = val;
     this.updateRecruitsTab();
   },
 
+  setRecruitsConfFilter(val) {
+    this.state.recruitsConfFilter = val;
+    this.updateRecruitsTab();
+  },
+
+  // "Incoming" means the class that arrives NEXT season, not the one
+  // already on campus. In the 2028 season the 2028 class has already
+  // enrolled, so this page shows the 2029 group.
+  getIncomingRecruitClassYear() {
+    return this.state.year + 1;
+  },
+
   updateRecruitsTab() {
     const body = document.getElementById('recruitsBody');
-    const classSelect = document.getElementById('recruitsClassFilter');
+    const label = document.getElementById('recruitsClassLabel');
     if (!body) return;
 
+    const incomingYear = this.getIncomingRecruitClassYear();
+    if (label) label.innerText = `Class of ${incomingYear}`;
+
     if (!this.state.recruits || this.state.recruits.length === 0) {
-      body.innerHTML = `<tr><td colspan="5" class="empty-table-msg">No recruit data loaded yet.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="6" class="empty-table-msg">No recruit data loaded yet.</td></tr>`;
       return;
     }
 
-    if (classSelect) {
-      const years = [...new Set(this.state.recruits.map(r => r.recClassYear).filter(Boolean))].sort();
-      const current = classSelect.value;
-      classSelect.innerHTML = `<option value="ALL">All Classes</option>` + years.map(y => `<option value="${y}">Class of ${y}</option>`).join('');
-      classSelect.value = years.includes(parseInt(current)) || current === 'ALL' ? current : 'ALL';
+    let recruits = this.state.recruits.filter(r => String(r.recClassYear) === String(incomingYear));
+
+    if (this.state.recruitsStatusFilter === 'committed') {
+      recruits = recruits.filter(r => r.school && r.school !== 'Uncommitted' && r.school !== 'Free Agent');
+    } else if (this.state.recruitsStatusFilter === 'uncommitted') {
+      recruits = recruits.filter(r => !r.school || r.school === 'Uncommitted' || r.school === 'Free Agent');
     }
 
-    let recruits = [...this.state.recruits];
-    if (this.state.recruitsClassFilter !== 'ALL') {
-      recruits = recruits.filter(r => String(r.recClassYear) === String(this.state.recruitsClassFilter));
+    if (this.state.recruitsConfFilter && this.state.recruitsConfFilter !== 'ALL') {
+      recruits = recruits.filter(r => {
+        const team = this.state.teams.find(t => t.school === r.school);
+        return team && this.matchesConfFilter(team.conference, this.state.recruitsConfFilter);
+      });
     }
-    if (this.state.recruitsStatusFilter === 'committed') {
-      recruits = recruits.filter(r => r.school && r.school !== 'Uncommitted');
-    } else if (this.state.recruitsStatusFilter === 'uncommitted') {
-      recruits = recruits.filter(r => !r.school || r.school === 'Uncommitted');
-    }
+
     recruits.sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
 
     if (recruits.length === 0) {
-      body.innerHTML = `<tr><td colspan="5" class="empty-table-msg">No recruits match these filters.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="6" class="empty-table-msg">No ${incomingYear} recruits match these filters.</td></tr>`;
       return;
     }
 
-    body.innerHTML = recruits.map(r => {
+    body.innerHTML = recruits.map((r, i) => {
       const safeName = r.name.replace(/'/g, "\\'");
-      const committed = r.school && r.school !== 'Uncommitted';
+      const committed = r.school && r.school !== 'Uncommitted' && r.school !== 'Free Agent';
+      const team = committed ? this.state.teams.find(t => t.school === r.school) : null;
       return `<tr>
+        <td class="bold-sub-text">${i + 1}</td>
         <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${r.name}</span></td>
         <td class="sub-text">${r.pos}</td>
         <td class="bold-text">${Math.round(parseFloat(r.rating))}</td>
-        <td class="sub-text">${r.recClassYear || '—'}</td>
-        <td class="sub-text">${committed ? r.school : '<span class="sub-text-sm">Uncommitted</span>'}</td>
+        <td class="sub-text-sm">${r.hometown || '—'}</td>
+        <td>${committed
+          ? `<div class="team-cell-wrap"><img src="${this.getTeamLogo(r.school)}" class="xs-logo"><span>${r.school}</span>${team ? ` <span class="sub-text-sm">(${team.conference})</span>` : ''}</div>`
+          : '<span class="sub-text-sm">Uncommitted</span>'}</td>
       </tr>`;
     }).join('');
   },
