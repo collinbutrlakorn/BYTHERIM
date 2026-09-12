@@ -27,8 +27,19 @@ function generateRawPlayerBox(player) {
   const threePPct = parseFloat(exp.threePPct) || 0.33;
   const twoPPct = parseFloat(exp.twoPPct) || 0.5;
 
-  let expected3PA = ftaExp > 0 ? (ppgExp - (ftaExp * ftPct)) * threePar / 3 : ppgExp * 0.15;
-  let expected2PA = ftaExp > 0 ? ((ppgExp - (ftaExp * ftPct)) - (expected3PA * 3)) / 2 : ppgExp * 0.3;
+  // Work backwards from expected points to expected shot volume.
+  // Points from the field = total points minus free-throw points. Split
+  // that by three-point attempt rate to get expected MAKES, then convert
+  // makes to ATTEMPTS by dividing through the shooting percentage.
+  // (Dividing by the percentage is the step that matters: without it the
+  // expected makes get used directly as attempts, which understates shot
+  // volume and inflates field-goal percentage once the team score is
+  // reconciled.)
+  const fgPoints = Math.max(0, ppgExp - (ftaExp * ftPct));
+  const expected3PM = (fgPoints * threePar) / 3;
+  const expected2PM = Math.max(0, (fgPoints - expected3PM * 3) / 2);
+  let expected3PA = threePPct > 0 ? expected3PM / threePPct : expected3PM * 3;
+  let expected2PA = twoPPct > 0 ? expected2PM / twoPPct : expected2PM * 2;
   if (expected2PA < 0) expected2PA = 1;
   if (expected3PA < 0) expected3PA = 1;
 
@@ -134,6 +145,29 @@ function reconcileTeamScore(rawBoxes, targetScore) {
   return boxes;
 }
 
+
+// An assist can only happen on a made field goal, and in college roughly
+// half of made field goals are assisted. This trims a team's assists back
+// to a realistic share of its makes, scaling every player proportionally
+// so nobody's line is singled out.
+function capTeamAssists(boxes, maxShare = 0.62) {
+  const totalFgm = boxes.reduce((s, b) => s + b.fgm, 0);
+  const totalAst = boxes.reduce((s, b) => s + b.ast, 0);
+  const cap = totalFgm * maxShare;
+  if (totalAst <= cap || totalAst === 0) return boxes;
+
+  const factor = cap / totalAst;
+  let running = 0;
+  boxes.forEach(b => {
+    const scaled = b.ast * factor;
+    const whole = Math.floor(scaled);
+    running += scaled - whole;
+    b.ast = whole;
+    if (running >= 1) { b.ast += 1; running -= 1; }
+  });
+  return boxes;
+}
+
 // Simulates one game between two teams. Returns final scores and a
 // per-player box score for everyone who played, reconciled so each
 // team's total points exactly equals its final score.
@@ -167,8 +201,8 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
   const homeRaw = homeRoster.map(p => ({ player: p, box: generateRawPlayerBox(p) }));
   const awayRaw = awayRoster.map(p => ({ player: p, box: generateRawPlayerBox(p) }));
 
-  const homeBoxes = reconcileTeamScore(homeRaw.map(x => x.box), homeScore);
-  const awayBoxes = reconcileTeamScore(awayRaw.map(x => x.box), awayScore);
+  const homeBoxes = capTeamAssists(reconcileTeamScore(homeRaw.map(x => x.box), homeScore));
+  const awayBoxes = capTeamAssists(reconcileTeamScore(awayRaw.map(x => x.box), awayScore));
 
   return {
     homeScore, awayScore,
@@ -177,7 +211,7 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
   };
 }
 
-const GameCore = { generateRawPlayerBox, reconcileTeamScore, simulateSingleGame, getZeroBox };
+const GameCore = { generateRawPlayerBox, reconcileTeamScore, capTeamAssists, simulateSingleGame, getZeroBox };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = GameCore;
 else if (typeof window !== 'undefined') window.GameCore = GameCore;
