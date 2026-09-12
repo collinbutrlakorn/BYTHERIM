@@ -6,7 +6,7 @@
 // ============================================================
 
 function getZeroBox() {
-  return { min: 0, pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, tov: 0, pf: 0,
+  return { min: 0, pts: 0, reb: 0, oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, tov: 0, pf: 0,
     fgm: 0, fga: 0, twoPm: 0, twoPa: 0, threePm: 0, threePa: 0, ftm: 0, fta: 0 };
 }
 
@@ -45,6 +45,13 @@ function generateRawPlayerBox(player) {
   for (let i = 0; i < fta; i++) if (Math.random() < ftPct) ftm++;
 
   const reb = Math.round((parseFloat(exp.rpg) || 0) * scale * variance());
+  // Split total rebounds into offensive/defensive. Bigs crash the offensive
+  // glass more than guards, so the offensive share scales with the player's
+  // expected block rate as a rough proxy for size/role.
+  const isBigish = (parseFloat(exp.blk) || 0) >= 0.8;
+  const orebShare = (isBigish ? 0.34 : 0.20) + (Math.random() * 0.10 - 0.05);
+  const oreb = Math.min(reb, Math.round(reb * Math.max(0, orebShare)));
+  const dreb = reb - oreb;
   const ast = Math.round((parseFloat(exp.apg) || 0) * scale * variance());
   const stl = Math.round((parseFloat(exp.stl) || 0) * (0.3 + Math.random() * 1.4));
   const blk = Math.round((parseFloat(exp.blk) || 0) * (0.3 + Math.random() * 1.4));
@@ -54,7 +61,7 @@ function generateRawPlayerBox(player) {
   return {
     min: gameMin,
     pts: (threePm * 3) + (twoPm * 2) + ftm,
-    reb, ast, stl, blk, tov, pf,
+    reb, oreb, dreb, ast, stl, blk, tov, pf,
     fgm: twoPm + threePm, fga: twoPa + threePa,
     twoPm, twoPa, threePm, threePa, ftm, fta
   };
