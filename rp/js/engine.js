@@ -110,7 +110,7 @@ window.SimEngine = {
     const home = document.getElementById('homeScreen');
     const layout = document.querySelector('.sim-layout');
     if (home) home.style.display = 'none';
-    if (layout) layout.style.display = 'grid';
+    if (layout) layout.style.display = 'block';
   },
 
   resetStateToDefaults() {
