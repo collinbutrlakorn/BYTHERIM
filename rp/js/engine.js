@@ -535,7 +535,13 @@ window.SimEngine = {
   normalizeClassStanding(raw) {
     if (raw === undefined || raw === null || raw === '') return null;
     let s = String(raw).toLowerCase().trim();
-    s = s.replace(/^r[\-\s]?/, ''); // strip a leading "redshirt" marker like "R-FR" / "R Jr"
+    // Strip redshirt markers in all the forms the sheet uses: "RS-SR",
+    // "R-FR", "RS SO", "R Jr". Previously only a bare leading "r" was
+    // removed, so "RS-SR" became "ssr", matched nothing, and silently
+    // defaulted to sophomore.
+    s = s.replace(/^r\.?s\.?[\-\s_]*/, '');
+    s = s.replace(/^r[\-\s_]+/, '');
+    s = s.replace(/^(redshirt|rshirt)[\-\s_]*/, '');
     s = s.replace(/[^a-z0-9]/g, '');
     const map = {
       fr: 'FR', freshman: 'FR', firstyear: 'FR', '1': 'FR', '1st': 'FR',
@@ -545,7 +551,10 @@ window.SimEngine = {
       gr: 'GR', grad: 'GR', graduate: 'GR', graduatestudent: 'GR', gs: 'GR',
       fifthyear: 'GR', '5': 'GR', '5th': 'GR', supersenior: 'GR'
     };
-    return map[s] || null;
+    if (map[s]) return map[s];
+    // Values like "SOsr" carry a valid code with trailing noise.
+    const lead = s.slice(0, 2);
+    return map[lead] || null;
   },
 
   // Pulls a 4-digit year out of things like "Class of 2028", "'28",
@@ -672,7 +681,11 @@ window.SimEngine = {
       for (let k of keys) if (raw[k] !== undefined && raw[k] !== '') return raw[k];
       return fallback;
     };
-    const rating = parseFloat(getVal(['rating', 'ovr', 'grade', 'stars'], 75)) || 75;
+    // Blank OVR means "unrated depth" in the roster sheet, not "average
+    // starter". Defaulting those to 75 let them out-rank rated players and
+    // absorb rotation minutes.
+    const rawRating = getVal(['rating', 'ovr', 'grade', 'stars'], '');
+    const rating = (rawRating !== '' && !isNaN(parseFloat(rawRating))) ? parseFloat(rawRating) : 70;
     // 'committedschool' is what the recruiting sheet actually uses — without
     // it every recruit read as Uncommitted.
     const school = getVal(['committedschool', 'school', 'team', 'committedto', 'college', 'commit'], 'Free Agent');
@@ -822,8 +835,9 @@ window.SimEngine = {
   matchesPosFilter(pos, filterValue) {
     if (!filterValue || filterValue === 'ALL') return true;
     const p = String(pos || '').toUpperCase();
-    if (filterValue === 'G') return p === 'PG' || p === 'SG' || p === 'G';
-    if (filterValue === 'F') return p === 'SF' || p === 'PF' || p === 'F';
+    if (filterValue === 'G') return ['PG', 'SG', 'G', 'G/F'].includes(p);
+    if (filterValue === 'F') return ['SF', 'PF', 'F', 'W', 'F/C', 'G/F'].includes(p);
+    if (filterValue === 'C') return p === 'C' || p === 'F/C';
     return p === filterValue;
   },
 
@@ -1373,7 +1387,10 @@ window.SimEngine = {
 
     const r = parseFloat(player.rating);
     const pos = (player.pos || 'SF').toUpperCase();
-    const isBig = pos.includes('C') || (pos.includes('F') && !pos.includes('G'));
+    // 'W' (wing) sits between SG and SF; 'F/C' is a big.
+    const isBig = pos === 'C' || pos === 'F/C' || pos === 'PF'
+      || (pos.includes('C') && !pos.includes('G'))
+      || (pos.includes('F') && !pos.includes('G') && pos !== 'F/G');
 
     // Per-position baselines. Lumping everyone into "big vs guard" made
     // every forward rebound like a centre and every guard pass like a point
@@ -1385,7 +1402,11 @@ window.SimEngine = {
       PF: { reb: 8.0, ast: 1.26, stl: 0.86, blk: 1.19 },
       C:  { reb: 9.85, ast: 0.95, stl: 0.69, blk: 1.89 },
       G:  { reb: 3.7, ast: 3.33, stl: 1.25, blk: 0.24 },
-      F:  { reb: 6.7, ast: 1.50, stl: 0.96, blk: 0.87 }
+      F:  { reb: 6.7, ast: 1.50, stl: 0.96, blk: 0.87 },
+      // Wings, and combo bigs, both appear in the roster sheet.
+      W:  { reb: 4.8, ast: 2.15, stl: 1.12, blk: 0.46 },
+      'F/C': { reb: 8.7, ast: 1.15, stl: 0.76, blk: 1.60 },
+      'G/F': { reb: 4.5, ast: 2.60, stl: 1.18, blk: 0.40 }
     };
     const base = POS[pos] || POS[isBig ? 'PF' : 'SF'];
 
