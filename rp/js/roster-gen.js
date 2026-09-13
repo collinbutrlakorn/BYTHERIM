@@ -1,310 +1,224 @@
 // ============================================================
-// Procedural roster generation — no DOM. Testable in Node.
-// Fills out the full 365-team D1 universe: real curated recruits/roster
-// players (from the Google Sheets) are always used as-is, and whatever's
-// missing — a few bench spots, or an entire roster for a team with no
-// real data yet — gets generated so every team is playable.
+// Pure single-game simulation — no DOM. Testable in Node.
+// Reuses the existing (already-decent) per-player stat generation
+// approach from the current engine, but ties it to a real final
+// score for a real opponent instead of generating in a vacuum.
 // ============================================================
 
-const FIRST_NAMES = [
-  'Marcus','Jalen','Tyler','Xavier','Isaiah','Malik','Devin','Cameron','Andre','Jordan',
-  'Elijah','Trevon','Kobe','Amari','DeShawn','Tremaine','Caleb','Nasir','Zion','Aiden',
-  'Chris','Michael','Anthony','Brandon','Justin','Kevin','Ryan','Austin','Josh','Ethan',
-  'Darius','Terrence','Malachi','Quentin','Reggie','Julian','Braylon','Dominic','Kaden','Miles',
-  'Noah','Gavin','Landon','Carter','Wyatt','Hunter','Colton','Blake','Nathaniel','Omar',
-  'Dante','Marcel','Jaylen','Keon','Rasheed','Tobias','Emmanuel','Sekou','Amir','Deshaun'
-];
-
-const LAST_NAMES = [
-  'Johnson','Williams','Brown','Davis','Miller','Wilson','Moore','Taylor','Anderson','Thomas',
-  'Jackson','White','Harris','Martin','Thompson','Robinson','Clark','Lewis','Walker','Hall',
-  'Young','King','Wright','Scott','Green','Baker','Adams','Nelson','Carter','Mitchell',
-  'Roberts','Turner','Phillips','Campbell','Parker','Evans','Edwards','Collins','Stewart','Sanchez',
-  'Morris','Rogers','Reed','Cook','Bell','Murphy','Bailey','Rivera','Cooper','Richardson',
-  'Cox','Howard','Ward','Torres','Peterson','Gray','Ramirez','James','Watson','Brooks',
-  'Kelly','Sanders','Price','Bennett','Wood','Barnes','Ross','Henderson','Coleman','Jenkins'
-];
-
-const HOMETOWNS = [
-  'Chicago, IL','Houston, TX','Atlanta, GA','Los Angeles, CA','Brooklyn, NY','Detroit, MI',
-  'Memphis, TN','New Orleans, LA','Baltimore, MD','Philadelphia, PA','Cleveland, OH',
-  'St. Louis, MO','Charlotte, NC','Columbus, OH','Indianapolis, IN','Milwaukee, WI',
-  'Dallas, TX','Miami, FL','Oakland, CA','Kansas City, MO','Newark, NJ','Richmond, VA',
-  'Birmingham, AL','Jackson, MS','Louisville, KY','Nashville, TN','Tulsa, OK','Wichita, KS',
-  'Raleigh, NC','Norfolk, VA'
-];
-
-// Positional height and weight norms. Values are inches / pounds:
-// `avg` is the typical player, `lo`/`hi` bound the normal range, and a
-// small share of players fall outside it so the odd 6'10" point guard or
-// undersized centre still shows up.
-const POSITION_BUILD = {
-  PG: { avgHt: 74, loHt: 70, hiHt: 76, avgWt: 180, loWt: 160, hiWt: 200 },
-  SG: { avgHt: 76, loHt: 72, hiHt: 79, avgWt: 192, loWt: 160, hiWt: 220 },
-  SF: { avgHt: 79, loHt: 76, hiHt: 81, avgWt: 210, loWt: 170, hiWt: 250 },
-  PF: { avgHt: 80, loHt: 78, hiHt: 83, avgWt: 225, loWt: 190, hiWt: 250 },
-  C:  { avgHt: 82, loHt: 80, hiHt: 86, avgWt: 240, loWt: 195, hiWt: 260 }
-};
-
-// A generated (unranked) freshman shouldn't out-rate a real top-100
-// recruit. Ranked prospects from the recruiting database routinely sit in
-// the high 80s and 90s, so anonymous filler freshmen are held below this.
-const GENERATED_FRESHMAN_CEILING = 79;
-
-const OUTLIER_CHANCE = 0.04;   // how often a player breaks positional norms
-
-// Roughly normal draw via the average of two uniforms, then clamped.
-function bellDraw(avg, lo, hi, rng) {
-  const spreadLo = avg - lo, spreadHi = hi - avg;
-  const t = (rng() + rng()) / 2 - 0.5;           // -0.5..0.5, centre-weighted
-  const v = avg + (t < 0 ? t * 2 * spreadLo : t * 2 * spreadHi);
-  return Math.max(lo, Math.min(hi, v));
+function getZeroBox() {
+  return { min: 0, pts: 0, reb: 0, oreb: 0, dreb: 0, ast: 0, stl: 0, blk: 0, tov: 0, pf: 0,
+    fgm: 0, fga: 0, twoPm: 0, twoPa: 0, threePm: 0, threePa: 0, ftm: 0, fta: 0 };
 }
 
-function generateBuild(pos, rng = Math.random) {
-  const b = POSITION_BUILD[pos] || POSITION_BUILD.SF;
-  let inches = bellDraw(b.avgHt, b.loHt, b.hiHt, rng);
+// Same shape as the existing engine's generateSingleGameBox — a player's
+// raw performance for one game, before we reconcile it to the real score.
+function generateRawPlayerBox(player) {
+  const exp = player.expectedStats || {};
+  const gameMin = Math.round((parseFloat(exp.mpg) || 0) * (0.8 + Math.random() * 0.4));
+  if (gameMin <= 0) return getZeroBox();
 
-  // Rare outliers push a couple of inches past the positional range.
-  if (rng() < OUTLIER_CHANCE) inches += (rng() < 0.5 ? -1 : 1) * (1 + rng() * 2.5);
-  inches = Math.max(68, Math.min(88, Math.round(inches)));
+  const variance = () => 0.5 + Math.random() * 1.0;
+  const scale = gameMin / Math.max(1, parseFloat(exp.mpg) || 1);
 
-  // Weight tracks height within the position's range rather than being
-  // drawn independently, so a 7-footer isn't randomly 195 lbs.
-  const htSpan = Math.max(1, b.hiHt - b.loHt);
-  const htPos = Math.max(0, Math.min(1, (inches - b.loHt) / htSpan));
-  const wtCentre = b.loWt + (b.hiWt - b.loWt) * (0.3 + htPos * 0.55);
-  let weight = Math.round(wtCentre + (rng() - 0.5) * 22);
-  weight = Math.max(150, Math.min(300, weight));
+  const ppgExp = parseFloat(exp.ppg) || 0;
+  const ftaExp = parseFloat(exp.fta) || 0;
+  const ftPct = parseFloat(exp.ftPct) || 0.7;
+  const threePar = parseFloat(exp.threePar) || 0.3;
+  const threePPct = parseFloat(exp.threePPct) || 0.33;
+  const twoPPct = parseFloat(exp.twoPPct) || 0.5;
+
+  // Work backwards from expected points to expected shot volume.
+  // Points from the field = total points minus free-throw points. Split
+  // that by three-point attempt rate to get expected MAKES, then convert
+  // makes to ATTEMPTS by dividing through the shooting percentage.
+  // (Dividing by the percentage is the step that matters: without it the
+  // expected makes get used directly as attempts, which understates shot
+  // volume and inflates field-goal percentage once the team score is
+  // reconciled.)
+  const fgPoints = Math.max(0, ppgExp - (ftaExp * ftPct));
+  const expected3PM = (fgPoints * threePar) / 3;
+  const expected2PM = Math.max(0, (fgPoints - expected3PM * 3) / 2);
+  let expected3PA = threePPct > 0 ? expected3PM / threePPct : expected3PM * 3;
+  let expected2PA = twoPPct > 0 ? expected2PM / twoPPct : expected2PM * 2;
+  if (expected2PA < 0) expected2PA = 1;
+  if (expected3PA < 0) expected3PA = 1;
+
+  const threePa = Math.round(expected3PA * scale * variance());
+  let threePm = 0;
+  for (let i = 0; i < threePa; i++) if (Math.random() < threePPct) threePm++;
+
+  const twoPa = Math.round(expected2PA * scale * variance());
+  let twoPm = 0;
+  for (let i = 0; i < twoPa; i++) if (Math.random() < twoPPct) twoPm++;
+
+  const fta = Math.round(ftaExp * scale * variance());
+  let ftm = 0;
+  for (let i = 0; i < fta; i++) if (Math.random() < ftPct) ftm++;
+
+  const reb = Math.round((parseFloat(exp.rpg) || 0) * scale * variance());
+  // Split total rebounds into offensive/defensive. Bigs crash the offensive
+  // glass more than guards, so the offensive share scales with the player's
+  // expected block rate as a rough proxy for size/role.
+  const isBigish = (parseFloat(exp.blk) || 0) >= 0.8;
+  const orebShare = (isBigish ? 0.34 : 0.20) + (Math.random() * 0.10 - 0.05);
+  const oreb = Math.min(reb, Math.round(reb * Math.max(0, orebShare)));
+  const dreb = reb - oreb;
+  const ast = Math.round((parseFloat(exp.apg) || 0) * scale * variance());
+  const stl = Math.round((parseFloat(exp.stl) || 0) * (0.3 + Math.random() * 1.4));
+  const blk = Math.round((parseFloat(exp.blk) || 0) * (0.3 + Math.random() * 1.4));
+  const tov = Math.round((parseFloat(exp.tov) || 0) * scale * variance());
+  const pf = Math.min(5, Math.round((parseFloat(exp.pf) || 0) * scale * variance()));
 
   return {
-    ht: `${Math.floor(inches / 12)}'${inches % 12}`,
-    wt: String(weight),
-    heightInches: inches
+    min: gameMin,
+    pts: (threePm * 3) + (twoPm * 2) + ftm,
+    reb, oreb, dreb, ast, stl, blk, tov, pf,
+    fgm: twoPm + threePm, fga: twoPa + threePa,
+    twoPm, twoPa, threePm, threePa, ftm, fta
   };
 }
 
-// Jersey numbers, most-wanted first. College players overwhelmingly wear
-// 0-5, 10-15, 20-25, 30-35, 40-45 and 50-55 (a legacy of old NCAA rules
-// that barred digits above 5 so referees could signal them by hand).
-const POPULAR_JERSEYS = [23, 1, 3, 0, 5, 11, 24, 2, 32, 4, 22, 33, 10, 21, 12, 15,
-                         20, 25, 34, 30, 13, 14, 31, 35, 44, 42, 40, 41, 43, 45,
-                         50, 55, 51, 52, 53, 54];
-const RARE_JERSEYS = [6, 7, 8, 9, 16, 17, 18, 19, 26, 27, 28, 29, 36, 37, 38, 39,
-                      46, 47, 48, 49, 56, 77, 88, 99];
-const RARE_JERSEY_CHANCE = 0.07;
-
-// Assigns a number, preferring popular ones and skipping anything already
-// worn on the roster. Callers pass players highest-rated first so the best
-// players get first pick of the marquee numbers.
-function pickJersey(taken, rng = Math.random) {
-  if (rng() < RARE_JERSEY_CHANCE) {
-    const rare = RARE_JERSEYS.filter(n => !taken.has(n));
-    if (rare.length) {
-      const n = rare[Math.floor(rng() * rare.length)];
-      taken.add(n);
-      return String(n);
+// Rescales a team's raw player boxes so total points hit `targetScore`
+// exactly, while keeping shooting splits roughly intact (scaling makes
+// and attempts together) and giving the residual rounding correction
+// to whichever player scored the most (least visible distortion).
+function reconcileTeamScore(rawBoxes, targetScore) {
+  const rawTotal = rawBoxes.reduce((s, b) => s + b.pts, 0);
+  if (rawTotal <= 0) {
+    // Nobody scored in the raw sim (extreme edge case) — dump it all
+    // on whichever player has the highest expected usage (first starter).
+    const boxes = rawBoxes.map(b => ({ ...b }));
+    if (boxes.length > 0) {
+      boxes[0].pts = targetScore;
+      boxes[0].fgm = Math.round(targetScore / 2);
+      boxes[0].fga = Math.max(boxes[0].fgm, Math.round(boxes[0].fgm / 0.45));
+      boxes[0].twoPm = boxes[0].fgm; boxes[0].twoPa = boxes[0].fga;
     }
+    return boxes;
   }
-  for (const n of POPULAR_JERSEYS) {
-    if (!taken.has(n)) { taken.add(n); return String(n); }
-  }
-  for (const n of RARE_JERSEYS) {
-    if (!taken.has(n)) { taken.add(n); return String(n); }
-  }
-  for (let n = 0; n <= 99; n++) {
-    if (!taken.has(n)) { taken.add(n); return String(n); }
-  }
-  return '';
-}
 
-// Conference "tiers" for average team strength — a light-touch, real-world-
-// informed grouping so blue-blood conferences skew stronger on average and
-// low-major leagues skew weaker, without pretending to rank every program
-// individually. Any conference not listed defaults to tier 3.
-const CONFERENCE_TIERS = {
-  'ACC': 1, 'Big Ten': 1, 'Big 12': 1, 'SEC': 1, 'Big East': 1,
-  'American': 2, 'A-10': 2, 'Mountain West': 2, 'West Coast': 2, 'Missouri Valley': 2, 'Conference USA': 2, 'Pac-12': 2,
-  'CAA': 3, 'Sun Belt': 3, 'Ivy League': 3, 'Horizon League': 3, 'MAC': 3, 'Big West': 3,
-  'Southern': 3, 'Big Sky': 3, 'Ohio Valley': 3, 'ASUN': 3, 'Patriot League': 3,
-  'MAAC': 4, 'NEC': 4, 'Big South': 4, 'Southland': 4, 'SWAC': 4, 'MEAC': 4, 'America East': 4, 'The Summit': 4, 'UAC': 4
-};
-
-// [min, max] team-overall-rating range sampled per tier. Individual player
-// ratings then vary around the sampled team overall (see buildRosterForTeam).
-const TIER_RANGES = {
-  1: [76, 92],
-  2: [71, 85],
-  3: [66, 80],
-  4: [62, 76]
-};
-
-function getConferenceTier(conference) {
-  return CONFERENCE_TIERS[conference] || 3;
-}
-
-function pick(arr, rng = Math.random) {
-  return arr[Math.floor(rng() * arr.length)];
-}
-
-function generatePlayerName(usedNames, rng = Math.random) {
-  let name, attempts = 0;
-  do {
-    name = `${pick(FIRST_NAMES, rng)} ${pick(LAST_NAMES, rng)}`;
-    attempts++;
-  } while (usedNames.has(name) && attempts < 20);
-  usedNames.add(name);
-  return name;
-}
-
-// Generates one filler player for a team, targeting the given position and
-// a rating sampled around the team's baseline overall.
-function generateFillerPlayer(school, conference, position, teamBaseline, rosterIndex, usedNames, rng = Math.random) {
-  const classYears = ['FR', 'SO', 'JR', 'SR'];
-  const cls = classYears[Math.floor(rng() * classYears.length)];
-  const variance = (rng() - 0.5) * 16; // player rating spread around team baseline
-  let rating = teamBaseline + variance - rosterIndex * 0.8;
-
-  // Filler freshmen are the anonymous end of a recruiting class, so they
-  // should sit below the genuinely ranked prospects in the real database.
-  // A small share are "surprise" freshmen who buck that.
-  if (cls === 'FR') {
-    const surprise = rng() < 0.04;
-    rating -= surprise ? 1 : (4 + rng() * 5);
-    if (!surprise) rating = Math.min(rating, GENERATED_FRESHMAN_CEILING);
-  }
-  rating = Math.max(45, Math.min(94, Math.round(rating)));
-  const build = generateBuild(position, rng);
-  return {
-    id: `${school}_gen_${rosterIndex}_${Math.random().toString(36).slice(2, 7)}`,
-    name: generatePlayerName(usedNames, rng),
-    school, conference,
-    school_logo: '',
-    pos: position,
-    class: cls,
-    ht: build.ht,
-    wt: build.wt,
-    hometown: pick(HOMETOWNS, rng),
-    rating,
-    isRecruit: false,
-    isGenerated: true,
-    recClassYear: null,
-    gameLog: [],
-    accolades: [],
-  };
-}
-
-// Ensures a roster has a viable position spread: at least 2 of each of
-// PG/SG/SF/PF/C among the generated fill-ins (existing real players' actual
-// positions are left untouched).
-const POSITION_ORDER = ['PG', 'SG', 'SF', 'PF', 'C'];
-
-function nextNeededPosition(currentRoster, fillIndex) {
-  const counts = { PG: 0, SG: 0, SF: 0, PF: 0, C: 0 };
-  currentRoster.forEach(p => {
-    const pos = POSITION_ORDER.includes(p.pos) ? p.pos : 'SF';
-    counts[pos] = (counts[pos] || 0) + 1;
-  });
-  // Fill whichever position is furthest below a target of ~2-3 per spot
-  const target = POSITION_ORDER.map(pos => ({ pos, deficit: 2 - (counts[pos] || 0) }));
-  target.sort((a, b) => b.deficit - a.deficit);
-  if (target[0].deficit > 0) return target[0].pos;
-  return POSITION_ORDER[fillIndex % POSITION_ORDER.length];
-}
-
-// Core entry point: given the master {name, conference} team list and
-// whatever real teams/players already exist (from the Google Sheets),
-// returns a complete set of teams where every master-list school has a
-// full roster — real players kept exactly as-is, gaps filled generated.
-function normalizeSchoolKey(name) {
-  return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
-// Builds a lookup from every known spelling of a school (canonical name
-// plus aliases) to its canonical master name, so a roster sheet that says
-// "Texas Christian" resolves to the same team as one that says "TCU"
-// instead of creating a duplicate program.
-function buildSchoolAliasIndex(masterTeamList) {
-  const index = {};
-  masterTeamList.forEach(entry => {
-    index[normalizeSchoolKey(entry.name)] = entry.name;
-    (entry.aliases || []).forEach(a => {
-      const k = normalizeSchoolKey(a);
-      if (!index[k]) index[k] = entry.name;
-    });
-  });
-  return index;
-}
-
-function buildFullUniverse(masterTeamList, existingTeams, opts = {}) {
-  const targetRosterSize = opts.targetRosterSize || 13;
-  const rng = opts.rng || Math.random;
-
-  const aliasIndex = buildSchoolAliasIndex(masterTeamList);
-
-  // Group incoming real teams by their CANONICAL name, merging any that
-  // arrived under different spellings of the same school.
-  const existingByName = {};
-  existingTeams.forEach(t => {
-    const canonical = aliasIndex[normalizeSchoolKey(t.school)] || t.school;
-    if (!existingByName[canonical]) {
-      existingByName[canonical] = { ...t, school: canonical, roster: [...(t.roster || [])] };
-    } else {
-      existingByName[canonical].roster.push(...(t.roster || []));
-    }
-  });
-
-  const finalTeams = masterTeamList.map(masterEntry => {
-    const existing = existingByName[masterEntry.name];
-    const tier = getConferenceTier(masterEntry.conference);
-    const [lo, hi] = TIER_RANGES[tier];
-    const teamBaseline = lo + rng() * (hi - lo);
-
-    const roster = existing && existing.roster ? [...existing.roster] : [];
-    const usedNames = new Set(roster.map(p => p.name));
-    const startCount = roster.length;
-
-    for (let i = startCount; i < targetRosterSize; i++) {
-      const pos = nextNeededPosition(roster, i);
-      roster.push(generateFillerPlayer(masterEntry.name, masterEntry.conference, pos, teamBaseline, i, usedNames, rng));
-    }
-
-    // Jersey numbers, assigned per team so nobody duplicates a real
-    // player's number. Best players pick first, so the marquee numbers go
-    // to the guys most likely to be featured.
-    const takenJerseys = new Set();
-    roster.forEach(p => {
-      const n = parseInt(p.jersey, 10);
-      if (!isNaN(n)) takenJerseys.add(n);
-    });
-    roster
-      .filter(p => !p.jersey)
-      .sort((a, b) => (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0))
-      .forEach(p => { p.jersey = pickJersey(takenJerseys, rng); });
-
+  const scale = targetScore / rawTotal;
+  const boxes = rawBoxes.map(b => {
+    if (b.pts === 0) return { ...b };
+    const s = scale;
+    const twoPm = Math.round(b.twoPm * s);
+    const twoPa = Math.max(twoPm, Math.round(b.twoPa * s));
+    const threePm = Math.round(b.threePm * s);
+    const threePa = Math.max(threePm, Math.round(b.threePa * s));
+    const ftm = Math.round(b.ftm * s);
+    const fta = Math.max(ftm, Math.round(b.fta * s));
     return {
-      school: masterEntry.name,
-      conference: masterEntry.conference,
-      roster,
-      generatedFillCount: roster.length - startCount,
-      hadRealData: startCount > 0
+      ...b,
+      twoPm, twoPa, threePm, threePa, ftm, fta,
+      fgm: twoPm + threePm, fga: twoPa + threePa,
+      pts: (twoPm * 2) + (threePm * 3) + ftm
     };
   });
 
-  // Any real team from the sheets that ISN'T in the master list (e.g. a
-  // typo, or a fictional school) still gets included as-is rather than
-  // silently dropped — better to surface a mismatch than lose real data.
-  const masterNames = new Set(masterTeamList.map(t => t.name));
-  const unmatched = Object.values(existingByName).filter(t => !masterNames.has(t.school));
+  // Rounding residual: nudge makes/attempts so the team total matches
+  // exactly. Adding points always goes to the top scorer (least visible).
+  // Removing points tries every player, highest-scoring first, since the
+  // top scorer alone may run out of makes to take away.
+  let total = boxes.reduce((s, b) => s + b.pts, 0);
+  let residual = targetScore - total;
 
-  return { teams: [...finalTeams, ...unmatched], unmatchedRealTeams: unmatched.map(t => t.school) };
+  if (residual > 0 && boxes.length > 0) {
+    const topIdx = boxes.reduce((best, b, i) => b.pts > boxes[best].pts ? i : best, 0);
+    const b = boxes[topIdx];
+    b.ftm += residual; b.fta = Math.max(b.fta, b.ftm); b.pts += residual;
+    residual = 0;
+  }
+
+  while (residual < 0) {
+    const order = boxes.map((b, i) => i).sort((i, j) => boxes[j].pts - boxes[i].pts);
+    let movedAny = false;
+    for (const i of order) {
+      if (residual === 0) break;
+      const b = boxes[i];
+      if (b.ftm > 0) { b.ftm--; b.pts--; residual++; movedAny = true; }
+      else if (residual <= -2 && b.twoPm > 0) { b.twoPm--; b.fgm--; b.pts -= 2; residual += 2; movedAny = true; }
+      else if (residual <= -3 && b.threePm > 0) { b.threePm--; b.fgm--; b.pts -= 3; residual += 3; movedAny = true; }
+    }
+    if (!movedAny) break; // truly nothing left to remove anywhere — give up gracefully
+  }
+
+  return boxes;
 }
 
-const RosterGen = {
-  FIRST_NAMES, LAST_NAMES, HOMETOWNS, CONFERENCE_TIERS, TIER_RANGES,
-  getConferenceTier, normalizeSchoolKey, buildSchoolAliasIndex,
-  POSITION_BUILD, generateBuild, pickJersey, POPULAR_JERSEYS, RARE_JERSEYS, generatePlayerName, generateFillerPlayer, nextNeededPosition, buildFullUniverse
-};
 
-if (typeof module !== 'undefined' && module.exports) module.exports = RosterGen;
-else if (typeof window !== 'undefined') window.RosterGen = RosterGen;
+// An assist can only happen on a made field goal, and in college roughly
+// half of made field goals are assisted. This trims a team's assists back
+// to a realistic share of its makes, scaling every player proportionally
+// so nobody's line is singled out.
+function capTeamAssists(boxes, maxShare = 0.62) {
+  const totalFgm = boxes.reduce((s, b) => s + b.fgm, 0);
+  const totalAst = boxes.reduce((s, b) => s + b.ast, 0);
+  const cap = totalFgm * maxShare;
+  if (totalAst <= cap || totalAst === 0) return boxes;
+
+  const factor = cap / totalAst;
+  let running = 0;
+  boxes.forEach(b => {
+    const scaled = b.ast * factor;
+    const whole = Math.floor(scaled);
+    running += scaled - whole;
+    b.ast = whole;
+    if (running >= 1) { b.ast += 1; running -= 1; }
+  });
+  return boxes;
+}
+
+// Simulates one game between two teams. Returns final scores and a
+// per-player box score for everyone who played, reconciled so each
+// team's total points exactly equals its final score.
+function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
+  const { homeCourtEdge = 3.0, marginScale = 0.85, marginVarianceStd = 11, paceBase = 147, paceVarianceStd = 9 } = opts;
+
+  const homeOvr = homeTeam.simData.teamOvr;
+  const awayOvr = awayTeam.simData.teamOvr;
+
+  const gaussian = () => {
+    // Box-Muller
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  };
+
+  const expectedMargin = (homeOvr - awayOvr) * marginScale + homeCourtEdge;
+  const actualMargin = expectedMargin + gaussian() * marginVarianceStd;
+
+  // Total points scale with the quality of the teams on the floor. Without
+  // this the combined total was the same in a top-10 matchup as in a
+  // low-major one, so no offense could ever separate itself — the best
+  // teams in the country topped out around 78 a night.
+  const avgOvr = (homeOvr + awayOvr) / 2;
+  const qualityAdj = (avgOvr - 75) * 1.15;
+  const totalPoints = Math.max(90, paceBase + qualityAdj + gaussian() * paceVarianceStd);
+
+  let homeScore = Math.round((totalPoints + actualMargin) / 2);
+  let awayScore = Math.round((totalPoints - actualMargin) / 2);
+  homeScore = Math.max(35, homeScore);
+  awayScore = Math.max(35, awayScore);
+  if (homeScore === awayScore) homeScore += 1; // no ties in regulation-only v1 model
+
+  const homeRoster = homeTeam.simData.rosterRef || homeTeam.roster;
+  const awayRoster = awayTeam.simData.rosterRef || awayTeam.roster;
+
+  const homeRaw = homeRoster.map(p => ({ player: p, box: generateRawPlayerBox(p) }));
+  const awayRaw = awayRoster.map(p => ({ player: p, box: generateRawPlayerBox(p) }));
+
+  const homeBoxes = capTeamAssists(reconcileTeamScore(homeRaw.map(x => x.box), homeScore));
+  const awayBoxes = capTeamAssists(reconcileTeamScore(awayRaw.map(x => x.box), awayScore));
+
+  return {
+    homeScore, awayScore,
+    homePlayerBoxes: homeRaw.map((x, i) => ({ player: x.player, box: homeBoxes[i] })),
+    awayPlayerBoxes: awayRaw.map((x, i) => ({ player: x.player, box: awayBoxes[i] }))
+  };
+}
+
+const GameCore = { generateRawPlayerBox, reconcileTeamScore, capTeamAssists, simulateSingleGame, getZeroBox };
+
+if (typeof module !== 'undefined' && module.exports) module.exports = GameCore;
+else if (typeof window !== 'undefined') window.GameCore = GameCore;
