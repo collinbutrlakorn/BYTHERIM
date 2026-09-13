@@ -199,16 +199,26 @@ function generateFillerPlayer(school, conference, position, teamBaseline, roster
 // positions are left untouched).
 const POSITION_ORDER = ['PG', 'SG', 'SF', 'PF', 'C'];
 
-function nextNeededPosition(currentRoster, fillIndex) {
+function nextNeededPosition(currentRoster, fillIndex, guardLean = 1) {
   const counts = { PG: 0, SG: 0, SF: 0, PF: 0, C: 0 };
   currentRoster.forEach(p => {
     const pos = POSITION_ORDER.includes(p.pos) ? p.pos : 'SF';
     counts[pos] = (counts[pos] || 0) + 1;
   });
-  // Fill whichever position is furthest below a target of ~2-3 per spot
-  const target = POSITION_ORDER.map(pos => ({ pos, deficit: 2 - (counts[pos] || 0) }));
-  target.sort((a, b) => b.deficit - a.deficit);
-  if (target[0].deficit > 0) return target[0].pos;
+
+  // Coaches recruit to their system. A guard-driven staff carries more
+  // perimeter bodies; a post-oriented staff carries more size. Targets
+  // shift around the baseline of 2 per spot rather than replacing it, so
+  // every roster still covers all five positions.
+  const tilt = (guardLean - 1) * 2.2;
+  const targets = {
+    PG: 2 + tilt, SG: 2 + tilt, SF: 2,
+    PF: 2 - tilt, C: 2 - tilt
+  };
+
+  const ranked = POSITION_ORDER.map(pos => ({ pos, deficit: targets[pos] - (counts[pos] || 0) }));
+  ranked.sort((a, b) => b.deficit - a.deficit);
+  if (ranked[0].deficit > 0) return ranked[0].pos;
   return POSITION_ORDER[fillIndex % POSITION_ORDER.length];
 }
 
@@ -264,8 +274,12 @@ function buildFullUniverse(masterTeamList, existingTeams, opts = {}) {
     const usedNames = new Set(roster.map(p => p.name));
     const startCount = roster.length;
 
+    // Coach influence on roster construction, supplied by the caller.
+    const coachProfile = (opts.coachProfileFor && opts.coachProfileFor(masterEntry.name)) || null;
+    const guardLean = coachProfile ? (coachProfile.guardLean || 1) : 1;
+
     for (let i = startCount; i < targetRosterSize; i++) {
-      const pos = nextNeededPosition(roster, i);
+      const pos = nextNeededPosition(roster, i, guardLean);
       roster.push(generateFillerPlayer(masterEntry.name, masterEntry.conference, pos, teamBaseline, i, usedNames, rng));
     }
 
