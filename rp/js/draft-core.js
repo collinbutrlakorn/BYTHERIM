@@ -8,7 +8,8 @@
 // ============================================================
 
 const CLASS_YOUTH = { FR: 10, SO: 6, JR: 2.5, SR: 0, GR: -1.5 };
-const POS_SIZE_TARGET = { PG: 75, SG: 78, SF: 80, PF: 82, C: 84 };
+const POS_SIZE_TARGET = { PG: 75, SG: 78, SF: 80, PF: 82, C: 84,
+  G: 76, F: 81, W: 79, 'F/C': 83, 'G/F': 79 };
 
 // Accepts 6'7, 6-7, 6’7, or a plain inch count.
 function parseHeightInches(ht) {
