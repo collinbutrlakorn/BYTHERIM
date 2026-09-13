@@ -26,6 +26,14 @@
     </nav>
   </header>
 
+  <div class="rp-header">
+    <img src="ncaarplogo.png" alt="BYTHERIM NCAA RP" class="rp-header-logo">
+    <div class="rp-header-text">
+      <span class="rp-header-title">NCAA RP</span>
+      <span class="rp-header-sub">Simulation &amp; Roleplay</span>
+    </div>
+  </div>
+
   <div id="homeScreen" class="home-screen-overlay">
     <div class="home-screen-card">
       <img src="ncaarplogo.png" alt="BYTHERIM NCAA RP" class="home-screen-logo">
@@ -78,6 +86,11 @@
       <div class="toolbar-meta">
         <span class="toolbar-phase" id="toolbarPhase">Preseason</span>
         <span class="toolbar-year" id="toolbarYear">2028-29</span>
+      </div>
+      <div class="theme-toggle" role="group" aria-label="Theme">
+        <button class="theme-btn" data-theme-mode="light" onclick="SimEngine.applyTheme('light')">Light</button>
+        <button class="theme-btn" data-theme-mode="dark" onclick="SimEngine.applyTheme('dark')">Dark</button>
+        <button class="theme-btn" data-theme-mode="system" onclick="SimEngine.applyTheme('system')">Auto</button>
       </div>
       <button class="sim-btn sim-btn-primary toolbar-sim" id="simWeekBtn">Simulate Week 1</button>
     </div>
@@ -293,6 +306,29 @@
     </main>
   </div>
   
+  <div id="offseasonOverlay" class="offseason-overlay" style="display:none;">
+    <div class="offseason-shell">
+      <div class="offseason-head">
+        <img src="ncaarplogo.png" alt="" class="offseason-head-logo">
+        <div>
+          <div class="offseason-title">Offseason</div>
+          <div class="offseason-subtitle" id="offseasonYear"></div>
+        </div>
+        <div class="offseason-actions">
+          <button class="sim-btn" onclick="SimEngine.closeOffseason()">Continue to Next Season</button>
+        </div>
+      </div>
+
+      <div class="offseason-stage-nav">
+        <button class="offseason-stage-btn active" data-stage="champion" onclick="SimEngine.setOffseasonStage('champion')">Champions</button>
+        <button class="offseason-stage-btn" data-stage="declarations" onclick="SimEngine.setOffseasonStage('declarations')">Draft Declarations</button>
+        <button class="offseason-stage-btn" data-stage="transfers" onclick="SimEngine.setOffseasonStage('transfers')">Transfer Portal</button>
+      </div>
+
+      <div class="offseason-panel" id="offseasonBody"></div>
+    </div>
+  </div>
+
   <div id="teamModal" class="modal-overlay">
     <div class="modal-content">
       <button class="close-btn modal-close">&times;</button>
@@ -382,6 +418,7 @@
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       // SimEngine and UIController are safely initialized here.
+      SimEngine.initTheme();
       SimEngine.init();
     });
   </script>
