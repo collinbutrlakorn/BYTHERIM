@@ -194,10 +194,28 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
   // teams in the country topped out around 78 a night.
   const avgOvr = (homeOvr + awayOvr) / 2;
   const qualityAdj = (avgOvr - 75) * 1.15;
-  const totalPoints = Math.max(90, paceBase + qualityAdj + gaussian() * paceVarianceStd);
+
+  // Coaching tempo: both benches influence how many possessions a game
+  // gets, so an up-tempo team playing a grind-it-out team lands in between
+  // rather than either one dictating outright.
+  const hc = homeTeam.coachProfile || {};
+  const ac = awayTeam.coachProfile || {};
+  const paceMult = ((hc.pace || 1) + (ac.pace || 1)) / 2;
+
+  const totalPoints = Math.max(90, (paceBase + qualityAdj) * paceMult + gaussian() * paceVarianceStd);
 
   let homeScore = Math.round((totalPoints + actualMargin) / 2);
   let awayScore = Math.round((totalPoints - actualMargin) / 2);
+
+  // A defensive coach suppresses what the opponent scores. Applied as a
+  // transfer rather than a flat reduction so the game total stays sane.
+  const applyDefense = (defenderProfile, oppScore) => {
+    const d = defenderProfile.defense || 1;
+    if (d === 1) return oppScore;
+    return oppScore * (2 - d);   // defense 1.10 -> opponent scores 90%
+  };
+  awayScore = Math.round(applyDefense(hc, awayScore));
+  homeScore = Math.round(applyDefense(ac, homeScore));
   homeScore = Math.max(35, homeScore);
   awayScore = Math.max(35, awayScore);
   if (homeScore === awayScore) homeScore += 1; // no ties in regulation-only v1 model
