@@ -29,7 +29,10 @@ window.SimEngine = {
     seasonHistory: [],      // league-wide archive: one entry per completed season
     preseasonAwards: null,  // projected honours, computed before week 1
     apPollTop25: [],
+    offseasonStage: 'champion',
+    themeMode: 'system',
     lastTransfers: [],      // portal moves from the most recent offseason
+    lastDeclarations: [],   // declarations snapshot for the offseason screen
     returningPlayers: [],   // early entrants who withdrew and came back
     seasonInitialized: false,
     scheduleViewWeek: 1,
@@ -159,6 +162,7 @@ window.SimEngine = {
           this.state.seasonHistory = savedState.seasonHistory || [];
           this.state.seasonInitialized = savedState.seasonInitialized || false;
           this.state.lastTransfers = savedState.lastTransfers || [];
+          this.state.lastDeclarations = savedState.lastDeclarations || [];
           this.state.returningPlayers = savedState.returningPlayers || [];
           this.state.scheduleViewWeek = savedState.scheduleViewWeek || 1;
 
@@ -233,6 +237,7 @@ window.SimEngine = {
           seasonHistory: this.state.seasonHistory,
           seasonInitialized: this.state.seasonInitialized,
           lastTransfers: this.state.lastTransfers,
+          lastDeclarations: this.state.lastDeclarations,
           returningPlayers: this.state.returningPlayers,
           scheduleViewWeek: this.state.scheduleViewWeek
         });
@@ -359,8 +364,10 @@ window.SimEngine = {
       }
       if (rostersRes.ok) {
         const rawRosters = this.parseCSV(await rostersRes.text());
+        let skippedFutureSeasons = 0;
         rawRosters.forEach(rawPlayer => {
           if (!this.rowHasPlayerName(rawPlayer)) return;
+          if (!this.rowBelongsToCurrentSeason(rawPlayer)) { skippedFutureSeasons++; return; }
           const player = this.normalizePlayerObj(rawPlayer, false);
           if (!player.school || player.school === 'Free Agent') return;
           if (!realTeamsMap[player.school]) {
@@ -370,6 +377,9 @@ window.SimEngine = {
           }
           realTeamsMap[player.school].roster.push(player);
         });
+        if (skippedFutureSeasons > 0) {
+          console.log(`Skipped ${skippedFutureSeasons} roster rows belonging to a different season than ${this.state.year}-${(this.state.year + 1).toString().slice(2)}.`);
+        }
       }
       if (!recruitsRes.ok && !rostersRes.ok) sheetsReachable = false;
     } catch (err) {
@@ -377,9 +387,14 @@ window.SimEngine = {
       sheetsReachable = false;
     }
 
+    // Only the current and next recruiting class are relevant. Classes two
+    // or more years out (2030+ during the 2028-29 season) are dropped
+    // entirely so they can't leak onto rosters or into the player pool.
+    const maxClassYear = this.state.year + 1;
     this.state.recruits = rawRecruits
       .filter(r => this.rowHasPlayerName(r))
-      .map(r => this.normalizePlayerObj(r, true));
+      .map(r => this.normalizePlayerObj(r, true))
+      .filter(r => !r.recClassYear || r.recClassYear <= maxClassYear);
     this.buildFullD1Universe(Object.values(realTeamsMap));
 
     if (this.state.teams.length === 0) {
@@ -443,7 +458,18 @@ window.SimEngine = {
   parseCSV(csvData) {
     const lines = csvData.split(/\r?\n/).filter(line => line.trim() !== '');
     if (lines.length === 0) return [];
-    const headers = lines[0].split(',').map(h => h.trim().replace(/(^"|"$)/g, '').toLowerCase().replace(/[^a-z0-9]/g, ''));
+    // Header names are normalised to lowercase alphanumerics so the column
+    // lookups below are forgiving. Symbol-only headers ("#", "No.") would
+    // normalise to an empty string and be lost, so they're mapped by hand
+    // to 'jersey' before normalisation strips them.
+    const HEADER_ALIASES = { '#': 'jersey', 'no': 'jersey', 'no.': 'jersey', '№': 'jersey' };
+    const headers = lines[0].split(',').map(h => {
+      const rawHeader = h.trim().replace(/(^"|"$)/g, '');
+      const aliased = HEADER_ALIASES[rawHeader.toLowerCase()];
+      if (aliased) return aliased;
+      const normalized = rawHeader.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return normalized || 'col' + Math.random().toString(36).slice(2, 6);
+    });
     
     const result = [];
     for (let i = 1; i < lines.length; i++) {
@@ -505,6 +531,29 @@ window.SimEngine = {
   // only person on their team, had the entire team score reconciled onto
   // them — hence the 70-point scoring averages. Anything without a real
   // name in a name column is skipped outright.
+  // The roster sheet carries several seasons of data at once. A row is
+  // labelled by the season it belongs to; without filtering, future
+  // seasons' rosters all pile into the current year at the same time.
+  // Both labelling conventions are accepted (a 2028-29 season row may be
+  // tagged either 2028 or 2029) so the sheet doesn't have to change.
+  getRowSeasonYear(raw) {
+    for (const key of ['season', 'seasonyear', 'year', 'rosteryear']) {
+      const v = raw[key];
+      if (v === undefined || v === '') continue;
+      const m = String(v).match(/(20\d{2})/);
+      if (m) return parseInt(m[1], 10);
+      const n = parseInt(v, 10);
+      if (!isNaN(n) && n > 1900) return n;
+    }
+    return null;
+  },
+
+  rowBelongsToCurrentSeason(raw) {
+    const yr = this.getRowSeasonYear(raw);
+    if (yr === null) return true;   // no season column — keep everything
+    return yr === this.state.year || yr === this.state.year + 1;
+  },
+
   rowHasPlayerName(raw) {
     if (!raw || typeof raw !== 'object') return false;
     for (const key of ['name', 'player', 'fullname']) {
@@ -520,7 +569,9 @@ window.SimEngine = {
       return fallback;
     };
     const rating = parseFloat(getVal(['rating', 'ovr', 'grade', 'stars'], 75)) || 75;
-    const school = getVal(['school', 'team', 'committedto', 'college'], 'Free Agent');
+    // 'committedschool' is what the recruiting sheet actually uses — without
+    // it every recruit read as Uncommitted.
+    const school = getVal(['committedschool', 'school', 'team', 'committedto', 'college', 'commit'], 'Free Agent');
 
     // Deliberately does NOT fall back to 'classyear' here — that column
     // means "recruiting class" (e.g. Class of 2028), a different concept
@@ -541,6 +592,9 @@ window.SimEngine = {
       wt: getVal(['wt', 'weight'], "190"),
       hometown: getVal(['from', 'hometown', 'home'], 'N/A'),
       hs: getVal(['hs', 'highschool', 'prep', 'prepschool'], ''),
+      jersey: String(getVal(['jersey', 'number', 'num', 'jerseynumber', 'uniform'], '')).replace(/[^0-9]/g, ''),
+      // National recruit ranking, used by the draft big board's pedigree term.
+      rsci: parseFloat(getVal(['rsci', 'rank', 'nationalrank', 'ranking'], '')) || null,
       // Schools this player has suited up for, oldest first. Transfers
       // aren't simulated yet, so this is normally just the current school —
       // but the field exists so a transfer only has to append to it.
@@ -567,7 +621,8 @@ window.SimEngine = {
     });
 
     this.state.recruits.forEach(rec => {
-      if (rec.recClassYear <= this.state.year && rec.school && rec.school !== 'Uncommitted') {
+      const arrived = !rec.recClassYear || rec.recClassYear <= this.state.year;
+      if (arrived && rec.school && rec.school !== 'Uncommitted' && rec.school !== 'Free Agent') {
         const team = this.state.teams.find(t => t.school.toLowerCase() === rec.school.toLowerCase());
         if (team && !team.roster.some(p => p.name === rec.name)) {
           rec.school = team.school; rec.school_logo = this.getTeamLogo(team.school); rec.class = 'FR';
@@ -594,6 +649,31 @@ window.SimEngine = {
       p40pts: z1, p40reb: z1, p40oreb: z1, p40dreb: z1, p40ast: z1,
       p40stl: z1, p40blk: z1, p40tov: z1, p40pf: z1, p40fga: z1, p40threePa: z1, p40fta: z1
     };
+  },
+
+  // --- Theme ---
+
+  // Three states: 'system' (default, follows the OS), 'light', 'dark'.
+  // An explicit choice is written to <html data-theme> and remembered.
+  THEME_KEY: 'bytherim-rp-theme',
+
+  initTheme() {
+    let saved = null;
+    try { saved = localStorage.getItem(this.THEME_KEY); } catch (e) { /* storage blocked */ }
+    this.applyTheme(saved || 'system');
+  },
+
+  applyTheme(mode) {
+    const root = document.documentElement;
+    if (mode === 'system') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', mode);
+
+    try { localStorage.setItem(this.THEME_KEY, mode); } catch (e) { /* storage blocked */ }
+
+    document.querySelectorAll('.theme-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-theme-mode') === mode);
+    });
+    this.state.themeMode = mode;
   },
 
   // Conferences generally treated as "high major" — the power leagues whose
@@ -650,10 +730,31 @@ window.SimEngine = {
   // pac12.png, "Big Ten" -> bigten.png). If the file isn't there yet the
   // <img> onerror handler swaps in a generated badge, so a missing folder
   // degrades gracefully instead of showing broken images.
+  // Several conference logo files in /conferencelogos use the league's
+  // common abbreviation rather than its full name, so a plain
+  // lowercase-and-strip of the conference name misses them. Mapped against
+  // the actual filenames in the repo.
+  CONFERENCE_LOGO_ALIASES: {
+    americaeast: 'aec',
+    american: 'aac',
+    conferenceusa: 'cusa',
+    missourivalley: 'mvc',
+    mountainwest: 'mw',
+    ohiovalley: 'ovc',
+    southern: 'socon',
+    southland: 'slc',
+    sunbelt: 'sbc',
+    thesummit: 'summitleague',
+    summit: 'summitleague',
+    westcoast: 'wcc',
+    uac: 'wac'
+  },
+
   getConferenceLogo(conference) {
     if (!conference) return '';
     const normalized = String(conference).toLowerCase().replace(/[^a-z0-9]/g, '');
-    return `../conferencelogos/${normalized}.png`;
+    const fileBase = this.CONFERENCE_LOGO_ALIASES[normalized] || normalized;
+    return `../conferencelogos/${fileBase}.png`;
   },
 
   getConferenceLogoImg(conference, className = 'conf-logo') {
@@ -1587,6 +1688,9 @@ window.SimEngine = {
     this.applyTransfers(transfers);
 
     const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
+    // Kept for the offseason screen — state.draftDeclarations is cleared
+    // below when the new season is set up.
+    this.state.lastDeclarations = [...(this.state.draftDeclarations || [])];
     const classProgression = { 'FR': 'SO', 'SO': 'JR', 'JR': 'SR' }; // SR/GR intentionally absent: eligibility is exhausted either way
 
     this.state.teams.forEach(team => {
@@ -1630,6 +1734,7 @@ window.SimEngine = {
 
     this.filterActiveData();
     this.initSeasonData();
+    this.openOffseason('champion');
     this.logNews(`Advanced to ${this.state.year} Offseason. Graduated seniors cleared; incoming recruits added.`);
     
     const sbEl = document.getElementById('statsBody');
@@ -2513,7 +2618,7 @@ window.SimEngine = {
       const safeName = p.name.replace(/'/g, "\\'");
       rHtml += `
         <tr>
-          <td class="sub-text">${idx+1}</td>
+          <td class="jersey-num">${p.jersey ? '#' + p.jersey : '—'}</td>
           <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${p.name}</span> ${statsStr}</td>
           <td>${p.pos}</td>
           <td>${p.class}</td>
@@ -2542,7 +2647,8 @@ window.SimEngine = {
 
     if (!document.getElementById('modalPlayerLogo')) return;
     document.getElementById('modalPlayerLogo').src = this.getTeamLogo(player.school);
-    document.getElementById('modalPlayerName').innerText = player.name;
+    document.getElementById('modalPlayerName').innerText =
+      (player.jersey ? `#${player.jersey} ` : '') + player.name;
 
     // Written out as a sentence rather than pipe-separated fragments.
     const posNames = { PG: 'Point Guard', SG: 'Shooting Guard', SF: 'Small Forward',
@@ -3023,11 +3129,11 @@ window.SimEngine = {
   // 'adv' for the advanced metrics, matching the league-wide leaderboards.
   renderTeamPlayerTable(team, mode) {
     const cols = mode === 'box'
-      ? [['name','Player'],['pos','Pos'],['class','Cl'],['gp','GP'],['gs','GS'],['mpg','MPG'],['ppg','PPG'],
+      ? [['jersey','#'],['name','Player'],['pos','Pos'],['class','Cl'],['gp','GP'],['gs','GS'],['mpg','MPG'],['ppg','PPG'],
          ['oreb','OREB'],['rpg','RPG'],['apg','APG'],['stl','SPG'],['blk','BPG'],['tov','TOV'],['pf','PF'],
          ['fgm','FGM'],['fga','FGA'],['fgPct','FG%'],['threePm','3PM'],['threePa','3PA'],['threePPct','3P%'],
          ['ftm','FTM'],['fta','FTA'],['ftPct','FT%']]
-      : [['name','Player'],['pos','Pos'],['mpg','MPG'],['bpm','BPM'],['obpm','OBPM'],['dbpm','DBPM'],
+      : [['jersey','#'],['name','Player'],['pos','Pos'],['mpg','MPG'],['bpm','BPM'],['obpm','OBPM'],['dbpm','DBPM'],
          ['tsPct','TS%'],['eFgPct','eFG%'],['orebPct','OREB%'],['drebPct','DREB%'],['trbPct','TRB%'],
          ['astPct','AST%'],['tovPct','TOV%'],['blkPct','BLK%'],['usg','USG%'],['ftr','FTr'],
          ['threePar','3PAr'],['ortg','ORtg'],['drtg','DRtg'],['netRtg','Net']];
@@ -3043,6 +3149,7 @@ window.SimEngine = {
     roster.forEach(p => {
       const safeName = p.name.replace(/'/g, "\\'");
       rows += '<tr>' + cols.map(([id]) => {
+        if (id === 'jersey') return `<td class="jersey-num">${p.jersey ? '#' + p.jersey : '—'}</td>`;
         if (id === 'name') return `<td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${p.name}</span></td>`;
         if (id === 'pos' || id === 'class') return `<td class="sub-text">${p[id]}</td>`;
         return `<td>${p.stats ? p.stats[id] : '—'}</td>`;
@@ -3269,7 +3376,7 @@ window.SimEngine = {
         <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${r.name}</span></td>
         <td class="sub-text">${r.pos}</td>
         <td class="bold-text">${Math.round(parseFloat(r.rating))}</td>
-        <td class="sub-text-sm">${r.hometown || '—'}</td>
+        <td class="sub-text-sm">${r.hs || r.hometown || '—'}</td>
         <td>${committed
           ? `<div class="team-cell-wrap"><img src="${this.getTeamLogo(r.school)}" class="xs-logo"><span>${r.school}</span>${team ? ` <span class="sub-text-sm">(${team.conference})</span>` : ''}</div>`
           : '<span class="sub-text-sm">Uncommitted</span>'}</td>
@@ -3333,23 +3440,54 @@ window.SimEngine = {
       </table></div>`;
   },
 
-  // --- Offseason hub ---
+  // --- Offseason takeover ---
 
-  updateOffseasonTab() {
-    const el = document.getElementById('offseasonContainer');
+  // The offseason is its own full-screen experience rather than a tab:
+  // it opens over the sim the way the home screen does, walks through
+  // champion / declarations / transfers, and is dismissed explicitly.
+  openOffseason(stage) {
+    this.state.offseasonStage = stage || this.state.offseasonStage || 'champion';
+    const overlay = document.getElementById('offseasonOverlay');
+    if (!overlay) return;
+    overlay.style.display = 'block';
+    document.body.classList.add('offseason-open');
+    this.renderOffseasonOverlay();
+  },
+
+  closeOffseason() {
+    const overlay = document.getElementById('offseasonOverlay');
+    if (overlay) overlay.style.display = 'none';
+    document.body.classList.remove('offseason-open');
+  },
+
+  setOffseasonStage(stage) {
+    this.state.offseasonStage = stage;
+    this.renderOffseasonOverlay();
+  },
+
+  renderOffseasonOverlay() {
+    const el = document.getElementById('offseasonBody');
     if (!el) return;
 
-    if (!this.state.ncaaDone && (this.state.seasonHistory || []).length === 0) {
-      el.innerHTML = `<p class="empty-table-msg">Finish the NCAA Tournament to begin the offseason.</p>`;
-      return;
+    document.querySelectorAll('.offseason-stage-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-stage') === this.state.offseasonStage);
+    });
+
+    const yearEl = document.getElementById('offseasonYear');
+    if (yearEl) {
+      const y = this.state.seasonHistory.length
+        ? this.state.seasonHistory[this.state.seasonHistory.length - 1].year
+        : this.state.year;
+      yearEl.innerText = `${y}-${(y + 1).toString().slice(2)} Offseason`;
     }
 
-    let html = '';
+    const stage = this.state.offseasonStage || 'champion';
+    if (stage === 'declarations') el.innerHTML = this.renderOffseasonDeclarations();
+    else if (stage === 'transfers') el.innerHTML = this.renderOffseasonTransfers();
+    else el.innerHTML = this.renderOffseasonChampion();
+  },
 
-    // 1. Champion spotlight. Once the offseason is advanced the live
-    // tournament object is cleared for the new season, so fall back to the
-    // archived history entry — otherwise this page goes blank at exactly
-    // the moment you'd want to look at it.
+  renderOffseasonChampion() {
     let champSchool = null, champYear = this.state.year;
     if (this.state.ncaaTournament && this.state.ncaaTournament.champion) {
       champSchool = this.state.ncaaTournament.champion.school;
@@ -3358,48 +3496,63 @@ window.SimEngine = {
       champSchool = last.champion;
       champYear = last.year;
     }
+    if (!champSchool) return `<p class="empty-table-msg">Finish the NCAA Tournament to begin the offseason.</p>`;
 
-    if (champSchool) {
-      const t = this.state.teams.find(x => x.school === champSchool);
-      const hist = t && (t.history || []).find(h => h.year === champYear);
-      const recordText = hist ? `${hist.wins}-${hist.losses}` : (t && t.simData ? `${t.simData.wins}-${t.simData.losses}` : '');
-      html += `<div class="champion-spotlight">
-        <img src="${this.getTeamLogo(champSchool)}" class="champion-logo">
-        <div>
-          <div class="champion-label">${champYear}-${(champYear + 1).toString().slice(2)} National Champions</div>
-          <div class="champion-name">${champSchool}</div>
-          <div class="champion-record">${recordText}${t && t.conference ? ' · ' + t.conference : ''}</div>
-        </div>
+    const t = this.state.teams.find(x => x.school === champSchool);
+    const hist = t && (t.history || []).find(h => h.year === champYear);
+    const record = hist ? `${hist.wins}-${hist.losses}` : (t && t.simData ? `${t.simData.wins}-${t.simData.losses}` : '');
+    const histEntry = (this.state.seasonHistory || []).find(h => h.year === champYear);
+
+    let html = `<div class="champion-spotlight">
+      <img src="${this.getTeamLogo(champSchool)}" class="champion-logo">
+      <div>
+        <div class="champion-label">${champYear}-${(champYear + 1).toString().slice(2)} National Champions</div>
+        <div class="champion-name">${champSchool}</div>
+        <div class="champion-record">${record}${t && t.conference ? ' · ' + t.conference : ''}</div>
+      </div>
+    </div>`;
+
+    if (histEntry) {
+      html += `<div class="offseason-recap">
+        ${histEntry.runnerUp ? `<p class="sub-text">Defeated <strong>${histEntry.runnerUp}</strong> in the championship game.</p>` : ''}
+        ${histEntry.finalFour && histEntry.finalFour.length ? `<p class="sub-text">Final Four: ${histEntry.finalFour.join(', ')}</p>` : ''}
+        ${histEntry.npoy ? `<p class="sub-text">National Player of the Year: <strong>${histEntry.npoy.name}</strong> (${histEntry.npoy.school})</p>` : ''}
+        ${histEntry.dpoy ? `<p class="sub-text">Defensive Player of the Year: <strong>${histEntry.dpoy.name}</strong> (${histEntry.dpoy.school})</p>` : ''}
       </div>`;
     }
+    return html;
+  },
 
-    // 2. Draft declarations
-    html += `<h4 class="award-section-title mt-2">Draft Declarations</h4>`;
-    const decls = this.state.draftDeclarations || [];
+  renderOffseasonDeclarations() {
+    // Prefer the snapshot taken during the offseason; fall back to the live
+    // list when the offseason screen is opened before advancing.
+    const decls = (this.state.lastDeclarations && this.state.lastDeclarations.length)
+      ? this.state.lastDeclarations
+      : (this.state.draftDeclarations || []);
+    const returning = this.state.returningPlayers || [];
+
+    let html = `<p class="sub-text mb-1">Seniors and players out of eligibility enter automatically. Early entrants can withdraw and return to school — combine results from the Draft RP page will drive that decision once it's available.</p>`;
+
     if (decls.length === 0) {
-      html += `<p class="sub-text">No players have declared yet.</p>`;
+      html += `<p class="empty-table-msg">No players have declared yet.</p>`;
     } else {
-      html += `<div class="table-scroll"><table class="data-table">
-        <thead><tr><th>#</th><th>Player</th><th>School</th><th>Pos</th><th>Cl</th><th>PPG</th><th>Status</th></tr></thead><tbody>`;
-      decls.forEach((d, i) => {
-        const safe = d.name.replace(/'/g, "\\'");
-        html += `<tr>
-          <td class="bold-sub-text">${i + 1}</td>
-          <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safe}')">${d.name}</span></td>
-          <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(d.school)}" class="xs-logo"><span>${d.school}</span></div></td>
-          <td class="sub-text">${d.pos}</td>
-          <td class="sub-text">${d.class}</td>
-          <td class="bold-text">${d.ppg}</td>
-          <td class="sub-text-sm">${d.mandatory ? 'Auto entry — eligibility exhausted' : 'Early entry'}</td>
-        </tr>`;
-      });
-      html += `</tbody></table></div>`;
+      html += `<h5 class="award-table-title">Declared (${decls.length})</h5>
+        <div class="table-scroll mb-1-5"><table class="data-table">
+          <thead><tr><th>#</th><th>Player</th><th>School</th><th>Pos</th><th>Cl</th><th>PPG</th><th>Status</th></tr></thead><tbody>
+          ${decls.map((d, i) => `<tr>
+            <td class="bold-sub-text">${i + 1}</td>
+            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${d.name.replace(/'/g, "\\'")}')">${d.name}</span></td>
+            <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(d.school)}" class="xs-logo"><span>${d.school}</span></div></td>
+            <td class="sub-text">${d.pos}</td>
+            <td class="sub-text">${d.class}</td>
+            <td class="bold-text">${d.ppg}</td>
+            <td class="sub-text-sm">${d.mandatory ? 'Auto entry — eligibility exhausted' : 'Early entry'}</td>
+          </tr>`).join('')}
+        </tbody></table></div>`;
     }
 
-    const returning = this.state.returningPlayers || [];
     if (returning.length > 0) {
-      html += `<h5 class="award-table-title mt-1">Withdrew and Returning to School</h5>
-        <p class="sub-text-sm mb-1">Early entrants who pulled their name out. Combine results from the Draft RP page will drive this once it's available.</p>
+      html += `<h5 class="award-table-title">Withdrew — Returning to School (${returning.length})</h5>
         <div class="table-scroll"><table class="data-table">
           <thead><tr><th>Player</th><th>School</th><th>Pos</th><th>Big Board</th></tr></thead><tbody>
           ${returning.map(r => `<tr>
@@ -3410,30 +3563,40 @@ window.SimEngine = {
           </tr>`).join('')}
         </tbody></table></div>`;
     }
+    return html;
+  },
 
-    // 3. Transfer portal
-    html += `<h4 class="award-section-title mt-2">Transfer Portal</h4>`;
+  renderOffseasonTransfers() {
     const transfers = this.state.lastTransfers || [];
     if (transfers.length === 0) {
-      html += `<p class="sub-text">No transfers yet — the portal opens once you advance the offseason.</p>`;
-    } else {
-      html += `<p class="sub-text mb-1">${transfers.length} players changed schools.</p>
-        <div class="table-scroll"><table class="data-table">
-          <thead><tr><th>Player</th><th>Pos</th><th>Cl</th><th>PPG</th><th>From</th><th></th><th>To</th><th>Reason</th></tr></thead><tbody>
-          ${transfers.map(t => `<tr>
-            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${t.name.replace(/'/g, "\\'")}')">${t.name}</span></td>
-            <td class="sub-text">${t.pos}</td>
-            <td class="sub-text">${t.class}</td>
-            <td class="bold-text">${t.ppg}</td>
-            <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(t.from)}" class="xs-logo"><span>${t.from}</span></div></td>
-            <td class="transfer-arrow">&rarr;</td>
-            <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(t.to)}" class="xs-logo"><span>${t.to}</span></div></td>
-            <td class="sub-text-sm">${t.reason}</td>
-          </tr>`).join('')}
-        </tbody></table></div>`;
+      return `<p class="empty-table-msg">No transfers yet — the portal opens when you advance the offseason.</p>`;
     }
+    return `<p class="sub-text mb-1">${transfers.length} players changed schools. Producing well against a weak schedule pulls players upward; highly-rated players who underperformed or barely played look for a new situation.</p>
+      <div class="table-scroll"><table class="data-table">
+        <thead><tr><th>Player</th><th>Pos</th><th>Cl</th><th>PPG</th><th>From</th><th></th><th>To</th><th>Reason</th></tr></thead><tbody>
+        ${transfers.map(t => `<tr>
+          <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${t.name.replace(/'/g, "\\'")}')">${t.name}</span></td>
+          <td class="sub-text">${t.pos}</td>
+          <td class="sub-text">${t.class}</td>
+          <td class="bold-text">${t.ppg}</td>
+          <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(t.from)}" class="xs-logo"><span>${t.from}</span></div></td>
+          <td class="transfer-arrow">&rarr;</td>
+          <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(t.to)}" class="xs-logo"><span>${t.to}</span></div></td>
+          <td class="sub-text-sm">${t.reason}</td>
+        </tr>`).join('')}
+      </tbody></table></div>`;
+  },
 
-    el.innerHTML = html;
+  // Kept so the sidebar/menu entry still works — it just opens the takeover.
+  updateOffseasonTab() {
+    const el = document.getElementById('offseasonContainer');
+    if (!el) return;
+    if (!this.state.ncaaDone && (this.state.seasonHistory || []).length === 0) {
+      el.innerHTML = `<p class="empty-table-msg">Finish the NCAA Tournament to begin the offseason.</p>`;
+      return;
+    }
+    el.innerHTML = `<p class="sub-text mb-1">The offseason opens as a full-screen experience.</p>
+      <button class="sim-btn" onclick="SimEngine.openOffseason('champion')">Open Offseason</button>`;
   },
 
   // --- Historical Seasons ---
