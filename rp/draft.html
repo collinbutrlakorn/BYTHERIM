@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BYTHERIM | NBA Draft RP</title>
+<meta name="description" content="NBA Draft RP: master big board, prospect scouting profiles, and custom big board builder for the BYTHERIM roleplay universe.">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://collinbutrlakorn.github.io/BYTHERIM/rp/draft.html">
+<meta property="og:title" content="BYTHERIM | NBA Draft RP">
+<meta property="og:description" content="NBA Draft RP: master big board, prospect scouting profiles, and custom big board builder.">
+<meta property="og:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
+
+<link rel="icon" type="image/png" href="../favicon.png">
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="css/ncaa-styles.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@400;500;600;700&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+
+<style>
+  /* ============================================================
+     Draft RP — layout echoes the main BYTHERIM draft page (header
+     card, wide bordered table, expandable profile rows) but draws
+     every colour from the shared RP theme tokens so it follows
+     light/dark with the rest of the RP suite.
+     ============================================================ */
+
+  .draft-container {
+    max-width: 1400px;
+    margin: 1.5rem auto 3rem;
+    padding: 0 1.25rem;
+  }
+
+  .draft-header-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 1.5rem 1.75rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .draft-brand {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .draft-brand-logo {
+    width: 78px;
+    height: 78px;
+    object-fit: contain;
+  }
+
+  .draft-title h1 {
+    font-family: 'Oswald', sans-serif;
+    font-size: 2.1rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0;
+    line-height: 1.05;
+  }
+
+  .draft-title p {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin-top: 2px;
+  }
+
+  .draft-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-left: auto;
+  }
+
+  .draft-view-nav {
+    display: flex;
+    gap: 0.4rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+
+  .draft-view-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--r-pill);
+    color: var(--text-muted);
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 0.5rem 1.15rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .draft-view-btn:hover { color: var(--text-main); border-color: var(--accent); }
+
+  .draft-view-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-contrast);
+    font-weight: 700;
+  }
+
+  .draft-section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.85rem;
+  }
+
+  .draft-section-title {
+    font-family: 'Oswald', sans-serif;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0;
+  }
+
+  .board-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+
+  .table-wrapper {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    overflow-x: auto;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .draft-table { width: 100%; border-collapse: collapse; }
+
+  .draft-table th {
+    background: var(--bg-color);
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.8rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .draft-table td {
+    padding: 0.7rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    white-space: nowrap;
+    font-size: 0.9rem;
+  }
+
+  .prospect-row { cursor: pointer; transition: background 0.15s ease; }
+  .prospect-row:hover { background: var(--card-hover); }
+  .prospect-row.open { background: var(--accent-soft); }
+
+  .draft-table .rank-cell {
+    font-family: 'Oswald', sans-serif;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--accent);
+    text-align: center;
+  }
+
+  .model-rank {
+    display: block;
+    font-family: 'Asap Condensed', sans-serif;
+    font-size: 0.62rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    letter-spacing: 0.3px;
+  }
+
+  .player-cell { display: flex; flex-direction: column; line-height: 1.2; }
+  .player-name { font-weight: 700; color: var(--text-main); }
+  .player-archetype { font-size: 0.74rem; color: var(--text-muted); }
+  .school-col { color: var(--text-muted); }
+
+  .pos-badge {
+    display: inline-block;
+    background: var(--accent-soft-strong);
+    color: var(--accent);
+    border-radius: var(--r-pill);
+    padding: 0.12rem 0.55rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  .board-controls { display: flex; gap: 0.25rem; justify-content: flex-end; }
+
+  .mini-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: var(--r-sm);
+    width: 26px;
+    height: 26px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    line-height: 1;
+    transition: all 0.15s ease;
+  }
+
+  .mini-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .mini-btn.add { color: var(--accent); border-color: var(--accent); font-size: 1rem; font-weight: 700; }
+  .mini-btn.on-board { color: var(--win); border-color: var(--win); cursor: default; }
+  .mini-btn.danger:hover { border-color: var(--loss); color: var(--loss); }
+
+  .detail-row td { background: var(--bg-color); padding: 0; white-space: normal; }
+
+  .prospect-detail { padding: 1.25rem 1.5rem 1.5rem; }
+
+  .prospect-detail-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+  }
+
+  .prospect-detail-name {
+    font-family: 'Oswald', sans-serif;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .prospect-detail-bio { color: var(--text-muted); font-size: 0.88rem; }
+
+  .prospect-tags { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 1rem; }
+
+  .prospect-tag {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: var(--r-pill);
+    padding: 0.15rem 0.6rem;
+    font-size: 0.74rem;
+    font-weight: 600;
+  }
+
+  .detail-stat-title {
+    font-family: 'Oswald', sans-serif;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin: 0.9rem 0 0.35rem;
+  }
+
+  .stat-toggle {
+    display: inline-flex;
+    gap: 0.25rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--r-pill);
+    padding: 0.2rem;
+  }
+
+  .filter-controls { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+  .search-bar {
+    background: var(--bg-color);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    padding: 0.5rem 0.85rem;
+    border-radius: var(--r-pill);
+    font-size: 0.9rem;
+    outline: none;
+    font-family: 'Asap Condensed', sans-serif;
+    min-width: 190px;
+  }
+
+  .search-bar:focus { border-color: var(--accent); }
+
+  .draft-empty {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 3rem 2rem;
+    text-align: center;
+    color: var(--text-muted);
+  }
+
+  .draft-empty.small { padding: 2rem; }
+  .draft-empty p { margin-bottom: 1rem; }
+
+  @media (max-width: 720px) {
+    .draft-title h1 { font-size: 1.55rem; }
+    .draft-brand-logo { width: 56px; height: 56px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="navbar">
+  <a href="../" class="brand-logo">
+    <img src="../logo.png" alt="BYTHERIM Logo" class="logo-img">
+  </a>
+  <nav class="nav-links">
+    <a href="../podcast.html">Podcast</a>
+    <a href="../draft.html">Draft</a>
+    <a href="../nba.html">NBA</a>
+    <a href="./" class="active-nav">BYTHERIM RP <span class="badge">SIM</span></a>
+  </nav>
+</header>
+
+<div class="draft-container">
+
+  <div class="draft-header-card">
+    <div class="draft-brand">
+      <img src="draftrplogo.png" alt="NBA Draft RP" class="draft-brand-logo">
+      <div class="draft-title">
+        <h1>NBA Draft RP</h1>
+        <p id="draftStatus">Loading draft class…</p>
+      </div>
+    </div>
+    <div class="draft-header-actions">
+      <div class="theme-toggle" role="group" aria-label="Theme">
+        <button class="theme-btn" data-theme-mode="light" onclick="DraftRP.applyTheme('light')">Light</button>
+        <button class="theme-btn" data-theme-mode="dark" onclick="DraftRP.applyTheme('dark')">Dark</button>
+        <button class="theme-btn" data-theme-mode="system" onclick="DraftRP.applyTheme('system')">Auto</button>
+      </div>
+      <a href="./ncaa.html" class="sim-btn sim-btn-secondary btn-sm">NCAA RP</a>
+    </div>
+  </div>
+
+  <div class="draft-view-nav">
+    <button class="draft-view-btn active" data-view="master" onclick="DraftRP.setView('master')">Master Big Board</button>
+    <button class="draft-view-btn" data-view="custom" onclick="DraftRP.setView('custom')">My Big Board</button>
+  </div>
+
+  <div id="draftBody">
+    <div class="draft-empty"><p>Loading draft class…</p></div>
+  </div>
+
+</div>
+
+<footer class="footer">
+  <div class="footer-container">
+    <div class="footer-brand">
+      <img src="../logo.png" alt="BYTHERIM Logo" class="footer-logo">
+      <p class="footer-desc">In-depth draft analysis, film breakdowns, and NBA discourse.</p>
+    </div>
+    <div class="footer-column">
+      <h4>Navigation</h4>
+      <a href="../">Home</a>
+      <a href="../draft.html">Draft</a>
+      <a href="../nba.html">NBA</a>
+      <a href="./">BYTHERIM RP</a>
+      <a href="./ncaa.html">NCAA RP</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>© 2026 BYTHERIM. All rights reserved.</p>
+  </div>
+</footer>
+
+<script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+<script src="js/db.js"></script>
+<script src="js/draft-core.js"></script>
+<script src="js/draft-rp.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    DraftRP.init();
+  });
+</script>
+
+</body>
+</html>

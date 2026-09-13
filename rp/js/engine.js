@@ -33,6 +33,7 @@ window.SimEngine = {
     themeMode: 'system',
     lastTransfers: [],      // portal moves from the most recent offseason
     lastDeclarations: [],   // declarations snapshot for the offseason screen
+    lastDeclarationsYear: null,
     returningPlayers: [],   // early entrants who withdrew and came back
     seasonInitialized: false,
     scheduleViewWeek: 1,
@@ -163,6 +164,7 @@ window.SimEngine = {
           this.state.seasonInitialized = savedState.seasonInitialized || false;
           this.state.lastTransfers = savedState.lastTransfers || [];
           this.state.lastDeclarations = savedState.lastDeclarations || [];
+          this.state.lastDeclarationsYear = savedState.lastDeclarationsYear || null;
           this.state.returningPlayers = savedState.returningPlayers || [];
           this.state.scheduleViewWeek = savedState.scheduleViewWeek || 1;
 
@@ -238,6 +240,7 @@ window.SimEngine = {
           seasonInitialized: this.state.seasonInitialized,
           lastTransfers: this.state.lastTransfers,
           lastDeclarations: this.state.lastDeclarations,
+          lastDeclarationsYear: this.state.lastDeclarationsYear,
           returningPlayers: this.state.returningPlayers,
           scheduleViewWeek: this.state.scheduleViewWeek
         });
@@ -831,66 +834,20 @@ window.SimEngine = {
   // Weighted by: youth, positional size, on-court production and winning,
   // and incoming recruit pedigree — with pedigree fading as real game
   // evidence accumulates, so a highly-ranked recruit who plays badly slides.
+  // Delegates to DraftCore so the in-season board and the standalone
+  // Draft RP page rank prospects with identical logic.
   computeDraftBigBoard(limit = 60) {
-    const classYouth = { FR: 10, SO: 6, JR: 2.5, SR: 0, GR: -1.5 };
-    const posSizeTarget = { PG: 75, SG: 78, SF: 80, PF: 82, C: 84 };
-
-    const parseHeightInches = (ht) => {
-      if (!ht) return null;
-      const m = String(ht).match(/(\d+)\s*['\u2019-]\s*(\d+)?/);
-      if (m) return parseInt(m[1], 10) * 12 + (parseInt(m[2] || '0', 10));
-      const n = parseFloat(ht);
-      return isNaN(n) ? null : n;
+    if (typeof DraftCore === 'undefined') {
+      console.error('DraftCore not loaded — check that draft-core.js is included before engine.js');
+      return [];
+    }
+    const winPctFor = (school) => {
+      const team = this.state.teams.find(t => t.school === school);
+      if (!team) return 0.5;
+      const gp = team.simData.wins + team.simData.losses;
+      return gp > 0 ? team.simData.wins / gp : 0.5;
     };
-
-    const scored = this.state.activePlayers.map(p => {
-      const st = p.stats || this.getZeroStats();
-      const gp = st.gp || 0;
-      const team = this.state.teams.find(t => t.school === p.school);
-      const teamGp = team ? team.simData.wins + team.simData.losses : 0;
-      const teamWinPct = teamGp > 0 ? team.simData.wins / teamGp : 0.5;
-
-      // How much real evidence exists yet. Early on, pedigree and raw
-      // ability carry the board; by March, production dominates.
-      const evidence = Math.min(1, gp / 15);
-
-      const youth = classYouth[p.class] !== undefined ? classYouth[p.class] : 3;
-
-      const hIn = parseHeightInches(p.ht);
-      const target = posSizeTarget[p.pos] || 79;
-      // Positional size: being taller than typical for the position helps,
-      // being undersized hurts, with diminishing returns either way.
-      const sizeEdge = hIn ? Math.max(-6, Math.min(8, (hIn - target) * 1.6)) : 0;
-
-      const production = (parseFloat(st.p40pts) || 0) * 0.55
-                       + (parseFloat(st.p40reb) || 0) * 0.45
-                       + (parseFloat(st.p40ast) || 0) * 0.70
-                       + (parseFloat(st.p40stl) || 0) * 1.1
-                       + (parseFloat(st.p40blk) || 0) * 1.0
-                       - (parseFloat(st.p40tov) || 0) * 0.9
-                       + (parseFloat(st.bpm) || 0) * 1.3;
-
-      const efficiency = ((parseFloat(st.tsPct) || 0) - 0.53) * 40;
-      const winning = (teamWinPct - 0.5) * 8;
-
-      // Recruit pedigree: RSCI ranking if the sheet supplies one, else the
-      // incoming rating. Weighted heavily before games, lightly after.
-      const rsci = parseFloat(p.rsci) || null;
-      const pedigree = rsci ? Math.max(0, 30 - Math.log2(rsci + 1) * 5) : ((parseFloat(p.rating) || 70) - 70) * 0.9;
-
-      const score = (parseFloat(p.rating) || 70) * 0.75
-                  + youth
-                  + sizeEdge
-                  + pedigree * (1 - evidence * 0.65)
-                  + (production + efficiency + winning) * evidence * 1.15;
-
-      return { player: p, score, gp, production, pedigree };
-    });
-
-    return scored
-      .filter(x => (parseFloat(x.player.rating) || 0) >= 70 || x.gp > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
+    return DraftCore.buildBigBoard(this.state.activePlayers, winPctFor, limit);
   },
 
   // --- Preseason rankings & strength of schedule ---
@@ -1690,7 +1647,25 @@ window.SimEngine = {
     const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
     // Kept for the offseason screen — state.draftDeclarations is cleared
     // below when the new season is set up.
-    this.state.lastDeclarations = [...(this.state.draftDeclarations || [])];
+    // Snapshot the draft class with COMPLETE stat lines. Declared players
+    // are about to be removed from every roster, which also removes them
+    // from the saved players table — so if the full record isn't captured
+    // here, the Draft RP page is left with only a three-stat summary.
+    // Game logs are deliberately excluded to keep the save small.
+    this.state.lastDeclarations = (this.state.draftDeclarations || []).map(d => {
+      const full = this.state.activePlayers.find(p => p.id === d.id);
+      if (!full) return { ...d };
+      return {
+        ...d,
+        ht: full.ht, wt: full.wt, hometown: full.hometown, hs: full.hs,
+        jersey: full.jersey, rsci: full.rsci, conference: full.conference,
+        collegeHistory: full.collegeHistory,
+        stats: full.stats
+      };
+    });
+    // Record which season these declarations came from. state.year advances
+    // below, so the Draft RP page can't infer the draft year from it.
+    this.state.lastDeclarationsYear = this.state.year;
     const classProgression = { 'FR': 'SO', 'SO': 'JR', 'JR': 'SR' }; // SR/GR intentionally absent: eligibility is exhausted either way
 
     this.state.teams.forEach(team => {
