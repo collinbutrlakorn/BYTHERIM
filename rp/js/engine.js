@@ -1336,6 +1336,10 @@ window.SimEngine = {
   initSeasonData() {
     this.state.seasonInitialized = true;
     this.state.leagueShootingTotals = { pts: 0, fga: 0, fta: 0 };
+    this.state.activePlayers.forEach(p => {
+      p.injuredUntilWeek = null; p.gamesMissed = 0;
+      if (p.baseRating !== undefined) { p.rating = p.baseRating; delete p.baseRating; }
+    });
     this.state.schedule = [];
     this.state.regularSeasonDone = false;
     this.state.confChampsDone = false;
@@ -1353,21 +1357,17 @@ window.SimEngine = {
       // handed the top handful of players enormous minute shares, which then
       // inflated every counting stat through usageScale. A gentler decay
       // spreads 200 minutes across a believable 9-10 man rotation.
-      const rawWeights = roster.map((p, idx) => Math.max(0.1, (parseFloat(p.rating) - 52) * Math.pow(0.90, idx)));
-      const totalWeight = rawWeights.reduce((a, b) => a + b, 0) || 1;
-
       const top8 = roster.slice(0, 8);
       const teamOvr = top8.reduce((sum, p) => sum + parseFloat(p.rating), 0) / Math.max(1, Math.min(8, top8.length));
       const winPct = Math.min(0.94, Math.max(0.06, 0.50 + (teamOvr - 78) * 0.038));
-      
+
       team.expectedWinPct = winPct;
       team.simData = { teamOvr, wins: 0, losses: 0, confWins: 0, confLosses: 0, rosterRef: roster, winPct: '.000' };
 
-      roster.forEach((p, idx) => {
-        let allocatedMpg = (rawWeights[idx] / totalWeight) * 200;
-        if (idx > 9) allocatedMpg = 0; 
-        p.isBench = idx >= 5;
-        p.expectedStats = this.buildBaseStatExpectations(p, Math.min(33, allocatedMpg));
+      this.buildRotation(team);
+
+      roster.forEach(p => {
+        p.expectedStats = this.buildBaseStatExpectations(p, p.allocatedMpg || 0, team);
         p.gameLog = [];
         p.statsFull = this.getZeroStats();
         p.statsConf = this.getZeroStats();
@@ -1435,7 +1435,104 @@ window.SimEngine = {
     this.computeStrengthOfSchedule();
   },
 
-  buildBaseStatExpectations(player, mpg) {
+  // Which lineup slots each position label can credibly fill. The roster
+  // sheet mixes specific slots (PG/SG/SF/PF/C) with generic ones (G/W/F)
+  // and combos (F/C), so eligibility has to be a map rather than an
+  // exact match.
+  SLOT_ELIGIBILITY: {
+    PG: ['PG', 'G'],
+    SG: ['SG', 'G', 'W'],
+    SF: ['SF', 'W', 'F', 'G/F'],
+    PF: ['PF', 'F', 'F/C'],
+    C:  ['C', 'F/C']
+  },
+
+  // Builds a real starting five plus a depth chart, rather than simply
+  // handing minutes to the five highest-rated players. Two teams with the
+  // same talent now distribute it differently depending on positional fit,
+  // and a good freshman stuck behind an established player at his own
+  // position gets bench minutes instead of automatically starting.
+  buildRotation(team) {
+    const roster = [...(team.roster || [])].sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
+    const assigned = new Set();
+    const starters = [];
+
+    // Fill the scarcest slots first — centres and point guards are the
+    // hardest to cover, so they get first pick of the roster.
+    ['C', 'PG', 'PF', 'SG', 'SF'].forEach(slot => {
+      const eligible = this.SLOT_ELIGIBILITY[slot];
+      const pick = roster.find(p => !assigned.has(p.id) && eligible.includes((p.pos || '').toUpperCase()));
+      if (pick) {
+        assigned.add(pick.id);
+        pick.lineupSlot = slot;
+        starters.push(pick);
+      }
+    });
+
+    // Any slot that couldn't be filled by a natural fit goes to the best
+    // player left, playing out of position.
+    while (starters.length < 5 && starters.length < roster.length) {
+      const pick = roster.find(p => !assigned.has(p.id));
+      if (!pick) break;
+      assigned.add(pick.id);
+      pick.lineupSlot = pick.pos;
+      starters.push(pick);
+    }
+
+    const bench = roster.filter(p => !assigned.has(p.id));
+    team.starters = starters.map(p => p.id);
+
+    // Minute weights: starters cluster in the high 20s to low 30s, the
+    // first few bench players get real rotation minutes, and the tail gets
+    // scraps. Weighted by rating within each group so the best starter
+    // still plays the most.
+    const refRating = starters.length
+      ? starters.reduce((n, p) => n + parseFloat(p.rating), 0) / starters.length : 75;
+
+    const weights = [];
+    starters.forEach(p => {
+      weights.push({ p, w: 26 + Math.max(-6, Math.min(8, (parseFloat(p.rating) - refRating) * 0.55)) });
+    });
+    bench.forEach((p, i) => {
+      // Rotation depth drops off quickly past the eighth or ninth man.
+      const depthFactor = Math.pow(0.72, i);
+      const quality = 8 + Math.max(-4, Math.min(9, (parseFloat(p.rating) - refRating) * 0.45));
+      weights.push({ p, w: Math.max(0, quality * depthFactor) });
+    });
+
+    // Normalise to the 200 minutes available in a game, then cap so nobody
+    // plays an unrealistic number of minutes.
+    let total = weights.reduce((n, x) => n + x.w, 0) || 1;
+    weights.forEach(x => { x.mpg = (x.w / total) * 200; });
+
+    let overflow = 0;
+    weights.forEach(x => {
+      if (x.mpg > 33) { overflow += x.mpg - 33; x.mpg = 33; }
+    });
+    // Redistribute capped minutes across everyone still under the cap.
+    if (overflow > 0) {
+      const room = weights.filter(x => x.mpg < 32.5 && x.mpg > 0);
+      const roomTotal = room.reduce((n, x) => n + x.mpg, 0) || 1;
+      room.forEach(x => { x.mpg = Math.min(33, x.mpg + overflow * (x.mpg / roomTotal)); });
+    }
+
+    weights.forEach(x => {
+      x.p.allocatedMpg = x.mpg < 2 ? 0 : x.mpg;
+      x.p.isBench = !team.starters.includes(x.p.id);
+    });
+
+    // Reference values used for relative-usage scoring, cached on the team
+    // so every player's expectations can be computed against the strength
+    // of the teammates they actually share the floor with.
+    const rotation = weights.filter(x => x.p.allocatedMpg > 0).map(x => parseFloat(x.p.rating));
+    rotation.sort((a, b) => b - a);
+    const topFive = rotation.slice(0, 5);
+    team.usageReference = topFive.length
+      ? topFive.reduce((a, b) => a + b, 0) / topFive.length
+      : refRating;
+  },
+
+  buildBaseStatExpectations(player, mpg, team) {
     if (mpg <= 0.5) return this.getZeroStats();
 
     const r = parseFloat(player.rating);
@@ -1449,17 +1546,17 @@ window.SimEngine = {
     // every forward rebound like a centre and every guard pass like a point
     // guard, which is what produced the flood of 10+ rpg / sub-2 apg lines.
     const POS = {
-      PG: { reb: 3.6, ast: 4.40, stl: 1.34, blk: 0.17 },
-      SG: { reb: 4.1, ast: 2.30, stl: 1.17, blk: 0.30 },
-      SF: { reb: 5.65, ast: 1.80, stl: 1.08, blk: 0.59 },
-      PF: { reb: 8.0, ast: 1.26, stl: 0.86, blk: 1.19 },
-      C:  { reb: 9.85, ast: 0.95, stl: 0.69, blk: 1.89 },
-      G:  { reb: 3.7, ast: 3.33, stl: 1.25, blk: 0.24 },
-      F:  { reb: 6.7, ast: 1.50, stl: 0.96, blk: 0.87 },
+      PG: { reb: 3.2, ast: 4.40, stl: 1.34, blk: 0.13 },
+      SG: { reb: 3.6, ast: 2.30, stl: 1.17, blk: 0.23 },
+      SF: { reb: 5.0, ast: 1.80, stl: 1.08, blk: 0.45 },
+      PF: { reb: 7.1, ast: 1.26, stl: 0.86, blk: 0.92 },
+      C:  { reb: 8.75, ast: 0.95, stl: 0.69, blk: 1.46 },
+      G:  { reb: 3.3, ast: 3.33, stl: 1.25, blk: 0.185 },
+      F:  { reb: 5.9, ast: 1.50, stl: 0.96, blk: 0.67 },
       // Wings, and combo bigs, both appear in the roster sheet.
-      W:  { reb: 4.8, ast: 2.15, stl: 1.12, blk: 0.46 },
-      'F/C': { reb: 8.7, ast: 1.15, stl: 0.76, blk: 1.60 },
-      'G/F': { reb: 4.5, ast: 2.60, stl: 1.18, blk: 0.40 }
+      W:  { reb: 4.3, ast: 2.15, stl: 1.12, blk: 0.355 },
+      'F/C': { reb: 7.7, ast: 1.15, stl: 0.76, blk: 1.23 },
+      'G/F': { reb: 4.0, ast: 2.60, stl: 1.18, blk: 0.31 }
     };
     const base = POS[pos] || POS[isBig ? 'PF' : 'SF'];
 
@@ -1468,6 +1565,17 @@ window.SimEngine = {
     const coach = this.getCoachProfile(player.school);
 
     const usageScale = (mpg / 28) * (r / 78);
+
+    // Scoring share is measured against the player's OWN rotation rather
+    // than on an absolute scale. On a stacked high-major roster five good
+    // players divide the same ~75 points, so each individual line comes
+    // down; that same player as the lone option at a smaller school
+    // carries a far bigger share. This is what moves most 20-point scorers
+    // to smaller schools and stops every top freshman on a loaded team
+    // posting huge numbers.
+    const usageRef = (team && team.usageReference) ? team.usageReference : 78;
+    const usageShare = Math.max(0.42, Math.min(1.62, 1 + (r - usageRef) * 0.021));
+    const scoringUsage = (mpg / 28) * usageShare;
 
     // Scoring keys off talent above a replacement baseline rather than raw
     // rating, so an average starter lands in single digits and only genuine
@@ -1480,7 +1588,7 @@ window.SimEngine = {
     // seasons in the 25-40 range nationally. A pure power curve was tried
     // and rejected: rescaling those raw lines to the real team score
     // introduced a rounding bias that wrecked free-throw percentage.
-    let ppg = Math.max(0.4, (2.2 + Math.max(4, r - 38) * 0.228) * usageScale);
+    let ppg = Math.max(0.4, (2.2 + Math.max(4, r - 38) * 0.228) * scoringUsage);
 
     let rpg = Math.max(0.2, base.reb * usageScale);
     let apg = Math.max(0.1, base.ast * usageScale);
@@ -1488,7 +1596,7 @@ window.SimEngine = {
     let blk = Math.max(0.05, base.blk * usageScale);
     let tov = Math.max(0.2, (apg * 0.4 + 0.58));
 
-    let pf = Math.min(3.6, Math.max(0.6, (mpg / 10.8)));
+    let pf = Math.min(3.4, Math.max(0.5, (mpg / 12.1)));
 
     let bpm = ((r - 76) * 0.45);
     let obpm = bpm * (isBig ? 0.45 : 0.60);
@@ -1497,7 +1605,15 @@ window.SimEngine = {
     let ftPct = Math.min(0.92, Math.max(0.48,
       (isBig ? 0.705 : 0.825) * (player.playstyle ? player.playstyle.ftPct : 1)));
     let fta = Math.max(0.2, (ppg * (isBig ? 0.282 : 0.178)) * (coach ? coach.freeThrows : 1));
-    let threePar = isBig ? 0.20 : 0.572;
+    // Three-point rate by position rather than a blunt big/small split.
+    // The old single "big" rate had power forwards and centres launching
+    // far too many threes; genuine stretch bigs now come from the
+    // playstyle multiplier applied just below, not from the baseline.
+    const THREE_PAR = {
+      PG: 0.50, SG: 0.55, SF: 0.50, W: 0.50, 'G/F': 0.50, G: 0.52, F: 0.28,
+      PF: 0.22, C: 0.07, 'F/C': 0.12
+    };
+    let threePar = THREE_PAR[pos] !== undefined ? THREE_PAR[pos] : (isBig ? 0.18 : 0.50);
     if (player.playstyle) {
       threePar = Math.max(0.05, Math.min(0.85, threePar * player.playstyle.threePar));
     }
@@ -1518,6 +1634,19 @@ window.SimEngine = {
       apg *= ps.ast;
       stl *= ps.stl;
       blk *= ps.blk;
+    }
+
+    // A genuine focal point creates for others as well as scoring. When a
+    // player carries an unusually large share of his team's offense his
+    // assists rise with it — but only as far as his playmaking profile and
+    // position support, so a high-usage back-to-the-basket big doesn't
+    // start racking up assists.
+    if (usageShare > 1.10) {
+      const creator = (ps && ps.ast ? ps.ast : 1)
+        * (['PG', 'G'].includes(pos) ? 1.0
+          : ['SG', 'G/F'].includes(pos) ? 0.75
+          : ['SF', 'W'].includes(pos) ? 0.55 : 0.28);
+      apg *= 1 + (usageShare - 1.10) * 1.30 * creator;
     }
 
     // The coach's system shapes what the roster actually produces: a
@@ -1579,6 +1708,10 @@ window.SimEngine = {
   // game log updated from the same simulated result.
   async simulateRegularSeasonWeek() {
     this.state.week++;
+    this.rollInjuries();
+    // Revisit depth charts periodically rather than every week, so
+    // lineups are responsive without churning constantly.
+    if (this.state.week > 3 && this.state.week % 4 === 0) this.reevaluateRotations();
     const gamesThisWeek = this.state.schedule.filter(g => g.week === this.state.week && !g.played);
 
     gamesThisWeek.forEach(g => {
@@ -1605,8 +1738,91 @@ window.SimEngine = {
   // Simulates one real game between two teams via GameCore, updating
   // records and attaching a real game-log entry (with opponent, home/
   // away, and result) to every player who appeared.
+  // Returns the roster available for this game plus how much everyone
+  // else's minutes need to stretch to cover the absences.
+  availableRosterFor(team) {
+    const full = team.simData.rosterRef || team.roster || [];
+    const week = this.state.week;
+    const available = full.filter(p => !(p.injuredUntilWeek && p.injuredUntilWeek >= week));
+    const lostMinutes = full
+      .filter(p => p.injuredUntilWeek && p.injuredUntilWeek >= week)
+      .reduce((n, p) => n + (parseFloat(p.expectedStats && p.expectedStats.mpg) || 0), 0);
+    const remaining = available.reduce((n, p) => n + (parseFloat(p.expectedStats && p.expectedStats.mpg) || 0), 0);
+    const multiplier = remaining > 0 ? Math.min(1.45, (remaining + lostMinutes) / remaining) : 1;
+    return { available, multiplier };
+  },
+
+  // Rolls injuries for the upcoming week. Rates are deliberately modest:
+  // enough that rotations shift over a season without teams routinely
+  // being decimated.
+  rollInjuries() {
+    const week = this.state.week;
+    this.state.activePlayers.forEach(p => {
+      if (p.injuredUntilWeek && p.injuredUntilWeek >= week) return;   // already out
+      const mpg = parseFloat(p.expectedStats && p.expectedStats.mpg) || 0;
+      if (mpg < 5) return;                                            // deep bench, not tracked
+      if (Math.random() < 0.008) {
+        const weeksOut = 1 + Math.floor(Math.random() * 4);
+        p.injuredUntilWeek = week + weeksOut - 1;
+        p.gamesMissed = (p.gamesMissed || 0) + weeksOut * 2;
+      }
+    });
+  },
+
+  // Rotations aren't fixed for a whole season. Every few weeks the depth
+  // chart is rebuilt using a blend of a player's rating and how he has
+  // actually performed, so someone outplaying his billing works his way
+  // into the starting five and a struggling starter loses minutes.
+  reevaluateRotations() {
+    this.state.teams.forEach(team => {
+      (team.roster || []).forEach(p => {
+        const bpm = parseFloat(p.stats && p.stats.bpm) || 0;
+        const gp = (p.stats && p.stats.gp) || 0;
+        // Only let real evidence move the needle, and cap the swing so a
+        // hot fortnight doesn't turn a walk-on into a starter.
+        const evidence = Math.min(1, gp / 8);
+        p.formAdjust = Math.max(-6, Math.min(6, bpm * 0.85)) * evidence;
+        p.baseRating = p.baseRating !== undefined ? p.baseRating : parseFloat(p.rating);
+        p.rating = p.baseRating + p.formAdjust;
+      });
+      // Form decides MINUTES only. The true rating is restored before
+      // expectations are rebuilt, because letting a form-boosted rating
+      // also drive usage creates a feedback loop: a hot player earns more
+      // usage, scores more, and is boosted again on the next review.
+      this.buildRotation(team);
+      (team.roster || []).forEach(p => {
+        if (p.baseRating !== undefined) p.rating = p.baseRating;
+      });
+      // Recompute the usage reference from true ratings now that form
+      // adjustments have been unwound.
+      const rot = (team.roster || [])
+        .filter(p => (p.allocatedMpg || 0) > 0)
+        .map(p => parseFloat(p.rating))
+        .sort((x, y) => y - x)
+        .slice(0, 5);
+      if (rot.length) team.usageReference = rot.reduce((x, y) => x + y, 0) / rot.length;
+
+      (team.roster || []).forEach(p => {
+        p.expectedStats = this.buildBaseStatExpectations(p, p.allocatedMpg || 0, team);
+      });
+    });
+  },
+
   playGame(home, away, scheduleEntry, gamePhaseLabel) {
-    const result = GameCore.simulateSingleGame(home, away);
+    const homeAvail = this.availableRosterFor(home);
+    const awayAvail = this.availableRosterFor(away);
+    const homeFull = home.simData.rosterRef;
+    const awayFull = away.simData.rosterRef;
+    home.simData.rosterRef = homeAvail.available;
+    away.simData.rosterRef = awayAvail.available;
+
+    const result = GameCore.simulateSingleGame(home, away, {
+      homeMinutesMultiplier: homeAvail.multiplier,
+      awayMinutesMultiplier: awayAvail.multiplier
+    });
+
+    home.simData.rosterRef = homeFull;
+    away.simData.rosterRef = awayFull;
 
     const homeWin = result.homeScore > result.awayScore;
 
