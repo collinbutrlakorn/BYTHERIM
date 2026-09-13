@@ -43,7 +43,11 @@ const POSITION_BUILD = {
   SG: { avgHt: 76, loHt: 72, hiHt: 79, avgWt: 192, loWt: 160, hiWt: 220 },
   SF: { avgHt: 79, loHt: 76, hiHt: 81, avgWt: 210, loWt: 170, hiWt: 250 },
   PF: { avgHt: 80, loHt: 78, hiHt: 83, avgWt: 225, loWt: 190, hiWt: 250 },
-  C:  { avgHt: 82, loHt: 80, hiHt: 86, avgWt: 240, loWt: 195, hiWt: 260 }
+  C:  { avgHt: 82, loHt: 80, hiHt: 86, avgWt: 240, loWt: 195, hiWt: 260 },
+  // The roster sheet also uses 'W' (wing) and combo-big labels.
+  W:  { avgHt: 78, loHt: 75, hiHt: 81, avgWt: 200, loWt: 170, hiWt: 230 },
+  'F/C': { avgHt: 81, loHt: 79, hiHt: 85, avgWt: 235, loWt: 195, hiWt: 258 },
+  'G/F': { avgHt: 78, loHt: 75, hiHt: 80, avgWt: 205, loWt: 175, hiWt: 235 }
 };
 
 // A generated (unranked) freshman shouldn't out-rate a real top-100
