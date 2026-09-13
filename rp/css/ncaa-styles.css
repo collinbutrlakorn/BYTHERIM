@@ -2153,3 +2153,60 @@ body.offseason-open {
 }
 
 .coach-style { color: var(--text-muted); font-size: 0.86rem; line-height: 1.45; margin: 0; }
+
+/* Universal back control */
+.nav-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  color: var(--text-muted);
+  font-family: 'Asap Condensed', sans-serif;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.85rem;
+  cursor: pointer;
+  max-width: 190px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.nav-back-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+/* Dashboard leaders: logo instead of school text */
+.leader-ident { display: flex; align-items: center; gap: 0.4rem; min-width: 0; }
+.leader-ident .xs-logo { cursor: pointer; }
+
+/* Top performances: stat line beside the name, at readable size */
+.perf-statline {
+  display: flex;
+  gap: 0.9rem;
+  align-items: baseline;
+  flex-shrink: 0;
+  margin-right: 0.9rem;
+}
+
+.perf-stat {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.perf-stat b {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-right: 0.18rem;
+}
+
+@media (max-width: 720px) {
+  .perf-statline { gap: 0.55rem; margin-right: 0.4rem; }
+  .perf-stat b { font-size: 1rem; }
+  .nav-back-btn { max-width: 110px; }
+}
