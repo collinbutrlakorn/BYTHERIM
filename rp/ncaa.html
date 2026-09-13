@@ -79,6 +79,9 @@
       <button class="drawer-toggle" id="drawerToggle" aria-label="Open menu">
         <span></span><span></span><span></span>
       </button>
+      <button class="nav-back-btn" id="navBackBtn" style="display:none;" onclick="SimEngine.navigateBack()">
+        &larr; <span id="navBackLabel">Back</span>
+      </button>
       <div class="toolbar-meta">
         <span class="toolbar-phase" id="toolbarPhase">Preseason</span>
         <span class="toolbar-year" id="toolbarYear">2028-29</span>
@@ -199,6 +202,16 @@
           <h3>League Leaders</h3>
           <div class="filters-container">
             <select id="confFilter" onchange="SimEngine.setConfFilter(this.value)" class="filter-select"><option value="ALL">All NCAA</option></select>
+            <select id="statsPosFilter" onchange="SimEngine.setStatsPosFilter(this.value)" class="filter-select">
+              <option value="ALL">All Positions</option>
+              <option value="G">Guards</option>
+              <option value="F">Forwards</option>
+              <option value="PG">PG</option>
+              <option value="SG">SG</option>
+              <option value="SF">SF</option>
+              <option value="PF">PF</option>
+              <option value="C">C</option>
+            </select>
             <select id="scopeFilter" onchange="SimEngine.setStatScope(this.value)" class="filter-select">
               <option value="full">Full Season Stats</option>
               <option value="conf">Conference Games Only</option>
