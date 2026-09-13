@@ -12,9 +12,12 @@ function getZeroBox() {
 
 // Same shape as the existing engine's generateSingleGameBox — a player's
 // raw performance for one game, before we reconcile it to the real score.
-function generateRawPlayerBox(player) {
+function generateRawPlayerBox(player, minutesMultiplier = 1) {
   const exp = player.expectedStats || {};
-  const gameMin = Math.round((parseFloat(exp.mpg) || 0) * (0.8 + Math.random() * 0.4));
+  // minutesMultiplier lets the caller redistribute minutes for a single
+  // game — when a rotation player is unavailable, everyone else absorbs
+  // his minutes rather than the team simply playing short.
+  const gameMin = Math.round((parseFloat(exp.mpg) || 0) * minutesMultiplier * (0.8 + Math.random() * 0.4));
   if (gameMin <= 0) return getZeroBox();
 
   const variance = () => 0.5 + Math.random() * 1.0;
@@ -193,7 +196,7 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
   // low-major one, so no offense could ever separate itself — the best
   // teams in the country topped out around 78 a night.
   const avgOvr = (homeOvr + awayOvr) / 2;
-  const qualityAdj = (avgOvr - 75) * 1.15;
+  const qualityAdj = (avgOvr - 75) * 0.92;
 
   // Coaching tempo: both benches influence how many possessions a game
   // gets, so an up-tempo team playing a grind-it-out team lands in between
@@ -223,8 +226,10 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
   const homeRoster = homeTeam.simData.rosterRef || homeTeam.roster;
   const awayRoster = awayTeam.simData.rosterRef || awayTeam.roster;
 
-  const homeRaw = homeRoster.map(p => ({ player: p, box: generateRawPlayerBox(p) }));
-  const awayRaw = awayRoster.map(p => ({ player: p, box: generateRawPlayerBox(p) }));
+  const homeBoost = opts.homeMinutesMultiplier || 1;
+  const awayBoost = opts.awayMinutesMultiplier || 1;
+  const homeRaw = homeRoster.map(p => ({ player: p, box: generateRawPlayerBox(p, homeBoost) }));
+  const awayRaw = awayRoster.map(p => ({ player: p, box: generateRawPlayerBox(p, awayBoost) }));
 
   const homeBoxes = capTeamAssists(reconcileTeamScore(homeRaw.map(x => x.box), homeScore));
   const awayBoxes = capTeamAssists(reconcileTeamScore(awayRaw.map(x => x.box), awayScore));
