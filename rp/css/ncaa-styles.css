@@ -2016,3 +2016,100 @@ input[type="file"] {
 .bio-label:empty { min-width: 96px; }
 
 .bio-value { color: var(--text-main); }
+
+/* ============================================================
+   Full-page player profile
+   ============================================================ */
+
+.player-page-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-color);
+  z-index: 320;
+  overflow-y: auto;
+  padding: 2rem 4%;
+}
+
+.player-page-shell {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.player-page-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.25rem;
+}
+
+.player-page-logo { width: 92px; height: 92px; object-fit: contain; flex-shrink: 0; }
+
+.player-page-ident { min-width: 0; margin-right: auto; }
+
+.player-page-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 2.1rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-main);
+  margin: 0 0 0.5rem;
+  line-height: 1;
+}
+
+/* Two columns of labelled bio rows so the block reads as a reference
+   card rather than a single stacked run. */
+.player-bio-block {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 0.1rem 1.5rem;
+  max-width: 720px;
+}
+
+.player-accolade-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.75rem 1rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  font-size: 0.9rem;
+}
+
+/* Career tables must fill the width — previously the stat tables were
+   sized to their content and clustered at the left edge of the panel. */
+.player-career-table,
+.profile-stat-table {
+  width: 100%;
+  min-width: 100%;
+  table-layout: auto;
+}
+
+.player-career-table th,
+.player-career-table td,
+.profile-stat-table th,
+.profile-stat-table td {
+  text-align: center;
+  padding: 0.5rem 0.4rem;
+  white-space: nowrap;
+}
+
+.player-career-table td:nth-child(2),
+.player-career-table th:nth-child(2) {
+  text-align: left;
+}
+
+.rank-col-head { width: 46px; }
+
+body.player-page-open,
+body.offseason-open {
+  overflow: hidden;
+}
+
+@media (max-width: 720px) {
+  .player-page-name { font-size: 1.5rem; }
+  .player-page-logo { width: 64px; height: 64px; }
+}

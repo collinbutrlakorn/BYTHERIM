@@ -46,6 +46,11 @@ const POSITION_BUILD = {
   C:  { avgHt: 82, loHt: 80, hiHt: 86, avgWt: 240, loWt: 195, hiWt: 260 }
 };
 
+// A generated (unranked) freshman shouldn't out-rate a real top-100
+// recruit. Ranked prospects from the recruiting database routinely sit in
+// the high 80s and 90s, so anonymous filler freshmen are held below this.
+const GENERATED_FRESHMAN_CEILING = 79;
+
 const OUTLIER_CHANCE = 0.04;   // how often a player breaks positional norms
 
 // Roughly normal draw via the average of two uniforms, then clamped.
@@ -156,8 +161,19 @@ function generatePlayerName(usedNames, rng = Math.random) {
 // a rating sampled around the team's baseline overall.
 function generateFillerPlayer(school, conference, position, teamBaseline, rosterIndex, usedNames, rng = Math.random) {
   const classYears = ['FR', 'SO', 'JR', 'SR'];
+  const cls = classYears[Math.floor(rng() * classYears.length)];
   const variance = (rng() - 0.5) * 16; // player rating spread around team baseline
-  const rating = Math.max(45, Math.min(94, Math.round(teamBaseline + variance - rosterIndex * 0.8)));
+  let rating = teamBaseline + variance - rosterIndex * 0.8;
+
+  // Filler freshmen are the anonymous end of a recruiting class, so they
+  // should sit below the genuinely ranked prospects in the real database.
+  // A small share are "surprise" freshmen who buck that.
+  if (cls === 'FR') {
+    const surprise = rng() < 0.04;
+    rating -= surprise ? 1 : (4 + rng() * 5);
+    if (!surprise) rating = Math.min(rating, GENERATED_FRESHMAN_CEILING);
+  }
+  rating = Math.max(45, Math.min(94, Math.round(rating)));
   const build = generateBuild(position, rng);
   return {
     id: `${school}_gen_${rosterIndex}_${Math.random().toString(36).slice(2, 7)}`,
@@ -165,7 +181,7 @@ function generateFillerPlayer(school, conference, position, teamBaseline, roster
     school, conference,
     school_logo: '',
     pos: position,
-    class: classYears[Math.floor(rng() * classYears.length)],
+    class: cls,
     ht: build.ht,
     wt: build.wt,
     hometown: pick(HOMETOWNS, rng),

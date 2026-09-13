@@ -217,6 +217,7 @@
             </tbody>
           </table>
         </div>
+        <button class="sim-btn sim-btn-secondary mt-1" id="statsShowMore" style="display:none;" onclick="SimEngine.toggleStatsLimit()">Show Top 100</button>
       </div>
 
       <div id="standingsTab" class="tab-content">
@@ -323,6 +324,10 @@
 
       <div class="offseason-panel" id="offseasonBody"></div>
     </div>
+  </div>
+
+  <div id="playerPage" class="player-page-overlay" style="display:none;">
+    <div class="player-page-shell" id="playerPageBody"></div>
   </div>
 
   <div id="teamModal" class="modal-overlay">

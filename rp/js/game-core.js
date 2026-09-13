@@ -172,7 +172,7 @@ function capTeamAssists(boxes, maxShare = 0.62) {
 // per-player box score for everyone who played, reconciled so each
 // team's total points exactly equals its final score.
 function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
-  const { homeCourtEdge = 3.0, marginScale = 0.85, marginVarianceStd = 11, paceBase = 144, paceVarianceStd = 9 } = opts;
+  const { homeCourtEdge = 3.0, marginScale = 0.85, marginVarianceStd = 11, paceBase = 147, paceVarianceStd = 9 } = opts;
 
   const homeOvr = homeTeam.simData.teamOvr;
   const awayOvr = awayTeam.simData.teamOvr;
@@ -187,7 +187,14 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
 
   const expectedMargin = (homeOvr - awayOvr) * marginScale + homeCourtEdge;
   const actualMargin = expectedMargin + gaussian() * marginVarianceStd;
-  const totalPoints = Math.max(90, paceBase + gaussian() * paceVarianceStd);
+
+  // Total points scale with the quality of the teams on the floor. Without
+  // this the combined total was the same in a top-10 matchup as in a
+  // low-major one, so no offense could ever separate itself — the best
+  // teams in the country topped out around 78 a night.
+  const avgOvr = (homeOvr + awayOvr) / 2;
+  const qualityAdj = (avgOvr - 75) * 1.15;
+  const totalPoints = Math.max(90, paceBase + qualityAdj + gaussian() * paceVarianceStd);
 
   let homeScore = Math.round((totalPoints + actualMargin) / 2);
   let awayScore = Math.round((totalPoints - actualMargin) / 2);

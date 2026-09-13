@@ -42,6 +42,7 @@ window.SimEngine = {
     teamStatSortCol: 'ppg',
     teamStatSortDir: 'desc',
     teamStatsConfFilter: 'ALL',
+    statsLimit: 25,
     teamStatsView: 'box',
     recruitsStatusFilter: 'ALL',
     recruitsConfFilter: 'ALL'
@@ -393,7 +394,7 @@ window.SimEngine = {
     // Only the current and next recruiting class are relevant. Classes two
     // or more years out (2030+ during the 2028-29 season) are dropped
     // entirely so they can't leak onto rosters or into the player pool.
-    const maxClassYear = this.state.year + 2;
+    const maxClassYear = this.state.year + 1;
     this.state.recruits = rawRecruits
       .filter(r => this.rowHasPlayerName(r))
       .map(r => this.normalizePlayerObj(r, true))
@@ -568,6 +569,73 @@ window.SimEngine = {
     return false;
   },
 
+  // Builds a playstyle profile for a recruit from whatever their scouting
+  // record offers: high-school / AAU box score columns when the sheet has
+  // them, plus the curated strengths and weaknesses tags which are always
+  // present. Returned multipliers nudge that player's college expectations
+  // away from the generic positional baseline, so two 90-rated wings don't
+  // simulate identically.
+  buildPlaystyleProfile(raw, getVal) {
+    const prof = { score: 1, reb: 1, ast: 1, stl: 1, blk: 1, threePar: 1, threePct: 1, ftPct: 1, usage: 1 };
+    let found = false;
+
+    // Try the common shapes a HS/AAU stat column might take.
+    const statVal = (names) => {
+      for (const base of names) {
+        for (const pre of ['hs', 'aau', '']) {
+          const v = getVal([pre + base], '');
+          if (v !== '' && !isNaN(parseFloat(v))) return parseFloat(v);
+        }
+      }
+      return null;
+    };
+
+    const ppg = statVal(['ppg', 'points', 'pts']);
+    const rpg = statVal(['rpg', 'rebounds', 'reb', 'trb']);
+    const apg = statVal(['apg', 'assists', 'ast']);
+    const spg = statVal(['spg', 'steals', 'stl']);
+    const bpg = statVal(['bpg', 'blocks', 'blk']);
+    const tpa = statVal(['3pa', 'threepa', 'threepointattempts']);
+    const tpp = statVal(['3ppct', 'threeppct', '3p', 'threepointpct']);
+    const ftp = statVal(['ftpct', 'ft', 'freethrowpct']);
+
+    // Ratios against a typical high-major HS line, clamped so one strange
+    // number can't distort a whole career.
+    const ratio = (v, typical) => v === null ? null : Math.max(0.6, Math.min(1.6, v / typical));
+    const apply = (key, v, typical) => {
+      const r = ratio(v, typical);
+      if (r !== null) { prof[key] = r; found = true; }
+    };
+    apply('score', ppg, 18);
+    apply('reb', rpg, 7);
+    apply('ast', apg, 3.5);
+    apply('stl', spg, 2);
+    apply('blk', bpg, 1.2);
+    apply('threePar', tpa, 5);
+    if (tpp !== null) { prof.threePct = Math.max(0.75, Math.min(1.3, (tpp > 1 ? tpp / 100 : tpp) / 0.34)); found = true; }
+    if (ftp !== null) { prof.ftPct = Math.max(0.8, Math.min(1.2, (ftp > 1 ? ftp / 100 : ftp) / 0.72)); found = true; }
+
+    // Scouting tags are always available even when box scores aren't.
+    const tags = (getVal(['strengths'], '') + ' ' + getVal(['scouting'], '')).toLowerCase();
+    const weak = getVal(['weaknesses'], '').toLowerCase();
+    const has = (txt, ...words) => words.some(w => txt.includes(w));
+
+    if (has(tags, 'shoot', 'shooter', 'stroke', 'range', 'spacing')) { prof.threePar *= 1.25; prof.threePct *= 1.08; found = true; }
+    if (has(tags, 'playmak', 'passer', 'passing', 'vision', 'facilitat')) { prof.ast *= 1.35; found = true; }
+    if (has(tags, 'rebound', 'glass', 'motor')) { prof.reb *= 1.20; found = true; }
+    if (has(tags, 'rim protect', 'shot block', 'block')) { prof.blk *= 1.40; found = true; }
+    if (has(tags, 'defend', 'defense', 'lockdown', 'perimeter d')) { prof.stl *= 1.25; found = true; }
+    if (has(tags, 'scorer', 'bucket', 'three level', 'shot creat', 'iso')) { prof.score *= 1.15; prof.usage *= 1.12; found = true; }
+    if (has(tags, 'athlet', 'explosive', 'finisher', 'rim')) { prof.score *= 1.06; found = true; }
+
+    if (has(weak, 'shoot', 'jumper', 'range')) { prof.threePct *= 0.85; prof.threePar *= 0.8; found = true; }
+    if (has(weak, 'playmak', 'passing', 'tunnel')) { prof.ast *= 0.75; found = true; }
+    if (has(weak, 'free throw')) { prof.ftPct *= 0.9; found = true; }
+    if (has(weak, 'strength', 'frame', 'thin')) { prof.reb *= 0.88; found = true; }
+
+    return found ? prof : null;
+  },
+
   normalizePlayerObj(raw, isRecruit = false) {
     const getVal = (keys, fallback = '') => {
       for (let k of keys) if (raw[k] !== undefined && raw[k] !== '') return raw[k];
@@ -604,6 +672,7 @@ window.SimEngine = {
       // aren't simulated yet, so this is normally just the current school —
       // but the field exists so a transfer only has to append to it.
       collegeHistory: [school],
+      playstyle: this.buildPlaystyleProfile(raw, getVal),
       rating: rating,
       isRecruit: isRecruit,
       recClassYear: this.parseClassYear(getVal(['classyear', 'recclass'], ''), this.state.year),
@@ -626,7 +695,8 @@ window.SimEngine = {
     });
 
     this.state.recruits.forEach(rec => {
-      const arrived = !rec.recClassYear || rec.recClassYear <= this.currentSeasonSheetYear();
+      // Class of 2028 has enrolled by the 2028-29 season; class of 2029 has not.
+      const arrived = !rec.recClassYear || rec.recClassYear <= this.state.year;
       if (arrived && rec.school && rec.school !== 'Uncommitted' && rec.school !== 'Free Agent') {
         const team = this.state.teams.find(t => t.school.toLowerCase() === rec.school.toLowerCase());
         if (team && !team.roster.some(p => p.name === rec.name)) {
@@ -1120,13 +1190,13 @@ window.SimEngine = {
     // every forward rebound like a centre and every guard pass like a point
     // guard, which is what produced the flood of 10+ rpg / sub-2 apg lines.
     const POS = {
-      PG: { reb: 3.5, ast: 4.9, stl: 1.32, blk: 0.19 },
-      SG: { reb: 4.0, ast: 2.55, stl: 1.15, blk: 0.33 },
-      SF: { reb: 5.5, ast: 2.0, stl: 1.06, blk: 0.64 },
-      PF: { reb: 7.8, ast: 1.4, stl: 0.85, blk: 1.29 },
-      C:  { reb: 9.6, ast: 1.05, stl: 0.68, blk: 2.05 },
-      G:  { reb: 3.7, ast: 3.7, stl: 1.23, blk: 0.26 },
-      F:  { reb: 6.7, ast: 1.67, stl: 0.94, blk: 0.94 }
+      PG: { reb: 3.6, ast: 4.40, stl: 1.34, blk: 0.17 },
+      SG: { reb: 4.1, ast: 2.30, stl: 1.17, blk: 0.30 },
+      SF: { reb: 5.65, ast: 1.80, stl: 1.08, blk: 0.59 },
+      PF: { reb: 8.0, ast: 1.26, stl: 0.86, blk: 1.19 },
+      C:  { reb: 9.85, ast: 0.95, stl: 0.69, blk: 1.89 },
+      G:  { reb: 3.7, ast: 3.33, stl: 1.25, blk: 0.24 },
+      F:  { reb: 6.7, ast: 1.50, stl: 0.96, blk: 0.87 }
     };
     const base = POS[pos] || POS[isBig ? 'PF' : 'SF'];
 
@@ -1135,24 +1205,49 @@ window.SimEngine = {
     // Scoring keys off talent above a replacement baseline rather than raw
     // rating, so an average starter lands in single digits and only genuine
     // stars push past 18 — instead of nearly everyone clearing 20.
-    let ppg = Math.max(0.4, (Math.max(10, r - 48) * 0.30) * usageScale);
+    // A power curve rather than a straight line: talent still separates
+    // scorers, but the very top is compressed so 20-point seasons stay in
+    // the 25-40 range nationally instead of running to fifty-plus.
+    // Linear in talent but with a floor term, which flattens the ratio
+    // between a star and an average starter enough to keep 20-point
+    // seasons in the 25-40 range nationally. A pure power curve was tried
+    // and rejected: rescaling those raw lines to the real team score
+    // introduced a rounding bias that wrecked free-throw percentage.
+    let ppg = Math.max(0.4, (2.2 + Math.max(4, r - 38) * 0.215) * usageScale);
 
     let rpg = Math.max(0.2, base.reb * usageScale);
     let apg = Math.max(0.1, base.ast * usageScale);
     let stl = Math.max(0.1, base.stl * usageScale);
     let blk = Math.max(0.05, base.blk * usageScale);
-    let tov = Math.max(0.2, (apg * 0.4 + 0.42));
-    let pf = Math.min(3.8, Math.max(0.8, (mpg / 8)));
+    let tov = Math.max(0.2, (apg * 0.4 + 0.58));
+    let pf = Math.min(3.6, Math.max(0.6, (mpg / 10.8)));
 
     let bpm = ((r - 76) * 0.45);
     let obpm = bpm * (isBig ? 0.45 : 0.60);
     let dbpm = bpm - obpm;
 
-    let ftPct = Math.min(0.92, Math.max(0.48, (isBig ? 0.64 : 0.78)));
-    let fta = Math.max(0.2, (ppg * (isBig ? 0.29 : 0.18)));
-    let threePar = isBig ? 0.18 : 0.55;
-    let threePPct = Math.min(0.46, Math.max(0.20, (isBig ? 0.295 : 0.345)));
-    let twoPPct = Math.min(0.68, Math.max(0.38, (isBig ? 0.545 : 0.445)));
+    let ftPct = Math.min(0.92, Math.max(0.48,
+      (isBig ? 0.705 : 0.825) * (player.playstyle ? player.playstyle.ftPct : 1)));
+    let fta = Math.max(0.2, (ppg * (isBig ? 0.282 : 0.178)));
+    let threePar = isBig ? 0.20 : 0.572;
+    if (player.playstyle) {
+      threePar = Math.max(0.05, Math.min(0.85, threePar * player.playstyle.threePar));
+    }
+    let threePPct = Math.min(0.46, Math.max(0.20,
+      (isBig ? 0.315 : 0.358) * (player.playstyle ? player.playstyle.threePct : 1)));
+    let twoPPct = Math.min(0.68, Math.max(0.38, (isBig ? 0.568 : 0.468)));
+
+    // Recruits carry a playstyle derived from their HS/AAU profile, so an
+    // imported prospect simulates like the player he was scouted as rather
+    // than like a generic example of his position.
+    const ps = player.playstyle;
+    if (ps) {
+      ppg *= ps.score;
+      rpg *= ps.reb;
+      apg *= ps.ast;
+      stl *= ps.stl;
+      blk *= ps.blk;
+    }
 
     let ortg = 95 + (obpm * 3.2);
     let drtg = 105 - (dbpm * 3.2);
@@ -1525,6 +1620,18 @@ window.SimEngine = {
   archiveCompletedSeason() {
     const year = this.state.year;
 
+    // Per-player season archive, so a profile can show a career table
+    // rather than only the current year.
+    this.state.activePlayers.forEach(p => {
+      if (!p.seasonHistory) p.seasonHistory = [];
+      if (p.stats && p.stats.gp > 0 && !p.seasonHistory.some(h => h.year === year)) {
+        p.seasonHistory.push({
+          year, school: p.school, class: p.class, conference: p.conference,
+          stats: { ...p.stats }
+        });
+      }
+    });
+
     this.state.teams.forEach(team => {
       if (!team.history) team.history = [];
       team.history.push({
@@ -1600,16 +1707,23 @@ window.SimEngine = {
         let reason = '';
 
         // Producing well against a weak schedule — a classic "level up" move.
-        if (bpm > 3 && mpg > 20 && sosPercentile < 0.45) {
-          chance = 0.16 + (0.45 - sosPercentile) * 0.35;
+        if (bpm > 1.5 && mpg > 15 && sosPercentile < 0.55) {
+          chance = 0.30 + (0.55 - sosPercentile) * 0.45;
           reason = 'Seeking a higher level';
         }
 
         // Highly-rated player who isn't playing or isn't producing.
-        const highPedigree = (p.rsci && parseFloat(p.rsci) <= 100) || rating >= 84;
-        if (highPedigree && (mpg < 15 || bpm < -1)) {
-          chance = Math.max(chance, 0.22);
-          reason = mpg < 15 ? 'Looking for playing time' : 'Underperformed expectations';
+        const highPedigree = (p.rsci && parseFloat(p.rsci) <= 150) || rating >= 82;
+        if (highPedigree && (mpg < 18 || bpm < 0)) {
+          chance = Math.max(chance, 0.40);
+          reason = mpg < 18 ? 'Looking for playing time' : 'Underperformed expectations';
+        }
+
+        // Buried on the bench anywhere — the single biggest driver of real
+        // portal volume, which now runs to well over a thousand players.
+        if (mpg < 10) {
+          chance = Math.max(chance, 0.26);
+          reason = reason || 'Buried in the rotation';
         }
 
         if (chance > 0 && Math.random() < chance) {
@@ -1921,7 +2035,7 @@ window.SimEngine = {
     ];
 
     let currentHeaders = this.state.statView === 'box' ? boxHeaders : advHeaders;
-    let theadHtml = `<tr>`;
+    let theadHtml = `<tr><th class="rank-col-head">#</th>`;
     currentHeaders.forEach(h => {
       let isSort = this.state.sortCol === h.id;
       let arrow = isSort ? (this.state.sortDir === 'desc' ? ' &darr;' : ' &uarr;') : '';
@@ -1935,8 +2049,14 @@ window.SimEngine = {
     if (pool.length === 0) {
       tbodyHtml = `<tr><td colspan="25" class="empty-table-msg">No players found for conference: ${this.state.confFilter}</td></tr>`;
     } else {
-      pool.forEach((p) => {
+      // Show a readable slice rather than every player in the country. The
+      // rank column reflects the current sort, so flipping to ascending
+      // renumbers from the bottom of the league up.
+      const limit = this.state.statsLimit || 25;
+      const shown = pool.slice(0, limit);
+      shown.forEach((p, idx) => {
         tbodyHtml += `<tr>`;
+        tbodyHtml += `<td class="rank-cell">${idx + 1}</td>`;
         const safeName = p.name.replace(/'/g, "\\'");
         const safeSchool = p.school.replace(/'/g, "\\'");
         currentHeaders.forEach(h => {
@@ -1948,8 +2068,26 @@ window.SimEngine = {
         tbodyHtml += `</tr>`;
       });
     }
-    
+
     statsBody.innerHTML = tbodyHtml;
+
+    const moreBtn = document.getElementById('statsShowMore');
+    if (moreBtn) {
+      const limit = this.state.statsLimit || 25;
+      if (pool.length <= 25) {
+        moreBtn.style.display = 'none';
+      } else {
+        moreBtn.style.display = 'inline-flex';
+        moreBtn.innerText = limit === 25
+          ? `Show Top 100`
+          : `Show Top 25`;
+      }
+    }
+  },
+
+  toggleStatsLimit() {
+    this.state.statsLimit = (this.state.statsLimit || 25) === 25 ? 100 : 25;
+    this.sortAndRenderStatsTable();
   },
 
   // Returns the current Top 25 regardless of phase: the in-season AP poll
@@ -2687,20 +2825,74 @@ window.SimEngine = {
     document.getElementById('teamModal').classList.remove('active');
   },
 
+  // Opens a full-page player profile rather than a floating card. The
+  // profile takes over the content area the way the offseason screen does,
+  // so there's room to lay stats out across the full width.
   openPlayerModal(playerName) {
-    let player = this.state.activePlayers.find(p => p.name === playerName)
+    this.openPlayerPage(playerName);
+  },
+
+  openPlayerPage(playerName) {
+    const player = this.state.activePlayers.find(p => p.name === playerName)
       || (this.state.recruits || []).find(p => p.name === playerName);
     if (!player) return;
 
+    const overlay = document.getElementById('playerPage');
+    const body = document.getElementById('playerPageBody');
+    if (!overlay || !body) return;
+
+    body.innerHTML = this.renderPlayerPage(player);
+    overlay.style.display = 'block';
+    document.body.classList.add('player-page-open');
+    if (typeof window.scrollTo === 'function') {
+      try { window.scrollTo(0, 0); } catch (e) { /* not available in every host */ }
+    }
+  },
+
+  closePlayerPage() {
+    const overlay = document.getElementById('playerPage');
+    if (overlay) overlay.style.display = 'none';
+    document.body.classList.remove('player-page-open');
+  },
+
+  // Shared full-width stat table used for both the current season and each
+  // archived season, so a career reads consistently top to bottom.
+  playerStatTable(rowsData, mode) {
+    const cols = mode === 'adv'
+      ? [['bpm','BPM'],['obpm','OBPM'],['dbpm','DBPM'],['tsPct','TS%'],['eFgPct','eFG%'],['rTsPct','rTS%'],
+         ['orebPct','OREB%'],['drebPct','DREB%'],['trbPct','TRB%'],['astPct','AST%'],['tovPct','TOV%'],
+         ['blkPct','BLK%'],['usg','USG%'],['ftr','FTr'],['threePar','3PAr'],['ortg','ORtg'],['drtg','DRtg'],['netRtg','Net']]
+      : mode === 'p40'
+      ? [['p40pts','PTS'],['p40oreb','OREB'],['p40dreb','DREB'],['p40reb','REB'],['p40ast','AST'],
+         ['p40stl','STL'],['p40blk','BLK'],['p40tov','TOV'],['p40pf','PF'],['p40fga','FGA'],
+         ['p40threePa','3PA'],['p40fta','FTA']]
+      : [['gp','GP'],['gs','GS'],['mpg','MPG'],['ppg','PPG'],['oreb','OREB'],['dreb','DREB'],['rpg','RPG'],
+         ['apg','APG'],['stl','SPG'],['blk','BPG'],['tov','TOV'],['pf','PF'],['fgm','FGM'],['fga','FGA'],
+         ['fgPct','FG%'],['threePm','3PM'],['threePa','3PA'],['threePPct','3P%'],['ftm','FTM'],['fta','FTA'],['ftPct','FT%']];
+
+    const head = `<tr><th>Season</th><th>School</th><th>Class</th>${cols.map(c => `<th>${c[1]}</th>`).join('')}</tr>`;
+    const body = rowsData.map(r => {
+      const st = r.stats || {};
+      const safeSchool = String(r.school || '').replace(/'/g, "\\'");
+      return `<tr>
+        <td class="bold-text">${r.year}-${(r.year + 1).toString().slice(2)}</td>
+        <td><span class="clickable-school" onclick="SimEngine.goToTeamFromPlayer('${safeSchool}')">${r.school || '—'}</span></td>
+        <td class="sub-text">${r.class || '—'}</td>
+        ${cols.map(c => `<td>${st[c[0]] !== undefined ? st[c[0]] : '—'}</td>`).join('')}
+      </tr>`;
+    }).join('');
+
+    return `<div class="table-scroll"><table class="data-table player-career-table">
+      <thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+  },
+
+  goToTeamFromPlayer(school) {
+    this.closePlayerPage();
+    this.goToTeamPage(school);
+  },
+
+  renderPlayerPage(player) {
     const st = player.stats || this.getZeroStats();
-
-    if (!document.getElementById('modalPlayerLogo')) return;
-    document.getElementById('modalPlayerLogo').src = this.getTeamLogo(player.school);
-    document.getElementById('modalPlayerName').innerText =
-      (player.jersey ? `#${player.jersey} ` : '') + player.name;
-
-    // Laid out as labelled lines (position, measurements, school, hometown)
-    // the way a reference site does it, rather than one run-on string.
     const posNames = { PG: 'Point Guard', SG: 'Shooting Guard', SF: 'Small Forward',
                        PF: 'Power Forward', C: 'Center', G: 'Guard', F: 'Forward', 'F/C': 'Forward/Center' };
     const classNames = { FR: 'Freshman', SO: 'Sophomore', JR: 'Junior', SR: 'Senior', GR: 'Graduate Student' };
@@ -2708,126 +2900,94 @@ window.SimEngine = {
     const bioRow = (label, value) =>
       value ? `<div class="bio-row"><span class="bio-label">${label}</span><span class="bio-value">${value}</span></div>` : '';
 
-    // Show metric alongside imperial, as reference sites do.
-    let measurements = '';
-    const inches = (typeof DraftCore !== 'undefined') ? DraftCore.parseHeightInches(player.ht) : null;
-    if (inches) {
-      const cm = Math.round(inches * 2.54);
-      const lb = parseFloat(player.wt);
-      const kg = lb ? Math.round(lb * 0.4536) : null;
-      measurements = `${Math.floor(inches / 12)}-${inches % 12}`
-        + (lb ? `, ${lb}lb` : '')
-        + ` (${cm}cm${kg ? `, ${kg}kg` : ''})`;
-    } else if (player.ht) {
-      measurements = player.ht + (player.wt ? `, ${player.wt}lb` : '');
-    }
-
-    const bioEl = document.getElementById('modalPlayerBio');
-    if (bioEl) {
-      bioEl.innerHTML =
-          bioRow('Position', posNames[player.pos] || player.pos)
-        + bioRow('Class', classNames[player.class] || player.class)
-        + bioRow('', measurements)
-        + bioRow('School', player.school)
-        + bioRow('Hometown', player.hometown && player.hometown !== 'N/A' ? player.hometown : '')
-        + bioRow('High School', player.hs);
-    }
-
     const colleges = (player.collegeHistory && player.collegeHistory.length)
-      ? player.collegeHistory : [player.school];
-    const collegesEl = document.getElementById('modalPlayerColleges');
-    if (collegesEl) {
-      collegesEl.innerHTML = colleges.length > 1
-        ? `<div class="bio-row"><span class="bio-label">Colleges</span><span class="bio-value">${colleges.join(' → ')}</span></div>`
-        : '';
-    }
+      ? player.collegeHistory : (player.school ? [player.school] : []);
+    const collegeLinks = colleges
+      .map(c => `<span class="clickable-school" onclick="SimEngine.goToTeamFromPlayer('${c.replace(/'/g, "\\'")}')">${c}</span>`)
+      .join(' → ');
 
     const accolades = player.accolades || [];
     const preseason = accolades.filter(a => /preseason/i.test(a));
     const postseason = accolades.filter(a => !/preseason/i.test(a));
-    const accEl = document.getElementById('modalPlayerAccolades');
-    if (accEl) {
-      let accHtml = '';
-      if (preseason.length) accHtml += `<div><span class="accolade-tag preseason">Preseason</span> ${preseason.join(' • ')}</div>`;
-      if (postseason.length) accHtml += `<div><span class="accolade-tag postseason">Honors</span> ${postseason.join(' • ')}</div>`;
-      accEl.innerHTML = accHtml || '<span class="sub-text-sm">No awards yet.</span>';
+
+    // Career table: every archived season plus the one in progress.
+    const seasons = [...(player.seasonHistory || [])];
+    if (st.gp > 0 && !seasons.some(h => h.year === this.state.year)) {
+      seasons.push({ year: this.state.year, school: player.school, class: player.class, stats: st });
     }
+    seasons.sort((a, b) => a.year - b.year);
 
-    document.getElementById('modalPlayerPPG').innerText = st.ppg;
-    document.getElementById('modalPlayerRPG').innerText = st.rpg;
-    document.getElementById('modalPlayerAPG').innerText = st.apg;
-    document.getElementById('modalPlayerFG').innerText = st.fgPct;
+    const careerBlock = seasons.length === 0
+      ? `<p class="sub-text">No games played yet this season.</p>`
+      : `<h3 class="uppercase-title mt-2">Box Score</h3>${this.playerStatTable(seasons, 'box')}
+         <h3 class="uppercase-title mt-2">Advanced</h3>${this.playerStatTable(seasons, 'adv')}
+         <h3 class="uppercase-title mt-2">Per 40 Minutes</h3>${this.playerStatTable(seasons, 'p40')}`;
 
-    // Rendered as tables so a profile reads the same way as the league
-    // leaderboards, rather than as a wall of separate boxes.
-    const statTable = (cols) => `
-      <div class="table-scroll"><table class="data-table profile-stat-table">
-        <thead><tr>${cols.map(c => `<th>${c[0]}</th>`).join('')}</tr></thead>
-        <tbody><tr>${cols.map(c => `<td>${c[1]}</td>`).join('')}</tr></tbody>
-      </table></div>`;
-
-    const boxEl = document.getElementById('modalPlayerBoxStats');
-    if (boxEl) {
-      boxEl.innerHTML = statTable([
-        ['GP', st.gp], ['GS', st.gs], ['MPG', st.mpg], ['PPG', st.ppg],
-        ['OREB', st.oreb], ['DREB', st.dreb], ['RPG', st.rpg], ['APG', st.apg],
-        ['SPG', st.stl], ['BPG', st.blk], ['TOV', st.tov], ['PF', st.pf],
-        ['FGM', st.fgm], ['FGA', st.fga], ['FG%', st.fgPct],
-        ['3PM', st.threePm], ['3PA', st.threePa], ['3P%', st.threePPct],
-        ['FTM', st.ftm], ['FTA', st.fta], ['FT%', st.ftPct]
-      ]);
-    }
-
-    const advEl = document.getElementById('modalPlayerAdvStats');
-    if (advEl) {
-      advEl.innerHTML = statTable([
-        ['BPM', st.bpm], ['OBPM', st.obpm], ['DBPM', st.dbpm],
-        ['TS%', st.tsPct], ['eFG%', st.eFgPct], ['rTS%', st.rTsPct],
-        ['OREB%', st.orebPct], ['DREB%', st.drebPct], ['TRB%', st.trbPct],
-        ['AST%', st.astPct], ['TOV%', st.tovPct], ['BLK%', st.blkPct],
-        ['USG%', st.usg], ['FTr', st.ftr], ['3PAr', st.threePar],
-        ['ORtg', st.ortg], ['DRtg', st.drtg], ['Net', st.netRtg]
-      ]);
-    }
-
-    const p40El = document.getElementById('modalPlayerPer40Stats');
-    if (p40El) {
-      p40El.innerHTML = statTable([
-        ['PTS', st.p40pts], ['OREB', st.p40oreb], ['DREB', st.p40dreb], ['REB', st.p40reb],
-        ['AST', st.p40ast], ['STL', st.p40stl], ['BLK', st.p40blk], ['TOV', st.p40tov],
-        ['PF', st.p40pf], ['FGA', st.p40fga], ['3PA', st.p40threePa], ['FTA', st.p40fta]
-      ]);
-    }
-
-    let glHtml = '';
-    if (!player.gameLog || player.gameLog.length === 0) {
-      glHtml = `<tr><td colspan="12" class="empty-table-msg">No games played yet.</td></tr>`;
-    } else {
+    // Game log — no week column; the opponent identifies the game.
+    let glRows = '';
+    if (player.gameLog && player.gameLog.length) {
       player.gameLog.forEach(g => {
-        let matchup = g.opponent
-          ? `${g.isHome ? 'vs' : '@'} ${g.opponent}${g.teamScore !== undefined ? ` (${g.won ? 'W' : 'L'} ${g.teamScore}-${g.oppScore})` : ''}`
+        const matchup = g.opponent
+          ? `${g.isHome ? 'vs' : '@'} ${g.opponent}`
           : (g.isConf ? 'Conf' : 'Non-Conf');
-        glHtml += `
-          <tr>
-            <td class="sub-text-sm">${matchup}</td>
-            <td>${g.min}</td>
-            <td class="highlight-col">${g.pts}</td>
-            <td>${g.oreb !== undefined ? g.oreb : '—'}</td>
-            <td>${g.reb}</td>
-            <td>${g.ast}</td>
-            <td>${g.stl}</td>
-            <td>${g.blk}</td>
-            <td>${g.tov}</td>
-            <td>${g.fgm}-${g.fga}</td>
-            <td>${g.threePm}-${g.threePa}</td>
-            <td>${g.ftm}-${g.fta}</td>
-          </tr>
-        `;
+        const result = g.teamScore !== undefined
+          ? `<span class="${g.won ? 'win-text' : 'loss-text'}">${g.won ? 'W' : 'L'}</span> ${g.teamScore}-${g.oppScore}`
+          : '—';
+        glRows += `<tr>
+          <td class="sub-text-sm">${matchup}</td>
+          <td class="sub-text-sm">${result}</td>
+          <td>${g.min}</td><td class="highlight-col">${g.pts}</td>
+          <td>${g.oreb !== undefined ? g.oreb : '—'}</td><td>${g.reb}</td><td>${g.ast}</td>
+          <td>${g.stl}</td><td>${g.blk}</td><td>${g.tov}</td>
+          <td>${g.fgm}-${g.fga}</td><td>${g.threePm}-${g.threePa}</td><td>${g.ftm}-${g.fta}</td>
+        </tr>`;
       });
+    } else {
+      glRows = `<tr><td colspan="13" class="empty-table-msg">No games played yet.</td></tr>`;
     }
 
-    document.getElementById('modalPlayerGameLog').innerHTML = glHtml;
-    document.getElementById('playerModal').classList.add('active');
+    return `
+      <div class="player-page-head">
+        <img src="${this.getTeamLogo(player.school)}" class="player-page-logo">
+        <div class="player-page-ident">
+          <h1 class="player-page-name">${player.jersey ? '#' + player.jersey + ' ' : ''}${player.name}</h1>
+          <div class="player-bio-block">
+            ${bioRow('Position', posNames[player.pos] || player.pos)}
+            ${bioRow('Class', classNames[player.class] || player.class)}
+            ${bioRow('Height', player.ht)}
+            ${bioRow('Weight', player.wt ? player.wt + ' lb' : '')}
+            ${bioRow('School', collegeLinks)}
+            ${bioRow('Hometown', player.hometown && player.hometown !== 'N/A' ? player.hometown : '')}
+            ${bioRow('High School', player.hs)}
+            ${bioRow('RSCI Rank', player.rsci ? '#' + Math.round(player.rsci) : 'Unranked')}
+          </div>
+        </div>
+        <button class="sim-btn sim-btn-secondary" onclick="SimEngine.closePlayerPage()">Close</button>
+      </div>
+
+      ${(preseason.length || postseason.length) ? `<div class="player-accolade-block">
+        ${preseason.length ? `<div><span class="accolade-tag preseason">Preseason</span> ${preseason.join(' • ')}</div>` : ''}
+        ${postseason.length ? `<div><span class="accolade-tag postseason">Honors</span> ${postseason.join(' • ')}</div>` : ''}
+      </div>` : ''}
+
+      <div class="team-stats-grid mt-1">
+        <div class="stat-box"><span class="stat-label">PPG</span><span class="stat-value">${st.ppg}</span></div>
+        <div class="stat-box"><span class="stat-label">RPG</span><span class="stat-value">${st.rpg}</span></div>
+        <div class="stat-box"><span class="stat-label">APG</span><span class="stat-value">${st.apg}</span></div>
+        <div class="stat-box"><span class="stat-label">FG%</span><span class="stat-value">${st.fgPct}</span></div>
+      </div>
+
+      ${careerBlock}
+
+      <h3 class="uppercase-title mt-2">Game Log <span class="sub-text-sm">(${this.state.year}-${(this.state.year + 1).toString().slice(2)})</span></h3>
+      <div class="table-scroll"><table class="data-table">
+        <thead><tr>
+          <th>Opponent</th><th>Result</th><th>MIN</th><th class="highlight-col">PTS</th>
+          <th>OREB</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th>
+          <th>FGM-A</th><th>3PM-A</th><th>FTM-A</th>
+        </tr></thead>
+        <tbody>${glRows}</tbody>
+      </table></div>`;
   },
 
   closePlayerModal() {
@@ -3403,14 +3563,15 @@ window.SimEngine = {
     return this.state.year + 1;
   },
 
-  // Sheet value for the class arriving next — the "incoming" class.
+  // Recruiting classes are named by graduating year: during the 2028-29
+  // season the class of 2028 is already enrolled and the class of 2029 is
+  // the incoming group.
   getIncomingRecruitClassYear() {
-    return this.state.year + 2;
+    return this.state.year + 1;
   },
 
-  // Human-facing label: the class of 2029 is labelled 2030 in the sheet.
   incomingClassLabel() {
-    return this.getIncomingRecruitClassYear() - 1;
+    return this.getIncomingRecruitClassYear();
   },
 
   updateRecruitsTab() {

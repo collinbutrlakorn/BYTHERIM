@@ -64,11 +64,15 @@ function scoreProspect(player, teamWinPct = 0.5) {
     ? Math.max(0, 30 - Math.log2(rsci + 1) * 5)
     : (num(player.rating, 70) - 70) * 0.9;
 
-  const score = num(player.rating, 70) * 0.75
+  // Pedigree is a tiebreaker, not a verdict. A recruit ranked 20th who
+  // produces will pass one ranked 7th who doesn't, so the pedigree term is
+  // both smaller and decays harder as real evidence accumulates, while the
+  // production term carries more weight.
+  const score = num(player.rating, 70) * 0.62
               + youth
               + sizeEdge
-              + pedigree * (1 - evidence * 0.65)
-              + (production + efficiency + winning) * evidence * 1.15;
+              + pedigree * 0.55 * (1 - evidence * 0.85)
+              + (production + efficiency + winning) * evidence * 1.75;
 
   return { score, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree };
 }
