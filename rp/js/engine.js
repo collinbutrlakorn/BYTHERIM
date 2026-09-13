@@ -29,6 +29,8 @@ window.SimEngine = {
     seasonHistory: [],      // league-wide archive: one entry per completed season
     preseasonAwards: null,  // projected honours, computed before week 1
     apPollTop25: [],
+    coachesByKey: {},
+    coachMatchCount: 0,
     offseasonStage: 'champion',
     themeMode: 'system',
     lastTransfers: [],      // portal moves from the most recent offseason
@@ -361,7 +363,15 @@ window.SimEngine = {
       const recruitsUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTWvXoqFJkVFqt36wbBBfgFYUvPKhWCZIztoLIB9sjpc55AiFTdFpJZHMztVgJHyFyy0mtO_MYGD76N/pub?gid=0&single=true&output=csv";
       const rostersUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_KgPla_wVF3w_s8PGVIreieVKkfOuVuFqt1K25i3gHNa_NpL6MDPST1qnIw12V61COFsSkf2C03Q-/pub?gid=0&single=true&output=csv";
 
-      const [recruitsRes, rostersRes] = await Promise.all([ fetch(recruitsUrl), fetch(rostersUrl) ]);
+      const coachesUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_KgPla_wVF3w_s8PGVIreieVKkfOuVuFqt1K25i3gHNa_NpL6MDPST1qnIw12V61COFsSkf2C03Q-/pub?gid=1430573464&single=true&output=csv";
+
+      const [recruitsRes, rostersRes, coachesRes] = await Promise.all([
+        fetch(recruitsUrl), fetch(rostersUrl), fetch(coachesUrl).catch(() => null)
+      ]);
+
+      if (coachesRes && coachesRes.ok) {
+        this.parseCoaches(this.parseCSV(await coachesRes.text()));
+      }
 
       if (recruitsRes.ok) {
         rawRecruits = this.parseCSV(await recruitsRes.text());
@@ -434,7 +444,16 @@ window.SimEngine = {
       return;
     }
 
-    const { teams, unmatchedRealTeams } = RosterGen.buildFullUniverse(TeamsMaster, realTeams, { targetRosterSize: 13 });
+    const coachLookup = (school) => {
+      if (typeof CoachCore === 'undefined') return null;
+      const byKey = this.state.coachesByKey || {};
+      const entry = byKey[RosterGen.normalizeSchoolKey(school)];
+      return entry ? CoachCore.parseCoachStyle(entry.style) : null;
+    };
+    const { teams, unmatchedRealTeams } = RosterGen.buildFullUniverse(TeamsMaster, realTeams, {
+      targetRosterSize: 13,
+      coachProfileFor: coachLookup
+    });
     if (unmatchedRealTeams.length > 0) {
       console.warn('Schools in your sheet not found in the master D1 list (kept as their own team rather than dropped):', unmatchedRealTeams);
     }
@@ -456,6 +475,7 @@ window.SimEngine = {
     }));
 
     this.filterActiveData();
+    this.attachCoachesToTeams();
   },
 
 
@@ -945,6 +965,106 @@ window.SimEngine = {
     return DraftCore.buildBigBoard(this.state.activePlayers, winPctFor, limit);
   },
 
+  // --- Coaches ---
+
+  // The coaches sheet is grouped by conference, with a bare conference name
+  // on its own row and blank coach/description cells. Those separator rows
+  // are skipped. A handful of schools appear twice because of realignment;
+  // the first entry wins.
+  parseCoaches(rows) {
+    const byKey = {};
+    let skipped = 0;
+    (rows || []).forEach(r => {
+      const school = String(r.school || '').trim();
+      const coach = String(r.headcoach || r.coach || '').trim();
+      const desc = String(r.coachingstyletacticaldescription || r.coachingstyle || r.description || '').trim();
+      if (!school || !coach) { skipped++; return; }
+      const key = (typeof RosterGen !== 'undefined')
+        ? RosterGen.normalizeSchoolKey(school)
+        : school.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (byKey[key]) return;
+      byKey[key] = { school, name: coach, style: desc };
+    });
+    this.state.coachesByKey = byKey;
+    console.log(`Loaded ${Object.keys(byKey).length} coaches (${skipped} conference header rows skipped).`);
+  },
+
+  // Attaches a coach and parsed tactical profile to every team we can
+  // match. Matching runs through the same school alias index the roster
+  // data uses, so "Connecticut" and "UConn" resolve to one program.
+  attachCoachesToTeams() {
+    if (typeof CoachCore === 'undefined') return;
+    const byKey = this.state.coachesByKey || {};
+    const neutral = () => CoachCore.neutralProfile();
+
+    if (Object.keys(byKey).length === 0 || typeof RosterGen === 'undefined') {
+      this.state.teams.forEach(t => {
+        if (!t.coachProfile) { t.coach = t.coach || null; t.coachProfile = neutral(); t.coachTags = []; }
+      });
+      return;
+    }
+
+    const aliasIndex = RosterGen.buildSchoolAliasIndex(TeamsMaster);
+    const byCanonical = {};
+    Object.entries(byKey).forEach(([key, entry]) => {
+      const canonical = aliasIndex[key];
+      if (canonical && !byCanonical[canonical]) byCanonical[canonical] = entry;
+    });
+
+    let matched = 0;
+    const unmatched = [];
+    this.state.teams.forEach(t => {
+      const entry = byCanonical[t.school] || byKey[RosterGen.normalizeSchoolKey(t.school)];
+      if (entry) {
+        t.coach = { name: entry.name, style: entry.style };
+        t.coachProfile = CoachCore.parseCoachStyle(entry.style);
+        t.coachTags = CoachCore.styleTags(t.coachProfile);
+        matched++;
+      } else {
+        t.coach = null;
+        t.coachProfile = neutral();
+        t.coachTags = [];
+        unmatched.push(t.school);
+      }
+    });
+    this.state.coachMatchCount = matched;
+    this.centerCoachProfiles();
+    if (unmatched.length) {
+      console.log(`Coaches matched for ${matched}/${this.state.teams.length} teams. No coach on file for: ${unmatched.slice(0, 20).join(', ')}${unmatched.length > 20 ? ` (+${unmatched.length - 20} more)` : ''}`);
+    }
+  },
+
+  // Re-centres every trait so the LEAGUE average is exactly neutral.
+  // Relative differences between coaches are preserved untouched — this
+  // only removes collective skew. Without it, a sheet where most
+  // descriptions happen to say "up-tempo" would quietly inflate scoring
+  // across all 365 teams and undo the statistical calibration.
+  centerCoachProfiles() {
+    if (typeof CoachCore === 'undefined') return;
+    const traits = Object.keys(CoachCore.CLAMPS);
+    const teams = this.state.teams.filter(t => t.coachProfile);
+    if (teams.length === 0) return;
+
+    traits.forEach(trait => {
+      let sum = 0;
+      teams.forEach(t => { sum += (t.coachProfile[trait] || 1); });
+      const mean = sum / teams.length;
+      if (!mean || Math.abs(mean - 1) < 0.001) return;
+      teams.forEach(t => {
+        t.coachProfile[trait] = (t.coachProfile[trait] || 1) / mean;
+      });
+    });
+
+    // Tags are derived from the numbers, so refresh them after centring.
+    teams.forEach(t => { t.coachTags = CoachCore.styleTags(t.coachProfile); });
+  },
+
+  getCoachProfile(school) {
+    const t = this.state.teams.find(x => x.school === school);
+    if (t && t.coachProfile) return t.coachProfile;
+    return (typeof CoachCore !== 'undefined') ? CoachCore.neutralProfile() : null;
+  },
+
   // --- Preseason rankings & strength of schedule ---
 
   // Preseason poll: driven by roster strength, with a deliberate lean
@@ -1200,6 +1320,10 @@ window.SimEngine = {
     };
     const base = POS[pos] || POS[isBig ? 'PF' : 'SF'];
 
+    // Declared up front: the coach's profile is referenced throughout this
+    // function, including in the shooting-profile lines further down.
+    const coach = this.getCoachProfile(player.school);
+
     const usageScale = (mpg / 28) * (r / 78);
 
     // Scoring keys off talent above a replacement baseline rather than raw
@@ -1220,6 +1344,7 @@ window.SimEngine = {
     let stl = Math.max(0.1, base.stl * usageScale);
     let blk = Math.max(0.05, base.blk * usageScale);
     let tov = Math.max(0.2, (apg * 0.4 + 0.58));
+
     let pf = Math.min(3.6, Math.max(0.6, (mpg / 10.8)));
 
     let bpm = ((r - 76) * 0.45);
@@ -1228,10 +1353,13 @@ window.SimEngine = {
 
     let ftPct = Math.min(0.92, Math.max(0.48,
       (isBig ? 0.705 : 0.825) * (player.playstyle ? player.playstyle.ftPct : 1)));
-    let fta = Math.max(0.2, (ppg * (isBig ? 0.282 : 0.178)));
+    let fta = Math.max(0.2, (ppg * (isBig ? 0.282 : 0.178)) * (coach ? coach.freeThrows : 1));
     let threePar = isBig ? 0.20 : 0.572;
     if (player.playstyle) {
       threePar = Math.max(0.05, Math.min(0.85, threePar * player.playstyle.threePar));
+    }
+    if (coach) {
+      threePar = Math.max(0.05, Math.min(0.88, threePar * coach.threePar));
     }
     let threePPct = Math.min(0.46, Math.max(0.20,
       (isBig ? 0.315 : 0.358) * (player.playstyle ? player.playstyle.threePct : 1)));
@@ -1247,6 +1375,17 @@ window.SimEngine = {
       apg *= ps.ast;
       stl *= ps.stl;
       blk *= ps.blk;
+    }
+
+    // The coach's system shapes what the roster actually produces: a
+    // ball-movement offense generates more assists, a pressing team more
+    // steals, a glass-crashing team more boards.
+    if (coach) {
+      rpg *= coach.rebounds;
+      apg *= coach.assists;
+      stl *= coach.steals;
+      blk *= coach.blocks;
+      tov *= coach.turnovers;
     }
 
     let ortg = 95 + (obpm * 3.2);
@@ -1325,6 +1464,7 @@ window.SimEngine = {
   // away, and result) to every player who appeared.
   playGame(home, away, scheduleEntry, gamePhaseLabel) {
     const result = GameCore.simulateSingleGame(home, away);
+
     const homeWin = result.homeScore > result.awayScore;
 
     home.simData.wins += homeWin ? 1 : 0;
@@ -3295,6 +3435,15 @@ window.SimEngine = {
           </span>
         </div>
       </div>
+
+      ${team.coach ? `<div class="coach-card mb-1-5">
+        <div class="coach-head">
+          <span class="coach-label">Head Coach</span>
+          <span class="coach-name">${team.coach.name}</span>
+        </div>
+        ${team.coachTags && team.coachTags.length ? `<div class="coach-tags">${team.coachTags.map(t => `<span class="coach-tag">${t}</span>`).join('')}</div>` : ''}
+        ${team.coach.style ? `<p class="coach-style">${team.coach.style}</p>` : ''}
+      </div>` : ''}
 
       <div class="team-stats-grid mb-1-5">
         <div class="stat-box"><span class="stat-label">RECORD</span><span class="stat-value">${team.simData.wins}-${team.simData.losses}</span><span class="sub-text-sm">(${team.simData.confWins}-${team.simData.confLosses} conf)</span></div>
