@@ -1793,6 +1793,9 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
 }
 
 /* Section headers share the logo colour. */
+/* Headings stay plain text colour (white on dark, black on light) — the
+   logo blue is reserved for interactive elements so it still reads as
+   "this is clickable". */
 h1, h2, h3, h4,
 .section-title,
 .season-title,
@@ -1802,12 +1805,15 @@ h1, h2, h3, h4,
 .modal-team-name,
 .modal-player-name,
 .champion-name,
-.home-screen-title {
-  color: var(--accent);
+.home-screen-title,
+.draft-section-title,
+.offseason-title,
+.rp-header-title {
+  color: var(--text-main);
 }
 
 .data-table th {
-  color: var(--accent);
+  color: var(--text-muted);
 }
 
 body {
@@ -1826,15 +1832,20 @@ input[type="file"] {
 .rp-header {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.9rem;
-  padding: 1.5rem 1rem 0.25rem;
+  justify-content: flex-start;
+  padding: 1.25rem 5% 0.25rem;
+  max-width: 1600px;
+  margin: 0 auto;
 }
 
 .rp-header-logo {
-  width: 96px;
-  height: 96px;
+  width: 150px;
+  height: 150px;
   object-fit: contain;
+}
+
+@media (max-width: 720px) {
+  .rp-header-logo { width: 104px; height: 104px; }
 }
 
 .rp-header-text {
@@ -1978,3 +1989,30 @@ input[type="file"] {
   border-radius: var(--r-lg);
   padding: 1.75rem;
 }
+
+
+/* Player profile bio: labelled rows rather than one run-on line */
+.modal-player-bio,
+.modal-player-colleges {
+  display: block;
+  margin-top: 0.35rem;
+}
+
+.bio-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.bio-label {
+  color: var(--text-muted);
+  font-weight: 700;
+  min-width: 96px;
+  flex-shrink: 0;
+}
+
+.bio-label:empty { min-width: 96px; }
+
+.bio-value { color: var(--text-main); }

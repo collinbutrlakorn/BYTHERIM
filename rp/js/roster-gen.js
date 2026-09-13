@@ -34,6 +34,85 @@ const HOMETOWNS = [
   'Raleigh, NC','Norfolk, VA'
 ];
 
+// Positional height and weight norms. Values are inches / pounds:
+// `avg` is the typical player, `lo`/`hi` bound the normal range, and a
+// small share of players fall outside it so the odd 6'10" point guard or
+// undersized centre still shows up.
+const POSITION_BUILD = {
+  PG: { avgHt: 74, loHt: 70, hiHt: 76, avgWt: 180, loWt: 160, hiWt: 200 },
+  SG: { avgHt: 76, loHt: 72, hiHt: 79, avgWt: 192, loWt: 160, hiWt: 220 },
+  SF: { avgHt: 79, loHt: 76, hiHt: 81, avgWt: 210, loWt: 170, hiWt: 250 },
+  PF: { avgHt: 80, loHt: 78, hiHt: 83, avgWt: 225, loWt: 190, hiWt: 250 },
+  C:  { avgHt: 82, loHt: 80, hiHt: 86, avgWt: 240, loWt: 195, hiWt: 260 }
+};
+
+const OUTLIER_CHANCE = 0.04;   // how often a player breaks positional norms
+
+// Roughly normal draw via the average of two uniforms, then clamped.
+function bellDraw(avg, lo, hi, rng) {
+  const spreadLo = avg - lo, spreadHi = hi - avg;
+  const t = (rng() + rng()) / 2 - 0.5;           // -0.5..0.5, centre-weighted
+  const v = avg + (t < 0 ? t * 2 * spreadLo : t * 2 * spreadHi);
+  return Math.max(lo, Math.min(hi, v));
+}
+
+function generateBuild(pos, rng = Math.random) {
+  const b = POSITION_BUILD[pos] || POSITION_BUILD.SF;
+  let inches = bellDraw(b.avgHt, b.loHt, b.hiHt, rng);
+
+  // Rare outliers push a couple of inches past the positional range.
+  if (rng() < OUTLIER_CHANCE) inches += (rng() < 0.5 ? -1 : 1) * (1 + rng() * 2.5);
+  inches = Math.max(68, Math.min(88, Math.round(inches)));
+
+  // Weight tracks height within the position's range rather than being
+  // drawn independently, so a 7-footer isn't randomly 195 lbs.
+  const htSpan = Math.max(1, b.hiHt - b.loHt);
+  const htPos = Math.max(0, Math.min(1, (inches - b.loHt) / htSpan));
+  const wtCentre = b.loWt + (b.hiWt - b.loWt) * (0.3 + htPos * 0.55);
+  let weight = Math.round(wtCentre + (rng() - 0.5) * 22);
+  weight = Math.max(150, Math.min(300, weight));
+
+  return {
+    ht: `${Math.floor(inches / 12)}'${inches % 12}`,
+    wt: String(weight),
+    heightInches: inches
+  };
+}
+
+// Jersey numbers, most-wanted first. College players overwhelmingly wear
+// 0-5, 10-15, 20-25, 30-35, 40-45 and 50-55 (a legacy of old NCAA rules
+// that barred digits above 5 so referees could signal them by hand).
+const POPULAR_JERSEYS = [23, 1, 3, 0, 5, 11, 24, 2, 32, 4, 22, 33, 10, 21, 12, 15,
+                         20, 25, 34, 30, 13, 14, 31, 35, 44, 42, 40, 41, 43, 45,
+                         50, 55, 51, 52, 53, 54];
+const RARE_JERSEYS = [6, 7, 8, 9, 16, 17, 18, 19, 26, 27, 28, 29, 36, 37, 38, 39,
+                      46, 47, 48, 49, 56, 77, 88, 99];
+const RARE_JERSEY_CHANCE = 0.07;
+
+// Assigns a number, preferring popular ones and skipping anything already
+// worn on the roster. Callers pass players highest-rated first so the best
+// players get first pick of the marquee numbers.
+function pickJersey(taken, rng = Math.random) {
+  if (rng() < RARE_JERSEY_CHANCE) {
+    const rare = RARE_JERSEYS.filter(n => !taken.has(n));
+    if (rare.length) {
+      const n = rare[Math.floor(rng() * rare.length)];
+      taken.add(n);
+      return String(n);
+    }
+  }
+  for (const n of POPULAR_JERSEYS) {
+    if (!taken.has(n)) { taken.add(n); return String(n); }
+  }
+  for (const n of RARE_JERSEYS) {
+    if (!taken.has(n)) { taken.add(n); return String(n); }
+  }
+  for (let n = 0; n <= 99; n++) {
+    if (!taken.has(n)) { taken.add(n); return String(n); }
+  }
+  return '';
+}
+
 // Conference "tiers" for average team strength — a light-touch, real-world-
 // informed grouping so blue-blood conferences skew stronger on average and
 // low-major leagues skew weaker, without pretending to rank every program
@@ -79,6 +158,7 @@ function generateFillerPlayer(school, conference, position, teamBaseline, roster
   const classYears = ['FR', 'SO', 'JR', 'SR'];
   const variance = (rng() - 0.5) * 16; // player rating spread around team baseline
   const rating = Math.max(45, Math.min(94, Math.round(teamBaseline + variance - rosterIndex * 0.8)));
+  const build = generateBuild(position, rng);
   return {
     id: `${school}_gen_${rosterIndex}_${Math.random().toString(36).slice(2, 7)}`,
     name: generatePlayerName(usedNames, rng),
@@ -86,8 +166,8 @@ function generateFillerPlayer(school, conference, position, teamBaseline, roster
     school_logo: '',
     pos: position,
     class: classYears[Math.floor(rng() * classYears.length)],
-    ht: "6'4",
-    wt: "195",
+    ht: build.ht,
+    wt: build.wt,
     hometown: pick(HOMETOWNS, rng),
     rating,
     isRecruit: false,
@@ -173,6 +253,19 @@ function buildFullUniverse(masterTeamList, existingTeams, opts = {}) {
       roster.push(generateFillerPlayer(masterEntry.name, masterEntry.conference, pos, teamBaseline, i, usedNames, rng));
     }
 
+    // Jersey numbers, assigned per team so nobody duplicates a real
+    // player's number. Best players pick first, so the marquee numbers go
+    // to the guys most likely to be featured.
+    const takenJerseys = new Set();
+    roster.forEach(p => {
+      const n = parseInt(p.jersey, 10);
+      if (!isNaN(n)) takenJerseys.add(n);
+    });
+    roster
+      .filter(p => !p.jersey)
+      .sort((a, b) => (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0))
+      .forEach(p => { p.jersey = pickJersey(takenJerseys, rng); });
+
     return {
       school: masterEntry.name,
       conference: masterEntry.conference,
@@ -193,7 +286,8 @@ function buildFullUniverse(masterTeamList, existingTeams, opts = {}) {
 
 const RosterGen = {
   FIRST_NAMES, LAST_NAMES, HOMETOWNS, CONFERENCE_TIERS, TIER_RANGES,
-  getConferenceTier, normalizeSchoolKey, buildSchoolAliasIndex, generatePlayerName, generateFillerPlayer, nextNeededPosition, buildFullUniverse
+  getConferenceTier, normalizeSchoolKey, buildSchoolAliasIndex,
+  POSITION_BUILD, generateBuild, pickJersey, POPULAR_JERSEYS, RARE_JERSEYS, generatePlayerName, generateFillerPlayer, nextNeededPosition, buildFullUniverse
 };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = RosterGen;

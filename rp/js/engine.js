@@ -393,7 +393,7 @@ window.SimEngine = {
     // Only the current and next recruiting class are relevant. Classes two
     // or more years out (2030+ during the 2028-29 season) are dropped
     // entirely so they can't leak onto rosters or into the player pool.
-    const maxClassYear = this.state.year + 1;
+    const maxClassYear = this.state.year + 2;
     this.state.recruits = rawRecruits
       .filter(r => this.rowHasPlayerName(r))
       .map(r => this.normalizePlayerObj(r, true))
@@ -554,7 +554,9 @@ window.SimEngine = {
   rowBelongsToCurrentSeason(raw) {
     const yr = this.getRowSeasonYear(raw);
     if (yr === null) return true;   // no season column — keep everything
-    return yr === this.state.year || yr === this.state.year + 1;
+    // Accept either labelling convention for the same season (2028-29 may
+    // be tagged 2028 or 2029) but nothing from a later season.
+    return yr === this.state.year || yr === this.currentSeasonSheetYear();
   },
 
   rowHasPlayerName(raw) {
@@ -624,7 +626,7 @@ window.SimEngine = {
     });
 
     this.state.recruits.forEach(rec => {
-      const arrived = !rec.recClassYear || rec.recClassYear <= this.state.year;
+      const arrived = !rec.recClassYear || rec.recClassYear <= this.currentSeasonSheetYear();
       if (arrived && rec.school && rec.school !== 'Uncommitted' && rec.school !== 'Free Agent') {
         const team = this.state.teams.find(t => t.school.toLowerCase() === rec.school.toLowerCase());
         if (team && !team.roster.some(p => p.name === rec.name)) {
@@ -634,6 +636,26 @@ window.SimEngine = {
       }
     });
     this.state.activePlayers = players;
+    this.assignMissingJerseys();
+  },
+
+  // Recruits join their roster after the universe is built, so they miss
+  // the initial jersey pass. This fills any gap without disturbing numbers
+  // that are already assigned (or that came from the roster sheet).
+  assignMissingJerseys() {
+    if (typeof RosterGen === 'undefined' || !RosterGen.pickJersey) return;
+    this.state.teams.forEach(team => {
+      const missing = (team.roster || []).filter(p => !p.jersey);
+      if (missing.length === 0) return;
+      const taken = new Set();
+      team.roster.forEach(p => {
+        const n = parseInt(p.jersey, 10);
+        if (!isNaN(n)) taken.add(n);
+      });
+      missing
+        .sort((a, b) => (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0))
+        .forEach(p => { p.jersey = RosterGen.pickJersey(taken); });
+    });
   },
 
   getZeroStats() {
@@ -762,8 +784,11 @@ window.SimEngine = {
 
   getConferenceLogoImg(conference, className = 'conf-logo') {
     const fallback = this.generateFallbackLogo(conference);
-    return `<img src="${this.getConferenceLogo(conference)}" class="${className}" alt="${conference}" ` +
-           `onerror="this.onerror=null;this.src='${fallback}';">`;
+    const src = this.getConferenceLogo(conference);
+    // Log which file was missing rather than silently substituting a badge —
+    // otherwise a typo'd filename looks identical to "no logo uploaded yet".
+    return `<img src="${src}" class="${className}" alt="${conference}" ` +
+           `onerror="console.warn('Conference logo not found: ${src}');this.onerror=null;this.src='${fallback}';">`;
   },
 
   // --- In-season AP poll, game score, and draft big board ---
@@ -998,7 +1023,11 @@ window.SimEngine = {
       let roster = this.state.activePlayers.filter(p => p.school === team.school);
       roster.sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
 
-      const rawWeights = roster.map((p, idx) => Math.max(0.1, (parseFloat(p.rating) - 55) * Math.pow(0.78, idx)));
+      // Rotation weights. The old 0.78-per-rank decay was far too steep: it
+      // handed the top handful of players enormous minute shares, which then
+      // inflated every counting stat through usageScale. A gentler decay
+      // spreads 200 minutes across a believable 9-10 man rotation.
+      const rawWeights = roster.map((p, idx) => Math.max(0.1, (parseFloat(p.rating) - 52) * Math.pow(0.90, idx)));
       const totalWeight = rawWeights.reduce((a, b) => a + b, 0) || 1;
 
       const top8 = roster.slice(0, 8);
@@ -1012,7 +1041,7 @@ window.SimEngine = {
         let allocatedMpg = (rawWeights[idx] / totalWeight) * 200;
         if (idx > 9) allocatedMpg = 0; 
         p.isBench = idx >= 5;
-        p.expectedStats = this.buildBaseStatExpectations(p, Math.min(35.5, allocatedMpg));
+        p.expectedStats = this.buildBaseStatExpectations(p, Math.min(33, allocatedMpg));
         p.gameLog = [];
         p.statsFull = this.getZeroStats();
         p.statsConf = this.getZeroStats();
@@ -1082,20 +1111,37 @@ window.SimEngine = {
 
   buildBaseStatExpectations(player, mpg) {
     if (mpg <= 0.5) return this.getZeroStats();
-    
-    const r = parseFloat(player.rating); const pos = player.pos;
+
+    const r = parseFloat(player.rating);
+    const pos = (player.pos || 'SF').toUpperCase();
     const isBig = pos.includes('C') || (pos.includes('F') && !pos.includes('G'));
-    
+
+    // Per-position baselines. Lumping everyone into "big vs guard" made
+    // every forward rebound like a centre and every guard pass like a point
+    // guard, which is what produced the flood of 10+ rpg / sub-2 apg lines.
+    const POS = {
+      PG: { reb: 3.5, ast: 4.9, stl: 1.32, blk: 0.19 },
+      SG: { reb: 4.0, ast: 2.55, stl: 1.15, blk: 0.33 },
+      SF: { reb: 5.5, ast: 2.0, stl: 1.06, blk: 0.64 },
+      PF: { reb: 7.8, ast: 1.4, stl: 0.85, blk: 1.29 },
+      C:  { reb: 9.6, ast: 1.05, stl: 0.68, blk: 2.05 },
+      G:  { reb: 3.7, ast: 3.7, stl: 1.23, blk: 0.26 },
+      F:  { reb: 6.7, ast: 1.67, stl: 0.94, blk: 0.94 }
+    };
+    const base = POS[pos] || POS[isBig ? 'PF' : 'SF'];
+
     const usageScale = (mpg / 28) * (r / 78);
-    let ppg = Math.max(0.5, (r * 0.18) * usageScale);
-    // Per-player baselines tuned so that league-wide team averages land on
-    // real NCAA D1 numbers (~35 reb, ~13.5 ast, ~6.3 stl, ~3.5 blk per team
-    // per game) once these are summed across a full rotation.
-    let rpg = Math.max(0.2, (isBig ? 8.6 : 3.4) * usageScale);
-    let apg = Math.max(0.1, (!isBig ? 3.7 : 1.2) * usageScale);
-    let stl = Math.max(0.1, (!isBig ? 1.70 : 0.72) * usageScale);
-    let blk = Math.max(0.1, (isBig ? 1.40 : 0.24) * usageScale);
-    let tov = Math.max(0.2, (apg * 0.4 + 0.57));
+
+    // Scoring keys off talent above a replacement baseline rather than raw
+    // rating, so an average starter lands in single digits and only genuine
+    // stars push past 18 — instead of nearly everyone clearing 20.
+    let ppg = Math.max(0.4, (Math.max(10, r - 48) * 0.30) * usageScale);
+
+    let rpg = Math.max(0.2, base.reb * usageScale);
+    let apg = Math.max(0.1, base.ast * usageScale);
+    let stl = Math.max(0.1, base.stl * usageScale);
+    let blk = Math.max(0.05, base.blk * usageScale);
+    let tov = Math.max(0.2, (apg * 0.4 + 0.42));
     let pf = Math.min(3.8, Math.max(0.8, (mpg / 8)));
 
     let bpm = ((r - 76) * 0.45);
@@ -1107,7 +1153,7 @@ window.SimEngine = {
     let threePar = isBig ? 0.18 : 0.55;
     let threePPct = Math.min(0.46, Math.max(0.20, (isBig ? 0.295 : 0.345)));
     let twoPPct = Math.min(0.68, Math.max(0.38, (isBig ? 0.545 : 0.445)));
-    
+
     let ortg = 95 + (obpm * 3.2);
     let drtg = 105 - (dbpm * 3.2);
 
@@ -1117,6 +1163,7 @@ window.SimEngine = {
       orebPct: (isBig ? 9.5 : 3.0) + '%', drebPct: (isBig ? 21.0 : 10.5) + '%', trbPct: (isBig ? 15.0 : 6.8) + '%',
     };
   },
+
 
   // Public entry point wired to the "Simulate..." button. Dispatches to
   // whichever phase of the season is next, so the HTML/UI never needs to
@@ -1758,19 +1805,46 @@ window.SimEngine = {
       }
     }
 
-    this.populateConferenceDropdowns();
-    this.updateDashboard();
-    this.sortAndRenderStatsTable();
-    this.updateStandingsTab();
-    this.updateAwardsTab();
-    this.updateScheduleTab();
-    this.updatePostseasonTab();
-    this.updateTeamTab();
-    this.updateTeamStatsTab();
-    this.updateRecruitsTab();
-    this.updateDraftBoardTab();
-    this.updateOffseasonTab();
-    this.updateHistoryTab();
+    // Each section renders in isolation. Previously these ran as a plain
+    // sequence, so one section throwing meant every section after it never
+    // rendered at all — which looked like "stats stopped appearing" rather
+    // than like an error. Now a failure is contained, named in the console,
+    // and shown in the affected panel instead of silently blanking the app.
+    this.renderSections([
+      ['conference filters', () => this.populateConferenceDropdowns()],
+      ['dashboard',          () => this.updateDashboard()],
+      ['player stats',       () => this.sortAndRenderStatsTable(), 'statsBody'],
+      ['standings',          () => this.updateStandingsTab(), 'standingsContainer'],
+      ['awards',             () => this.updateAwardsTab()],
+      ['schedule',           () => this.updateScheduleTab(), 'scheduleContainer'],
+      ['bracketology',       () => this.updatePostseasonTab(), 'postseasonContainer'],
+      ['team page',          () => this.updateTeamTab(), 'teamPageContainer'],
+      ['team stats',         () => this.updateTeamStatsTab()],
+      ['recruits',           () => this.updateRecruitsTab(), 'recruitsBody'],
+      ['draft board',        () => this.updateDraftBoardTab(), 'draftBoardContainer'],
+      ['offseason',          () => this.updateOffseasonTab()],
+      ['history',            () => this.updateHistoryTab(), 'historyContainer']
+    ]);
+  },
+
+  renderSections(sections) {
+    sections.forEach(([name, fn, targetId]) => {
+      try {
+        fn();
+      } catch (err) {
+        console.error(`Render failed in "${name}" section:`, err);
+        if (targetId) {
+          const el = document.getElementById(targetId);
+          if (el) {
+            const isRow = el.tagName === 'TBODY';
+            const msg = `Couldn't render ${name}: ${err.message}. See the browser console for details.`;
+            el.innerHTML = isRow
+              ? `<tr><td colspan="30" class="empty-table-msg">${msg}</td></tr>`
+              : `<p class="empty-table-msg">${msg}</p>`;
+          }
+        }
+      }
+    });
   },
 
   setConfFilter(val) {
@@ -2625,28 +2699,47 @@ window.SimEngine = {
     document.getElementById('modalPlayerName').innerText =
       (player.jersey ? `#${player.jersey} ` : '') + player.name;
 
-    // Written out as a sentence rather than pipe-separated fragments.
+    // Laid out as labelled lines (position, measurements, school, hometown)
+    // the way a reference site does it, rather than one run-on string.
     const posNames = { PG: 'Point Guard', SG: 'Shooting Guard', SF: 'Small Forward',
                        PF: 'Power Forward', C: 'Center', G: 'Guard', F: 'Forward', 'F/C': 'Forward/Center' };
     const classNames = { FR: 'Freshman', SO: 'Sophomore', JR: 'Junior', SR: 'Senior', GR: 'Graduate Student' };
-    const bioParts = [];
-    const cls = classNames[player.class] || player.class;
-    const posName = posNames[player.pos] || player.pos;
-    if (cls || posName) bioParts.push(`${cls} ${posName}`.trim());
-    if (player.ht) bioParts.push(`${player.ht}`);
-    if (player.wt) bioParts.push(`${player.wt} lbs`);
-    let bio = bioParts.join(', ');
-    if (player.hometown && player.hometown !== 'N/A') bio += `. Hometown: ${player.hometown}`;
-    if (player.hs) bio += `. High school: ${player.hs}`;
-    document.getElementById('modalPlayerBio').innerText = bio + (bio.endsWith('.') ? '' : '.');
+
+    const bioRow = (label, value) =>
+      value ? `<div class="bio-row"><span class="bio-label">${label}</span><span class="bio-value">${value}</span></div>` : '';
+
+    // Show metric alongside imperial, as reference sites do.
+    let measurements = '';
+    const inches = (typeof DraftCore !== 'undefined') ? DraftCore.parseHeightInches(player.ht) : null;
+    if (inches) {
+      const cm = Math.round(inches * 2.54);
+      const lb = parseFloat(player.wt);
+      const kg = lb ? Math.round(lb * 0.4536) : null;
+      measurements = `${Math.floor(inches / 12)}-${inches % 12}`
+        + (lb ? `, ${lb}lb` : '')
+        + ` (${cm}cm${kg ? `, ${kg}kg` : ''})`;
+    } else if (player.ht) {
+      measurements = player.ht + (player.wt ? `, ${player.wt}lb` : '');
+    }
+
+    const bioEl = document.getElementById('modalPlayerBio');
+    if (bioEl) {
+      bioEl.innerHTML =
+          bioRow('Position', posNames[player.pos] || player.pos)
+        + bioRow('Class', classNames[player.class] || player.class)
+        + bioRow('', measurements)
+        + bioRow('School', player.school)
+        + bioRow('Hometown', player.hometown && player.hometown !== 'N/A' ? player.hometown : '')
+        + bioRow('High School', player.hs);
+    }
 
     const colleges = (player.collegeHistory && player.collegeHistory.length)
       ? player.collegeHistory : [player.school];
     const collegesEl = document.getElementById('modalPlayerColleges');
     if (collegesEl) {
       collegesEl.innerHTML = colleges.length > 1
-        ? `Colleges: ${colleges.join(' → ')}`
-        : `College: ${colleges[0] || '—'}`;
+        ? `<div class="bio-row"><span class="bio-label">Colleges</span><span class="bio-value">${colleges.join(' → ')}</span></div>`
+        : '';
     }
 
     const accolades = player.accolades || [];
@@ -3303,8 +3396,21 @@ window.SimEngine = {
   // "Incoming" means the class that arrives NEXT season, not the one
   // already on campus. In the 2028 season the 2028 class has already
   // enrolled, so this page shows the 2029 group.
-  getIncomingRecruitClassYear() {
+  // The sheet labels a player by the season they first appear in, using the
+  // year that season ENDS: the 2028-29 season is 2029. So the class of 2029
+  // (who arrive for 2029-30) are labelled 2030.
+  currentSeasonSheetYear() {
     return this.state.year + 1;
+  },
+
+  // Sheet value for the class arriving next — the "incoming" class.
+  getIncomingRecruitClassYear() {
+    return this.state.year + 2;
+  },
+
+  // Human-facing label: the class of 2029 is labelled 2030 in the sheet.
+  incomingClassLabel() {
+    return this.getIncomingRecruitClassYear() - 1;
   },
 
   updateRecruitsTab() {
@@ -3313,7 +3419,7 @@ window.SimEngine = {
     if (!body) return;
 
     const incomingYear = this.getIncomingRecruitClassYear();
-    if (label) label.innerText = `Class of ${incomingYear}`;
+    if (label) label.innerText = `Class of ${this.incomingClassLabel()}`;
 
     if (!this.state.recruits || this.state.recruits.length === 0) {
       body.innerHTML = `<tr><td colspan="6" class="empty-table-msg">No recruit data loaded yet.</td></tr>`;
@@ -3338,7 +3444,7 @@ window.SimEngine = {
     recruits.sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
 
     if (recruits.length === 0) {
-      body.innerHTML = `<tr><td colspan="6" class="empty-table-msg">No ${incomingYear} recruits match these filters.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="6" class="empty-table-msg">No ${this.incomingClassLabel()} recruits match these filters.</td></tr>`;
       return;
     }
 
