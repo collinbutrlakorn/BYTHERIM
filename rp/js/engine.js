@@ -30,6 +30,8 @@ window.SimEngine = {
     preseasonAwards: null,  // projected honours, computed before week 1
     apPollTop25: [],
     coachesByKey: {},
+    leagueTsPct: 0.545,
+    leagueShootingTotals: { pts: 0, fga: 0, fta: 0 },
     coachMatchCount: 0,
     offseasonStage: 'champion',
     themeMode: 'system',
@@ -45,6 +47,8 @@ window.SimEngine = {
     teamStatSortDir: 'desc',
     teamStatsConfFilter: 'ALL',
     statsLimit: 25,
+    statsPosFilter: 'ALL',
+    teamStatsPosFilter: 'ALL',
     teamStatsView: 'box',
     recruitsStatusFilter: 'ALL',
     recruitsConfFilter: 'ALL'
@@ -363,15 +367,14 @@ window.SimEngine = {
       const recruitsUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTWvXoqFJkVFqt36wbBBfgFYUvPKhWCZIztoLIB9sjpc55AiFTdFpJZHMztVgJHyFyy0mtO_MYGD76N/pub?gid=0&single=true&output=csv";
       const rostersUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_KgPla_wVF3w_s8PGVIreieVKkfOuVuFqt1K25i3gHNa_NpL6MDPST1qnIw12V61COFsSkf2C03Q-/pub?gid=0&single=true&output=csv";
 
-      const coachesUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_KgPla_wVF3w_s8PGVIreieVKkfOuVuFqt1K25i3gHNa_NpL6MDPST1qnIw12V61COFsSkf2C03Q-/pub?gid=1430573464&single=true&output=csv";
-
-      const [recruitsRes, rostersRes, coachesRes] = await Promise.all([
-        fetch(recruitsUrl), fetch(rostersUrl), fetch(coachesUrl).catch(() => null)
+      // Rosters and recruits are the critical data, so they're fetched on
+      // their own. Coaches are loaded afterwards, separately: firing three
+      // simultaneous requests at the same published sheet can get one of
+      // them throttled, and a throttled coaches request must never be able
+      // to take the rosters down with it.
+      const [recruitsRes, rostersRes] = await Promise.all([
+        this.fetchWithRetry(recruitsUrl), this.fetchWithRetry(rostersUrl)
       ]);
-
-      if (coachesRes && coachesRes.ok) {
-        this.parseCoaches(this.parseCSV(await coachesRes.text()));
-      }
 
       if (recruitsRes.ok) {
         rawRecruits = this.parseCSV(await recruitsRes.text());
@@ -405,6 +408,9 @@ window.SimEngine = {
     // or more years out (2030+ during the 2028-29 season) are dropped
     // entirely so they can't leak onto rosters or into the player pool.
     const maxClassYear = this.state.year + 1;
+    // Coaches load after the critical sheets, in their own error boundary.
+    await this.loadCoaches();
+
     this.state.recruits = rawRecruits
       .filter(r => this.rowHasPlayerName(r))
       .map(r => this.normalizePlayerObj(r, true))
@@ -420,6 +426,11 @@ window.SimEngine = {
     this.syncUI();
     await this.saveStateToDB();
     const realCount = Object.keys(realTeamsMap).length;
+    const realPlayerCount = Object.values(realTeamsMap).reduce((n, t) => n + t.roster.length, 0);
+    console.log(`Sheet load: ${realPlayerCount} roster players across ${realCount} schools, ${this.state.recruits.length} recruits, ${Object.keys(this.state.coachesByKey || {}).length} coaches.`);
+    if (realPlayerCount === 0) {
+      console.warn('No roster players were loaded from the sheet. Check the roster tab is published and that its season column matches the current season.');
+    }
     if (!sheetsReachable) {
       this.logNews(`Could not reach Google Sheets — generated a full ${this.state.teams.length}-team universe from scratch.`);
     } else {
@@ -806,6 +817,21 @@ window.SimEngine = {
 
   // Returns true when a team/conference passes a dropdown filter value.
   // Filter values are 'ALL', 'HIGH_MAJOR', or an exact conference name.
+  // Position filter. 'G' / 'F' accept either specific slot, so a roster
+  // listing a player as just "G" still shows under a guard filter.
+  matchesPosFilter(pos, filterValue) {
+    if (!filterValue || filterValue === 'ALL') return true;
+    const p = String(pos || '').toUpperCase();
+    if (filterValue === 'G') return p === 'PG' || p === 'SG' || p === 'G';
+    if (filterValue === 'F') return p === 'SF' || p === 'PF' || p === 'F';
+    return p === filterValue;
+  },
+
+  setStatsPosFilter(val) {
+    this.state.statsPosFilter = val;
+    this.sortAndRenderStatsTable();
+  },
+
   matchesConfFilter(conference, filterValue) {
     if (!filterValue || filterValue === 'ALL') return true;
     if (filterValue === 'HIGH_MAJOR') return this.isHighMajor(conference);
@@ -965,6 +991,36 @@ window.SimEngine = {
     return DraftCore.buildBigBoard(this.state.activePlayers, winPctFor, limit);
   },
 
+  // A published Google Sheet occasionally returns a transient error or a
+  // throttled response. One quick retry turns most of those into a normal
+  // load instead of an empty universe.
+  async fetchWithRetry(url, attempts = 2) {
+    let lastErr = null;
+    for (let i = 0; i < attempts; i++) {
+      try {
+        const res = await fetch(url);
+        if (res.ok) return res;
+        lastErr = new Error(`HTTP ${res.status}`);
+      } catch (err) {
+        lastErr = err;
+      }
+      if (i < attempts - 1) await new Promise(r => setTimeout(r, 400));
+    }
+    console.warn(`Sheet request failed after ${attempts} attempts (${url.slice(0, 80)}...):`, lastErr && lastErr.message);
+    return { ok: false, text: async () => '' };
+  },
+
+  async loadCoaches() {
+    const coachesUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_KgPla_wVF3w_s8PGVIreieVKkfOuVuFqt1K25i3gHNa_NpL6MDPST1qnIw12V61COFsSkf2C03Q-/pub?gid=1430573464&single=true&output=csv";
+    try {
+      const res = await this.fetchWithRetry(coachesUrl);
+      if (res.ok) this.parseCoaches(this.parseCSV(await res.text()));
+      else console.warn('Coaches sheet unavailable — teams will simulate with neutral coaching profiles.');
+    } catch (err) {
+      console.warn('Coaches sheet failed to load; continuing without coaching profiles.', err);
+    }
+  },
+
   // --- Coaches ---
 
   // The coaches sheet is grouped by conference, with a bare conference name
@@ -1057,12 +1113,24 @@ window.SimEngine = {
 
     // Tags are derived from the numbers, so refresh them after centring.
     teams.forEach(t => { t.coachTags = CoachCore.styleTags(t.coachProfile); });
+    this.rebuildCoachProfileMap();
   },
 
+  // Looked up through a map: this runs once per player on every rebuild of
+  // stat expectations, and scanning all 365 teams each time was needless
+  // work in the hottest path in the engine.
   getCoachProfile(school) {
+    if (this._coachProfileMap && this._coachProfileMap[school]) return this._coachProfileMap[school];
     const t = this.state.teams.find(x => x.school === school);
     if (t && t.coachProfile) return t.coachProfile;
     return (typeof CoachCore !== 'undefined') ? CoachCore.neutralProfile() : null;
+  },
+
+  rebuildCoachProfileMap() {
+    this._coachProfileMap = {};
+    this.state.teams.forEach(t => {
+      if (t.coachProfile) this._coachProfileMap[t.school] = t.coachProfile;
+    });
   },
 
   // --- Preseason rankings & strength of schedule ---
@@ -1200,6 +1268,7 @@ window.SimEngine = {
 
   initSeasonData() {
     this.state.seasonInitialized = true;
+    this.state.leagueShootingTotals = { pts: 0, fga: 0, fta: 0 };
     this.state.schedule = [];
     this.state.regularSeasonDone = false;
     this.state.confChampsDone = false;
@@ -1337,7 +1406,7 @@ window.SimEngine = {
     // seasons in the 25-40 range nationally. A pure power curve was tried
     // and rejected: rescaling those raw lines to the real team score
     // introduced a rounding bias that wrecked free-throw percentage.
-    let ppg = Math.max(0.4, (2.2 + Math.max(4, r - 38) * 0.215) * usageScale);
+    let ppg = Math.max(0.4, (2.2 + Math.max(4, r - 38) * 0.228) * usageScale);
 
     let rpg = Math.max(0.2, base.reb * usageScale);
     let apg = Math.max(0.1, base.ast * usageScale);
@@ -1479,8 +1548,10 @@ window.SimEngine = {
       away.simData.confLosses += homeWin ? 1 : 0;
     }
 
+    const lt = this.state.leagueShootingTotals || (this.state.leagueShootingTotals = { pts: 0, fga: 0, fta: 0 });
     const attachLogs = (boxes, teamScore, oppScore, oppSchool, isHome) => {
       boxes.forEach(({ player, box }) => {
+        lt.pts += box.pts || 0; lt.fga += box.fga || 0; lt.fta += box.fta || 0;
         player.gameLog.push({
           ...box,
           started: !player.isBench && box.min > 0,
@@ -1505,7 +1576,18 @@ window.SimEngine = {
   },
 
   recalculateAllAverages() {
+    this.updateLeagueShootingBaseline();
     this.state.activePlayers.forEach(p => this.recalculateAverages(p));
+  },
+
+  // League-wide true shooting, the zero point for rTS%. Totals accumulate
+  // as games are played (see playGame) rather than being recomputed by
+  // rescanning every game log, which grew quadratically over a season.
+  updateLeagueShootingBaseline() {
+    const t = this.state.leagueShootingTotals;
+    if (!t) return;
+    const denom = 2 * (t.fga + 0.44 * t.fta);
+    if (denom > 0) this.state.leagueTsPct = t.pts / denom;
   },
 
   recalculateAverages(player) {
@@ -1531,7 +1613,12 @@ window.SimEngine = {
        const dbpmNum = parseFloat(exp.dbpm) || 0;
        const ortgNum = parseFloat(exp.ortg) || 100;
        const drtgNum = parseFloat(exp.drtg) || 100;
-       const tsPctNum = parseFloat(exp.tsPct) || 0;
+       // True shooting from what the player actually did. This previously
+       // read exp.tsPct — a field the expectation builder never sets — so
+       // it was always 0, pinning rTS% at exactly -53.5 for everyone.
+       const tsDenom = 2 * (s.fga + 0.44 * s.fta);
+       const tsPctNum = tsDenom > 0 ? (s.pts / tsDenom) : 0;
+       const leagueTs = this.state.leagueTsPct || 0.545;
        
        // Per-40 denominators use total minutes, not games, so low-minute
        // players aren't penalised. Guard against a 0-minute denominator.
@@ -1549,7 +1636,7 @@ window.SimEngine = {
           obpm: obpmNum.toFixed(1), 
           dbpm: dbpmNum.toFixed(1),
           tsPct: (2*(s.fga + 0.44*s.fta)) > 0 ? t3(s.pts, 2*(s.fga + 0.44*s.fta)) : '.000',
-          rTsPct: (tsPctNum * 100 - 53.5).toFixed(1), 
+          rTsPct: tsDenom > 0 ? ((tsPctNum - leagueTs) * 100).toFixed(1) : '0.0',
           eFgPct: s.fga > 0 ? t3(s.fgm + 0.5*s.threePm, s.fga) : '.000',
           orebPct: exp.orebPct || '0.0%', drebPct: exp.drebPct || '0.0%', trbPct: exp.trbPct || '0.0%',
           astPct: mpg>0 ? ((s.ast/g)/mpg * 60).toFixed(1) + '%' : '0.0%',
@@ -1938,7 +2025,7 @@ window.SimEngine = {
     // Transfer portal runs against the finished season's production.
     const transfers = this.computeTransfers();
     this.state.lastTransfers = transfers.map(t => ({
-      name: t.player.name, pos: t.player.pos, class: t.player.class,
+      id: t.player.id, name: t.player.name, pos: t.player.pos, class: t.player.class,
       rating: parseFloat(t.player.rating) || 0,
       ppg: t.player.stats ? t.player.stats.ppg : '0.0',
       from: t.from, to: t.to, reason: t.reason
@@ -2138,7 +2225,8 @@ window.SimEngine = {
     let col = this.state.sortCol;
     let dir = this.state.sortDir === 'desc' ? -1 : 1;
     let pool = this.state.activePlayers.filter(p =>
-      this.matchesConfFilter(p.conference, this.state.confFilter));
+      this.matchesConfFilter(p.conference, this.state.confFilter) &&
+      this.matchesPosFilter(p.pos, this.state.statsPosFilter));
 
     pool.sort((a, b) => {
       let valA = a.stats ? a.stats[col] : 0;
@@ -2198,10 +2286,11 @@ window.SimEngine = {
         tbodyHtml += `<tr>`;
         tbodyHtml += `<td class="rank-cell">${idx + 1}</td>`;
         const safeName = p.name.replace(/'/g, "\\'");
+        const safeId = String(p.id).replace(/'/g, "\\'");
         const safeSchool = p.school.replace(/'/g, "\\'");
         currentHeaders.forEach(h => {
-          if (h.id === 'name') tbodyHtml += `<td class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${p.name}</td>`;
-          else if (h.id === 'school') tbodyHtml += `<td class="clickable-school" onclick="SimEngine.openTeamModal('${safeSchool}')">${p.school}</td>`;
+          if (h.id === 'name') tbodyHtml += `<td class="clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${p.name}</td>`;
+          else if (h.id === 'school') tbodyHtml += `<td><div class="team-cell-wrap clickable-school" onclick="SimEngine.goToTeamPage('${safeSchool}')"><img src="${this.getTeamLogo(p.school)}" class="xs-logo"><span>${p.school}</span></div></td>`;
           else if (h.id === 'pos') tbodyHtml += `<td>${p.pos}</td>`;
           else tbodyHtml += `<td>${p.stats ? p.stats[h.id] : '-'}</td>`;
         });
@@ -2284,12 +2373,12 @@ window.SimEngine = {
 
   // Jumps straight to a team's page under the Team tab.
   goToTeamPage(school) {
+    this.closePlayerPage();
     this.state.teamPageSelection = school;
     this.state.teamPageView = 'team';
     this.updateTeamTab();
-    if (window.UIController && typeof UIController.activateTab === 'function') {
-      UIController.activateTab('teamTab');
-    }
+    this.activateTabSilently('teamTab');
+    this.pushNav({ type: 'team', key: school, view: 'team', label: school });
   },
 
   updateTopPerformances() {
@@ -2305,15 +2394,19 @@ window.SimEngine = {
       return;
     }
     el.innerHTML = perfs.map(({ player, game, score }) => {
-      const safe = player.name.replace(/'/g, "\\'");
-      const line = `${game.pts} PTS · ${game.reb} REB · ${game.ast} AST`;
+      const safe = String(player.id).replace(/'/g, "\\'");
+      const safeSchool = String(player.school).replace(/'/g, "\\'");
       return `<div class="perf-row">
-        <img src="${this.getTeamLogo(player.school)}" class="sm-logo">
+        <img src="${this.getTeamLogo(player.school)}" class="sm-logo clickable-school" title="${player.school}" onclick="SimEngine.goToTeamPage('${safeSchool}')">
         <div class="perf-info">
           <span class="perf-name clickable-player" onclick="SimEngine.openPlayerModal('${safe}')">${player.name}</span>
-          <span class="perf-meta">${player.school} ${game.isHome ? 'vs' : '@'} ${game.opponent} · ${game.won ? 'W' : 'L'} ${game.teamScore}-${game.oppScore}</span>
-          <span class="perf-line">${line}</span>
+          <span class="perf-meta"><span class="clickable-school" onclick="SimEngine.goToTeamPage('${safeSchool}')">${player.school}</span> ${game.isHome ? 'vs' : '@'} ${game.opponent} · ${game.won ? 'W' : 'L'} ${game.teamScore}-${game.oppScore}</span>
         </div>
+        <span class="perf-statline">
+          <span class="perf-stat"><b>${game.pts}</b> PTS</span>
+          <span class="perf-stat"><b>${game.reb}</b> REB</span>
+          <span class="perf-stat"><b>${game.ast}</b> AST</span>
+        </span>
         <span class="perf-score" title="Game Score">${score.toFixed(1)}</span>
       </div>`;
     }).join('');
@@ -2417,8 +2510,12 @@ window.SimEngine = {
     for (let i = 0; i < 5; i++) {
       if (sorted[i]) {
         const safeName = sorted[i].name.replace(/'/g, "\\'");
+        const safeId = String(sorted[i].id).replace(/'/g, "\\'");
         html += `<div class="leader-row">
-          <span>${i+1}. <span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${sorted[i].name}</span> <span class="leader-school">(${sorted[i].school})</span></span>
+          <span class="leader-ident">${i+1}.
+            <img src="${this.getTeamLogo(sorted[i].school)}" class="xs-logo clickable-school" title="${sorted[i].school}" onclick="event.stopPropagation();SimEngine.goToTeamPage('${sorted[i].school.replace(/'/g, "\\'")}')">
+            <span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${sorted[i].name}</span>
+          </span>
           <span>${sorted[i].stats[statKey]}</span>
         </div>`;
       }
@@ -2620,6 +2717,7 @@ window.SimEngine = {
     const card = (title, sub, player) => {
       if (!player) return '';
       const safeName = player.name.replace(/'/g, "\\'");
+      const safeId = String(player.id).replace(/'/g, "\\'");
       return `<div class="award-card award-card-horizontal">
         <div class="award-heading">
           <div class="award-title">${title}</div>
@@ -2628,7 +2726,7 @@ window.SimEngine = {
         <div class="award-winner">
           <img src="${this.getTeamLogo(player.school)}" class="award-logo">
           <div class="award-winner-info">
-            <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${player.name}</span>
+            <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${player.name}</span>
             <span class="award-winner-school">${player.school} (${player.pos} &bull; ${player.class})</span>
             <span class="award-winner-stats">Rating ${Math.round(parseFloat(player.rating))}</span>
           </div>
@@ -2648,8 +2746,9 @@ window.SimEngine = {
           <h5 class="award-table-title">Preseason All-American — ${teamNames[t]}</h5>
           ${group.map(p => {
             const safeName = p.name.replace(/'/g, "\\'");
+        const safeId = String(p.id).replace(/'/g, "\\'");
             return `<div class="leader-row">
-              <span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${p.name}</span>
+              <span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${p.name}</span>
               <span class="leader-school">${p.school}</span>
               <span>${Math.round(parseFloat(p.rating))}</span>
             </div>`;
@@ -2706,7 +2805,7 @@ window.SimEngine = {
           <div class="award-winner">
             <img src="${this.getTeamLogo(a.winner.school)}" class="award-logo">
             <div class="award-winner-info">
-              <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${a.winner.name}</span>
+              <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${String(a.winner.id).replace(/'/g, "\\'")}')">${a.winner.name}</span>
               <span class="award-winner-school">${a.winner.school} (${a.winner.pos} &bull; ${a.winner.class})</span>
               <span class="award-winner-stats">${a.winner.stats.ppg} PPG, ${a.winner.stats.rpg} RPG, ${a.winner.stats.apg} APG</span>
             </div>
@@ -2727,13 +2826,14 @@ window.SimEngine = {
       let rows = '';
       teamList.forEach((p, idx) => {
         const safeName = p.name.replace(/'/g, "\\'");
+        const safeId = String(p.id).replace(/'/g, "\\'");
         rows += `
           <tr>
             <td class="highlight-text">${idx + 1}</td>
             <td>
               <div class="team-cell-wrap">
                 <img src="${this.getTeamLogo(p.school)}" class="xs-logo">
-                <span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${p.name}</span>
+                <span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${p.name}</span>
               </div>
             </td>
             <td>${p.school}</td>
@@ -2801,6 +2901,7 @@ window.SimEngine = {
     const confFreshTeam = sortedFresh.slice(0, 5);
 
     const safeN = p => p.name.replace(/'/g, "\\'");
+    const safeI = p => String(p.id).replace(/'/g, "\\'");
 
     let html = `
       <div class="awards-grid">
@@ -2810,7 +2911,7 @@ window.SimEngine = {
           <div class="award-winner">
             <img src="${this.getTeamLogo(cpoy.school)}" class="award-logo">
             <div class="award-winner-info">
-              <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeN(cpoy)}')">${cpoy.name}</span>
+              <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeI(cpoy)}')">${cpoy.name}</span>
               <span class="award-winner-school">${cpoy.school} &bull; ${cpoy.stats.ppg} PPG, ${cpoy.stats.rpg} RPG</span>
             </div>
           </div>
@@ -2822,7 +2923,7 @@ window.SimEngine = {
           <div class="award-winner">
             <img src="${this.getTeamLogo(cdpoy.school)}" class="award-logo">
             <div class="award-winner-info">
-              <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeN(cdpoy)}')">${cdpoy.name}</span>
+              <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeI(cdpoy)}')">${cdpoy.name}</span>
               <span class="award-winner-school">${cdpoy.school} &bull; ${cdpoy.stats.stl} SPG, ${cdpoy.stats.blk} BPG</span>
             </div>
           </div>
@@ -2834,7 +2935,7 @@ window.SimEngine = {
           <div class="award-winner">
             <img src="${this.getTeamLogo(croty.school)}" class="award-logo">
             <div class="award-winner-info">
-              <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeN(croty)}')">${croty.name}</span>
+              <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeI(croty)}')">${croty.name}</span>
               <span class="award-winner-school">${croty.school} &bull; ${croty.stats.ppg} PPG</span>
             </div>
           </div>
@@ -2846,7 +2947,7 @@ window.SimEngine = {
           <div class="award-winner">
             <img src="${this.getTeamLogo(c6moy.school)}" class="award-logo">
             <div class="award-winner-info">
-              <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeN(c6moy)}')">${c6moy.name}</span>
+              <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeI(c6moy)}')">${c6moy.name}</span>
               <span class="award-winner-school">${c6moy.school} &bull; ${c6moy.stats.ppg} PPG</span>
             </div>
           </div>
@@ -2867,13 +2968,14 @@ window.SimEngine = {
     let rows = '';
     playerList.forEach((p, idx) => {
       const safeName = p.name.replace(/'/g, "\\'");
+        const safeId = String(p.id).replace(/'/g, "\\'");
       rows += `
         <tr>
           <td class="bold-sub-text">${idx+1}</td>
           <td>
             <div class="team-cell-wrap">
               <img src="${this.getTeamLogo(p.school)}" class="xs-logo">
-              <span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${p.name}</span>
+              <span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${p.name}</span>
             </div>
           </td>
           <td>${p.school}</td>
@@ -2943,10 +3045,11 @@ window.SimEngine = {
     rPlayers.forEach((p, idx) => {
       let statsStr = this.state.week > 0 ? `<span class="player-modal-substat">${p.stats.ppg} PPG | ${p.stats.mpg} MPG</span>` : '';
       const safeName = p.name.replace(/'/g, "\\'");
+        const safeId = String(p.id).replace(/'/g, "\\'");
       rHtml += `
         <tr>
           <td class="jersey-num">${p.jersey ? '#' + p.jersey : '—'}</td>
-          <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${p.name}</span> ${statsStr}</td>
+          <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${p.name}</span> ${statsStr}</td>
           <td>${p.pos}</td>
           <td>${p.class}</td>
           <td>${p.ht}</td>
@@ -2972,9 +3075,23 @@ window.SimEngine = {
     this.openPlayerPage(playerName);
   },
 
-  openPlayerPage(playerName) {
-    const player = this.state.activePlayers.find(p => p.name === playerName)
-      || (this.state.recruits || []).find(p => p.name === playerName);
+  // Accepts an id or a name. Ids are unique; names are not — two generated
+  // players at different schools can share one, and matching by name meant
+  // clicking one opened the other's profile.
+  openPlayerPage(idOrName) {
+    const player = this.findPlayerRef(idOrName);
+    if (!player) return;
+    this.pushNav({ type: 'player', key: player.id || player.name, label: player.name });
+    this.renderPlayerInPlace(player.id || player.name);
+  },
+
+  findPlayerRef(idOrName) {
+    const pool = this.state.activePlayers.concat(this.state.recruits || []);
+    return pool.find(p => p.id === idOrName) || pool.find(p => p.name === idOrName);
+  },
+
+  renderPlayerInPlace(idOrName) {
+    const player = this.findPlayerRef(idOrName);
     if (!player) return;
 
     const overlay = document.getElementById('playerPage');
@@ -3308,6 +3425,73 @@ window.SimEngine = {
     container.innerHTML = html;
   },
 
+  // --- Navigation history ---
+  //
+  // A single stack of visited views so one Back control works everywhere,
+  // instead of each page needing its own bespoke "back to X" link. Each
+  // entry knows how to restore itself.
+
+  navStack: [],
+
+  pushNav(entry) {
+    const top = this.navStack[this.navStack.length - 1];
+    // Don't stack the same view twice in a row.
+    if (top && top.type === entry.type && top.key === entry.key) return;
+    this.navStack.push(entry);
+    if (this.navStack.length > 40) this.navStack.shift();
+    this.updateBackButton();
+  },
+
+  updateBackButton() {
+    const btn = document.getElementById('navBackBtn');
+    if (!btn) return;
+    // The top of the stack is where you are now; anything beneath it is
+    // somewhere you can go back to.
+    const canGoBack = this.navStack.length > 1;
+    btn.style.display = canGoBack ? 'inline-flex' : 'none';
+    if (canGoBack) {
+      const prev = this.navStack[this.navStack.length - 2];
+      btn.title = `Back to ${prev.label}`;
+      const labelEl = document.getElementById('navBackLabel');
+      if (labelEl) labelEl.innerText = prev.label;
+    }
+  },
+
+  navigateBack() {
+    if (this.navStack.length < 2) return;
+    this.navStack.pop();                       // leave the current view
+    const prev = this.navStack[this.navStack.length - 1];
+    this.restoreNav(prev);
+    this.updateBackButton();
+  },
+
+  restoreNav(entry) {
+    if (!entry) return;
+    if (entry.type === 'player') {
+      this.renderPlayerInPlace(entry.key);
+      return;
+    }
+    this.closePlayerPage();
+    if (entry.type === 'team') {
+      this.state.teamPageSelection = entry.key;
+      this.state.teamPageView = entry.view || 'team';
+      this.updateTeamTab();
+      this.activateTabSilently('teamTab');
+    } else if (entry.type === 'tab') {
+      this.activateTabSilently(entry.key);
+    }
+  },
+
+  // Switches tabs without pushing a new history entry (used when going
+  // back, so Back doesn't just bounce between two views forever).
+  activateTabSilently(tabId) {
+    this._suppressNav = true;
+    if (window.UIController && typeof UIController.activateTab === 'function') {
+      UIController.activateTab(tabId);
+    }
+    this._suppressNav = false;
+  },
+
   // --- Team Page ---
 
   setTeamPageSelection(school) {
@@ -3319,6 +3503,10 @@ window.SimEngine = {
   setTeamPageView(view) {
     this.state.teamPageView = view;
     this.updateTeamTab();
+    if (this.state.teamPageSelection) {
+      this.pushNav({ type: 'team', key: this.state.teamPageSelection, view,
+        label: `${this.state.teamPageSelection}${view === 'gamelog' ? ' game log' : view === 'history' ? ' history' : ''}` });
+    }
   },
 
   backToTeamIndex() {
@@ -3525,9 +3713,10 @@ window.SimEngine = {
     let rows = '';
     roster.forEach(p => {
       const safeName = p.name.replace(/'/g, "\\'");
+        const safeId = String(p.id).replace(/'/g, "\\'");
       rows += '<tr>' + cols.map(([id]) => {
         if (id === 'jersey') return `<td class="jersey-num">${p.jersey ? '#' + p.jersey : '—'}</td>`;
-        if (id === 'name') return `<td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${p.name}</span></td>`;
+        if (id === 'name') return `<td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${p.name}</span></td>`;
         if (id === 'pos' || id === 'class') return `<td class="sub-text">${p[id]}</td>`;
         return `<td>${p.stats ? p.stats[id] : '—'}</td>`;
       }).join('') + '</tr>';
@@ -3760,11 +3949,12 @@ window.SimEngine = {
 
     body.innerHTML = recruits.map((r, i) => {
       const safeName = r.name.replace(/'/g, "\\'");
+      const safeId = String(r.id).replace(/'/g, "\\'");
       const committed = r.school && r.school !== 'Uncommitted' && r.school !== 'Free Agent';
       const team = committed ? this.state.teams.find(t => t.school === r.school) : null;
       return `<tr>
         <td class="bold-sub-text">${i + 1}</td>
-        <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeName}')">${r.name}</span></td>
+        <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${r.name}</span></td>
         <td class="sub-text">${r.pos}</td>
         <td class="bold-text">${Math.round(parseFloat(r.rating))}</td>
         <td class="sub-text-sm">${r.hs || r.hometown || '—'}</td>
@@ -3803,7 +3993,7 @@ window.SimEngine = {
     board.forEach((entry, i) => {
       const p = entry.player;
       const st = p.stats || this.getZeroStats();
-      const safe = p.name.replace(/'/g, "\\'");
+      const safe = String(p.id).replace(/'/g, "\\'");
       const declared = declaredIds.has(p.id);
       rows += `<tr>
         <td class="rank-cell">${i + 1}</td>
@@ -3932,7 +4122,7 @@ window.SimEngine = {
           <thead><tr><th>#</th><th>Player</th><th>School</th><th>Pos</th><th>Cl</th><th>PPG</th><th>Status</th></tr></thead><tbody>
           ${decls.map((d, i) => `<tr>
             <td class="bold-sub-text">${i + 1}</td>
-            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${d.name.replace(/'/g, "\\'")}')">${d.name}</span></td>
+            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(d.id).replace(/'/g, "\\'")}')">${d.name}</span></td>
             <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(d.school)}" class="xs-logo"><span>${d.school}</span></div></td>
             <td class="sub-text">${d.pos}</td>
             <td class="sub-text">${d.class}</td>
@@ -3947,7 +4137,7 @@ window.SimEngine = {
         <div class="table-scroll"><table class="data-table">
           <thead><tr><th>Player</th><th>School</th><th>Pos</th><th>Big Board</th></tr></thead><tbody>
           ${returning.map(r => `<tr>
-            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${r.name.replace(/'/g, "\\'")}')">${r.name}</span></td>
+            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(r.id).replace(/'/g, "\\'")}')">${r.name}</span></td>
             <td class="sub-text">${r.school}</td>
             <td class="sub-text">${r.pos}</td>
             <td class="sub-text-sm">${r.boardRank <= 200 ? '#' + r.boardRank : 'Unranked'}</td>
@@ -3966,7 +4156,7 @@ window.SimEngine = {
       <div class="table-scroll"><table class="data-table">
         <thead><tr><th>Player</th><th>Pos</th><th>Cl</th><th>PPG</th><th>From</th><th></th><th>To</th><th>Reason</th></tr></thead><tbody>
         ${transfers.map(t => `<tr>
-          <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${t.name.replace(/'/g, "\\'")}')">${t.name}</span></td>
+          <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(t.id || t.name).replace(/'/g, "\\'")}')">${t.name}</span></td>
           <td class="sub-text">${t.pos}</td>
           <td class="sub-text">${t.class}</td>
           <td class="bold-text">${t.ppg}</td>
