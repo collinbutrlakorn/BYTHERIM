@@ -385,6 +385,12 @@ window.SimEngine = {
         rawRosters.forEach(rawPlayer => {
           if (!this.rowHasPlayerName(rawPlayer)) return;
           if (!this.rowBelongsToCurrentSeason(rawPlayer)) { skippedFutureSeasons++; return; }
+
+          // Recruit-vs-roster overlap is resolved later, in
+          // filterActiveData()/mergeRecruitIntoPlayer, once the full
+          // universe (including auto-generated teams) exists — matching
+          // here at the raw-row level can't see auto-generated rosters
+          // and would miss those overlaps.
           const player = this.normalizePlayerObj(rawPlayer, false);
           if (!player.school || player.school === 'Free Agent') return;
           if (!realTeamsMap[player.school]) {
@@ -705,9 +711,9 @@ window.SimEngine = {
       school_logo: this.getTeamLogo(school),
       pos: getVal(['pos', 'position'], 'G').toUpperCase(),
       class: classStanding,
-      ht: getVal(['ht', 'height'], "6'4"),
-      wt: getVal(['wt', 'weight'], "190"),
-      hometown: getVal(['from', 'hometown', 'home'], 'N/A'),
+      ht: getVal(['height', 'ht'], "6'4"),
+      wt: getVal(['weight', 'wt'], "190"),
+      hometown: getVal(['hometown', 'home', 'from'], 'N/A'),
       hs: getVal(['hs', 'highschool', 'prep', 'prepschool'], ''),
       jersey: String(getVal(['jersey', 'number', 'num', 'jerseynumber', 'uniform'], '')).replace(/[^0-9]/g, ''),
       // National recruit ranking, used by the draft big board's pedigree term.
@@ -738,19 +744,66 @@ window.SimEngine = {
       }
     });
 
+    // Recruits who have arrived either enroll fresh or, if the roster
+    // sheet already lists them (the two sheets commonly overlap for a
+    // player's true freshman season), merge onto that existing entry.
+    // The recruiting database is the more detailed, curated source, so
+    // it wins on every field EXCEPT jersey number, which only the roster
+    // sheet tracks — see mergeRecruitIntoPlayer.
+    const stillPending = [];
     this.state.recruits.forEach(rec => {
-      // Class of 2028 has enrolled by the 2028-29 season; class of 2029 has not.
       const arrived = !rec.recClassYear || rec.recClassYear <= this.state.year;
-      if (arrived && rec.school && rec.school !== 'Uncommitted' && rec.school !== 'Free Agent') {
-        const team = this.state.teams.find(t => t.school.toLowerCase() === rec.school.toLowerCase());
-        if (team && !team.roster.some(p => p.name === rec.name)) {
-          rec.school = team.school; rec.school_logo = this.getTeamLogo(team.school); rec.class = 'FR';
-          team.roster.push(rec); players.push(rec);
-        }
+      if (!arrived) { stillPending.push(rec); return; }
+      if (!rec.school || rec.school === 'Uncommitted' || rec.school === 'Free Agent') {
+        stillPending.push(rec); return; // arrived but still uncommitted
       }
+
+      const team = this.state.teams.find(t => t.school.toLowerCase() === rec.school.toLowerCase());
+      if (!team) { stillPending.push(rec); return; } // committed school not in the universe
+
+      const existing = team.roster.find(p => p.name === rec.name);
+      if (existing) {
+        this.mergeRecruitIntoPlayer(existing, rec);
+        // existing is already in `players` from the roster scan above —
+        // don't add it again.
+      } else {
+        rec.school = team.school;
+        rec.school_logo = this.getTeamLogo(team.school);
+        rec.class = 'FR';
+        team.roster.push(rec);
+        players.push(rec);
+      }
+      // Enrolled either way — no longer a pending recruit, so it drops out
+      // of state.recruits entirely rather than being re-checked (and
+      // potentially re-merged, clobbering progressed stats) every season.
     });
+    this.state.recruits = stillPending;
+
     this.state.activePlayers = players;
     this.assignMissingJerseys();
+  },
+
+  // Applies a recruit's data onto an existing roster player representing
+  // the same person. Runtime/identity state (id, stats, game log, class
+  // standing, jersey) is protected; every other field the recruit record
+  // supplies overwrites the roster sheet's version, since the recruiting
+  // database is the more detailed and authoritative source for a
+  // player's scouting profile.
+  mergeRecruitIntoPlayer(existingPlayer, recruit) {
+    const PROTECTED = new Set([
+      'id', 'jersey', 'class', 'gameLog', 'accolades', 'stats', 'statsFull',
+      'statsConf', 'seasonHistory', 'isGenerated', 'isBench', 'isRecruit',
+      'expectedStats', 'school_logo'
+    ]);
+    Object.keys(recruit).forEach(key => {
+      if (PROTECTED.has(key)) return;
+      const val = recruit[key];
+      const meaningful = val !== undefined && val !== null && val !== ''
+        && !(Array.isArray(val) && val.length === 0);
+      if (meaningful) existingPlayer[key] = val;
+    });
+    // Recomputed rather than copied, since school may have just changed.
+    existingPlayer.school_logo = this.getTeamLogo(existingPlayer.school);
   },
 
   // Recruits join their roster after the universe is built, so they miss
