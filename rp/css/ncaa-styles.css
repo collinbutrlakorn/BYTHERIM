@@ -2113,3 +2113,43 @@ body.offseason-open {
   .player-page-name { font-size: 1.5rem; }
   .player-page-logo { width: 64px; height: 64px; }
 }
+
+/* Head coach card on the team page */
+.coach-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--r-md);
+  padding: 0.9rem 1.1rem;
+}
+
+.coach-head { display: flex; align-items: baseline; gap: 0.6rem; flex-wrap: wrap; }
+
+.coach-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.coach-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.coach-tags { display: flex; gap: 0.35rem; flex-wrap: wrap; margin: 0.45rem 0 0.35rem; }
+
+.coach-tag {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-pill);
+  padding: 0.1rem 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.coach-style { color: var(--text-muted); font-size: 0.86rem; line-height: 1.45; margin: 0; }
