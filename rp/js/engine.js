@@ -290,15 +290,17 @@ window.SimEngine = {
   // is added for a school, it automatically takes priority; nothing else
   // needs to change.
   KNOWN_LOGO_FILES: new Set([
-    'alabama', 'arizona', 'arizonastate', 'arkansas', 'auburn', 'baylor', 'bostoncollege', 'byu', 'cal',
-    'cincinnati', 'clemson', 'colorado', 'connecticut', 'creighton', 'depaul', 'duke', 'florida', 'floridastate',
-    'fordham', 'georgetown', 'georgia', 'gonzaga', 'gtech', 'houston', 'illinois', 'indiana', 'iowa', 'iowastate',
-    'kansas', 'kansasstate', 'kentucky', 'louisville', 'lsu', 'marquette', 'maryland', 'memphis', 'miami',
-    'michigan', 'michiganstate', 'mississippistate', 'missouri', 'ncstate', 'nebraska', 'northwestern',
-    'notredame', 'ohiostate', 'oklahoma', 'olemiss', 'oregon', 'oregonstate', 'pennstate', 'pitt', 'providence',
-    'purdue', 'rutgers', 'scar', 'sdsu', 'smu', 'stanford', 'stjohns', 'syracuse', 'tcu', 'temple', 'tennessee',
-    'texas', 'texasam', 'texastech', 'ucf', 'ucla', 'unc', 'unlv', 'usc', 'utah', 'vanderbilt', 'villanova',
-    'virginia', 'virginiatech', 'wakeforest', 'washington', 'wazzou', 'westvirginia', 'wisconsin', 'xavier'
+    'alabama', 'arizona', 'arizonastate', 'arkansas', 'auburn', 'baylor', 'boisestate', 'bostoncollege', 'butler',
+    'byu', 'cal', 'cincinnati', 'clemson', 'colorado', 'coloradostate', 'connecticut', 'creighton', 'depaul',
+    'duke', 'florida', 'floridastate', 'fordham', 'fresnostate', 'georgetown', 'georgia', 'gonzaga', 'gtech',
+    'houston', 'illinois', 'indiana', 'iowa', 'iowastate', 'kansas', 'kansasstate', 'kentucky', 'louisville',
+    'lsu', 'marquette', 'maryland', 'memphis', 'miami', 'michigan', 'michiganstate', 'minnesota', 'mississippistate',
+    'missouri', 'ncstate', 'nebraska', 'northwestern', 'notredame', 'ohiostate', 'oklahoma', 'oklahomastate', 'olemiss',
+    'oregon', 'oregonstate', 'pennstate', 'pitt', 'providence', 'purdue', 'rutgers', 'scar', 'sdsu',
+    'setonhall', 'smu', 'stanford', 'stjohns', 'syracuse', 'tcu', 'temple', 'tennessee', 'texas',
+    'texasam', 'texasstate', 'texastech', 'ucf', 'ucla', 'unc', 'unlv', 'usc', 'utah',
+    'utahstate', 'vanderbilt', 'villanova', 'virginia', 'virginiatech', 'wakeforest', 'washington', 'wazzou', 'westvirginia',
+    'wisconsin', 'xavier'
   ]),
 
   _logoCache: {},
@@ -621,6 +623,64 @@ window.SimEngine = {
   // present. Returned multipliers nudge that player's college expectations
   // away from the generic positional baseline, so two 90-rated wings don't
   // simulate identically.
+  // Converts a recruiting-service rating into an NCAA overall.
+  //
+  // The two scales are not the same thing: recruit ratings are tightly
+  // bunched at the top (a 97 and a 90 are separated by seven points but by
+  // an enormous gap in college readiness), so mapping them across directly
+  // made every top-100 recruit an instant star. These bands come from how
+  // those tiers actually perform:
+  //   97+      national POY / top draft pick candidates      -> 90+
+  //   94-96    all-conference, sometimes All-American        -> 83-89
+  //   90-93    starters, occasionally all-conference         -> 78-82
+  //   85-89    starter to bench rotation                     -> 73-78
+  //   <85      rotation depth depending on roster quality    -> 66-73
+  //
+  // Every tier gets real spread, and a small share of players land well
+  // outside their band in both directions — the unheralded recruit who
+  // becomes an All-American is a real and recurring outcome, not noise
+  // to be smoothed away.
+  scaleRecruitRating(recruitRating, rng = Math.random) {
+    const rr = parseFloat(recruitRating);
+    if (isNaN(rr)) return null;
+
+    // Ratings that already look like NCAA overalls (or are on a stars-style
+    // scale) are left alone — only recruiting-service numbers get mapped.
+    if (rr <= 5 || rr > 100) return null;
+
+    let lo, hi;
+    if (rr >= 97)      { lo = 89; hi = 95; }
+    else if (rr >= 94) { lo = 83; hi = 89; }
+    else if (rr >= 90) { lo = 78; hi = 83; }
+    else if (rr >= 85) { lo = 73; hi = 78; }
+    else if (rr >= 80) { lo = 68; hi = 74; }
+    else               { lo = 64; hi = 71; }
+
+    // Position within the band tracks position within the tier, so a 96
+    // outperforms a 94 on average without being guaranteed to.
+    const tierSpan = rr >= 97 ? 3 : (rr >= 94 ? 3 : (rr >= 90 ? 4 : (rr >= 85 ? 5 : 5)));
+    const tierFloor = rr >= 97 ? 97 : (rr >= 94 ? 94 : (rr >= 90 ? 90 : (rr >= 85 ? 85 : (rr >= 80 ? 80 : 70))));
+    const within = Math.max(0, Math.min(1, (rr - tierFloor) / tierSpan));
+
+    // Centre of the band, nudged by tier position, then noise.
+    let value = lo + (hi - lo) * (0.30 + within * 0.55);
+    value += (rng() + rng() - 1) * 2.6;
+
+    // Outliers. Roughly one in twenty-five misses their band badly, and one
+    // in forty substantially exceeds it — the lightly-recruited player who
+    // turns into a lottery pick.
+    // Outliers, scaled so a lightly-recruited player can genuinely become
+    // an All-American — the Keaton Wagler case. Lower tiers get the bigger
+    // upside swing precisely because that's where the real surprises come
+    // from; nobody is shocked when a 97 is good.
+    const roll = rng();
+    const riserRoom = rr >= 94 ? 6 : (rr >= 90 ? 10 : (rr >= 85 ? 14 : 19));
+    if (roll < 0.030) value += 5 + rng() * riserRoom;
+    else if (roll < 0.075) value -= 5 + rng() * 7;
+
+    return Math.max(55, Math.min(97, Math.round(value)));
+  },
+
   buildPlaystyleProfile(raw, getVal) {
     const prof = { score: 1, reb: 1, ast: 1, stl: 1, blk: 1, threePar: 1, threePct: 1, ftPct: 1, usage: 1 };
     let found = false;
@@ -691,7 +751,15 @@ window.SimEngine = {
     // starter". Defaulting those to 75 let them out-rank rated players and
     // absorb rotation minutes.
     const rawRating = getVal(['rating', 'ovr', 'grade', 'stars'], '');
-    const rating = (rawRating !== '' && !isNaN(parseFloat(rawRating))) ? parseFloat(rawRating) : 70;
+    let rating = (rawRating !== '' && !isNaN(parseFloat(rawRating))) ? parseFloat(rawRating) : 70;
+    // Recruiting-service ratings live on a different scale to NCAA
+    // overalls and have to be mapped, not copied across.
+    if (isRecruit && rawRating !== '') {
+      const scaled = this.scaleRecruitRating(rawRating);
+      if (scaled !== null) {
+        rating = scaled;
+        }
+    }
     // 'committedschool' is what the recruiting sheet actually uses — without
     // it every recruit read as Uncommitted.
     const school = getVal(['committedschool', 'school', 'team', 'committedto', 'college', 'commit'], 'Free Agent');
@@ -1491,15 +1559,28 @@ window.SimEngine = {
     const refRating = starters.length
       ? starters.reduce((n, p) => n + parseFloat(p.rating), 0) / starters.length : 75;
 
+    // How much this staff trusts freshmen. A veteran-reliant coach gives a
+    // young player a short leash regardless of his recruiting profile, so
+    // not every five-star walks into thirty minutes a night.
+    const trust = (team.coachProfile && team.coachProfile.freshmanTrust) || 1;
+    const youthFactor = (p) => {
+      if (p.class !== 'FR') return 1;
+      // Freshman bigs foul and make more mistakes, so they tend to play in
+      // shorter bursts even when they're productive.
+      const isBigFr = ['C', 'F/C', 'PF'].includes((p.pos || '').toUpperCase());
+      return trust * (isBigFr ? 0.86 : 1);
+    };
+
     const weights = [];
     starters.forEach(p => {
-      weights.push({ p, w: 26 + Math.max(-6, Math.min(8, (parseFloat(p.rating) - refRating) * 0.55)) });
+      const base = 26 + Math.max(-6, Math.min(8, (parseFloat(p.rating) - refRating) * 0.55));
+      weights.push({ p, w: base * youthFactor(p) });
     });
     bench.forEach((p, i) => {
       // Rotation depth drops off quickly past the eighth or ninth man.
       const depthFactor = Math.pow(0.72, i);
       const quality = 8 + Math.max(-4, Math.min(9, (parseFloat(p.rating) - refRating) * 0.45));
-      weights.push({ p, w: Math.max(0, quality * depthFactor) });
+      weights.push({ p, w: Math.max(0, quality * depthFactor * youthFactor(p)) });
     });
 
     // Normalise to the 200 minutes available in a game, then cap so nobody
@@ -2825,19 +2906,135 @@ window.SimEngine = {
 
   // Projected NCAA field, shown on Selection Day between the conference
   // tournaments and the NCAA tournament itself.
-  renderSelectionField() {
+  // Builds the NCAA field as a real four-region bracket. Teams are seeded
+  // 1-68 overall, then distributed across the East, South, West and
+  // Midwest so the top four overall seeds are the 1-seeds in different
+  // regions, the next four are the 2-seeds, and so on — the same snake
+  // the selection committee uses. The last at-large teams drop into the
+  // First Four.
+  buildSeededBracket() {
     const field = this.buildNCAAField();
+    const REGIONS = ['East', 'South', 'West', 'Midwest'];
     const autoBids = new Set(Object.values(this.state.confTournaments).map(b => b.champion.school));
-    return `<p class="sub-text mb-1">${field.length} teams are in. Auto bids are conference tournament champions; the rest are at-large selections.</p>
-      <div class="selection-grid">
-        ${field.map((t, i) => `
-          <button class="selection-chip ${autoBids.has(t.school) ? 'auto-bid' : ''}" onclick="SimEngine.goToTeamPage('${t.school.replace(/'/g, "\\'")}')">
-            <span class="selection-seed">${i + 1}</span>
-            <img src="${this.getTeamLogo(t.school)}" class="xs-logo">
-            <span class="selection-name">${t.school}</span>
-            <span class="selection-tag">${autoBids.has(t.school) ? 'AUTO' : 'AT-LARGE'}</span>
-          </button>`).join('')}
+
+    // A 68-team field fills 64 bracket slots: 60 teams are placed
+    // directly and the last 8 pair off in the First Four for the
+    // remaining 4 slots. Those slots are rendered as the matchup itself
+    // rather than a single team, which is how a real bracket shows them
+    // before the play-in games are decided.
+    const SLOTS = 64;
+    const playInGames = Math.max(0, Math.min(4, field.length - SLOTS));
+    const directCount = SLOTS - playInGames;
+    const direct = field.slice(0, directCount);
+    const playInPool = field.slice(directCount);
+
+    const playIn = [];
+    for (let i = 0; i < playInGames; i++) {
+      const a = playInPool[i * 2];
+      const b = playInPool[i * 2 + 1];
+      if (!a || !b) break;
+      playIn.push({
+        teamA: a, teamB: b, seed: 16,
+        autoA: autoBids.has(a.school), autoB: autoBids.has(b.school)
+      });
+    }
+
+    // Build the 64 bracket slots: direct entrants first, then one
+    // First Four placeholder per region on the 16 line.
+    const slots = direct.map(team => ({ type: 'team', team, autoBid: autoBids.has(team.school) }));
+    playIn.forEach(g => slots.push({ type: 'playin', game: g }));
+
+    const regions = {};
+    REGIONS.forEach(r => { regions[r] = []; });
+
+    // Snake the seed lines across regions so the best teams on each line
+    // land in different regions, as the committee does.
+    slots.forEach((slot, i) => {
+      const seedLine = Math.floor(i / 4);
+      const posInLine = i % 4;
+      const regionIdx = seedLine % 2 === 0 ? posInLine : (3 - posInLine);
+      regions[REGIONS[regionIdx]].push({ ...slot, seed: seedLine + 1 });
+    });
+
+    return { regions, REGIONS, playIn, fieldSize: field.length };
+  },
+
+  // Seed-order pairings within a region: 1v16, 8v9, 5v12, 4v13, 6v11,
+  // 3v14, 7v10, 2v15 — the standard first-round arrangement.
+  REGION_PAIR_ORDER: [[1, 16], [8, 9], [5, 12], [4, 13], [6, 11], [3, 14], [7, 10], [2, 15]],
+
+  renderSelectionField() {
+    const { regions, REGIONS, playIn, fieldSize } = this.buildSeededBracket();
+
+    const teamChip = (entry) => {
+      if (!entry) return `<div class="seed-row empty"><span class="seed-num">—</span><span class="seed-name">TBD</span></div>`;
+      if (entry.type === 'playin') {
+        const g = entry.game;
+        return `<div class="seed-row playin-slot" title="First Four winner">
+          <span class="seed-num">${entry.seed}</span>
+          <span class="seed-name">${g.teamA.school} / ${g.teamB.school}</span>
+        </div>`;
+      }
+      const safe = entry.team.school.replace(/'/g, "\\'");
+      return `<div class="seed-row ${entry.autoBid ? 'auto-bid' : ''}" onclick="SimEngine.goToTeamPage('${safe}')" title="${entry.team.school}${entry.autoBid ? ' — automatic bid' : ' — at-large'}">
+        <span class="seed-num">${entry.seed}</span>
+        <img src="${this.getTeamLogo(entry.team.school)}" class="xs-logo">
+        <span class="seed-name">${entry.team.school}</span>
       </div>`;
+    };
+
+    const regionPanel = (name) => {
+      const bySeed = {};
+      (regions[name] || []).forEach(e => {
+        if (!bySeed[e.seed]) bySeed[e.seed] = e;
+      });
+      const games = this.REGION_PAIR_ORDER.map(([a, b]) => `
+        <div class="seed-matchup">
+          ${teamChip(bySeed[a])}
+          ${teamChip(bySeed[b])}
+        </div>`).join('');
+      return `<div class="bracket-region">
+        <h5 class="region-title">${name}</h5>
+        ${games}
+      </div>`;
+    };
+
+    const firstFour = playIn.length ? `
+      <div class="first-four">
+        <h5 class="region-title">First Four</h5>
+        <div class="first-four-games">
+          ${playIn.map(g => `
+            <div class="seed-matchup">
+              <div class="seed-row ${g.autoA ? 'auto-bid' : ''}" onclick="SimEngine.goToTeamPage('${g.teamA.school.replace(/'/g, "\\'")}')">
+                <span class="seed-num">${g.seed}</span>
+                <img src="${this.getTeamLogo(g.teamA.school)}" class="xs-logo">
+                <span class="seed-name">${g.teamA.school}</span>
+              </div>
+              <div class="seed-row ${g.autoB ? 'auto-bid' : ''}" onclick="SimEngine.goToTeamPage('${g.teamB.school.replace(/'/g, "\\'")}')">
+                <span class="seed-num">${g.seed}</span>
+                <img src="${this.getTeamLogo(g.teamB.school)}" class="xs-logo">
+                <span class="seed-name">${g.teamB.school}</span>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>` : '';
+
+    // Four-corner layout: the two left regions feed one semifinal and the
+    // two right regions the other, meeting at the Final Four in the middle.
+    return `
+      <p class="sub-text mb-1">${fieldSize} teams are in. Gold-marked teams earned automatic bids by winning their conference tournament; the rest are at-large selections.</p>
+      <div class="ncaa-bracket-grid">
+        ${regionPanel(REGIONS[0])}
+        ${regionPanel(REGIONS[1])}
+        <div class="final-four-hub">
+          <div class="ff-label">Final Four</div>
+          <div class="ff-trophy">🏆</div>
+          <div class="ff-sub">National Championship</div>
+        </div>
+        ${regionPanel(REGIONS[2])}
+        ${regionPanel(REGIONS[3])}
+      </div>
+      ${firstFour}`;
   },
 
   // Draws a real bracket: one column per round, matchups stacked inside,
