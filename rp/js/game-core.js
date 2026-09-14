@@ -196,6 +196,51 @@ function resyncRebounds(boxes) {
   return boxes;
 }
 
+// Trims any player taking an outsized share of his team's field goal
+// attempts, moving both the attempts and the makes they produced to
+// teammates so the team's shooting line and point total stay intact.
+function capShotVolume(boxes, maxShare) {
+  const totalFga = boxes.reduce((n, b) => n + (b.fga || 0), 0);
+  if (totalFga <= 0) return boxes;
+  const ceiling = totalFga * maxShare;
+
+  boxes.forEach(b => {
+    if ((b.fga || 0) <= ceiling) return;
+    const factor = ceiling / b.fga;
+    const shift = (madeKey, attKey) => {
+      const newAtt = Math.round(b[attKey] * factor);
+      const newMade = Math.min(newAtt, Math.round(b[madeKey] * factor));
+      const dAtt = b[attKey] - newAtt;
+      const dMade = b[madeKey] - newMade;
+      b[attKey] = newAtt; b[madeKey] = newMade;
+      return { dAtt, dMade };
+    };
+    const two = shift('twoPm', 'twoPa');
+    const three = shift('threePm', 'threePa');
+    b.fgm = b.twoPm + b.threePm;
+    b.fga = b.twoPa + b.threePa;
+    b.pts = b.twoPm * 2 + b.threePm * 3 + b.ftm;
+
+    // Hand the removed shots to the teammates with the most room.
+    const room = boxes.filter(x => x !== b && (x.fga || 0) < ceiling)
+      .sort((x, y) => (x.fga || 0) - (y.fga || 0));
+    if (room.length === 0) return;
+    let i = 0;
+    const give = (attKey, madeKey, dAtt, dMade) => {
+      for (let n = 0; n < dAtt; n++) {
+        const t = room[i % room.length]; i++;
+        t[attKey] += 1;
+        if (n < dMade) { t[madeKey] += 1; t.pts += (attKey === 'threePa' ? 3 : 2); }
+        t.fgm = t.twoPm + t.threePm;
+        t.fga = t.twoPa + t.threePa;
+      }
+    };
+    give('twoPa', 'twoPm', two.dAtt, two.dMade);
+    give('threePa', 'threePm', three.dAtt, three.dMade);
+  });
+  return boxes;
+}
+
 function capTeamAssists(boxes, maxShare = 0.62) {
   const totalFgm = boxes.reduce((s, b) => s + b.fgm, 0);
   const totalAst = boxes.reduce((s, b) => s + b.ast, 0);
@@ -279,6 +324,10 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
     boxes = capIndividualShare(boxes, 'reb', 0.31);
     boxes = resyncRebounds(boxes);
     boxes = capIndividualShare(boxes, 'ast', 0.72);
+    // Shot volume. The real top-five attempt leaders sit between roughly
+    // 17 and 20 a night, and even on a lopsided roster one player rarely
+    // takes more than about a quarter of his team's shots.
+    boxes = capShotVolume(boxes, 0.315);
     return boxes;
   };
   const homeBoxes = finish(homeRaw.map(x => x.box), homeScore);
@@ -291,7 +340,7 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
   };
 }
 
-const GameCore = { generateRawPlayerBox, reconcileTeamScore, capTeamAssists, capIndividualShare, simulateSingleGame, getZeroBox };
+const GameCore = { generateRawPlayerBox, reconcileTeamScore, capTeamAssists, capIndividualShare, capShotVolume, simulateSingleGame, getZeroBox };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = GameCore;
 else if (typeof window !== 'undefined') window.GameCore = GameCore;
