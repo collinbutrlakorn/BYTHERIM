@@ -53,14 +53,86 @@ const LAST_NAMES = [
   'Castellan','Moriarty','Okonkwo','Vasquez','Beaumont','Lindqvist','Haugen','Novak','Kaminski','Duarte'
 ];
 
+// Hometowns span the whole country, not just the traditional talent hubs:
+// every state sends players to Division I, usually from its largest metro
+// areas but often from much smaller towns.
 const HOMETOWNS = [
-  'Chicago, IL','Houston, TX','Atlanta, GA','Los Angeles, CA','Brooklyn, NY','Detroit, MI',
-  'Memphis, TN','New Orleans, LA','Baltimore, MD','Philadelphia, PA','Cleveland, OH',
-  'St. Louis, MO','Charlotte, NC','Columbus, OH','Indianapolis, IN','Milwaukee, WI',
-  'Dallas, TX','Miami, FL','Oakland, CA','Kansas City, MO','Newark, NJ','Richmond, VA',
-  'Birmingham, AL','Jackson, MS','Louisville, KY','Nashville, TN','Tulsa, OK','Wichita, KS',
-  'Raleigh, NC','Norfolk, VA'
+  'Birmingham, AL','Montgomery, AL','Mobile, AL','Huntsville, AL','Tuscaloosa, AL',
+  'Anchorage, AK','Phoenix, AZ','Tucson, AZ','Mesa, AZ','Chandler, AZ','Glendale, AZ',
+  'Little Rock, AR','Fayetteville, AR','Fort Smith, AR',
+  'Los Angeles, CA','Oakland, CA','San Diego, CA','Sacramento, CA','Fresno, CA','Long Beach, CA',
+  'San Jose, CA','Compton, CA','Inglewood, CA','Riverside, CA','Bakersfield, CA','Chino Hills, CA',
+  'Denver, CO','Aurora, CO','Colorado Springs, CO','Boulder, CO',
+  'Hartford, CT','Bridgeport, CT','New Haven, CT','Stamford, CT',
+  'Wilmington, DE','Washington, DC',
+  'Miami, FL','Orlando, FL','Tampa, FL','Jacksonville, FL','Fort Lauderdale, FL','St. Petersburg, FL',
+  'Tallahassee, FL','Naples, FL','Bradenton, FL','West Palm Beach, FL',
+  'Atlanta, GA','Savannah, GA','Augusta, GA','Columbus, GA','Marietta, GA','Macon, GA',
+  'Honolulu, HI','Boise, ID','Idaho Falls, ID',
+  'Chicago, IL','Peoria, IL','Rockford, IL','Springfield, IL','Evanston, IL','Champaign, IL',
+  'Indianapolis, IN','Fort Wayne, IN','South Bend, IN','Evansville, IN','Gary, IN','Bloomington, IN',
+  'Des Moines, IA','Cedar Rapids, IA','Iowa City, IA',
+  'Wichita, KS','Overland Park, KS','Topeka, KS','Lawrence, KS',
+  'Louisville, KY','Lexington, KY','Bowling Green, KY',
+  'New Orleans, LA','Baton Rouge, LA','Shreveport, LA','Lafayette, LA',
+  'Portland, ME','Baltimore, MD','Silver Spring, MD','Annapolis, MD','Rockville, MD','Upper Marlboro, MD',
+  'Boston, MA','Springfield, MA','Worcester, MA','Cambridge, MA',
+  'Detroit, MI','Grand Rapids, MI','Flint, MI','Ann Arbor, MI','Lansing, MI','Saginaw, MI',
+  'Minneapolis, MN','St. Paul, MN','Duluth, MN','Rochester, MN',
+  'Jackson, MS','Gulfport, MS','Biloxi, MS',
+  'St. Louis, MO','Kansas City, MO','Springfield, MO','Columbia, MO',
+  'Billings, MT','Missoula, MT','Omaha, NE','Lincoln, NE',
+  'Las Vegas, NV','Reno, NV','Henderson, NV','Manchester, NH',
+  'Newark, NJ','Jersey City, NJ','Camden, NJ','Paterson, NJ','Trenton, NJ','Elizabeth, NJ',
+  'Albuquerque, NM','Las Cruces, NM',
+  'Brooklyn, NY','Bronx, NY','Queens, NY','Harlem, NY','Buffalo, NY','Rochester, NY',
+  'Syracuse, NY','Yonkers, NY','Albany, NY','Long Island, NY',
+  'Charlotte, NC','Raleigh, NC','Durham, NC','Greensboro, NC','Winston-Salem, NC','Fayetteville, NC',
+  'Fargo, ND','Bismarck, ND',
+  'Cleveland, OH','Columbus, OH','Cincinnati, OH','Toledo, OH','Akron, OH','Dayton, OH','Canton, OH',
+  'Oklahoma City, OK','Tulsa, OK','Norman, OK',
+  'Portland, OR','Eugene, OR','Salem, OR','Beaverton, OR',
+  'Philadelphia, PA','Pittsburgh, PA','Allentown, PA','Harrisburg, PA','Erie, PA','Chester, PA',
+  'Providence, RI','Columbia, SC','Charleston, SC','Greenville, SC','Rock Hill, SC',
+  'Sioux Falls, SD','Rapid City, SD',
+  'Memphis, TN','Nashville, TN','Knoxville, TN','Chattanooga, TN','Murfreesboro, TN',
+  'Houston, TX','Dallas, TX','San Antonio, TX','Austin, TX','Fort Worth, TX','El Paso, TX',
+  'Arlington, TX','Plano, TX','Lubbock, TX','Duncanville, TX','Garland, TX','Killeen, TX',
+  'Salt Lake City, UT','Provo, UT','Ogden, UT','Burlington, VT',
+  'Virginia Beach, VA','Richmond, VA','Norfolk, VA','Alexandria, VA','Newport News, VA','Hampton, VA',
+  'Seattle, WA','Spokane, WA','Tacoma, WA','Federal Way, WA','Kent, WA',
+  'Charleston, WV','Huntington, WV',
+  'Milwaukee, WI','Madison, WI','Green Bay, WI','Racine, WI','Cheyenne, WY',
+  // International pipelines that regularly feed Division I rosters.
+  'Toronto, ON','Montreal, QC','Vancouver, BC','Hamilton, ON','Mississauga, ON',
+  'Lagos, Nigeria','Dakar, Senegal','Bamako, Mali','Juba, South Sudan','Yaounde, Cameroon',
+  'Belgrade, Serbia','Zagreb, Croatia','Ljubljana, Slovenia','Podgorica, Montenegro',
+  'Paris, France','Lyon, France','Madrid, Spain','Barcelona, Spain','Rome, Italy','Milan, Italy',
+  'Berlin, Germany','Munich, Germany','Vilnius, Lithuania','Riga, Latvia','Athens, Greece',
+  'Melbourne, Australia','Sydney, Australia','Perth, Australia','London, England','Tokyo, Japan'
 ];
+
+// High schools: a mix of the national academies that produce elite
+// prospects and ordinary local programs, which is where most of a
+// Division I roster actually comes from.
+const NATIONAL_ACADEMIES = [
+  'IMG Academy','Montverde Academy','Oak Hill Academy','Sierra Canyon','Prolific Prep',
+  'La Lumiere','Findlay Prep','DeMatha Catholic','Gonzaga College HS','St. Benedict\'s Prep',
+  'Brewster Academy','Putnam Science Academy','Link Academy','Wasatch Academy','AZ Compass Prep',
+  'Combine Academy','Hillcrest Prep','Legacy Early College','Word of God Christian','Napa Christian'
+];
+
+const HS_PREFIX = [
+  'Central','North','South','East','West','Lincoln','Washington','Jefferson','Roosevelt','Madison',
+  'Franklin','Jackson','Wilson','Kennedy','Riverside','Lakeview','Hillcrest','Oakwood','Fairview',
+  'Northside','Southside','Eastview','Westfield','Ridgewood','Brookfield','Highland','Summit',
+  'Valley','Maple Grove','Cedar Ridge','Pinecrest','Bayside','Glenwood','Crestview','Woodlawn',
+  'Mount Vernon','St. Mary\'s','St. Joseph\'s','Holy Cross','Bishop Kelley','Cardinal Newman',
+  'Sacred Heart','Trinity','Providence Catholic','Christian Brothers','Marquette Catholic'
+];
+
+const HS_SUFFIX = ['High School','HS','Prep','Academy','Catholic HS','Senior High','Christian HS'];
+
 
 // Positional height and weight norms. Values are inches / pounds:
 // `avg` is the typical player, `lo`/`hi` bound the normal range, and a
@@ -179,6 +251,13 @@ function pick(arr, rng = Math.random) {
   return arr[Math.floor(rng() * arr.length)];
 }
 
+// Roughly one player in seven comes from a national academy; the rest
+// come from ordinary local high schools.
+function generateHighSchool(rng = Math.random) {
+  if (rng() < 0.14) return pick(NATIONAL_ACADEMIES, rng);
+  return `${pick(HS_PREFIX, rng)} ${pick(HS_SUFFIX, rng)}`;
+}
+
 function generatePlayerName(usedNames, rng = Math.random) {
   let name, attempts = 0;
   do {
@@ -217,6 +296,7 @@ function generateFillerPlayer(school, conference, position, teamBaseline, roster
     ht: build.ht,
     wt: build.wt,
     hometown: pick(HOMETOWNS, rng),
+    hs: generateHighSchool(rng),
     rating,
     isRecruit: false,
     isGenerated: true,
@@ -310,9 +390,25 @@ function buildFullUniverse(masterTeamList, existingTeams, opts = {}) {
     const coachProfile = (opts.coachProfileFor && opts.coachProfileFor(masterEntry.name)) || null;
     const guardLean = coachProfile ? (coachProfile.guardLean || 1) : 1;
 
+    // Filler players exist to round out a roster, not to headline it. If
+    // the team already has real players from the roster sheet, generated
+    // upperclassmen are held below the best of them — otherwise a team's
+    // leading scorer could be somebody the engine invented. Freshmen are
+    // exempt: a genuinely elite recruit is allowed to be the best player
+    // on his team from day one.
+    let realCeiling = null;
+    if (startCount > 0) {
+      const realBest = Math.max(...roster.map(p => parseFloat(p.rating) || 0));
+      realCeiling = realBest - 1;
+    }
+
     for (let i = startCount; i < targetRosterSize; i++) {
       const pos = nextNeededPosition(roster, i, guardLean);
-      roster.push(generateFillerPlayer(masterEntry.name, masterEntry.conference, pos, teamBaseline, i, usedNames, rng));
+      const filler = generateFillerPlayer(masterEntry.name, masterEntry.conference, pos, teamBaseline, i, usedNames, rng);
+      if (realCeiling !== null && filler.class !== 'FR' && filler.rating > realCeiling) {
+        filler.rating = Math.max(45, Math.round(realCeiling));
+      }
+      roster.push(filler);
     }
 
     // Jersey numbers, assigned per team so nobody duplicates a real
@@ -348,7 +444,7 @@ function buildFullUniverse(masterTeamList, existingTeams, opts = {}) {
 
 const RosterGen = {
   FIRST_NAMES, LAST_NAMES, HOMETOWNS, CONFERENCE_TIERS, TIER_RANGES,
-  getConferenceTier, normalizeSchoolKey, buildSchoolAliasIndex,
+  getConferenceTier, normalizeSchoolKey, buildSchoolAliasIndex, generateHighSchool,
   POSITION_BUILD, generateBuild, pickJersey, POPULAR_JERSEYS, RARE_JERSEYS, generatePlayerName, generateFillerPlayer, nextNeededPosition, buildFullUniverse
 };
 
