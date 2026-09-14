@@ -1362,7 +1362,9 @@ window.SimEngine = {
       const winPct = Math.min(0.94, Math.max(0.06, 0.50 + (teamOvr - 78) * 0.038));
 
       team.expectedWinPct = winPct;
-      team.simData = { teamOvr, wins: 0, losses: 0, confWins: 0, confLosses: 0, rosterRef: roster, winPct: '.000' };
+      team.simData = { teamOvr, wins: 0, losses: 0, confWins: 0, confLosses: 0, rosterRef: roster, winPct: '.000',
+        totals: { min: 0, fga: 0, fta: 0, tov: 0, fgm: 0, oreb: 0, dreb: 0, reb: 0, ast: 0 },
+        oppTotals: { min: 0, fga: 0, fta: 0, tov: 0, fgm: 0, oreb: 0, dreb: 0, reb: 0, ast: 0 } };
 
       this.buildRotation(team);
 
@@ -1546,12 +1548,12 @@ window.SimEngine = {
     // every forward rebound like a centre and every guard pass like a point
     // guard, which is what produced the flood of 10+ rpg / sub-2 apg lines.
     const POS = {
-      PG: { reb: 3.2, ast: 4.40, stl: 1.34, blk: 0.13 },
+      PG: { reb: 3.1, ast: 4.95, stl: 1.34, blk: 0.13 },
       SG: { reb: 3.6, ast: 2.30, stl: 1.17, blk: 0.23 },
       SF: { reb: 5.0, ast: 1.80, stl: 1.08, blk: 0.45 },
       PF: { reb: 7.1, ast: 1.26, stl: 0.86, blk: 0.92 },
       C:  { reb: 8.75, ast: 0.95, stl: 0.69, blk: 1.46 },
-      G:  { reb: 3.3, ast: 3.33, stl: 1.25, blk: 0.185 },
+      G:  { reb: 3.2, ast: 3.75, stl: 1.25, blk: 0.185 },
       F:  { reb: 5.9, ast: 1.50, stl: 0.96, blk: 0.67 },
       // Wings, and combo bigs, both appear in the roster sheet.
       W:  { reb: 4.3, ast: 2.15, stl: 1.12, blk: 0.355 },
@@ -1563,6 +1565,8 @@ window.SimEngine = {
     // Declared up front: the coach's profile is referenced throughout this
     // function, including in the shooting-profile lines further down.
     const coach = this.getCoachProfile(player.school);
+    // Declared here because the archetype usage ceiling below reads it.
+    const ps = player.playstyle;
 
     const usageScale = (mpg / 28) * (r / 78);
 
@@ -1574,7 +1578,18 @@ window.SimEngine = {
     // to smaller schools and stops every top freshman on a loaded team
     // posting huge numbers.
     const usageRef = (team && team.usageReference) ? team.usageReference : 78;
-    const usageShare = Math.max(0.42, Math.min(1.62, 1 + (r - usageRef) * 0.021));
+    let usageShare = Math.max(0.42, Math.min(1.62, 1 + (r - usageRef) * 0.021));
+
+    // Usage ceiling by archetype. An off-ball big living on rolls and lobs
+    // finishes plays rather than creating them and tops out around 17%
+    // usage; a genuine post hub or passing big runs 20-25%. Perimeter
+    // creators are unconstrained here. Which one a big is comes from his
+    // scouting profile: post/passing indicators raise the ceiling.
+    if (['C', 'F/C', 'PF'].includes(pos)) {
+      const onBall = (ps && ps.ast ? ps.ast : 1) >= 1.1 || (ps && ps.score ? ps.score : 1) >= 1.15;
+      const bigCeiling = onBall ? 1.30 : 0.92;
+      usageShare = Math.min(usageShare, bigCeiling);
+    }
     const scoringUsage = (mpg / 28) * usageShare;
 
     // Scoring keys off talent above a replacement baseline rather than raw
@@ -1627,13 +1642,16 @@ window.SimEngine = {
     // Recruits carry a playstyle derived from their HS/AAU profile, so an
     // imported prospect simulates like the player he was scouted as rather
     // than like a generic example of his position.
-    const ps = player.playstyle;
     if (ps) {
-      ppg *= ps.score;
-      rpg *= ps.reb;
-      apg *= ps.ast;
-      stl *= ps.stl;
-      blk *= ps.blk;
+      // Clamped: playstyle, scouting tags and the coach's system each
+      // multiply these, and unbounded stacking was a major contributor to
+      // 20-rebound and 12-assist seasons.
+      const lim = (v, lo, hi) => Math.max(lo, Math.min(hi, v || 1));
+      ppg *= lim(ps.score, 0.75, 1.30);
+      rpg *= lim(ps.reb, 0.75, 1.25);
+      apg *= lim(ps.ast, 0.70, 1.35);
+      stl *= lim(ps.stl, 0.75, 1.30);
+      blk *= lim(ps.blk, 0.70, 1.40);
     }
 
     // A genuine focal point creates for others as well as scoring. When a
@@ -1646,7 +1664,7 @@ window.SimEngine = {
         * (['PG', 'G'].includes(pos) ? 1.0
           : ['SG', 'G/F'].includes(pos) ? 0.75
           : ['SF', 'W'].includes(pos) ? 0.55 : 0.28);
-      apg *= 1 + (usageShare - 1.10) * 1.30 * creator;
+      apg *= 1 + (usageShare - 1.10) * 1.75 * creator;
     }
 
     // The coach's system shapes what the roster actually produces: a
@@ -1839,6 +1857,35 @@ window.SimEngine = {
     }
 
     const lt = this.state.leagueShootingTotals || (this.state.leagueShootingTotals = { pts: 0, fga: 0, fta: 0 });
+
+    // Team and opponent totals, accumulated per game. Advanced rate stats
+    // (USG%, AST%, rebound percentages) are all shares of team context, so
+    // they need these — previously they were hardcoded constants or, in
+    // USG%'s case, a formula that divided season totals by per-game
+    // minutes and pinned virtually everyone at the 45% ceiling.
+    const blank = () => ({ min: 0, fga: 0, fta: 0, tov: 0, fgm: 0, oreb: 0, dreb: 0, reb: 0, ast: 0 });
+    const ensure = (t) => {
+      if (!t.simData.totals) t.simData.totals = blank();
+      if (!t.simData.oppTotals) t.simData.oppTotals = blank();
+      return t.simData;
+    };
+    const sumBoxes = (boxes) => {
+      const acc = blank();
+      boxes.forEach(({ box }) => {
+        acc.min += box.min || 0; acc.fga += box.fga || 0; acc.fta += box.fta || 0;
+        acc.tov += box.tov || 0; acc.fgm += box.fgm || 0;
+        acc.oreb += box.oreb || 0; acc.dreb += box.dreb || 0;
+        acc.reb += box.reb || 0; acc.ast += box.ast || 0;
+      });
+      return acc;
+    };
+    const homeSum = sumBoxes(result.homePlayerBoxes);
+    const awaySum = sumBoxes(result.awayPlayerBoxes);
+    const addInto = (target, src) => { Object.keys(src).forEach(k => { target[k] += src[k]; }); };
+    addInto(ensure(home).totals, homeSum);
+    addInto(ensure(home).oppTotals, awaySum);
+    addInto(ensure(away).totals, awaySum);
+    addInto(ensure(away).oppTotals, homeSum);
     const attachLogs = (boxes, teamScore, oppScore, oppSchool, isHome) => {
       boxes.forEach(({ player, box }) => {
         lt.pts += box.pts || 0; lt.fga += box.fga || 0; lt.fta += box.fta || 0;
@@ -1867,6 +1914,14 @@ window.SimEngine = {
 
   recalculateAllAverages() {
     this.updateLeagueShootingBaseline();
+    // Index team totals once so every player's rate stats can be computed
+    // against the team they actually played for.
+    this._teamTotals = {};
+    this.state.teams.forEach(t => {
+      if (t.simData && t.simData.totals) {
+        this._teamTotals[t.school] = { totals: t.simData.totals, opp: t.simData.oppTotals };
+      }
+    });
     this.state.activePlayers.forEach(p => this.recalculateAverages(p));
   },
 
@@ -1896,7 +1951,41 @@ window.SimEngine = {
        const t3 = (m,a) => a > 0 ? (m/a).toFixed(3).replace(/^0+/,'') : '.000';
        
        let mpg = s.min/g;
-       let usg = ((s.fga + 0.44 * s.fta + s.tov) / Math.max(1, mpg)) * (40/Math.max(1, mpg)) * 100;
+       // Standard box-score rate formulas, all expressed as a share of what
+       // the team did while this player was on the floor.
+       const tc = (this._teamTotals && this._teamTotals[player.school]) || null;
+       const tt = tc ? tc.totals : null;
+       const ot = tc ? tc.opp : null;
+       const teamPoss = tt ? (tt.fga + 0.44 * tt.fta + tt.tov) : 0;
+       // Team minutes divided by five gives "team games' worth of a single
+       // lineup slot", the denominator these formulas are built around.
+       const teamSlot = tt && tt.min > 0 ? tt.min / 5 : 0;
+       const playerMin = s.min;
+
+       let usg = 0;
+       if (teamPoss > 0 && playerMin > 0 && teamSlot > 0) {
+         usg = 100 * ((s.fga + 0.44 * s.fta + s.tov) * teamSlot) / (playerMin * teamPoss);
+       }
+
+       // AST%: share of teammates' made field goals the player assisted
+       // while on the floor.
+       let astPctNum = 0;
+       if (tt && playerMin > 0 && teamSlot > 0) {
+         const teammateFgm = ((playerMin / teamSlot) * tt.fgm) - s.fgm;
+         if (teammateFgm > 0) astPctNum = 100 * s.ast / teammateFgm;
+       }
+
+       // Rebound percentages need the opponent's boards as well as the
+       // team's, since a rebound is a contested share of every available miss.
+       const rebPct = (own, teamOwn, oppOther) => {
+         if (!tt || !ot || playerMin <= 0 || teamSlot <= 0) return 0;
+         const available = teamOwn + oppOther;
+         if (available <= 0) return 0;
+         return 100 * (own * teamSlot) / (playerMin * available);
+       };
+       const orebPctNum = rebPct(s.oreb, tt ? tt.oreb : 0, ot ? ot.dreb : 0);
+       const drebPctNum = rebPct(s.dreb, tt ? tt.dreb : 0, ot ? ot.oreb : 0);
+       const trbPctNum  = rebPct(s.reb,  tt ? tt.reb  : 0, ot ? ot.reb  : 0);
 
        const bpmNum = parseFloat(exp.bpm) || 0;
        const obpmNum = parseFloat(exp.obpm) || 0;
@@ -1928,11 +2017,13 @@ window.SimEngine = {
           tsPct: (2*(s.fga + 0.44*s.fta)) > 0 ? t3(s.pts, 2*(s.fga + 0.44*s.fta)) : '.000',
           rTsPct: tsDenom > 0 ? ((tsPctNum - leagueTs) * 100).toFixed(1) : '0.0',
           eFgPct: s.fga > 0 ? t3(s.fgm + 0.5*s.threePm, s.fga) : '.000',
-          orebPct: exp.orebPct || '0.0%', drebPct: exp.drebPct || '0.0%', trbPct: exp.trbPct || '0.0%',
-          astPct: mpg>0 ? ((s.ast/g)/mpg * 60).toFixed(1) + '%' : '0.0%',
+          orebPct: orebPctNum.toFixed(1) + '%',
+          drebPct: drebPctNum.toFixed(1) + '%',
+          trbPct: trbPctNum.toFixed(1) + '%',
+          astPct: astPctNum.toFixed(1) + '%',
           tovPct: (s.fga + 0.44*s.fta + s.tov) > 0 ? ((s.tov/(s.fga + 0.44*s.fta + s.tov))*100).toFixed(1) + '%' : '0.0%',
           blkPct: mpg>0 ? ((s.blk/g)/mpg * 40).toFixed(1) + '%' : '0.0%',
-          usg: Math.min(45.0, Math.max(5.0, usg)).toFixed(1) + '%', 
+          usg: Math.min(42.0, Math.max(2.0, usg)).toFixed(1) + '%',
           ftr: t3(s.fta, s.fga), threePar: t3(s.threePa, s.fga),
           ortg: ortgNum.toFixed(1), 
           drtg: drtgNum.toFixed(1), 
