@@ -2335,3 +2335,72 @@ body.offseason-open {
   color: var(--text-muted);
   font-size: 0.76rem;
 }
+
+/* Award cards: long player names and honour titles were overflowing their
+   boxes. Let the text wrap and shrink instead of spilling. */
+.award-card,
+.award-card-horizontal {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.award-title {
+  font-size: 0.95rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.award-heading { min-width: 0; flex: 1 1 200px; }
+
+.award-winner {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.award-winner-info { min-width: 0; overflow: hidden; }
+
+.award-winner-name,
+.award-winner-school,
+.award-winner-stats {
+  overflow-wrap: anywhere;
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.award-winner-name { font-size: 1rem; }
+
+.awards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.award-table-card { min-width: 0; overflow: hidden; }
+.award-table-title { overflow-wrap: anywhere; line-height: 1.25; }
+
+/* Season summary headline */
+.season-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  background: linear-gradient(135deg, rgba(212,175,55,0.12), var(--card-bg) 65%);
+  border: 1px solid var(--gold);
+  border-radius: var(--r-lg);
+  padding: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.season-headline-main { min-width: 0; }
+.season-headline .champion-logo { width: 76px; height: 76px; }
+
+/* Award cards were overflowing when a long player or school name met a
+   narrow grid column. */
+.award-card, .award-card-horizontal { min-width: 0; overflow-wrap: anywhere; }
+.award-title { font-size: 0.95rem; line-height: 1.2; overflow-wrap: anywhere; }
+.award-winner-name { overflow-wrap: anywhere; line-height: 1.2; }
+.award-winner-school, .award-winner-stats { overflow-wrap: anywhere; }
+.award-winner-info { flex: 1 1 auto; min-width: 0; }
+.awards-grid { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
