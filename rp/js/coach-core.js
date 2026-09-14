@@ -69,6 +69,14 @@ const STYLE_RULES = [
   { trait: 'guardLean', delta: -0.10, words: ['post-up', 'high-low', 'interior-dominant', 'post feeds',
       'physical interior', 'interior toughness', 'paint touches', 'big men', 'positional length'] },
 
+  // ---- Willingness to play freshmen ----
+  { trait: 'freshmanTrust', delta: +0.16, words: ['young', 'freshman', 'youth', 'one-and-done', 'nba-ready talent',
+      'elite recruiting', 'blue-chip', 'talent acquisition', 'nba-style', 'nba-level talent', 'positional length',
+      'high-major talent', 'recruiting machine'] },
+  { trait: 'freshmanTrust', delta: -0.18, words: ['veteran', 'experienced', 'disciplined', 'patient', 'system',
+      'development', 'player development', 'continuity', 'transfer portal veterans', 'older roster',
+      'execution', 'fundamentals', 'structured', 'methodical', 'high-iq', 'seasoned'] },
+
   // ---- Free throw generation ----
   { trait: 'freeThrows', delta: +0.08, words: ['downhill', 'attack the rim', 'rim attempts', 'driving lanes',
       'aggressive driving', 'paint pressure', 'drive-and-kick', 'dribble penetration'] }
@@ -84,7 +92,8 @@ const CLAMPS = {
   defense:    [0.90, 1.12],
   turnovers:  [0.82, 1.15],
   guardLean:  [0.78, 1.24],
-  freeThrows: [0.85, 1.22]
+  freeThrows: [0.85, 1.22],
+  freshmanTrust: [0.62, 1.35]
 };
 
 function neutralProfile() {
@@ -136,6 +145,8 @@ function styleTags(profile) {
   if (profile.blocks >= 1.10) tags.push('Rim Protection');
   if (profile.assists >= 1.10) tags.push('Ball Movement');
   else if (profile.assists <= 0.93) tags.push('Isolation-Heavy');
+  if (profile.freshmanTrust >= 1.12) tags.push('Plays Freshmen');
+  else if (profile.freshmanTrust <= 0.88) tags.push('Veteran-Reliant');
   if (profile.guardLean >= 1.10) tags.push('Guard-Driven');
   else if (profile.guardLean <= 0.92) tags.push('Big-Oriented');
   return tags.slice(0, 4);
