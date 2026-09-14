@@ -54,6 +54,10 @@ window.SimEngine = {
     statsPosFilter: 'ALL',
     statsQualifiedOnly: true,
     teamStatsPosFilter: 'ALL',
+    teamRosterSortBox: 'mpg',
+    teamRosterSortBoxDir: 'desc',
+    teamRosterSortAdv: 'mpg',
+    teamRosterSortAdvDir: 'desc',
     teamStatsView: 'box',
     recruitsStatusFilter: 'ALL',
     recruitsConfFilter: 'ALL'
@@ -1584,15 +1588,34 @@ window.SimEngine = {
     const trust = (team.coachProfile && team.coachProfile.freshmanTrust) || 1;
     const youthFactor = (p) => {
       if (p.class !== 'FR') return 1;
-      // Freshman bigs foul and make more mistakes, so they tend to play in
-      // shorter bursts even when they're productive.
       const isBigFr = ['C', 'F/C', 'PF'].includes((p.pos || '').toUpperCase());
-      return trust * (isBigFr ? 0.70 : 0.94);
+
+      // Pedigree earns a long leash. A blue-chip recruit is on the floor
+      // from day one — the previous flat freshman penalty meant even a
+      // top-three recruit at a blue-blood came off the bench, which isn't
+      // how those rosters work. The penalty is scaled back the higher the
+      // recruit ranked, and removed entirely for the very top of a class.
+      const rsci = parseFloat(p.rsci) || null;
+      const rating = parseFloat(p.rating) || 70;
+      let pedigree = 0;
+      if (rsci && rsci <= 5) pedigree = 1.0;
+      else if (rsci && rsci <= 25) pedigree = 0.8;
+      else if (rsci && rsci <= 60) pedigree = 0.55;
+      else if (rsci && rsci <= 100) pedigree = 0.35;
+      else if (rating >= 88) pedigree = 0.8;
+      else if (rating >= 83) pedigree = 0.5;
+
+      const basePenalty = isBigFr ? 0.70 : 0.94;
+      // pedigree 1.0 removes the penalty; 0 leaves it fully in place.
+      const adjusted = basePenalty + (1 - basePenalty) * pedigree;
+      // Coach trust still matters, but can't bench an elite recruit outright.
+      const effectiveTrust = trust + (1 - trust) * (1 - pedigree);
+      return adjusted * effectiveTrust;
     };
 
     const weights = [];
     starters.forEach(p => {
-      const base = 22 + Math.max(-4, Math.min(5, (parseFloat(p.rating) - refRating) * 0.40));
+      const base = 22 + Math.max(-6, Math.min(9, (parseFloat(p.rating) - refRating) * 0.62));
       weights.push({ p, w: base * youthFactor(p) });
     });
     // How deep this staff goes. Some teams ride a seven-man rotation with
@@ -2454,11 +2477,50 @@ window.SimEngine = {
       confChamps[confName] = b.champion.school;
     });
 
+    // Richer archive so a finished season can be browsed the way a
+    // reference site presents one: final poll, statistical leaders and the
+    // conference-by-conference picture, not just who won the title.
+    const finalPoll = [...this.state.teams]
+      .filter(t => t.apRank)
+      .sort((x, y) => x.apRank - y.apRank)
+      .slice(0, 25)
+      .map(t => ({ rank: t.apRank, school: t.school, conference: t.conference,
+                   wins: t.simData.wins, losses: t.simData.losses }));
+
+    const qualified = this.state.activePlayers.filter(p =>
+      (p.stats.gp || 0) >= 12 && parseFloat(p.stats.mpg) >= 15);
+    const leaderIn = (key) => {
+      const best = [...qualified].sort((x, y) => parseFloat(y.stats[key]) - parseFloat(x.stats[key]))[0];
+      return best ? { name: best.name, school: best.school, value: best.stats[key] } : null;
+    };
+
+    const confSummary = Object.keys(confChamps).map(conf => {
+      const teams = this.state.teams.filter(t => t.conference === conf);
+      const regular = [...teams].sort((x, y) => {
+        if (y.simData.confWins !== x.simData.confWins) return y.simData.confWins - x.simData.confWins;
+        return y.simData.wins - x.simData.wins;
+      })[0];
+      return {
+        conference: conf,
+        regularSeasonChamp: regular ? regular.school : null,
+        regularRecord: regular ? `${regular.simData.confWins}-${regular.simData.confLosses}` : '',
+        tournamentChamp: confChamps[conf],
+        bids: teams.filter(t => t.ncaaSeed).length
+      };
+    }).sort((x, y) => x.conference.localeCompare(y.conference));
+
     this.state.seasonHistory.push({
       year, champion, runnerUp, finalFour, conferenceChamps: confChamps,
       npoy: npoy ? { name: npoy.name, school: npoy.school } : null,
       dpoy: dpoy ? { name: dpoy.name, school: dpoy.school } : null,
-      froy: froy ? { name: froy.name, school: froy.school } : null
+      froy: froy ? { name: froy.name, school: froy.school } : null,
+      finalPoll,
+      leaders: {
+        ppg: leaderIn('ppg'), rpg: leaderIn('rpg'), apg: leaderIn('apg'),
+        stl: leaderIn('stl'), blk: leaderIn('blk'), bpm: leaderIn('bpm')
+      },
+      conferenceSummary: confSummary,
+      teamCount: this.state.teams.length
     });
   },
 
@@ -3881,7 +3943,7 @@ window.SimEngine = {
       ? player.collegeHistory : (player.school ? [player.school] : []);
     const collegeLinks = colleges
       .map(c => `<span class="clickable-school" onclick="SimEngine.goToTeamFromPlayer('${c.replace(/'/g, "\\'")}')">${c}</span>`)
-      .join(' → ');
+      .join(', ');
 
     const accolades = player.accolades || [];
     const preseason = accolades.filter(a => /preseason/i.test(a));
@@ -3936,7 +3998,9 @@ window.SimEngine = {
             ${bioRow('School', collegeLinks)}
             ${bioRow('Hometown', player.hometown && player.hometown !== 'N/A' ? player.hometown : '')}
             ${bioRow('High School', player.hs)}
-            ${bioRow('RSCI Rank', player.rsci ? '#' + Math.round(player.rsci) : 'Unranked')}
+            ${bioRow('RSCI Rank', player.rsci
+              ? '#' + Math.round(player.rsci) + (player.recClassYear ? ' (' + player.recClassYear + ')' : '')
+              : 'Unranked')}
           </div>
         </div>
         <button class="sim-btn sim-btn-secondary" onclick="SimEngine.closePlayerPage()">Close</button>
@@ -4423,10 +4487,27 @@ window.SimEngine = {
          ['astPct','AST%'],['tovPct','TOV%'],['blkPct','BLK%'],['usg','USG%'],['ftr','FTr'],
          ['threePar','3PAr'],['ortg','ORtg'],['drtg','DRtg'],['netRtg','Net']];
 
+    // Sortable by any column. Sort state is kept per table mode so the box
+    // score and advanced views remember their own ordering.
+    const sortKey = mode === 'box' ? 'teamRosterSortBox' : 'teamRosterSortAdv';
+    const dirKey = sortKey + 'Dir';
+    const activeCol = this.state[sortKey] || 'mpg';
+    const dir = (this.state[dirKey] || 'desc') === 'asc' ? 1 : -1;
+
+    const valueOf = (p, id) => {
+      if (id === 'name' || id === 'pos' || id === 'class') return (p[id] || '').toString();
+      if (id === 'jersey') return parseInt(p.jersey, 10);
+      const raw = p.stats ? p.stats[id] : 0;
+      return parseFloat(raw) || 0;
+    };
+
     const roster = [...(team.roster || [])].sort((a, b) => {
-      const am = parseFloat(a.stats ? a.stats.mpg : 0) || 0;
-      const bm = parseFloat(b.stats ? b.stats.mpg : 0) || 0;
-      if (bm !== am) return bm - am;
+      const av = valueOf(a, activeCol), bv = valueOf(b, activeCol);
+      if (typeof av === 'string' || typeof bv === 'string') {
+        return String(av).localeCompare(String(bv)) * dir;
+      }
+      const an = isNaN(av) ? -1 : av, bn = isNaN(bv) ? -1 : bv;
+      if (an !== bn) return (an - bn) * dir;
       return parseFloat(b.rating) - parseFloat(a.rating);
     });
 
@@ -4445,9 +4526,26 @@ window.SimEngine = {
     return `
       <h4 class="award-section-title">${mode === 'box' ? 'Player Box Score Stats' : 'Player Advanced Stats'}</h4>
       <div class="table-scroll mb-1-5"><table class="data-table">
-        <thead><tr>${cols.map(([, label]) => `<th>${label}</th>`).join('')}</tr></thead>
+        <thead><tr>${cols.map(([id, label]) => {
+          const isActive = id === activeCol;
+          const arrow = isActive ? ((this.state[dirKey] || 'desc') === 'desc' ? ' &darr;' : ' &uarr;') : '';
+          return `<th class="${isActive ? 'active-sort' : ''}" onclick="SimEngine.sortTeamRoster('${mode}','${id}')">${label}${arrow}</th>`;
+        }).join('')}</tr></thead>
         <tbody>${rows || `<tr><td colspan="${cols.length}" class="empty-table-msg">No games played yet.</td></tr>`}</tbody>
       </table></div>`;
+  },
+
+  sortTeamRoster(mode, col) {
+    const sortKey = mode === 'box' ? 'teamRosterSortBox' : 'teamRosterSortAdv';
+    const dirKey = sortKey + 'Dir';
+    if (this.state[sortKey] === col) {
+      this.state[dirKey] = (this.state[dirKey] || 'desc') === 'desc' ? 'asc' : 'desc';
+    } else {
+      this.state[sortKey] = col;
+      // Names sort A-Z first; everything else sorts best-first.
+      this.state[dirKey] = (col === 'name' || col === 'pos' || col === 'class') ? 'asc' : 'desc';
+    }
+    this.updateTeamTab();
   },
 
   renderTeamGameLog(team) {
@@ -5228,35 +5326,4 @@ window.SimEngine = {
 
   // --- Historical Seasons ---
 
-  updateHistoryTab() {
-    const container = document.getElementById('historyContainer');
-    if (!container) return;
-
-    if (!this.state.seasonHistory || this.state.seasonHistory.length === 0) {
-      container.innerHTML = `<p class="empty-table-msg">Complete a season to begin building history.</p>`;
-      return;
-    }
-
-    let html = '';
-    [...this.state.seasonHistory].sort((a, b) => b.year - a.year).forEach(s => {
-      const confChampCount = Object.keys(s.conferenceChamps || {}).length;
-      html += `<div class="award-card major-award mb-1">
-        <div class="award-title">${s.year}-${(s.year + 1).toString().slice(2)} Season</div>
-        <div class="award-winner mb-1">
-          <img src="${s.champion ? this.getTeamLogo(s.champion) : ''}" class="award-logo">
-          <div class="award-winner-info">
-            <span class="award-winner-name">${s.champion || 'Unknown'}</span>
-            <span class="award-winner-school">National Champions</span>
-            ${s.runnerUp ? `<span class="award-winner-stats">def. ${s.runnerUp} in the Championship</span>` : ''}
-          </div>
-        </div>
-        <p class="sub-text-sm mb-1">Final Four: ${(s.finalFour || []).join(', ') || 'N/A'}</p>
-        ${s.npoy ? `<p class="sub-text-sm">National POY: <span class="bold-text">${s.npoy.name}</span> (${s.npoy.school})</p>` : ''}
-        ${s.dpoy ? `<p class="sub-text-sm">National DPOY: <span class="bold-text">${s.dpoy.name}</span> (${s.dpoy.school})</p>` : ''}
-        ${s.froy ? `<p class="sub-text-sm">National FROY: <span class="bold-text">${s.froy.name}</span> (${s.froy.school})</p>` : ''}
-        <p class="sub-text-sm mt-1">${confChampCount} conference tournament champions crowned</p>
-      </div>`;
-    });
-    container.innerHTML = html;
-  }
 };
