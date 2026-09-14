@@ -2210,3 +2210,128 @@ body.offseason-open {
   .perf-stat b { font-size: 1rem; }
   .nav-back-btn { max-width: 110px; }
 }
+
+/* ============================================================
+   NCAA Tournament selection bracket — four regions arranged in a
+   four-corner layout, meeting at the Final Four in the middle.
+   ============================================================ */
+
+.ncaa-bracket-grid {
+  display: grid;
+  grid-template-columns: 1fr minmax(150px, 0.6fr) 1fr;
+  grid-template-areas:
+    "r1 hub r3"
+    "r2 hub r4";
+  gap: 1rem;
+  align-items: start;
+}
+
+.ncaa-bracket-grid > .bracket-region:nth-of-type(1) { grid-area: r1; }
+.ncaa-bracket-grid > .bracket-region:nth-of-type(2) { grid-area: r2; }
+.ncaa-bracket-grid > .bracket-region:nth-of-type(3) { grid-area: r3; }
+.ncaa-bracket-grid > .bracket-region:nth-of-type(4) { grid-area: r4; }
+
+.bracket-region {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 0.85rem;
+}
+
+.region-title {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  color: var(--accent);
+  margin: 0 0 0.6rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.seed-matchup {
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  margin-bottom: 0.4rem;
+}
+
+.seed-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  background: var(--bg-color);
+  transition: background 0.15s ease;
+}
+
+.seed-row + .seed-row { border-top: 1px solid var(--border); }
+.seed-row:hover { background: var(--card-hover); }
+.seed-row.empty { cursor: default; color: var(--text-muted); }
+.seed-row.auto-bid { border-left: 3px solid var(--gold); }
+
+.seed-num {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  color: var(--text-muted);
+  min-width: 1.3rem;
+  font-size: 0.78rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.seed-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.final-four-hub {
+  grid-area: hub;
+  align-self: center;
+  text-align: center;
+  background: linear-gradient(160deg, var(--accent-soft), var(--card-bg) 70%);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-lg);
+  padding: 1.5rem 1rem;
+}
+
+.ff-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.ff-trophy { font-size: 2rem; margin: 0.4rem 0; }
+.ff-sub { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+.first-four {
+  margin-top: 1rem;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 0.85rem;
+}
+
+.first-four-games {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.5rem;
+}
+
+@media (max-width: 900px) {
+  .ncaa-bracket-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas: "r1" "r2" "hub" "r3" "r4";
+  }
+}
+
+.seed-row.playin-slot {
+  font-style: italic;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
