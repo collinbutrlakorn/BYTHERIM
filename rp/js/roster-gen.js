@@ -12,7 +12,21 @@ const FIRST_NAMES = [
   'Chris','Michael','Anthony','Brandon','Justin','Kevin','Ryan','Austin','Josh','Ethan',
   'Darius','Terrence','Malachi','Quentin','Reggie','Julian','Braylon','Dominic','Kaden','Miles',
   'Noah','Gavin','Landon','Carter','Wyatt','Hunter','Colton','Blake','Nathaniel','Omar',
-  'Dante','Marcel','Jaylen','Keon','Rasheed','Tobias','Emmanuel','Sekou','Amir','Deshaun'
+  'Dante','Marcel','Jaylen','Keon','Rasheed','Tobias','Emmanuel','Sekou','Amir','Deshaun',
+  'Trey','Jamal','Donovan','Tristan','Bryce','Corey','Damian','Khalil','Rashad','Tyrese',
+  'Jaden','Kyrie','Shai','Obi','Bol','Precious','Chet','Paolo','Jabari','Bennedict',
+  'Ausar','Amen','Scoot','Brandin','Gradey','Dereck','Kris','Jett','Cason','Keyonte',
+  'Anthony','Nick','Adem','Dariq','Bilal','Ousmane','Moussa','Ibrahima','Cheick','Mamadi',
+  'Luka','Nikola','Goran','Dario','Vlatko','Andrej','Stefan','Milos','Aleksej','Filip',
+  'Santiago','Mateo','Diego','Rafael','Emilio','Joaquin','Tomas','Andres','Bruno','Gabriel',
+  'Liam','Declan','Rory','Finn','Callum','Cian','Eoin','Padraig','Seamus','Killian',
+  'Hugo','Mathis','Theo','Baptiste','Clement','Antoine','Lucien','Adrien','Killian','Evan',
+  'Jonas','Lukas','Maximilian','Niklas','Felix','Moritz','Julius','Leon','Til','Anton',
+  'Takumi','Ren','Haruto','Yuto','Kaito','Sota','Riku','Hinata','Yuki','Asahi',
+  'Ade','Chidi','Emeka','Kelechi','Obinna','Tunde','Kwame','Kofi','Yaw','Abdoulaye',
+  'Jermaine','Rodney','Curtis','Vernon','Otis','Clarence','Eugene','Leroy','Percy','Alvin',
+  'Zaire','Zaylen','Kyree','Jaxon','Braxton','Ashton','Camden','Easton','Weston','Beckham',
+  'Isaias','Ezra','Silas','Abram','Josiah','Micah','Levi','Asher','Judah','Boaz'
 ];
 
 const LAST_NAMES = [
@@ -22,7 +36,21 @@ const LAST_NAMES = [
   'Roberts','Turner','Phillips','Campbell','Parker','Evans','Edwards','Collins','Stewart','Sanchez',
   'Morris','Rogers','Reed','Cook','Bell','Murphy','Bailey','Rivera','Cooper','Richardson',
   'Cox','Howard','Ward','Torres','Peterson','Gray','Ramirez','James','Watson','Brooks',
-  'Kelly','Sanders','Price','Bennett','Wood','Barnes','Ross','Henderson','Coleman','Jenkins'
+  'Kelly','Sanders','Price','Bennett','Wood','Barnes','Ross','Henderson','Coleman','Jenkins',
+  'Perry','Powell','Long','Patterson','Hughes','Flores','Washington','Butler','Simmons','Foster',
+  'Gonzales','Bryant','Alexander','Russell','Griffin','Diaz','Hayes','Myers','Ford','Hamilton',
+  'Graham','Sullivan','Wallace','Woods','Cole','West','Jordan','Owens','Reynolds','Fisher',
+  'Ellis','Harrison','Gibson','McDonald','Cruz','Marshall','Ortiz','Gomez','Murray','Freeman',
+  'Wells','Webb','Simpson','Stevens','Tucker','Porter','Hunter','Hicks','Crawford','Henry',
+  'Boyd','Mason','Morales','Kennedy','Warren','Dixon','Ramos','Reyes','Burns','Gordon',
+  'Shaw','Holmes','Rice','Robertson','Hunt','Black','Daniels','Palmer','Mills','Nichols',
+  'Grant','Knight','Ferguson','Rose','Stone','Hawkins','Dunn','Perkins','Hudson','Spencer',
+  'Okafor','Adebayo','Achiuwa','Bamba','Diallo','Sissoko','Traore','Toure','Keita','Ndiaye',
+  'Jokic','Doncic','Vucevic','Bogdanovic','Petrusev','Micic','Simonovic','Topic','Avramovic','Guduric',
+  'Antetokounmpo','Papanikolaou','Sloukas','Dorsey','Calathes','Printezis','Mitoglou','Larentzakis','Agravanis','Kalaitzakis',
+  'Schroder','Wagner','Bonga','Kleber','Hartenstein','Thiemann','Obst','Voigtmann','Giffey','Lo',
+  'Nowell','Timme','Strawther','Holmgren','Braun','Suggs','Kispert','Ayayi','Nembhard','Watson',
+  'Castellan','Moriarty','Okonkwo','Vasquez','Beaumont','Lindqvist','Haugen','Novak','Kaminski','Duarte'
 ];
 
 const HOMETOWNS = [
