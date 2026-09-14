@@ -165,6 +165,70 @@ function bellDraw(avg, lo, hi, rng) {
   return Math.max(lo, Math.min(hi, v));
 }
 
+// Regional recruiting. Power-conference programs recruit nationally, but
+// a mid-major or low-major roster is overwhelmingly local: same state,
+// neighbouring states, and the nearest metro areas. Conference is used as
+// the proxy for where a school sits, since that's the geography the master
+// team list actually carries.
+const CONFERENCE_REGION = {
+  'America East': 'Northeast', 'NEC': 'Northeast', 'Patriot League': 'Northeast',
+  'MAAC': 'Northeast', 'Ivy League': 'Northeast', 'A-10': 'Northeast',
+  'CAA': 'Mid-Atlantic', 'Big South': 'Southeast', 'Southern': 'Southeast',
+  'ASUN': 'Southeast', 'SWAC': 'South', 'MEAC': 'Southeast', 'Sun Belt': 'South',
+  'Conference USA': 'South', 'Southland': 'Southwest', 'UAC': 'Southwest',
+  'Horizon League': 'Midwest', 'MAC': 'Midwest', 'Missouri Valley': 'Midwest',
+  'Ohio Valley': 'Midwest', 'The Summit': 'Plains',
+  'Big Sky': 'Mountain', 'Big West': 'West', 'West Coast': 'West',
+  'Mountain West': 'Mountain', 'American': 'South', 'Pac-12': 'West'
+};
+
+const REGION_HOMETOWNS = {
+  Northeast: ['Boston, MA','Worcester, MA','Springfield, MA','Lowell, MA','Hartford, CT','Bridgeport, CT',
+    'New Haven, CT','Providence, RI','Brooklyn, NY','Queens, NY','The Bronx, NY','Yonkers, NY','Albany, NY',
+    'Buffalo, NY','Rochester, NY','Syracuse, NY','Newark, NJ','Jersey City, NJ','Camden, NJ','Trenton, NJ',
+    'Paterson, NJ','Philadelphia, PA','Pittsburgh, PA','Allentown, PA','Scranton, PA','Portland, ME',
+    'Manchester, NH','Burlington, VT'],
+  'Mid-Atlantic': ['Baltimore, MD','Silver Spring, MD','Bethesda, MD','Washington, DC','Richmond, VA',
+    'Virginia Beach, VA','Norfolk, VA','Roanoke, VA','Wilmington, DE','Charleston, WV','Morgantown, WV',
+    'Philadelphia, PA','Raleigh, NC','Durham, NC','Charlotte, NC','Greensboro, NC'],
+  Southeast: ['Atlanta, GA','Savannah, GA','Augusta, GA','Macon, GA','Columbia, SC','Charleston, SC',
+    'Greenville, SC','Charlotte, NC','Raleigh, NC','Durham, NC','Winston-Salem, NC','Wilmington, NC',
+    'Knoxville, TN','Chattanooga, TN','Nashville, TN','Memphis, TN','Birmingham, AL','Montgomery, AL',
+    'Orlando, FL','Tampa, FL','Jacksonville, FL','Tallahassee, FL','Miami, FL','Fort Lauderdale, FL'],
+  South: ['New Orleans, LA','Baton Rouge, LA','Shreveport, LA','Jackson, MS','Gulfport, MS','Hattiesburg, MS',
+    'Mobile, AL','Birmingham, AL','Montgomery, AL','Memphis, TN','Little Rock, AR','Fayetteville, AR',
+    'Houston, TX','Dallas, TX','San Antonio, TX','Beaumont, TX','Jackson, MS','Tallahassee, FL'],
+  Southwest: ['Houston, TX','Dallas, TX','Fort Worth, TX','San Antonio, TX','Austin, TX','El Paso, TX',
+    'Lubbock, TX','Beaumont, TX','Oklahoma City, OK','Tulsa, OK','Norman, OK','Little Rock, AR',
+    'Albuquerque, NM','Las Cruces, NM','Shreveport, LA'],
+  Midwest: ['Chicago, IL','Peoria, IL','Rockford, IL','East St. Louis, IL','Springfield, IL','Indianapolis, IN',
+    'Fort Wayne, IN','Gary, IN','South Bend, IN','Evansville, IN','Detroit, MI','Flint, MI','Grand Rapids, MI',
+    'Lansing, MI','Saginaw, MI','Cleveland, OH','Columbus, OH','Cincinnati, OH','Toledo, OH','Dayton, OH',
+    'Akron, OH','Youngstown, OH','Milwaukee, WI','Madison, WI','Green Bay, WI','St. Louis, MO'],
+  Plains: ['Minneapolis, MN','St. Paul, MN','Duluth, MN','Des Moines, IA','Cedar Rapids, IA','Omaha, NE',
+    'Lincoln, NE','Sioux Falls, SD','Fargo, ND','Kansas City, MO','Topeka, KS','Wichita, KS','Springfield, MO',
+    'Columbia, MO'],
+  Mountain: ['Denver, CO','Colorado Springs, CO','Salt Lake City, UT','Provo, UT','Boise, ID','Billings, MT',
+    'Las Vegas, NV','Reno, NV','Phoenix, AZ','Tucson, AZ','Albuquerque, NM','Cheyenne, WY','Spokane, WA'],
+  West: ['Los Angeles, CA','Long Beach, CA','Riverside, CA','San Diego, CA','Oakland, CA','San Jose, CA',
+    'Sacramento, CA','Fresno, CA','Portland, OR','Eugene, OR','Seattle, WA','Tacoma, WA','Spokane, WA',
+    'Las Vegas, NV','Honolulu, HI','Phoenix, AZ']
+};
+
+const NATIONAL_RECRUITING_CONFS = new Set(['ACC', 'Big Ten', 'Big 12', 'SEC', 'Big East']);
+
+// Power-conference programs draw from everywhere; everyone else recruits
+// mostly within their own footprint, with a minority of outside finds.
+function pickHometown(conference, rng = Math.random) {
+  if (NATIONAL_RECRUITING_CONFS.has(conference)) return pick(HOMETOWNS, rng);
+  const region = CONFERENCE_REGION[conference];
+  const pool = region && REGION_HOMETOWNS[region];
+  if (!pool) return pick(HOMETOWNS, rng);
+  // About a quarter of a mid-major roster still comes from outside the
+  // immediate region — transfers, junior college finds, internationals.
+  return rng() < 0.74 ? pick(pool, rng) : pick(HOMETOWNS, rng);
+}
+
 function generateBuild(pos, rng = Math.random) {
   const b = POSITION_BUILD[pos] || POSITION_BUILD.SF;
   let inches = bellDraw(b.avgHt, b.loHt, b.hiHt, rng);
@@ -295,7 +359,7 @@ function generateFillerPlayer(school, conference, position, teamBaseline, roster
     class: cls,
     ht: build.ht,
     wt: build.wt,
-    hometown: pick(HOMETOWNS, rng),
+    hometown: pickHometown(conference, rng),
     hs: generateHighSchool(rng),
     rating,
     isRecruit: false,
@@ -444,7 +508,7 @@ function buildFullUniverse(masterTeamList, existingTeams, opts = {}) {
 
 const RosterGen = {
   FIRST_NAMES, LAST_NAMES, HOMETOWNS, CONFERENCE_TIERS, TIER_RANGES,
-  getConferenceTier, normalizeSchoolKey, buildSchoolAliasIndex, generateHighSchool,
+  getConferenceTier, normalizeSchoolKey, buildSchoolAliasIndex, generateHighSchool, pickHometown,
   POSITION_BUILD, generateBuild, pickJersey, POPULAR_JERSEYS, RARE_JERSEYS, generatePlayerName, generateFillerPlayer, nextNeededPosition, buildFullUniverse
 };
 
