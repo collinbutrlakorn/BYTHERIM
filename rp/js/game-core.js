@@ -153,6 +153,49 @@ function reconcileTeamScore(rawBoxes, targetScore) {
 // half of made field goals are assisted. This trims a team's assists back
 // to a realistic share of its makes, scaling every player proportionally
 // so nobody's line is singled out.
+// Caps any one player's share of a team's output in a single game.
+// Rebounds and assists are never reconciled to a team total the way points
+// are, so multiplier stacking (playstyle x scouting tags x coach system)
+// could compound into 20-rebound or 12-assist nights. Real ceilings are
+// far tighter: the best rebounders take roughly a quarter of their team's
+// boards and the best passers assist on around a third of their team's
+// makes over a season.
+function capIndividualShare(boxes, key, maxShare) {
+  const total = boxes.reduce((n, b) => n + (b[key] || 0), 0);
+  if (total <= 0) return boxes;
+  const ceiling = total * maxShare;
+  let excess = 0;
+  boxes.forEach(b => {
+    if ((b[key] || 0) > ceiling) { excess += b[key] - ceiling; b[key] = Math.round(ceiling); }
+  });
+  if (excess <= 0) return boxes;
+  // Give the trimmed production to the teammates who were under the cap,
+  // so the team total is preserved.
+  const room = boxes.filter(b => (b[key] || 0) < ceiling);
+  const roomTotal = room.reduce((n, b) => n + (b[key] || 0), 0);
+  if (roomTotal <= 0) return boxes;
+  let carry = 0;
+  room.forEach(b => {
+    const add = excess * (b[key] / roomTotal) + carry;
+    const whole = Math.floor(add);
+    carry = add - whole;
+    b[key] = Math.min(Math.round(ceiling), b[key] + whole);
+  });
+  return boxes;
+}
+
+// Keeps offensive and defensive boards consistent with the total after
+// the cap has moved rebounds between players.
+function resyncRebounds(boxes) {
+  boxes.forEach(b => {
+    const total = b.reb || 0;
+    const o = Math.min(b.oreb || 0, total);
+    b.oreb = o;
+    b.dreb = total - o;
+  });
+  return boxes;
+}
+
 function capTeamAssists(boxes, maxShare = 0.62) {
   const totalFgm = boxes.reduce((s, b) => s + b.fgm, 0);
   const totalAst = boxes.reduce((s, b) => s + b.ast, 0);
@@ -231,8 +274,15 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
   const homeRaw = homeRoster.map(p => ({ player: p, box: generateRawPlayerBox(p, homeBoost) }));
   const awayRaw = awayRoster.map(p => ({ player: p, box: generateRawPlayerBox(p, awayBoost) }));
 
-  const homeBoxes = capTeamAssists(reconcileTeamScore(homeRaw.map(x => x.box), homeScore));
-  const awayBoxes = capTeamAssists(reconcileTeamScore(awayRaw.map(x => x.box), awayScore));
+  const finish = (raw, score) => {
+    let boxes = capTeamAssists(reconcileTeamScore(raw, score));
+    boxes = capIndividualShare(boxes, 'reb', 0.31);
+    boxes = resyncRebounds(boxes);
+    boxes = capIndividualShare(boxes, 'ast', 0.72);
+    return boxes;
+  };
+  const homeBoxes = finish(homeRaw.map(x => x.box), homeScore);
+  const awayBoxes = finish(awayRaw.map(x => x.box), awayScore);
 
   return {
     homeScore, awayScore,
@@ -241,7 +291,7 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
   };
 }
 
-const GameCore = { generateRawPlayerBox, reconcileTeamScore, capTeamAssists, simulateSingleGame, getZeroBox };
+const GameCore = { generateRawPlayerBox, reconcileTeamScore, capTeamAssists, capIndividualShare, simulateSingleGame, getZeroBox };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = GameCore;
 else if (typeof window !== 'undefined') window.GameCore = GameCore;
