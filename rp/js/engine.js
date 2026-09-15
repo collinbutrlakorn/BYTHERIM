@@ -867,7 +867,12 @@ window.SimEngine = {
       } else {
         rec.school = team.school;
         rec.school_logo = this.getTeamLogo(team.school);
+        // Inherit the team's conference. Recruit records carry a generic
+        // 'NCAA' placeholder, which made every enrolled recruit look like a
+        // low-major player to the competition-level weighting.
+        rec.conference = team.conference;
         rec.class = 'FR';
+        rec.enrolled = true;      // now a college player, not a pending recruit
         team.roster.push(rec);
         players.push(rec);
       }
@@ -876,6 +881,10 @@ window.SimEngine = {
       // potentially re-merged, clobbering progressed stats) every season.
     });
     this.state.recruits = stillPending;
+
+    // Every rostered player takes his team's conference, whatever the
+    // source sheet said.
+    this.state.teams.forEach(t => (t.roster || []).forEach(p => { p.conference = t.conference; }));
 
     this.state.activePlayers = players;
     this.assignMissingJerseys();
@@ -908,6 +917,8 @@ window.SimEngine = {
     });
     // Recomputed rather than copied, since school may have just changed.
     existingPlayer.school_logo = this.getTeamLogo(existingPlayer.school);
+    const tm = this.state.teams.find(t => t.school === existingPlayer.school);
+    if (tm) existingPlayer.conference = tm.conference;
   },
 
   // Recruits join their roster after the universe is built, so they miss
@@ -1192,7 +1203,13 @@ window.SimEngine = {
       const gp = team.simData.wins + team.simData.losses;
       return gp > 0 ? team.simData.wins / gp : 0.5;
     };
-    return DraftCore.buildBigBoard(this.state.activePlayers, winPctFor, limit);
+    // Build the full ranking first, pin the generational prospects into
+    // their established range, and only then trim to the requested depth —
+    // pinning after the slice would silently drop anyone who hadn't made
+    // the cut on production alone.
+    const full = DraftCore.buildBigBoard(this.state.activePlayers, winPctFor, this.state.activePlayers.length);
+    const pinned = DraftCore.applyPinnedProspects(full, this.state.year + 1, this.state.activePlayers, winPctFor);
+    return pinned.slice(0, limit);
   },
 
   // A published Google Sheet occasionally returns a transient error or a
@@ -1737,16 +1754,16 @@ window.SimEngine = {
       PG: { reb: 3.2, ast: 4.95, stl: 1.34, blk: 0.13 },
       SG: { reb: 3.75, ast: 2.30, stl: 1.17, blk: 0.23 },
       SF: { reb: 5.2, ast: 1.80, stl: 1.08, blk: 0.45 },
-      PF: { reb: 7.35, ast: 1.26, stl: 0.86, blk: 0.92 },
-      C:  { reb: 9.05, ast: 0.95, stl: 0.69, blk: 1.46 },
+      PF: { reb: 7.0, ast: 1.52, stl: 0.95, blk: 1.18 },
+      C:  { reb: 9.3, ast: 0.95, stl: 0.66, blk: 1.80 },
       G:  { reb: 3.3, ast: 3.75, stl: 1.25, blk: 0.185 },
       // A combo guard fills either backcourt slot, so his profile sits
       // between a point guard's and a shooting guard's.
       CG: { reb: 3.4, ast: 3.30, stl: 1.26, blk: 0.20 },
-      F:  { reb: 6.1, ast: 1.50, stl: 0.96, blk: 0.67 },
+      F:  { reb: 6.0, ast: 1.55, stl: 0.96, blk: 0.88 },
       // Wings, and combo bigs, both appear in the roster sheet.
       W:  { reb: 4.45, ast: 2.15, stl: 1.12, blk: 0.355 },
-      'F/C': { reb: 7.95, ast: 1.15, stl: 0.76, blk: 1.23 },
+      'F/C': { reb: 8.2, ast: 1.15, stl: 0.73, blk: 1.52 },
       'G/F': { reb: 4.0, ast: 2.60, stl: 1.18, blk: 0.31 }
     };
     const base = POS[pos] || POS[isBig ? 'PF' : 'SF'];
@@ -1767,7 +1784,7 @@ window.SimEngine = {
     // to smaller schools and stops every top freshman on a loaded team
     // posting huge numbers.
     const usageRef = (team && team.usageReference) ? team.usageReference : 78;
-    let usageShare = Math.max(0.42, Math.min(1.62, 1 + (r - usageRef) * 0.021));
+    let usageShare = Math.max(0.42, Math.min(1.66, 1 + (r - usageRef) * 0.031));
 
     // Usage ceiling by archetype. An off-ball big living on rolls and lobs
     // finishes plays rather than creating them and tops out around 17%
@@ -1798,11 +1815,15 @@ window.SimEngine = {
     let apg = Math.max(0.1, base.ast * usageScale);
     let stl = Math.max(0.1, base.stl * usageScale);
     let blk = Math.max(0.05, base.blk * usageScale);
-    let tov = Math.max(0.2, (apg * 0.4 + 0.58));
+    let tov = Math.max(0.2, (apg * 0.4 + 0.50));
 
     let pf = Math.min(3.4, Math.max(0.5, (mpg / 12.1)));
 
-    let bpm = ((r - 76) * 0.45);
+    // Two-part curve: a gentle slope through the rotation, then a steeper
+    // one at the very top. A single linear scale either capped the elite
+    // too low or pushed dozens of ordinary starters past 10.
+    let bpm = ((r - 74) * 0.50) + Math.max(0, r - 90) * 0.85;
+    bpm = Math.min(16, bpm);
     let obpm = bpm * (isBig ? 0.45 : 0.60);
     let dbpm = bpm - obpm;
 
@@ -1904,7 +1925,10 @@ window.SimEngine = {
       return;
     }
     if (this.state.ncaaDone) {
-      alert("Season already complete! Advance offseason to start a new year.");
+      // The season is finished, so the next step IS the offseason. Making
+      // the user find a separate button to continue was an unnecessary
+      // dead end.
+      await this.runOffseason();
       return;
     }
     if (this.state.week === 0 && !this.state.seasonInitialized) {
@@ -2450,7 +2474,11 @@ window.SimEngine = {
     board.forEach((e, i) => { boardRank[e.player.id] = i + 1; });
 
     this.state.activePlayers.forEach(p => {
-      if (p.isRecruit) return;
+      // Only skip players who have NOT yet enrolled. Everyone in
+      // activePlayers is on a roster, but players who arrived via the
+      // recruiting sheet keep isRecruit=true, so this previously excluded
+      // every single recruit-database player from the draft — permanently.
+      if (p.isRecruit && !p.enrolled) return;
       const cls = this.normalizeClassStanding(p.class) || 'SO';
       const rating = parseFloat(p.rating) || 0;
       const rank = boardRank[p.id] || 999;
@@ -2474,6 +2502,13 @@ window.SimEngine = {
 
         // A projected top-25 pick is gone, full stop.
         if (rank <= 25) declares = true;
+        // So is a blue-chip recruit who produced. A top-20 recruit scoring
+        // at this level does not return to school, regardless of anything
+        // else the model thinks.
+        else if (rsci && rsci <= 20 && ppg >= 15) declares = true;
+        // Top-10 recruits leave unless the board says they'd go outside
+        // the first 25 picks.
+        else if (rsci && rsci <= 10 && rank <= 25) declares = true;
         // Production at the highest level of college basketball is itself a
         // declaration signal: an underclassman putting up these numbers in a
         // power conference is a pro prospect regardless of recruiting rank.
@@ -2775,6 +2810,11 @@ window.SimEngine = {
       // previously able to send a national player of the year back to
       // school.
       if (rank <= 25) return true;
+      // Blue-chip recruits who produced never withdraw.
+      const src = this.state.activePlayers.find(x => x.id === d.id);
+      const rsci = src ? parseFloat(src.rsci) : NaN;
+      const ppg = src && src.stats ? parseFloat(src.stats.ppg) : 0;
+      if (!isNaN(rsci) && rsci <= 20 && ppg >= 15) return true;
       const stayChance = rank <= 40 ? 0.92 : rank <= 60 ? 0.62 : 0.22;
       if (Math.random() < stayChance) return true;
       returning.push({ ...d, boardRank: rank });
@@ -2917,8 +2957,8 @@ window.SimEngine = {
     const btn = document.getElementById('simWeekBtn');
     if (btn) {
       if (this.state.ncaaDone) {
-        btn.innerText = `Season Complete`;
-        btn.disabled = true;
+        btn.innerText = `Begin Offseason`;
+        btn.disabled = false;
       } else if (this.state.confChampsDone) {
         const names = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8', 'Final Four', 'Championship'];
         const nextName = names[this.state.ncaaRoundsRevealed || 0] || 'Next Round';
