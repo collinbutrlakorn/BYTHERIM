@@ -33,6 +33,7 @@ window.SimEngine = {
     apPollTop25: [],
     coachesByKey: {},
     rawRosterRows: [],
+    allRecruits: [],
     leagueTsPct: 0.545,
     leagueShootingTotals: { pts: 0, fga: 0, fta: 0 },
     coachMatchCount: 0,
@@ -180,6 +181,7 @@ window.SimEngine = {
           this.state.ncaaTournament = savedState.ncaaTournament || null;
           this.state.draftDeclarations = savedState.draftDeclarations || [];
           this.state.seasonHistory = savedState.seasonHistory || [];
+          this.state.allRecruits = savedState.allRecruits || [];
           this.state.seasonInitialized = savedState.seasonInitialized || false;
           this.state.lastTransfers = savedState.lastTransfers || [];
           this.state.lastDeclarations = savedState.lastDeclarations || [];
@@ -256,6 +258,7 @@ window.SimEngine = {
           ncaaTournament: this.serializeBracket(this.state.ncaaTournament),
           draftDeclarations: this.state.draftDeclarations,
           seasonHistory: this.state.seasonHistory,
+          allRecruits: this.state.allRecruits,
           seasonInitialized: this.state.seasonInitialized,
           lastTransfers: this.state.lastTransfers,
           lastDeclarations: this.state.lastDeclarations,
@@ -431,6 +434,10 @@ window.SimEngine = {
     // Only the current and next recruiting class are relevant. Classes two
     // or more years out (2030+ during the 2028-29 season) are dropped
     // entirely so they can't leak onto rosters or into the player pool.
+    // The full pool is retained. Filtering at load time discarded every
+    // future class permanently, which is why only 2028 and 2029 ever
+    // appeared — once the season rolled over there was nothing left to
+    // promote. refreshRecruitPool() re-derives the active classes each year.
     const maxClassYear = this.state.year + 1;
     // Coaches load after the critical sheets, in their own error boundary.
     await this.loadCoaches();
@@ -438,7 +445,9 @@ window.SimEngine = {
     this.state.recruits = rawRecruits
       .filter(r => this.rowHasPlayerName(r))
       .map(r => this.normalizePlayerObj(r, true))
-      .filter(r => !r.recClassYear || r.recClassYear <= maxClassYear);
+      ;
+    this.state.allRecruits = [...this.state.recruits];
+    this.refreshRecruitPool();
     this.buildFullD1Universe(Object.values(realTeamsMap));
 
     if (this.state.teams.length === 0) {
@@ -986,7 +995,7 @@ window.SimEngine = {
   matchesPosFilter(pos, filterValue) {
     if (!filterValue || filterValue === 'ALL') return true;
     const p = String(pos || '').toUpperCase();
-    if (filterValue === 'G') return ['PG', 'SG', 'G', 'G/F'].includes(p);
+    if (filterValue === 'G') return ['PG', 'SG', 'G', 'CG', 'G/F'].includes(p);
     if (filterValue === 'F') return ['SF', 'PF', 'F', 'W', 'F/C', 'G/F'].includes(p);
     if (filterValue === 'C') return p === 'C' || p === 'F/C';
     return p === filterValue;
@@ -1100,10 +1109,35 @@ window.SimEngine = {
       // earned their record; talent keeps early-season noise sane before
       // many games have been played.
       const resumeWeight = Math.min(1, gp / 12);
-      t.apScore = (winPct * 55 * resumeWeight)
+      // Brand matters to voters, especially early. Power-conference
+      // programs and a handful of prestigious mid-majors carry weight that
+      // a low-major with the same record simply doesn't get, and a roster
+      // full of blue-chip recruits buys preseason benefit of the doubt.
+      const isPower = (typeof DraftCore !== 'undefined') && DraftCore.POWER_SIX.has(t.conference);
+      const isStrongMid = (typeof DraftCore !== 'undefined') && DraftCore.STRONG_MID.has(t.conference);
+      const PRESTIGE_MIDS = ['Gonzaga', 'Saint Mary\'s', 'Memphis', 'Dayton', 'VCU', 'Wichita State', 'Butler'];
+      let prestige = isPower ? 5.5 : (isStrongMid ? 3 : 0);
+      if (PRESTIGE_MIDS.includes(t.school)) prestige = Math.max(prestige, 5.5);
+
+      const blueChips = (t.roster || [])
+        .filter(p => p.rsci && parseFloat(p.rsci) <= 60).length;
+      const recruitingWeight = Math.min(6, blueChips * 1.5);
+
+      // Prestige and recruiting dominate before results exist, then fade
+      // as the resume fills in.
+      const brandWeight = 1 - resumeWeight * 0.65;
+
+      const rawScore = (winPct * 55 * resumeWeight)
                 + (sosNorm * 18 * resumeWeight)
                 + (talent * 0.42)
-                + (t.simData.wins * 0.35);
+                + (t.simData.wins * 0.35)
+                + (prestige + recruitingWeight) * brandWeight;
+
+      // Polls are sticky: voters move teams gradually unless something
+      // decisive happens, so each week's score is blended with the last.
+      t.apScore = (t.apScore !== undefined && this.state.week > 1)
+        ? t.apScore * 0.45 + rawScore * 0.55
+        : rawScore;
     });
 
     const sorted = [...this.state.teams].sort((a, b) => b.apScore - a.apScore);
@@ -1549,8 +1583,8 @@ window.SimEngine = {
   // and combos (F/C), so eligibility has to be a map rather than an
   // exact match.
   SLOT_ELIGIBILITY: {
-    PG: ['PG', 'G'],
-    SG: ['SG', 'G', 'W'],
+    PG: ['PG', 'G', 'CG'],
+    SG: ['SG', 'G', 'CG', 'W'],
     SF: ['SF', 'W', 'F', 'G/F'],
     PF: ['PF', 'F', 'F/C'],
     C:  ['C', 'F/C']
@@ -1700,16 +1734,19 @@ window.SimEngine = {
     // every forward rebound like a centre and every guard pass like a point
     // guard, which is what produced the flood of 10+ rpg / sub-2 apg lines.
     const POS = {
-      PG: { reb: 3.1, ast: 4.95, stl: 1.34, blk: 0.13 },
-      SG: { reb: 3.6, ast: 2.30, stl: 1.17, blk: 0.23 },
-      SF: { reb: 5.0, ast: 1.80, stl: 1.08, blk: 0.45 },
-      PF: { reb: 7.1, ast: 1.26, stl: 0.86, blk: 0.92 },
-      C:  { reb: 8.75, ast: 0.95, stl: 0.69, blk: 1.46 },
-      G:  { reb: 3.2, ast: 3.75, stl: 1.25, blk: 0.185 },
-      F:  { reb: 5.9, ast: 1.50, stl: 0.96, blk: 0.67 },
+      PG: { reb: 3.2, ast: 4.95, stl: 1.34, blk: 0.13 },
+      SG: { reb: 3.75, ast: 2.30, stl: 1.17, blk: 0.23 },
+      SF: { reb: 5.2, ast: 1.80, stl: 1.08, blk: 0.45 },
+      PF: { reb: 7.35, ast: 1.26, stl: 0.86, blk: 0.92 },
+      C:  { reb: 9.05, ast: 0.95, stl: 0.69, blk: 1.46 },
+      G:  { reb: 3.3, ast: 3.75, stl: 1.25, blk: 0.185 },
+      // A combo guard fills either backcourt slot, so his profile sits
+      // between a point guard's and a shooting guard's.
+      CG: { reb: 3.4, ast: 3.30, stl: 1.26, blk: 0.20 },
+      F:  { reb: 6.1, ast: 1.50, stl: 0.96, blk: 0.67 },
       // Wings, and combo bigs, both appear in the roster sheet.
-      W:  { reb: 4.3, ast: 2.15, stl: 1.12, blk: 0.355 },
-      'F/C': { reb: 7.7, ast: 1.15, stl: 0.76, blk: 1.23 },
+      W:  { reb: 4.45, ast: 2.15, stl: 1.12, blk: 0.355 },
+      'F/C': { reb: 7.95, ast: 1.15, stl: 0.76, blk: 1.23 },
       'G/F': { reb: 4.0, ast: 2.60, stl: 1.18, blk: 0.31 }
     };
     const base = POS[pos] || POS[isBig ? 'PF' : 'SF'];
@@ -1777,7 +1814,7 @@ window.SimEngine = {
     // far too many threes; genuine stretch bigs now come from the
     // playstyle multiplier applied just below, not from the baseline.
     const THREE_PAR = {
-      PG: 0.50, SG: 0.55, SF: 0.50, W: 0.50, 'G/F': 0.50, G: 0.52, F: 0.28,
+      PG: 0.465, SG: 0.515, CG: 0.495, SF: 0.465, W: 0.465, 'G/F': 0.465, G: 0.485, F: 0.26,
       PF: 0.22, C: 0.07, 'F/C': 0.12
     };
     let threePar = THREE_PAR[pos] !== undefined ? THREE_PAR[pos] : (isBig ? 0.18 : 0.50);
@@ -1789,7 +1826,18 @@ window.SimEngine = {
     }
     let threePPct = Math.min(0.46, Math.max(0.20,
       (isBig ? 0.315 : 0.358) * (player.playstyle ? player.playstyle.threePct : 1)));
-    let twoPPct = Math.min(0.68, Math.max(0.38, (isBig ? 0.568 : 0.468)));
+    let twoPPct = Math.min(0.72, Math.max(0.38, (isBig ? 0.568 : 0.468)));
+    // Shot location drives two-point efficiency. A big whose game is
+    // almost entirely rim attempts converts far better than one who takes
+    // long twos, so the lower his three-point rate, the higher his finish
+    // rate — a true rim-roller lands north of 60% unless he's genuinely bad.
+    if (isBig) {
+      const rimHeavy = Math.max(0, Math.min(1, (0.22 - threePar) / 0.22));
+      twoPPct += rimHeavy * 0.085;
+      // Poor finishers stay poor; this rewards ability, not just role.
+      if (r < 70) twoPPct -= 0.035;
+      twoPPct = Math.min(0.72, twoPPct);
+    }
 
     // Recruits carry a playstyle derived from their HS/AAU profile, so an
     // imported prospect simulates like the player he was scouted as rather
@@ -1812,10 +1860,16 @@ window.SimEngine = {
     // position support, so a high-usage back-to-the-basket big doesn't
     // start racking up assists.
     if (usageShare > 1.10) {
-      const creator = (ps && ps.ast ? ps.ast : 1)
-        * (['PG', 'G'].includes(pos) ? 1.0
-          : ['SG', 'G/F'].includes(pos) ? 0.75
-          : ['SF', 'W'].includes(pos) ? 0.55 : 0.28);
+      // How much a player's usage converts into assists. Forwards who
+      // actually handle the ball (flagged by an above-average playmaking
+      // profile) create like wings rather than like post players.
+      const handles = (ps && ps.ast ? ps.ast : 1) >= 1.05;
+      const posFactor = ['PG', 'G', 'CG'].includes(pos) ? 1.0
+        : ['SG', 'G/F'].includes(pos) ? 0.75
+        : ['SF', 'W'].includes(pos) ? (handles ? 0.85 : 0.55)
+        : ['PF', 'F'].includes(pos) ? (handles ? 0.70 : 0.32)
+        : 0.28;
+      const creator = (ps && ps.ast ? ps.ast : 1) * posFactor;
       apg *= 1 + (usageShare - 1.10) * 1.75 * creator;
     }
 
@@ -2217,8 +2271,13 @@ window.SimEngine = {
       const stl = parseFloat(p.stats ? p.stats.stl : 0);
       const blk = parseFloat(p.stats ? p.stats.blk : 0);
 
-      p.awardScore = (bpm * 2.5) + (ppg * 0.8) + (apg * 0.4) + (rpg * 0.4) + (teamWinPct * 15);
-      p.defensiveScore = (dbpm * 3.5) + (stl * 2.5) + (blk * 2.5) + (teamWinPct * 10);
+      // National awards weigh the level of competition the same way the
+      // draft board does: a mid-major has to clearly outproduce a
+      // high-major to win a national honour.
+      const level = (typeof DraftCore !== 'undefined')
+        ? DraftCore.competitionFactor(p.conference) : 1;
+      p.awardScore = ((bpm * 2.5) + (ppg * 0.8) + (apg * 0.4) + (rpg * 0.4)) * level + (teamWinPct * 15);
+      p.defensiveScore = ((dbpm * 3.5) + (stl * 2.5) + (blk * 2.5)) * level + (teamWinPct * 10);
     });
     
     this.state.regularSeasonDone = true;
@@ -2574,14 +2633,29 @@ window.SimEngine = {
       if (this.getRowSeasonYear(r) !== nextSeason) return;
       const name = String(r.name || r.player || r.fullname || '').trim();
       const team = String(r.team || r.school || '').trim();
-      if (name && team) nextByName[name.toLowerCase()] = team;
+      // Keyed by name only as a fallback; the primary key includes the
+      // player's CURRENT school so two players sharing a name (there are
+      // genuinely two Elijah Williamses) can't be confused for each other.
+      if (name && team) {
+        const key = name.toLowerCase();
+        if (!nextByName[key]) nextByName[key] = [];
+        nextByName[key].push(team);
+      }
     });
 
     const moved = [];
     this.state.teams.forEach(team => {
       [...(team.roster || [])].forEach(p => {
-        const dest = nextByName[String(p.name).toLowerCase()];
-        if (!dest) return;
+        const candidates = nextByName[String(p.name).toLowerCase()];
+        if (!candidates || candidates.length === 0) return;
+        // With a shared name, only move when the destination is
+        // unambiguous; otherwise leave both players where they are rather
+        // than risk relocating the wrong one.
+        if (candidates.length > 1) {
+          const distinct = [...new Set(candidates.map(c => c.toLowerCase()))];
+          if (distinct.length > 1) return;
+        }
+        const dest = candidates[0];
         const destTeam = this.state.teams.find(t =>
           t.school.toLowerCase() === dest.toLowerCase() ||
           (typeof RosterGen !== 'undefined' &&
@@ -2696,7 +2770,12 @@ window.SimEngine = {
       const rank = boardRank[d.id] || 999;
       // Projected first-rounders almost always stay in; fringe prospects
       // usually go back to school.
-      const stayChance = rank <= 30 ? 0.94 : rank <= 60 ? 0.62 : 0.22;
+      // A projected top-25 pick is gone, without exception — this is the
+      // single hardest rule on the board, and the withdrawal roll was
+      // previously able to send a national player of the year back to
+      // school.
+      if (rank <= 25) return true;
+      const stayChance = rank <= 40 ? 0.92 : rank <= 60 ? 0.62 : 0.22;
       if (Math.random() < stayChance) return true;
       returning.push({ ...d, boardRank: rank });
       return false;
@@ -2800,6 +2879,7 @@ window.SimEngine = {
     this.state.draftDeclarations = [];
     this.state.seasonInitialized = false;
 
+    this.refreshRecruitPool();
     this.filterActiveData();
     this.initSeasonData();
     this.openOffseason('champion');
@@ -4806,6 +4886,19 @@ window.SimEngine = {
   // Recruiting classes are named by graduating year: during the 2028-29
   // season the class of 2028 is already enrolled and the class of 2029 is
   // the incoming group.
+  // Derives the currently relevant recruiting classes from the full pool.
+  // Called at load and again every offseason, so next year's class becomes
+  // visible as the calendar advances instead of being lost at import.
+  refreshRecruitPool() {
+    const all = this.state.allRecruits || [];
+    if (all.length === 0) return;
+    const maxYear = this.state.year + 1;
+    const enrolledNames = new Set();
+    this.state.teams.forEach(t => (t.roster || []).forEach(p => enrolledNames.add(p.name)));
+    this.state.recruits = all.filter(r =>
+      (!r.recClassYear || r.recClassYear <= maxYear) && !enrolledNames.has(r.name));
+  },
+
   getIncomingRecruitClassYear() {
     return this.state.year + 1;
   },
