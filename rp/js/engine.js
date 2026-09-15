@@ -32,6 +32,7 @@ window.SimEngine = {
     preseasonAwards: null,  // projected honours, computed before week 1
     apPollTop25: [],
     coachesByKey: {},
+    rawRosterRows: [],
     leagueTsPct: 0.545,
     leagueShootingTotals: { pts: 0, fga: 0, fta: 0 },
     coachMatchCount: 0,
@@ -394,6 +395,10 @@ window.SimEngine = {
       }
       if (rostersRes.ok) {
         const rawRosters = this.parseCSV(await rostersRes.text());
+        // Retained in full: rows for future seasons are how the sheet
+        // expresses a predetermined transfer (same player, different team,
+        // next year), which the offseason reads below.
+        this.state.rawRosterRows = rawRosters;
         let skippedFutureSeasons = 0;
         rawRosters.forEach(rawPlayer => {
           if (!this.rowHasPlayerName(rawPlayer)) return;
@@ -800,7 +805,12 @@ window.SimEngine = {
       // Schools this player has suited up for, oldest first. Transfers
       // aren't simulated yet, so this is normally just the current school —
       // but the field exists so a transfer only has to append to it.
-      collegeHistory: [school],
+      collegeHistory: (() => {
+        // Players who transferred before the simulation began carry their
+        // prior stop in a "Previous School" column.
+        const prev = getVal(['previousschool', 'prevschool', 'formerschool', 'transferfrom'], '');
+        return prev && prev !== school ? [prev, school] : [school];
+      })(),
       playstyle: this.buildPlaystyleProfile(raw, getVal),
       rating: rating,
       isRecruit: isRecruit,
@@ -869,8 +879,14 @@ window.SimEngine = {
   // database is the more detailed and authoritative source for a
   // player's scouting profile.
   mergeRecruitIntoPlayer(existingPlayer, recruit) {
+    // The roster sheet is the authority on a player's current ability —
+    // it reflects where he actually is now, whereas a recruiting rating
+    // reflects where he was projected to be. Tyson Pollard can be a 95
+    // recruit and an 86 college player, and the 86 is what should drive
+    // the simulation. Everything else about his scouting profile (HS/AAU
+    // playstyle, measurements, pedigree) still comes from the recruit record.
     const PROTECTED = new Set([
-      'id', 'jersey', 'class', 'gameLog', 'accolades', 'stats', 'statsFull',
+      'id', 'jersey', 'class', 'rating', 'gameLog', 'accolades', 'stats', 'statsFull',
       'statsConf', 'seasonHistory', 'isGenerated', 'isBench', 'isRecruit',
       'expectedStats', 'school_logo'
     ]);
@@ -2391,8 +2407,22 @@ window.SimEngine = {
         mandatory = true;
         declares = rating >= 78 || rank <= 120;
       } else {
-        // A projected top-30 pick almost always goes.
-        if (rank <= 30) declares = true;
+        const st = p.stats || {};
+        const ppg = parseFloat(st.ppg) || 0;
+        const pra = ppg + (parseFloat(st.rpg) || 0) + (parseFloat(st.apg) || 0);
+        const isBig = ['C', 'F/C', 'PF'].includes((p.pos || '').toUpperCase());
+        const powerSix = ['ACC', 'Big Ten', 'Big 12', 'SEC', 'Big East', 'Pac-12'].includes(p.conference);
+
+        // A projected top-25 pick is gone, full stop.
+        if (rank <= 25) declares = true;
+        // Production at the highest level of college basketball is itself a
+        // declaration signal: an underclassman putting up these numbers in a
+        // power conference is a pro prospect regardless of recruiting rank.
+        else if (powerSix && (ppg >= 16 || pra >= 20)) declares = true;
+        // Bigs can be worth a pick on efficiency and impact in limited
+        // minutes — rim protection and finishing translate without volume.
+        else if (isBig && (parseFloat(st.bpm) || 0) >= 6.5) declares = true;
+        else if (rank <= 30) declares = true;
         // Elite recruits leave unless the season went badly wrong.
         else if (rsci && rsci <= 10) declares = bpm > -1.5;
         // So do players who have simply become good enough.
@@ -2530,7 +2560,56 @@ window.SimEngine = {
   // drive it: productive players at low-strength-of-schedule programs get
   // pulled upward, and highly-rated recruits who underperformed or barely
   // played look for a new situation.
-  computeTransfers() {
+  // Reads next season's rows from the roster sheet. A player listed at a
+  // different school the following year is a transfer the sheet author
+  // intended, so it's executed exactly rather than left to chance.
+  applyScriptedTransfers() {
+    const rows = this.state.rawRosterRows || [];
+    if (rows.length === 0) return [];
+    const nextSeason = this.currentSeasonSheetYear() + 1;
+
+    const nextByName = {};
+    rows.forEach(r => {
+      if (!this.rowHasPlayerName(r)) return;
+      if (this.getRowSeasonYear(r) !== nextSeason) return;
+      const name = String(r.name || r.player || r.fullname || '').trim();
+      const team = String(r.team || r.school || '').trim();
+      if (name && team) nextByName[name.toLowerCase()] = team;
+    });
+
+    const moved = [];
+    this.state.teams.forEach(team => {
+      [...(team.roster || [])].forEach(p => {
+        const dest = nextByName[String(p.name).toLowerCase()];
+        if (!dest) return;
+        const destTeam = this.state.teams.find(t =>
+          t.school.toLowerCase() === dest.toLowerCase() ||
+          (typeof RosterGen !== 'undefined' &&
+            RosterGen.normalizeSchoolKey(t.school) === RosterGen.normalizeSchoolKey(dest)));
+        if (!destTeam || destTeam.school === team.school) return;
+
+        team.roster = team.roster.filter(x => x.id !== p.id);
+        p.school = destTeam.school;
+        p.conference = destTeam.conference;
+        p.school_logo = this.getTeamLogo(destTeam.school);
+        if (!p.collegeHistory) p.collegeHistory = [team.school];
+        if (p.collegeHistory[p.collegeHistory.length - 1] !== destTeam.school) {
+          p.collegeHistory.push(destTeam.school);
+        }
+        destTeam.roster.push(p);
+        moved.push({
+          id: p.id, name: p.name, pos: p.pos, class: p.class,
+          rating: parseFloat(p.rating) || 0,
+          ppg: p.stats ? p.stats.ppg : '0.0',
+          from: team.school, to: destTeam.school, reason: 'Scheduled transfer'
+        });
+      });
+    });
+    if (moved.length) console.log(`Applied ${moved.length} scripted transfers from the roster sheet.`);
+    return moved;
+  },
+
+  computeTransfers(excludeIds) {
     const transfers = [];
     const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
 
@@ -2542,6 +2621,7 @@ window.SimEngine = {
 
       (team.roster || []).forEach(p => {
         if (declaredIds.has(p.id)) return;                 // already leaving for the draft
+        if (excludeIds && excludeIds.has(p.id)) return;     // already moved by a scripted transfer
         if (p.class === 'SR' || p.class === 'GR') return;   // out of eligibility anyway
 
         const st = p.stats || this.getZeroStats();
@@ -2641,14 +2721,18 @@ window.SimEngine = {
     // Early entrants get their chance to withdraw before rosters are cut.
     this.resolveDraftWithdrawals();
 
-    // Transfer portal runs against the finished season's production.
-    const transfers = this.computeTransfers();
-    this.state.lastTransfers = transfers.map(t => ({
+    // Scripted transfers first: if the roster sheet lists a player at a
+    // different school next season, that move is authored, not random.
+    const scripted = this.applyScriptedTransfers();
+
+    // Then the random portal, which skips anyone already moved.
+    const transfers = this.computeTransfers(new Set(scripted.map(t => t.id)));
+    this.state.lastTransfers = scripted.concat(transfers.map(t => ({
       id: t.player.id, name: t.player.name, pos: t.player.pos, class: t.player.class,
       rating: parseFloat(t.player.rating) || 0,
       ppg: t.player.stats ? t.player.stats.ppg : '0.0',
       from: t.from, to: t.to, reason: t.reason
-    }));
+    })));
     this.applyTransfers(transfers);
 
     const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
@@ -5047,13 +5131,76 @@ window.SimEngine = {
   // results up top, then the final polls, conference champions and
   // statistical leaders for that year — all clickable through to the
   // teams and players involved.
+  // A team's page for a season that has already finished. The live team
+  // page always shows the current roster, so clicking a 2028-29 team from
+  // the history tab needs its own view built from the archive rather than
+  // from today's data.
+  showHistoricalTeam(school, year) {
+    const team = this.state.teams.find(t => t.school === school);
+    const container = document.getElementById('historyContainer');
+    if (!container) return;
+
+    const hist = team && (team.history || []).find(h => h.year === year);
+    const season = (this.state.seasonHistory || []).find(h => h.year === year);
+
+    // Players who logged a season with this school that year.
+    const roster = this.state.activePlayers
+      .concat(this.state.recruits || [])
+      .map(p => {
+        const sh = (p.seasonHistory || []).find(h => h.year === year && h.school === school);
+        return sh ? { player: p, line: sh } : null;
+      })
+      .filter(Boolean)
+      .sort((a, b) => parseFloat(b.line.stats.ppg) - parseFloat(a.line.stats.ppg));
+
+    let result = '—';
+    if (hist) {
+      if (hist.wonNationalTitle) result = 'National Champions';
+      else if (hist.wonConfTourney) result = 'Conference Tournament Champions';
+      else if (hist.ncaaSeed) result = `NCAA Tournament — #${hist.ncaaSeed} seed`;
+      else result = 'Did not reach the NCAA Tournament';
+    }
+
+    const cols = [['gp','GP'],['gs','GS'],['mpg','MPG'],['ppg','PPG'],['rpg','RPG'],['apg','APG'],
+                  ['stl','SPG'],['blk','BPG'],['fgPct','FG%'],['threePPct','3P%'],['ftPct','FT%'],['bpm','BPM']];
+
+    container.innerHTML = `
+      <button class="outline-btn mb-1" onclick="SimEngine.setHistorySeason(${year})">&larr; Back to ${year}-${(year + 1).toString().slice(2)} Season</button>
+      <div class="team-header">
+        <img src="${this.getTeamLogo(school)}" class="team-logo">
+        <div class="team-title-block">
+          <h2 class="modal-team-name">${school}</h2>
+          <span class="modal-team-year">${year}-${(year + 1).toString().slice(2)} Season</span>
+        </div>
+      </div>
+      <div class="team-stats-grid mb-1-5">
+        <div class="stat-box"><span class="stat-label">RECORD</span><span class="stat-value">${hist ? `${hist.wins}-${hist.losses}` : '—'}</span><span class="sub-text-sm">${hist ? `(${hist.confWins}-${hist.confLosses} conf)` : ''}</span></div>
+        <div class="stat-box"><span class="stat-label">AP RANK</span><span class="stat-value">${hist && hist.apRank ? '#' + hist.apRank : '—'}</span></div>
+        <div class="stat-box"><span class="stat-label">NCAA SEED</span><span class="stat-value">${hist && hist.ncaaSeed ? '#' + hist.ncaaSeed : '—'}</span></div>
+        <div class="stat-box"><span class="stat-label">CONFERENCE</span><span class="stat-value">${team ? team.conference : '—'}</span></div>
+      </div>
+      <div class="season-result-banner mb-1-5">${result}</div>
+      ${season && season.champion === school ? `<p class="sub-text mb-1">Won the national championship${season.runnerUp ? ` over ${season.runnerUp}` : ''}.</p>` : ''}
+
+      <h4 class="award-section-title">${year}-${(year + 1).toString().slice(2)} Roster Statistics</h4>
+      <div class="table-scroll"><table class="data-table">
+        <thead><tr><th>Player</th><th>Cl</th><th>Pos</th>${cols.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead>
+        <tbody>${roster.length ? roster.map(({ player, line }) => `<tr>
+          <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(player.id).replace(/'/g, "\\'")}')">${player.name}</span></td>
+          <td class="sub-text">${line.class || '—'}</td>
+          <td class="sub-text">${player.pos}</td>
+          ${cols.map(c => `<td>${line.stats[c[0]] !== undefined ? line.stats[c[0]] : '—'}</td>`).join('')}
+        </tr>`).join('') : `<tr><td colspan="${cols.length + 3}" class="empty-table-msg">No archived player statistics for this season.</td></tr>`}</tbody>
+      </table></div>`;
+  },
+
   renderSeasonSummary(year) {
     const entry = (this.state.seasonHistory || []).find(h => h.year === year);
     if (!entry) return `<p class="empty-table-msg">No data for that season.</p>`;
 
     const label = `${year}-${(year + 1).toString().slice(2)}`;
     const teamLink = (school) => school
-      ? `<span class="clickable-school" onclick="SimEngine.goToTeamPage('${school.replace(/'/g, "\\'")}')">${school}</span>`
+      ? `<span class="clickable-school" onclick="SimEngine.showHistoricalTeam('${school.replace(/'/g, "\\'")}', ${year})">${school}</span>`
       : '—';
 
     // Final standings for that season come from each team's archive.
