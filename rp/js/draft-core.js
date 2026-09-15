@@ -9,7 +9,7 @@
 
 const CLASS_YOUTH = { FR: 10, SO: 6, JR: 2.5, SR: 0, GR: -1.5 };
 const POS_SIZE_TARGET = { PG: 75, SG: 78, SF: 80, PF: 82, C: 84,
-  G: 76, F: 81, W: 79, 'F/C': 83, 'G/F': 79 };
+  G: 76, F: 81, W: 79, 'F/C': 83, 'G/F': 79, CG: 76 };
 
 // Accepts 6'7, 6-7, 6’7, or a plain inch count.
 function parseHeightInches(ht) {
@@ -30,6 +30,19 @@ function num(v, fallback = 0) {
 //   teamWinPct  - his team's win rate this season (0-1), 0.5 if unknown
 // Returns the score plus its components, so the UI can explain a ranking
 // rather than just asserting one.
+// Strength of the competition a player faced. Scouts discount production
+// against weaker opposition: a mid-major has to dominate to earn the same
+// grade a high-major earns by being merely very good. Prestigious
+// mid-majors sit between the two because they schedule and recruit up.
+const POWER_SIX = new Set(['ACC', 'Big Ten', 'Big 12', 'SEC', 'Big East', 'Pac-12']);
+const STRONG_MID = new Set(['American', 'A-10', 'Mountain West', 'West Coast', 'Missouri Valley', 'Conference USA']);
+
+function competitionFactor(conference) {
+  if (POWER_SIX.has(conference)) return 1.0;
+  if (STRONG_MID.has(conference)) return 0.80;
+  return 0.62;
+}
+
 function scoreProspect(player, teamWinPct = 0.5) {
   const st = player.stats || {};
   const gp = st.gp || 0;
@@ -69,13 +82,20 @@ function scoreProspect(player, teamWinPct = 0.5) {
   // produces will pass one ranked 7th who doesn't, so the pedigree term is
   // both smaller and decays harder as real evidence accumulates, while the
   // production term carries more weight.
+  // Production is discounted by the level it was produced against, so a
+  // high-major doesn't need gaudy numbers to rank highly and a mid-major
+  // does. Ability, pedigree and physical tools are level-independent and
+  // are not discounted.
+  const level = competitionFactor(player.conference);
+  const scaledProduction = (production + efficiency + winning) * level;
+
   const score = num(player.rating, 70) * 0.62
               + youth
               + sizeEdge
               + pedigree * 0.55 * (1 - evidence * 0.85)
-              + (production + efficiency + winning) * evidence * 1.75;
+              + scaledProduction * evidence * 1.75;
 
-  return { score, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree };
+  return { score, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree, level };
 }
 
 // Ranks a list of players. `winPctFor` maps a school name to that team's
@@ -113,7 +133,7 @@ function scoutingTags(entry) {
   return tags.slice(0, 4);
 }
 
-const DraftCore = { parseHeightInches, scoreProspect, buildBigBoard, scoutingTags, CLASS_YOUTH, POS_SIZE_TARGET };
+const DraftCore = { parseHeightInches, scoreProspect, competitionFactor, POWER_SIX, STRONG_MID, buildBigBoard, scoutingTags, CLASS_YOUTH, POS_SIZE_TARGET };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = DraftCore;
 else if (typeof window !== 'undefined') window.DraftCore = DraftCore;
