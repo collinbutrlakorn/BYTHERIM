@@ -7,7 +7,20 @@
 // No DOM access here, so it's testable in Node.
 // ============================================================
 
-const CLASS_YOUTH = { FR: 10, SO: 6, JR: 2.5, SR: 0, GR: -1.5 };
+// Age is the single dominant factor in the modern NBA draft, far more so
+// than college production. Calibrated against real results (2020-2026):
+//
+//   2025 lottery: 10 of 14 picks were freshmen. Khaman Maluach went #10
+//   averaging 8.6 ppg on 16.1% usage; Carter Bryant went #14 on 6.5 ppg.
+//   Meanwhile Johni Broome (18.6 pts, 10.8 reb, 14.3 BPM, senior) fell to
+//   #35, Maxime Raynaud (20.2 pts, 10.6 reb) to #42, and Eric Dixon
+//   (23.3 ppg) went undrafted entirely.
+//
+// A young player with modest production outranks an older one with far
+// better numbers, because teams are drafting the projection rather than
+// the season. The previous spread (FR +10 down to GR -1.5) was nowhere
+// near steep enough to reproduce that.
+const CLASS_YOUTH = { FR: 24, SO: 13, JR: 1, SR: -11, GR: -16 };
 const POS_SIZE_TARGET = { PG: 75, SG: 78, SF: 80, PF: 82, C: 84,
   G: 76, F: 81, W: 79, 'F/C': 83, 'G/F': 79, CG: 76 };
 
@@ -75,7 +88,9 @@ function scoreProspect(player, teamWinPct = 0.5) {
                    - num(st.p40tov) * 0.9
                    + num(st.bpm) * 1.3;
 
-  const efficiency = (num(st.tsPct) - 0.53) * 40;
+  // Efficiency separates prospects more than volume does: Maluach shot
+  // .736 TS on low usage and went top ten.
+  const efficiency = (num(st.tsPct) - 0.53) * 65;
   const winning = (teamWinPct - 0.5) * 8;
 
   // Recruit pedigree: national (RSCI) ranking when the sheet supplies one,
@@ -97,11 +112,20 @@ function scoreProspect(player, teamWinPct = 0.5) {
   const level = competitionFactor(player.conference);
   const scaledProduction = (production + efficiency + winning) * level;
 
+  // Production counts for less as a player gets older: a freshman's
+  // numbers are evidence of upside, a senior's are close to his ceiling.
+  const ageDiscount = player.class === 'FR' ? 1.0
+    : player.class === 'SO' ? 0.88
+    : player.class === 'JR' ? 0.72
+    : 0.58;
+
+  // Size is weighted more heavily than before — seven-footers with thin
+  // statistical profiles are routinely lottery picks.
   const score = num(player.rating, 70) * 0.62
               + youth
-              + sizeEdge
+              + sizeEdge * 1.6
               + pedigree * 0.55 * (1 - evidence * 0.85)
-              + scaledProduction * evidence * 1.75;
+              + scaledProduction * evidence * ageDiscount * 1.45;
 
   return { score, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree, level };
 }
