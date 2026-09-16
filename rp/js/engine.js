@@ -711,8 +711,14 @@ window.SimEngine = {
     // upside swing precisely because that's where the real surprises come
     // from; nobody is shocked when a 97 is good.
     const roll = rng();
+    // Most breakouts are moderate — a player ranked in the forties who
+    // turns into a top-ten prospect, not an unranked player becoming the
+    // best in the country. Large jumps still happen, just rarely.
     const riserRoom = rr >= 94 ? 6 : (rr >= 90 ? 10 : (rr >= 85 ? 14 : 19));
-    if (roll < 0.030) value += 5 + rng() * riserRoom;
+    if (roll < 0.030) {
+      const magnitude = rng() < 0.75 ? 0.45 : 1.0;   // usually a partial jump
+      value += 4 + rng() * riserRoom * magnitude;
+    }
     else if (roll < 0.075) value -= 5 + rng() * 7;
 
     return Math.max(55, Math.min(97, Math.round(value)));
@@ -759,7 +765,7 @@ window.SimEngine = {
     if (ftp !== null) { prof.ftPct = Math.max(0.8, Math.min(1.2, (ftp > 1 ? ftp / 100 : ftp) / 0.72)); found = true; }
 
     // Scouting tags are always available even when box scores aren't.
-    const tags = (getVal(['strengths'], '') + ' ' + getVal(['scouting'], '')).toLowerCase();
+    const tags = (getVal(['strengths'], '') + ' ' + getVal(['scouting'], '') + ' ' + getVal(['attributes'], '')).toLowerCase();
     const weak = getVal(['weaknesses'], '').toLowerCase();
     const has = (txt, ...words) => words.some(w => txt.includes(w));
 
@@ -821,6 +827,16 @@ window.SimEngine = {
       hometown: getVal(['hometown', 'home', 'from'], 'N/A'),
       hs: getVal(['hs', 'highschool', 'prep', 'prepschool'], ''),
       jersey: String(getVal(['jersey', 'number', 'num', 'jerseynumber', 'uniform'], '')).replace(/[^0-9]/g, ''),
+      // Optional authoring columns. None of these are displayed anywhere —
+      // they exist purely so the sheet can steer the simulation directly.
+      //   Role        focal point / starter / sixth man / bench / depth
+      //   Attributes  free text tags, parsed like scouting strengths
+      //   Athleticism 0-100, feeds finishing, steals and rebounding
+      //   Potential   0-100, affects year-over-year development
+      role: String(getVal(['role', 'playerrole', 'usage'], '')).trim().toLowerCase(),
+      attributes: String(getVal(['attributes', 'attribute', 'traits', 'tags'], '')).trim(),
+      athleticism: parseFloat(getVal(['athleticism', 'ath', 'athlete'], '')) || null,
+      potential: parseFloat(getVal(['potential', 'pot', 'ceiling'], '')) || null,
       // National recruit ranking, used by the draft big board's pedigree term.
       rsci: parseFloat(getVal(['rsci', 'rank', 'nationalrank', 'ranking'], '')) || null,
       // Schools this player has suited up for, oldest first. Transfers
@@ -1633,9 +1649,12 @@ window.SimEngine = {
 
     // Fill the scarcest slots first — centres and point guards are the
     // hardest to cover, so they get first pick of the roster.
+    const startsByRole = (p) => ['focalpoint', 'focal', 'star', 'starter'].includes((p.role || '').replace(/[^a-z]/g, ''));
     ['C', 'PG', 'PF', 'SG', 'SF'].forEach(slot => {
       const eligible = this.SLOT_ELIGIBILITY[slot];
-      const pick = roster.find(p => !assigned.has(p.id) && eligible.includes((p.pos || '').toUpperCase()));
+      // A player the sheet marks as a starter gets first refusal on his slot.
+      const pick = roster.find(p => !assigned.has(p.id) && startsByRole(p) && eligible.includes((p.pos || '').toUpperCase()))
+        || roster.find(p => !assigned.has(p.id) && eligible.includes((p.pos || '').toUpperCase()));
       if (pick) {
         assigned.add(pick.id);
         pick.lineupSlot = slot;
@@ -1666,6 +1685,21 @@ window.SimEngine = {
     // How much this staff trusts freshmen. A veteran-reliant coach gives a
     // young player a short leash regardless of his recruiting profile, so
     // not every five-star walks into thirty minutes a night.
+    // An explicit Role from the sheet overrides the model's own read of a
+    // player: a designated focal point starts and carries the offense even
+    // if the ratings alone wouldn't put him there.
+    const roleWeight = (p) => {
+      switch ((p.role || '').replace(/[^a-z]/g, '')) {
+        case 'focalpoint': case 'focal': case 'star': return 1.35;
+        case 'starter': return 1.15;
+        case 'sixthman': case 'sixth': return 0.92;
+        case 'rotation': return 0.78;
+        case 'bench': case 'depth': case 'reserve': return 0.5;
+        default: return 1;
+      }
+    };
+    team._roleWeight = roleWeight;
+
     const trust = (team.coachProfile && team.coachProfile.freshmanTrust) || 1;
     const youthFactor = (p) => {
       if (p.class !== 'FR') return 1;
@@ -1697,7 +1731,7 @@ window.SimEngine = {
     const weights = [];
     starters.forEach(p => {
       const base = 22 + Math.max(-6, Math.min(9, (parseFloat(p.rating) - refRating) * 0.62));
-      weights.push({ p, w: base * youthFactor(p) });
+      weights.push({ p, w: base * youthFactor(p) * roleWeight(p) });
     });
     // How deep this staff goes. Some teams ride a seven-man rotation with
     // everyone at 20+ minutes; others spread nine or ten bodies across the
@@ -1716,7 +1750,7 @@ window.SimEngine = {
         ? (1 - i * 0.07)
         : (1 - (benchInRotation - 1) * 0.07) * Math.pow(0.45, i - benchInRotation + 1);
       const quality = 21 + Math.max(-5, Math.min(6, (parseFloat(p.rating) - refRating) * 0.38));
-      weights.push({ p, w: Math.max(0, quality * depthFactor * youthFactor(p)) });
+      weights.push({ p, w: Math.max(0, quality * depthFactor * youthFactor(p) * roleWeight(p)) });
     });
 
     // Normalise to the 200 minutes available in a game, then cap so nobody
@@ -1765,19 +1799,19 @@ window.SimEngine = {
     // every forward rebound like a centre and every guard pass like a point
     // guard, which is what produced the flood of 10+ rpg / sub-2 apg lines.
     const POS = {
-      PG: { reb: 3.2, ast: 4.95, stl: 1.34, blk: 0.13 },
-      SG: { reb: 3.75, ast: 2.30, stl: 1.17, blk: 0.23 },
-      SF: { reb: 5.2, ast: 1.80, stl: 1.08, blk: 0.45 },
-      PF: { reb: 7.0, ast: 1.52, stl: 0.95, blk: 1.18 },
-      C:  { reb: 9.3, ast: 0.95, stl: 0.66, blk: 1.80 },
-      G:  { reb: 3.3, ast: 3.75, stl: 1.25, blk: 0.185 },
+      PG: { reb: 3.5, ast: 4.00, stl: 1.34, blk: 0.13 },
+      SG: { reb: 4.1, ast: 2.20, stl: 1.17, blk: 0.23 },
+      SF: { reb: 5.7, ast: 1.60, stl: 1.08, blk: 0.45 },
+      PF: { reb: 6.7, ast: 1.58, stl: 1.02, blk: 1.05 },
+      C:  { reb: 8.8, ast: 1.05, stl: 0.72, blk: 1.82 },
+      G:  { reb: 3.3, ast: 3.40, stl: 1.25, blk: 0.185 },
       // A combo guard fills either backcourt slot, so his profile sits
       // between a point guard's and a shooting guard's.
-      CG: { reb: 3.4, ast: 3.30, stl: 1.26, blk: 0.20 },
-      F:  { reb: 6.0, ast: 1.55, stl: 0.96, blk: 0.88 },
+      CG: { reb: 3.4, ast: 3.00, stl: 1.26, blk: 0.20 },
+      F:  { reb: 6.0, ast: 1.65, stl: 1.00, blk: 0.86 },
       // Wings, and combo bigs, both appear in the roster sheet.
-      W:  { reb: 4.45, ast: 2.15, stl: 1.12, blk: 0.355 },
-      'F/C': { reb: 8.2, ast: 1.15, stl: 0.73, blk: 1.52 },
+      W:  { reb: 4.9, ast: 2.05, stl: 1.12, blk: 0.355 },
+      'F/C': { reb: 7.9, ast: 1.22, stl: 0.78, blk: 1.55 },
       'G/F': { reb: 4.0, ast: 2.60, stl: 1.18, blk: 0.31 }
     };
     const base = POS[pos] || POS[isBig ? 'PF' : 'SF'];
@@ -1797,8 +1831,14 @@ window.SimEngine = {
     // carries a far bigger share. This is what moves most 20-point scorers
     // to smaller schools and stops every top freshman on a loaded team
     // posting huge numbers.
+    // Athleticism lifts finishing, steals and rebounding without touching
+    // shooting; Role scales how much of the offense runs through a player.
+    const ath = player.athleticism !== null && player.athleticism !== undefined
+      ? Math.max(-1, Math.min(1, (player.athleticism - 75) / 25)) : 0;
+    const roleMult = team && team._roleWeight ? team._roleWeight(player) : 1;
+
     const usageRef = (team && team.usageReference) ? team.usageReference : 78;
-    let usageShare = Math.max(0.42, Math.min(1.66, 1 + (r - usageRef) * 0.031));
+    let usageShare = Math.max(0.42, Math.min(1.70, 1 + (r - usageRef) * 0.037));
 
     // Usage ceiling by archetype. An off-ball big living on rolls and lobs
     // finishes plays rather than creating them and tops out around 17%
@@ -1810,6 +1850,10 @@ window.SimEngine = {
       const bigCeiling = onBall ? 1.30 : 0.92;
       usageShare = Math.min(usageShare, bigCeiling);
     }
+
+    // A designated focal point carries more of the offense than his rating
+    // alone implies; a declared bench player carries less.
+    usageShare = Math.max(0.35, Math.min(1.85, usageShare * roleMult));
     const scoringUsage = (mpg / 28) * usageShare;
 
     // Scoring keys off talent above a replacement baseline rather than raw
@@ -1825,9 +1869,15 @@ window.SimEngine = {
     // introduced a rounding bias that wrecked free-throw percentage.
     let ppg = Math.max(0.4, (2.2 + Math.max(4, r - 38) * 0.228) * scoringUsage);
 
-    let rpg = Math.max(0.2, base.reb * usageScale);
+    // Rebounding scales partly with involvement. A big who barely touches
+    // the ball shouldn't still post double-digit boards; the flat
+    // positional rate was producing ~8 ppg / ~10 rpg seasons.
+    const involvement = 0.72 + 0.28 * Math.max(0.5, Math.min(1.6, usageShare));
+    const athReb = 1 + ath * 0.10;
+    const athStl = 1 + ath * 0.16;
+    let rpg = Math.max(0.2, base.reb * usageScale * involvement * athReb);
     let apg = Math.max(0.1, base.ast * usageScale);
-    let stl = Math.max(0.1, base.stl * usageScale);
+    let stl = Math.max(0.1, base.stl * usageScale * athStl);
     let blk = Math.max(0.05, base.blk * usageScale);
     let tov = Math.max(0.2, (apg * 0.4 + 0.50));
 
@@ -1861,7 +1911,12 @@ window.SimEngine = {
     }
     let threePPct = Math.min(0.46, Math.max(0.20,
       (isBig ? 0.315 : 0.358) * (player.playstyle ? player.playstyle.threePct : 1)));
-    let twoPPct = Math.min(0.72, Math.max(0.38, (isBig ? 0.568 : 0.468)));
+    let twoPPct = Math.min(0.72, Math.max(0.38, (isBig ? 0.568 : 0.478)));
+    // Better perimeter players finish markedly better inside the arc —
+    // an NBA-caliber guard sits near or above 48% on twos, where a flat
+    // rate had every guard shooting like a marginal one.
+    if (!isBig) twoPPct += Math.max(0, Math.min(0.055, (r - 76) * 0.0032));
+    twoPPct += ath * 0.018;   // athletic finishers convert better inside
     // Shot location drives two-point efficiency. A big whose game is
     // almost entirely rim attempts converts far better than one who takes
     // long twos, so the lower his three-point rate, the higher his finish
@@ -1933,6 +1988,25 @@ window.SimEngine = {
   // Public entry point wired to the "Simulate..." button. Dispatches to
   // whichever phase of the season is next, so the HTML/UI never needs to
   // know which specific step is happening.
+  // Brief spinner so a click reads as an action rather than an instant
+  // state change. The minimum display time keeps it from flickering.
+  showSimSpinner(label) {
+    const el = document.getElementById('simSpinner');
+    if (!el) return;
+    const lab = document.getElementById('simSpinnerLabel');
+    if (lab && label) lab.innerText = label;
+    el.classList.add('active');
+    this._spinnerShownAt = Date.now();
+  },
+
+  async hideSimSpinner() {
+    const el = document.getElementById('simSpinner');
+    if (!el) return;
+    const elapsed = Date.now() - (this._spinnerShownAt || 0);
+    if (elapsed < 650) await new Promise(r => setTimeout(r, 650 - elapsed));
+    el.classList.remove('active');
+  },
+
   async simulateWeek() {
     if (this.state.teams.length === 0) {
       alert("No active teams detected. Please refresh or check data sources.");
@@ -2985,7 +3059,9 @@ window.SimEngine = {
   },
 
   stageToView(key) {
-    if (key === 'declarations' || key === 'predraft' || key === 'returners' || key === 'draft') return 'declarations';
+    if (key === 'predraft') return 'predraft';
+    if (key === 'draft') return 'draft';
+    if (key === 'declarations' || key === 'returners') return 'declarations';
     if (key === 'portal' || key === 'rosters') return 'transfers';
     return 'champion';
   },
@@ -2996,8 +3072,10 @@ window.SimEngine = {
         this.archiveCompletedSeason();
         break;
       case 'declarations':
-        // Declarations were computed when the tournament ended; this stage
-        // simply presents them.
+        // Snapshot the class NOW. This used to happen only at the very end
+        // of the offseason, so the declarations screen always displayed the
+        // previous year's group and never updated past the first draft.
+        this.snapshotDeclarations();
         break;
       case 'predraft':
         this.runPreDraftProcess();
@@ -3057,6 +3135,25 @@ window.SimEngine = {
     }));
   },
 
+  // Captures the declaring class with complete stat lines. Declared
+  // players are about to leave every roster, which also removes them from
+  // the saved players table, so the full record has to be taken while they
+  // still exist. Game logs are excluded to keep the save small.
+  snapshotDeclarations() {
+    this.state.lastDeclarations = (this.state.draftDeclarations || []).map(d => {
+      const full = this.state.activePlayers.find(p => p.id === d.id);
+      if (!full) return { ...d };
+      return {
+        ...d,
+        ht: full.ht, wt: full.wt, hometown: full.hometown, hs: full.hs,
+        jersey: full.jersey, rsci: full.rsci, conference: full.conference,
+        collegeHistory: full.collegeHistory,
+        stats: full.stats
+      };
+    });
+    this.state.lastDeclarationsYear = this.state.year;
+  },
+
   async completeOffseason() {
     this.state.offseasonStageIndex = 0;
 
@@ -3077,25 +3174,7 @@ window.SimEngine = {
     const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
     // Kept for the offseason screen — state.draftDeclarations is cleared
     // below when the new season is set up.
-    // Snapshot the draft class with COMPLETE stat lines. Declared players
-    // are about to be removed from every roster, which also removes them
-    // from the saved players table — so if the full record isn't captured
-    // here, the Draft RP page is left with only a three-stat summary.
-    // Game logs are deliberately excluded to keep the save small.
-    this.state.lastDeclarations = (this.state.draftDeclarations || []).map(d => {
-      const full = this.state.activePlayers.find(p => p.id === d.id);
-      if (!full) return { ...d };
-      return {
-        ...d,
-        ht: full.ht, wt: full.wt, hometown: full.hometown, hs: full.hs,
-        jersey: full.jersey, rsci: full.rsci, conference: full.conference,
-        collegeHistory: full.collegeHistory,
-        stats: full.stats
-      };
-    });
-    // Record which season these declarations came from. state.year advances
-    // below, so the Draft RP page can't infer the draft year from it.
-    this.state.lastDeclarationsYear = this.state.year;
+    this.snapshotDeclarations();
     const classProgression = { 'FR': 'SO', 'SO': 'JR', 'JR': 'SR' }; // SR/GR intentionally absent: eligibility is exhausted either way
 
     this.state.teams.forEach(team => {
@@ -5340,8 +5419,18 @@ window.SimEngine = {
       yearEl.innerText = `${y}-${(y + 1).toString().slice(2)} Offseason`;
     }
 
+    // The action button names whatever comes next, rather than always
+    // reading "Continue to Next Season".
+    const actionBtn = document.getElementById('offseasonAdvanceBtn');
+    if (actionBtn) {
+      const idx = this.state.offseasonStageIndex || 0;
+      const next = this.OFFSEASON_STAGES[idx];
+      actionBtn.innerText = next ? `Continue: ${next.label}` : 'Continue to Next Season';
+    }
+
     const stage = this.state.offseasonStage || 'champion';
     if (stage === 'draft') el.innerHTML = this.renderOffseasonDraft();
+    else if (stage === 'predraft') el.innerHTML = this.renderOffseasonCombine();
     else if (stage === 'declarations') el.innerHTML = this.renderOffseasonDeclarations();
     else if (stage === 'transfers') el.innerHTML = this.renderOffseasonTransfers();
     else el.innerHTML = this.renderOffseasonChampion();
@@ -5439,6 +5528,29 @@ window.SimEngine = {
         </tbody></table></div>`;
     }
     return html;
+  },
+
+  renderOffseasonCombine() {
+    const combine = this.state.combineResults || [];
+    if (combine.length === 0) {
+      return `<p class="empty-table-msg">The combine hasn't been held yet.</p>`;
+    }
+    const risers = combine.filter(c => c.direction === 'rose');
+    const fallers = combine.filter(c => c.direction === 'fell');
+    const col = (title, list, cls) => `
+      <div class="season-section">
+        <h5 class="award-table-title">${title}</h5>
+        <div class="table-scroll"><table class="data-table">
+          <thead><tr><th>Player</th><th>School</th><th>Move</th></tr></thead><tbody>
+          ${list.slice(0, 12).map(c => `<tr>
+            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(c.id).replace(/'/g, "\\'")}')">${c.name}</span></td>
+            <td class="sub-text">${c.school}</td>
+            <td class="${cls}">${c.direction === 'rose' ? '▲' : '▼'} ${c.amount}</td>
+          </tr>`).join('') || '<tr><td colspan="3" class="empty-table-msg">None</td></tr>'}
+        </tbody></table></div>
+      </div>`;
+    return `<p class="sub-text mb-1">Measurements, scrimmages and interviews. Prospects further down the board move most — a consensus top pick has little to prove.</p>
+      <div class="season-split">${col('Helped Themselves', risers, 'win-text')}${col('Hurt Themselves', fallers, 'loss-text')}</div>`;
   },
 
   renderOffseasonDraft() {
@@ -5737,27 +5849,6 @@ window.SimEngine = {
     this.renderOffseasonOverlay();
   },
 
-  renderOffseasonOverlay() {
-    const el = document.getElementById('offseasonBody');
-    if (!el) return;
-
-    document.querySelectorAll('.offseason-stage-btn').forEach(b => {
-      b.classList.toggle('active', b.getAttribute('data-stage') === this.state.offseasonStage);
-    });
-
-    const yearEl = document.getElementById('offseasonYear');
-    if (yearEl) {
-      const y = this.state.seasonHistory.length
-        ? this.state.seasonHistory[this.state.seasonHistory.length - 1].year
-        : this.state.year;
-      yearEl.innerText = `${y}-${(y + 1).toString().slice(2)} Offseason`;
-    }
-
-    const stage = this.state.offseasonStage || 'champion';
-    if (stage === 'declarations') el.innerHTML = this.renderOffseasonDeclarations();
-    else if (stage === 'transfers') el.innerHTML = this.renderOffseasonTransfers();
-    else el.innerHTML = this.renderOffseasonChampion();
-  },
 
   renderOffseasonChampion() {
     let champSchool = null, champYear = this.state.year;
