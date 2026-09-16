@@ -321,6 +321,13 @@
     </main>
   </div>
   
+  <div id="simSpinner" class="sim-spinner-overlay">
+    <div class="sim-spinner-inner">
+      <div class="sim-ball"><span class="sim-ball-line"></span></div>
+      <div class="sim-spinner-label" id="simSpinnerLabel">Simulating…</div>
+    </div>
+  </div>
+
   <div id="offseasonOverlay" class="offseason-overlay" style="display:none;">
     <div class="offseason-shell">
       <div class="offseason-head">
@@ -330,13 +337,14 @@
           <div class="offseason-subtitle" id="offseasonYear"></div>
         </div>
         <div class="offseason-actions">
-          <button class="sim-btn" onclick="SimEngine.closeOffseason()">Continue to Next Season</button>
+          <button class="sim-btn" id="offseasonAdvanceBtn" onclick="SimEngine.closeOffseason()">Continue to Next Season</button>
         </div>
       </div>
 
       <div class="offseason-stage-nav">
         <button class="offseason-stage-btn active" data-stage="champion" onclick="SimEngine.setOffseasonStage('champion')">Champions</button>
         <button class="offseason-stage-btn" data-stage="declarations" onclick="SimEngine.setOffseasonStage('declarations')">Draft Declarations</button>
+        <button class="offseason-stage-btn" data-stage="predraft" onclick="SimEngine.setOffseasonStage('predraft')">Combine</button>
         <button class="offseason-stage-btn" data-stage="draft" onclick="SimEngine.setOffseasonStage('draft')">NBA Draft</button>
         <button class="offseason-stage-btn" data-stage="transfers" onclick="SimEngine.setOffseasonStage('transfers')">Transfer Portal</button>
       </div>
