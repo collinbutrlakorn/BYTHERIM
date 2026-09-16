@@ -217,8 +217,13 @@
               <option value="conf">Conference Games Only</option>
             </select>
             <select id="statTypeToggle" onchange="SimEngine.toggleStatView(this.value)" class="filter-select">
-              <option value="box">Box Score Stats</option>
+              <option value="box">Per Game</option>
+              <option value="total">Season Totals</option>
               <option value="adv">Advanced Metrics</option>
+            </select>
+            <select id="statsQualified" onchange="SimEngine.setStatsQualified(this.value)" class="filter-select">
+              <option value="1">Qualified Players</option>
+              <option value="0">All Players</option>
             </select>
           </div>
         </div>
@@ -332,6 +337,7 @@
       <div class="offseason-stage-nav">
         <button class="offseason-stage-btn active" data-stage="champion" onclick="SimEngine.setOffseasonStage('champion')">Champions</button>
         <button class="offseason-stage-btn" data-stage="declarations" onclick="SimEngine.setOffseasonStage('declarations')">Draft Declarations</button>
+        <button class="offseason-stage-btn" data-stage="draft" onclick="SimEngine.setOffseasonStage('draft')">NBA Draft</button>
         <button class="offseason-stage-btn" data-stage="transfers" onclick="SimEngine.setOffseasonStage('transfers')">Transfer Portal</button>
       </div>
 
