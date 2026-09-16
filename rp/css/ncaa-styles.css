@@ -2404,3 +2404,40 @@ body.offseason-open {
 .award-winner-school, .award-winner-stats { overflow-wrap: anywhere; }
 .award-winner-info { flex: 1 1 auto; min-width: 0; }
 .awards-grid { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }
+
+/* Sim spinner — a basketball spins while a week is being simulated */
+.sim-spinner-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 400;
+  backdrop-filter: blur(2px);
+}
+.sim-spinner-overlay.active { display: flex; }
+.sim-ball {
+  width: 74px; height: 74px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #f0913f, #c4571a 68%, #8f3d10);
+  position: relative;
+  animation: ballSpin 0.7s linear infinite;
+  box-shadow: 0 8px 22px rgba(0,0,0,0.45);
+}
+.sim-ball::before, .sim-ball::after {
+  content: ''; position: absolute; inset: 0;
+  border-radius: 50%; border: 2.5px solid rgba(0,0,0,0.65);
+}
+.sim-ball::before { border-left-color: transparent; border-right-color: transparent; }
+.sim-ball::after { border-top-color: transparent; border-bottom-color: transparent; }
+.sim-ball-line {
+  position: absolute; left: 50%; top: 0; bottom: 0;
+  width: 2.5px; background: rgba(0,0,0,0.65); transform: translateX(-50%);
+}
+@keyframes ballSpin { from { transform: rotate(0deg);} to { transform: rotate(360deg);} }
+.sim-spinner-label {
+  margin-top: 0.9rem; color: #fff;
+  font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 1px; font-size: 0.85rem;
+}
+.sim-spinner-inner { display: flex; flex-direction: column; align-items: center; }
