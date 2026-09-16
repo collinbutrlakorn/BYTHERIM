@@ -143,8 +143,17 @@ window.UIController = {
   setupActionButtons() {
     const simWeekBtn = document.getElementById('simWeekBtn');
     if (simWeekBtn) {
-      simWeekBtn.addEventListener('click', () => {
-        if (window.SimEngine) SimEngine.simulateWeek();
+      simWeekBtn.addEventListener('click', async () => {
+        if (!window.SimEngine) return;
+        // Spinner first, then yield a frame so it actually paints before
+        // the simulation blocks the thread.
+        SimEngine.showSimSpinner('Simulating…');
+        await new Promise(r => setTimeout(r, 30));
+        try {
+          await SimEngine.simulateWeek();
+        } finally {
+          await SimEngine.hideSimSpinner();
+        }
       });
     }
 
