@@ -34,10 +34,14 @@ window.SimEngine = {
     coachesByKey: {},
     rawRosterRows: [],
     allRecruits: [],
+    departedNames: new Set(),
     leagueTsPct: 0.545,
     leagueShootingTotals: { pts: 0, fga: 0, fta: 0 },
     coachMatchCount: 0,
     offseasonStage: 'champion',
+    offseasonStageIndex: 0,
+    combineResults: [],
+    draftResults: [],
     declarationSort: 'board',
     historySeasonView: null,
     themeMode: 'system',
@@ -182,9 +186,13 @@ window.SimEngine = {
           this.state.draftDeclarations = savedState.draftDeclarations || [];
           this.state.seasonHistory = savedState.seasonHistory || [];
           this.state.allRecruits = savedState.allRecruits || [];
+          this.state.departedNames = new Set(savedState.departedNames || []);
           this.state.seasonInitialized = savedState.seasonInitialized || false;
           this.state.lastTransfers = savedState.lastTransfers || [];
           this.state.lastDeclarations = savedState.lastDeclarations || [];
+          this.state.offseasonStageIndex = savedState.offseasonStageIndex || 0;
+          this.state.draftResults = savedState.draftResults || [];
+          this.state.combineResults = savedState.combineResults || [];
           this.state.lastDeclarationsYear = savedState.lastDeclarationsYear || null;
           this.state.returningPlayers = savedState.returningPlayers || [];
           this.state.scheduleViewWeek = savedState.scheduleViewWeek || 1;
@@ -259,9 +267,13 @@ window.SimEngine = {
           draftDeclarations: this.state.draftDeclarations,
           seasonHistory: this.state.seasonHistory,
           allRecruits: this.state.allRecruits,
+          departedNames: Array.from(this.state.departedNames || []),
           seasonInitialized: this.state.seasonInitialized,
           lastTransfers: this.state.lastTransfers,
           lastDeclarations: this.state.lastDeclarations,
+          offseasonStageIndex: this.state.offseasonStageIndex,
+          draftResults: this.state.draftResults,
+          combineResults: this.state.combineResults,
           lastDeclarationsYear: this.state.lastDeclarationsYear,
           returningPlayers: this.state.returningPlayers,
           scheduleViewWeek: this.state.scheduleViewWeek
@@ -873,6 +885,8 @@ window.SimEngine = {
         rec.conference = team.conference;
         rec.class = 'FR';
         rec.enrolled = true;      // now a college player, not a pending recruit
+        // A full roster can't take another body.
+        if ((team.roster || []).length >= this.ROSTER_LIMIT) { stillPending.push(rec); return; }
         team.roster.push(rec);
         players.push(rec);
       }
@@ -2654,6 +2668,95 @@ window.SimEngine = {
   // drive it: productive players at low-strength-of-schedule programs get
   // pulled upward, and highly-rated recruits who underperformed or barely
   // played look for a new situation.
+  ROSTER_LIMIT: 15,
+  ROSTER_TARGET: 13,
+
+  // Replaces departures with incoming freshmen. Without this, rosters only
+  // ever shrink — every graduation, draft entry and transfer out is
+  // permanent, and after a season or two teams are playing shorthanded.
+  // Coaches sign to positional need, filling their thinnest slots first.
+  backfillRosters() {
+    if (typeof RosterGen === 'undefined') return;
+    this.state.teams.forEach(team => {
+      const roster = team.roster || [];
+      let toSign = this.ROSTER_TARGET - roster.length;
+      if (toSign <= 0) return;
+
+      const usedNames = new Set(roster.map(p => p.name));
+      const baseline = roster.length
+        ? roster.reduce((n, p) => n + parseFloat(p.rating), 0) / roster.length
+        : 70;
+
+      for (let i = 0; i < toSign; i++) {
+        const needs = this.rosterNeeds(team);
+        const slot = needs.neediest[0] || 'SF';
+        // Take a concrete position from the slot's eligibility list.
+        const pos = (this.SLOT_ELIGIBILITY[slot] || ['SF'])[0];
+        const p = RosterGen.generateFillerPlayer(
+          team.school, team.conference, pos, baseline, roster.length + i, usedNames);
+        // Incoming signings are freshmen, and unranked ones shouldn't
+        // out-rate the players already there.
+        p.class = 'FR';
+        p.rating = Math.min(p.rating, Math.max(58, Math.round(baseline + 2)));
+        p.school_logo = this.getTeamLogo(team.school);
+        p.stats = this.getZeroStats();
+        p.statsFull = this.getZeroStats();
+        p.statsConf = this.getZeroStats();
+        p.gameLog = [];
+        p.accolades = [];
+        team.roster.push(p);
+      }
+      this.assignMissingJerseys();
+    });
+  },
+
+
+  // Enforces the scholarship limit after departures and arrivals. Teams
+  // don't simply accumulate bodies: a roster tops out at fifteen, and when
+  // it's full a coach fills by positional need rather than taking whoever
+  // is next on the board.
+  enforceRosterLimits() {
+    const limit = this.ROSTER_LIMIT;
+    this.state.teams.forEach(team => {
+      const roster = team.roster || [];
+      if (roster.length <= limit) return;
+
+      // Keep the best player at each lineup slot first, so trimming can
+      // never leave a team without a centre or a point guard.
+      const kept = [];
+      const remaining = [...roster].sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
+      ['C', 'PG', 'PF', 'SG', 'SF'].forEach(slot => {
+        const eligible = this.SLOT_ELIGIBILITY[slot] || [];
+        const idx = remaining.findIndex(p => eligible.includes((p.pos || '').toUpperCase()));
+        if (idx >= 0) kept.push(remaining.splice(idx, 1)[0]);
+      });
+      // Then fill the rest of the scholarships with the best available.
+      while (kept.length < limit && remaining.length) kept.push(remaining.shift());
+
+      const cutIds = new Set(remaining.map(p => p.id));
+      if (cutIds.size > 0) {
+        remaining.forEach(p => this.markDeparted(p));
+        team.roster = roster.filter(p => !cutIds.has(p.id));
+      }
+    });
+  },
+
+  // How many scholarships a team has free, and which positions it most
+  // needs — used so incoming players fill genuine holes.
+  rosterNeeds(team) {
+    const counts = { PG: 0, SG: 0, SF: 0, PF: 0, C: 0 };
+    (team.roster || []).forEach(p => {
+      const pos = (p.pos || '').toUpperCase();
+      Object.keys(this.SLOT_ELIGIBILITY).forEach(slot => {
+        if (this.SLOT_ELIGIBILITY[slot].includes(pos)) counts[slot] += 1;
+      });
+    });
+    return {
+      openSpots: Math.max(0, this.ROSTER_LIMIT - (team.roster || []).length),
+      neediest: Object.keys(counts).sort((a, b) => counts[a] - counts[b])
+    };
+  },
+
   // Reads next season's rows from the roster sheet. A player listed at a
   // different school the following year is a transfer the sheet author
   // intended, so it's executed exactly rather than left to chance.
@@ -2766,8 +2869,16 @@ window.SimEngine = {
           // isn't always the single strongest program.
           const better = destinations.filter(d =>
             d.school !== team.school && (d.simData.teamOvr || 0) > (team.simData.teamOvr || 0));
-          const pool = better.length > 0 ? better.slice(0, Math.max(5, Math.floor(better.length * 0.25))) : destinations.slice(0, 10);
-          const dest = pool[Math.floor(Math.random() * pool.length)];
+          let pool = better.length > 0 ? better.slice(0, Math.max(5, Math.floor(better.length * 0.25))) : destinations.slice(0, 10);
+          // Only schools with a scholarship open, and preferably ones that
+          // actually need this position.
+          pool = pool.filter(d => (d.roster || []).length < this.ROSTER_LIMIT);
+          const posUp = (p.pos || '').toUpperCase();
+          const needy = pool.filter(d => this.rosterNeeds(d).neediest.slice(0, 2)
+            .some(slot => (this.SLOT_ELIGIBILITY[slot] || []).includes(posUp)));
+          const choices = needy.length > 0 ? needy : pool;
+          if (choices.length === 0) return;
+          const dest = choices[Math.floor(Math.random() * choices.length)];
           if (dest) transfers.push({ player: p, from: team.school, to: dest.school, reason });
         }
       });
@@ -2781,6 +2892,8 @@ window.SimEngine = {
       const fromTeam = this.state.teams.find(t => t.school === from);
       const toTeam = this.state.teams.find(t => t.school === to);
       if (!fromTeam || !toTeam) return;
+      // Destination has to have a scholarship free.
+      if ((toTeam.roster || []).length >= this.ROSTER_LIMIT) return;
       fromTeam.roster = fromTeam.roster.filter(x => x.id !== player.id);
       player.school = to;
       player.conference = toTeam.conference;
@@ -2825,6 +2938,22 @@ window.SimEngine = {
     return returning;
   },
 
+  // The offseason runs as a sequence of stages rather than one atomic
+  // step, mirroring the real calendar: the season is wrapped up, players
+  // declare, the pre-draft process plays out, withdrawals come back, the
+  // draft happens, the portal opens, and only then are rosters finalised.
+  // Each call to runOffseason advances one stage, so the sim button walks
+  // through them week by week.
+  OFFSEASON_STAGES: [
+    { key: 'summary',      label: 'Season Summary' },
+    { key: 'declarations', label: 'Draft Declarations' },
+    { key: 'predraft',     label: 'Combine & Workouts' },
+    { key: 'returners',    label: 'Withdrawals' },
+    { key: 'draft',        label: 'NBA Draft' },
+    { key: 'portal',       label: 'Transfer Portal' },
+    { key: 'rosters',      label: 'Final Rosters' }
+  ],
+
   async runOffseason() {
     if (this.state.phase === 'Preseason') {
       alert("Simulate the regular season first before advancing to the offseason.");
@@ -2835,10 +2964,101 @@ window.SimEngine = {
       return;
     }
 
-    this.archiveCompletedSeason();
+    const idx = this.state.offseasonStageIndex || 0;
+    const stage = this.OFFSEASON_STAGES[idx];
+    if (!stage) return;
 
-    // Early entrants get their chance to withdraw before rosters are cut.
-    this.resolveDraftWithdrawals();
+    await this.runOffseasonStage(stage.key);
+
+    this.state.offseasonStageIndex = idx + 1;
+    // Anything short of the last stage just advances the calendar; the
+    // final stage rolls the season over.
+    if (this.state.offseasonStageIndex < this.OFFSEASON_STAGES.length) {
+      this.state.phase = `Offseason — ${this.OFFSEASON_STAGES[this.state.offseasonStageIndex].label}`;
+      this.openOffseason(this.stageToView(stage.key));
+      this.syncUI();
+      await this.saveStateToDB();
+      return;
+    }
+
+    await this.completeOffseason();
+  },
+
+  stageToView(key) {
+    if (key === 'declarations' || key === 'predraft' || key === 'returners' || key === 'draft') return 'declarations';
+    if (key === 'portal' || key === 'rosters') return 'transfers';
+    return 'champion';
+  },
+
+  async runOffseasonStage(key) {
+    switch (key) {
+      case 'summary':
+        this.archiveCompletedSeason();
+        break;
+      case 'declarations':
+        // Declarations were computed when the tournament ended; this stage
+        // simply presents them.
+        break;
+      case 'predraft':
+        this.runPreDraftProcess();
+        break;
+      case 'returners':
+        this.resolveDraftWithdrawals();
+        break;
+      case 'draft':
+        this.state.draftResults = this.computeDraftResults();
+        break;
+      case 'portal':
+        this.state.pendingTransfers = true;
+        break;
+      case 'rosters':
+        break;
+    }
+  },
+
+  // Combine and workouts: measurements and interviews shift a prospect's
+  // stock before the draft, which is what makes withdrawal decisions
+  // meaningful rather than purely statistical.
+  runPreDraftProcess() {
+    const board = this.computeDraftBigBoard(200);
+    const results = [];
+    board.forEach((entry, i) => {
+      const p = entry.player;
+      // Movement is bigger further down the board — a consensus top pick
+      // has little to prove, a fringe prospect everything.
+      const volatility = i < 10 ? 1.5 : i < 30 ? 3.5 : 6;
+      const swing = (Math.random() + Math.random() - 1) * volatility;
+      p.combineSwing = swing;
+      if (Math.abs(swing) >= 2) {
+        results.push({
+          id: p.id, name: p.name, school: p.school,
+          direction: swing > 0 ? 'rose' : 'fell',
+          amount: Math.abs(Math.round(swing))
+        });
+      }
+    });
+    this.state.combineResults = results.slice(0, 40);
+  },
+
+  // Final draft order, taken from the board after the pre-draft process.
+  computeDraftResults() {
+    const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
+    const board = this.computeDraftBigBoard(400)
+      .filter(e => declaredIds.has(e.player.id));
+    return board.slice(0, 60).map((e, i) => ({
+      pick: i + 1,
+      id: e.player.id,
+      name: e.player.name,
+      school: e.player.school,
+      pos: e.player.pos,
+      ht: e.player.ht,
+      ppg: e.player.stats ? e.player.stats.ppg : '0.0',
+      round: i < 30 ? 1 : 2
+    }));
+  },
+
+  async completeOffseason() {
+    this.state.offseasonStageIndex = 0;
 
     // Scripted transfers first: if the roster sheet lists a player at a
     // different school next season, that move is authored, not random.
@@ -2887,10 +3107,11 @@ window.SimEngine = {
       });
 
       team.roster = team.roster.filter(p => {
-        if (declaredIds.has(p.id)) return false; // left early or exhausted eligibility for the draft
+        if (declaredIds.has(p.id)) { this.markDeparted(p); return false; }  // off to the draft
         const nextClass = classProgression[p.class];
         if (nextClass) { p.class = nextClass; return true; }
-        return false; // SR/GR (or still-unrecognized) — final year is over
+        this.markDeparted(p);                                                // eligibility exhausted
+        return false;
       });
 
       team.roster.forEach(p => {
@@ -2920,6 +3141,9 @@ window.SimEngine = {
     this.state.seasonInitialized = false;
 
     this.refreshRecruitPool();
+    this.filterActiveData();
+    this.enforceRosterLimits();
+    this.backfillRosters();
     this.filterActiveData();
     this.initSeasonData();
     this.openOffseason('champion');
@@ -2957,7 +3181,9 @@ window.SimEngine = {
     const btn = document.getElementById('simWeekBtn');
     if (btn) {
       if (this.state.ncaaDone) {
-        btn.innerText = `Begin Offseason`;
+        const idx = this.state.offseasonStageIndex || 0;
+        const stage = this.OFFSEASON_STAGES[idx];
+        btn.innerText = stage ? `Advance: ${stage.label}` : 'Begin Offseason';
         btn.disabled = false;
       } else if (this.state.confChampsDone) {
         const names = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8', 'Final Four', 'Championship'];
@@ -4935,8 +5161,25 @@ window.SimEngine = {
     const maxYear = this.state.year + 1;
     const enrolledNames = new Set();
     this.state.teams.forEach(t => (t.roster || []).forEach(p => enrolledNames.add(p.name)));
+
+    // Anyone who has already used up their college eligibility — declared
+    // for the draft or graduated — must never re-enter the recruit pool.
+    // Without this, a player removed from his roster at the draft simply
+    // stopped looking "enrolled", got recycled as an incoming recruit, and
+    // re-enrolled at the same school: which is exactly why pinned top
+    // prospects kept showing up in school the following season.
+    const departed = this.state.departedNames || new Set();
+
     this.state.recruits = all.filter(r =>
-      (!r.recClassYear || r.recClassYear <= maxYear) && !enrolledNames.has(r.name));
+      (!r.recClassYear || r.recClassYear <= maxYear) &&
+      !enrolledNames.has(r.name) &&
+      !departed.has(r.name));
+  },
+
+  // Permanently retires a player from the college universe.
+  markDeparted(player) {
+    if (!this.state.departedNames) this.state.departedNames = new Set();
+    if (player && player.name) this.state.departedNames.add(player.name);
   },
 
   getIncomingRecruitClassYear() {
@@ -5098,7 +5341,8 @@ window.SimEngine = {
     }
 
     const stage = this.state.offseasonStage || 'champion';
-    if (stage === 'declarations') el.innerHTML = this.renderOffseasonDeclarations();
+    if (stage === 'draft') el.innerHTML = this.renderOffseasonDraft();
+    else if (stage === 'declarations') el.innerHTML = this.renderOffseasonDeclarations();
     else if (stage === 'transfers') el.innerHTML = this.renderOffseasonTransfers();
     else el.innerHTML = this.renderOffseasonChampion();
   },
@@ -5194,6 +5438,44 @@ window.SimEngine = {
           </tr>`).join('')}
         </tbody></table></div>`;
     }
+    return html;
+  },
+
+  renderOffseasonDraft() {
+    const picks = this.state.draftResults || [];
+    const combine = this.state.combineResults || [];
+    let html = '';
+
+    if (combine.length) {
+      html += `<h5 class="award-table-title">Combine &amp; Workout Risers and Fallers</h5>
+        <div class="table-scroll mb-1-5"><table class="data-table">
+          <thead><tr><th>Player</th><th>School</th><th>Movement</th></tr></thead><tbody>
+          ${combine.slice(0, 15).map(c => `<tr>
+            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(c.id).replace(/'/g, "\\'")}')">${c.name}</span></td>
+            <td class="sub-text">${c.school}</td>
+            <td class="${c.direction === 'rose' ? 'win-text' : 'loss-text'}">${c.direction === 'rose' ? '▲' : '▼'} ${c.amount} spots</td>
+          </tr>`).join('')}
+        </tbody></table></div>`;
+    }
+
+    if (picks.length === 0) {
+      html += `<p class="empty-table-msg">The draft hasn't been held yet.</p>`;
+      return html;
+    }
+
+    html += `<h5 class="award-table-title">${this.state.year + 1} NBA Draft</h5>
+      <div class="table-scroll"><table class="data-table">
+        <thead><tr><th>Pick</th><th>Rd</th><th>Player</th><th>School</th><th>Pos</th><th>HT</th><th>PPG</th></tr></thead><tbody>
+        ${picks.map(d => `<tr>
+          <td class="rank-cell">${d.pick}</td>
+          <td class="sub-text">${d.round}</td>
+          <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(d.id).replace(/'/g, "\\'")}')">${d.name}</span></td>
+          <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(d.school)}" class="xs-logo"><span>${d.school}</span></div></td>
+          <td class="sub-text">${d.pos}</td>
+          <td class="sub-text">${d.ht || '—'}</td>
+          <td class="bold-text">${d.ppg}</td>
+        </tr>`).join('')}
+      </tbody></table></div>`;
     return html;
   },
 
