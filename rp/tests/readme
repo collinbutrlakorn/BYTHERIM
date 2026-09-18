@@ -26,6 +26,12 @@ simulation somewhere unrealistic.
 problems that only appear in later years: rosters draining or overflowing,
 declared players re-enrolling, offseason stages stalling, rating drift.
 
+**draft-and-save.js** — checks the NBA lottery produces real-world odds,
+the mock draft is well formed (60 unique picks, better prospects going
+earlier), and the save file stays bounded. That last check exists because
+the save once stored every player twice — inside `players` and again
+inside each team's roster — which pushed a five-season file near 100 MB.
+
 ## Adding a test
 
 `harness.js` boots the sim against the real `ncaa.html` in a headless DOM:
