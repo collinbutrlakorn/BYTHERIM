@@ -21,6 +21,9 @@ const DraftRP = {
     poolPos: 'ALL',
     poolSort: 'score',
     statMode: 'box',
+    league: null,          // synthesised NBA season behind the lottery
+    mock: null,            // generated mock draft
+    mockTeamFilter: 'ALL',
     expanded: null         // prospect id whose detail row is open
   },
 
@@ -124,6 +127,7 @@ const DraftRP = {
       .map(entry => ({ ...entry, tags: DraftCore.scoutingTags(entry) }));
 
     this.state.masterBoard = this.state.prospects.slice(0, this.BOARD_SIZE);
+    this.buildMock();
     this.loadCustomBoard();
     this.state.loaded = true;
 
@@ -173,6 +177,133 @@ const DraftRP = {
       <a href="./ncaa.html" class="sim-btn">Open the NCAA RP</a></div>`;
     const statusEl = document.getElementById('draftStatus');
     if (statusEl) statusEl.innerText = 'No draft class available';
+  },
+
+  // ---------- Mock draft ----------
+
+  // The NBA season behind the lottery is synthesised once per draft year
+  // and cached, so reloading the page doesn't reshuffle the lottery or a
+  // team's needs underneath you.
+  leagueKey() { return `bytherim-nba-league-${this.state.draftYear}`; },
+  mockKey() { return `bytherim-nba-mock-${this.state.draftYear}`; },
+
+  buildMock() {
+    if (typeof NBACore === 'undefined') return;
+
+    let league = null;
+    try {
+      const raw = localStorage.getItem(this.leagueKey());
+      if (raw) league = JSON.parse(raw);
+    } catch (e) { /* storage unavailable */ }
+
+    if (!league) {
+      league = NBACore.generateLeagueState(this.state.draftYear);
+      try { localStorage.setItem(this.leagueKey(), JSON.stringify(league)); } catch (e) {}
+    }
+    this.state.league = league;
+
+    // The mock is regenerated from the current board every load — it
+    // should reflect the prospects as they stand, not a stale snapshot.
+    this.state.mock = NBACore.buildMockDraft(this.state.prospects, league);
+  },
+
+  regenerateMock() {
+    if (typeof NBACore === 'undefined' || !this.state.league) return;
+    this.state.mock = NBACore.buildMockDraft(this.state.prospects, this.state.league);
+    this.render();
+  },
+
+  // Re-runs the lottery only, keeping the same league season.
+  redrawLottery() {
+    if (typeof NBACore === 'undefined' || !this.state.league) return;
+    this.state.mock = NBACore.buildMockDraft(this.state.prospects, this.state.league);
+    this.render();
+  },
+
+  setMockTeamFilter(v) { this.state.mockTeamFilter = v; this.render(); },
+
+  nbaLogo(team) { return `../nbalogos/${team.logo}.png`; },
+
+  renderMockView() {
+    if (!this.state.mock) {
+      return `<div class="draft-empty"><p>The mock draft needs a prospect pool. Simulate a season in the NCAA RP first.</p></div>`;
+    }
+    const { picks, lottery } = this.state.mock;
+    const filter = this.state.mockTeamFilter;
+
+    const lotteryStrip = `
+      <div class="lottery-strip">
+        <div class="lottery-label">Lottery Results</div>
+        ${lottery.lotteryWinners.map((t, i) => `
+          <div class="lottery-winner">
+            <span class="lottery-pick">${i + 1}</span>
+            <img src="${this.nbaLogo(t)}" class="nba-logo-sm" alt="${t.name}">
+            <span class="lottery-team">${t.name}</span>
+            <span class="lottery-record">${t.wins}-${t.losses}</span>
+          </div>`).join('')}
+      </div>`;
+
+    const shown = filter === 'ALL' ? picks : picks.filter(p => p.team.id === filter);
+
+    const rows = shown.map(p => {
+      const onBoard = this.state.customOrder.includes(p.player.id);
+      const reach = p.boardRank - p.pick;
+      const reachTag = reach >= 5 ? `<span class="reach-tag steal">+${reach}</span>`
+        : reach <= -5 ? `<span class="reach-tag reach">${reach}</span>` : '';
+      return `<tr class="prospect-row" onclick="DraftRP.toggleDetail('${this.esc(p.player.id)}')">
+        <td class="rank-cell">${p.pick}</td>
+        <td>
+          <div class="player-cell nba-team-cell">
+            <img src="${this.nbaLogo(p.team)}" class="nba-logo-sm" alt="${p.team.name}">
+            <div>
+              <span class="player-name">${p.team.name}</span>
+              <span class="player-archetype">needs ${p.needs.join(' / ')}</span>
+            </div>
+          </div>
+        </td>
+        <td>
+          <div class="player-cell">
+            <span class="player-name">${p.player.name}</span>
+            <span class="player-archetype">${p.player.school || ''}</span>
+          </div>
+        </td>
+        <td><span class="pos-badge">${p.player.pos || '-'}</span></td>
+        <td class="sub-text">${p.player.class || '-'}</td>
+        <td class="sub-text">${p.player.ht || '-'}</td>
+        <td class="sub-text">${p.player.stats ? p.player.stats.ppg : '—'}</td>
+        <td class="sub-text-sm">#${p.boardRank} ${reachTag}</td>
+        <td class="board-controls">
+          <button class="mini-btn ${onBoard ? 'on-board' : 'add'}" ${onBoard ? 'disabled' : ''}
+            onclick="event.stopPropagation();DraftRP.addToBoard('${this.esc(p.player.id)}')">${onBoard ? '✓' : '+'}</button>
+        </td>
+      </tr>
+      ${this.state.expanded === p.player.id ? `<tr class="detail-row"><td colspan="9">${this.renderProspectDetail(this.findProspect(p.player.id) || { player: p.player, tags: [] })}</td></tr>` : ''}`;
+    }).join('');
+
+    return `
+      <div class="draft-section-head">
+        <div>
+          <h2 class="draft-section-title">${this.state.draftYear} Mock Draft</h2>
+          <p class="sub-text">Sixty picks, ordered by lottery and reverse standings. Teams take the best player available, weighted toward positional need.</p>
+        </div>
+        <div class="board-actions">
+          <select class="filter-select" onchange="DraftRP.setMockTeamFilter(this.value)">
+            <option value="ALL">All Teams</option>
+            ${NBACore.NBA_TEAMS.map(t => `<option value="${t.id}" ${filter === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}
+          </select>
+          <button class="sim-btn sim-btn-secondary btn-sm" onclick="DraftRP.redrawLottery()">Re-run Lottery</button>
+        </div>
+      </div>
+      ${lotteryStrip}
+      <div class="table-wrapper">
+        <table class="draft-table data-table">
+          <thead><tr>
+            <th style="width:60px;">Pick</th><th>Team</th><th>Prospect</th>
+            <th>Pos</th><th>Class</th><th>HT</th><th>PPG</th><th>Board</th><th></th>
+          </tr></thead>
+          <tbody>${rows || '<tr><td colspan="9" class="empty-table-msg">No picks for this team.</td></tr>'}</tbody>
+        </table>
+      </div>`;
   },
 
   // ---------- Custom board persistence ----------
@@ -265,7 +396,9 @@ const DraftRP = {
     });
     const el = document.getElementById('draftBody');
     if (!el) return;
-    el.innerHTML = this.state.view === 'custom' ? this.renderCustomView() : this.renderMasterView();
+    el.innerHTML = this.state.view === 'custom' ? this.renderCustomView()
+      : this.state.view === 'mock' ? this.renderMockView()
+      : this.renderMasterView();
   },
 
   renderPoolOnly() {
