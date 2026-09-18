@@ -13,6 +13,28 @@ const formatImagePath = (imgStr) => {
   return ASSET_BASE_PATH + encodeURI(clean);
 };
 
+// Simple full-page status message, used while the sheet loads and when it
+// fails. Without this the page just sat empty on any error.
+function showLoadState(message, isError) {
+  let el = document.getElementById('loadState');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'loadState';
+    el.className = 'load-state';
+    document.body.appendChild(el);
+  }
+  el.className = 'load-state' + (isError ? ' load-error' : '');
+  el.innerHTML = isError
+    ? `<div class="load-inner"><h2>Recruiting data unavailable</h2><p>${message}</p></div>`
+    : `<div class="load-inner"><div class="load-spinner"></div><p>${message}</p></div>`;
+  el.style.display = 'flex';
+}
+
+function clearLoadState() {
+  const el = document.getElementById('loadState');
+  if (el) el.style.display = 'none';
+}
+
 const ACCOLADE_MAP = {
   "McDonald's All-American": "mcdaag.png",
   "Nike Hoop Summit": "nikehoopsummit.png",
@@ -48,12 +70,26 @@ window.onload = () => {
     return;
   }
   
+  showLoadState('Loading recruiting database…');
+
   Papa.parse(GOOGLE_SHEET_CSV_URL, {
     download: true,
     header: true,
     skipEmptyLines: true,
+    // A failed or unpublished sheet used to leave the page silently blank,
+    // which is indistinguishable from "there are no recruits".
+    error: function(err) {
+      showLoadState('Could not load the recruiting database. Check that the ' +
+        'Google Sheet is still published to the web, then reload.', true);
+      console.error('Recruiting sheet request failed:', err);
+    },
     complete: function(results) {
       try {
+        if (!results || !results.data || results.data.length === 0) {
+          showLoadState('The recruiting sheet loaded but contained no rows. ' +
+            'Check that the published tab is the recruit list.', true);
+          return;
+        }
         const parseArray = (str) => typeof str === 'string' && str ? str.split(',').map(s => s.trim()).filter(Boolean) : [];
         
         const buildStatTier = (row, tier) => ({
@@ -118,17 +154,60 @@ window.onload = () => {
         renderSchoolRankings();
         renderQueryRulesUI();
         renderStatsDashboard();
+        clearLoadState();
       } catch (error) {
         console.error("Website UI Rendering Error:", error);
+        showLoadState('Something went wrong building the recruiting page: ' +
+          error.message + '. See the browser console for details.', true);
       }
     }
   });
 };
 
+// Filenames in /schoollogos don't always match a school's common name —
+// "Texas Christian" is tcu.png, "Georgia Tech" is gtech.png. These mirror
+// the alias table the NCAA RP uses so both pages resolve logos the same way.
+const SCHOOL_LOGO_ALIASES = {
+  texaschristian: 'tcu', georgiatech: 'gtech', northcarolina: 'unc',
+  northcarolinastate: 'ncstate', ncstate: 'ncstate', southerncalifornia: 'usc',
+  mississippi: 'olemiss', olemiss: 'olemiss', southcarolina: 'scar',
+  sandiegostate: 'sdsu', washingtonstate: 'wazzou', connecticut: 'connecticut',
+  uconn: 'connecticut', pittsburgh: 'pitt', california: 'cal',
+  brighamyoung: 'byu', centralflorida: 'ucf', nevadalasvegas: 'unlv',
+  louisianastate: 'lsu', saintjohns: 'stjohns', stjohns: 'stjohns',
+  southernmethodist: 'smu', virginiatech: 'virginiatech', bostoncollege: 'bostoncollege',
+  miamifl: 'miami', miamiflorida: 'miami'
+};
+
+// Schools with no logo file get a generated initials badge rather than a
+// broken image.
+function generateSchoolBadge(schoolName) {
+  const words = String(schoolName).replace(/[^a-zA-Z0-9\s]/g, ' ').split(/\s+/)
+    .filter(w => w && !['of', 'the', 'at', 'and'].includes(w.toLowerCase()));
+  let initials = '?';
+  if (words.length === 1) initials = words[0].slice(0, 3).toUpperCase();
+  else if (words.length > 1) initials = words.slice(0, 3).map(w => w[0]).join('').toUpperCase();
+  let hash = 0;
+  for (let i = 0; i < schoolName.length; i++) hash = schoolName.charCodeAt(i) + ((hash << 5) - hash);
+  const hue = Math.abs(hash) % 360;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">` +
+    `<circle cx="32" cy="32" r="32" fill="hsl(${hue},50%,36%)"/>` +
+    `<text x="32" y="33" font-family="Arial,sans-serif" font-weight="700" font-size="${initials.length >= 3 ? 19 : 23}" ` +
+    `fill="#fff" text-anchor="middle" dominant-baseline="middle">${initials}</text></svg>`;
+  return 'data:image/svg+xml;base64,' + btoa(svg);
+}
+
 function getSchoolLogoPath(schoolName) {
   if (!schoolName) return '';
   const clean = String(schoolName).toLowerCase().replace(/[^a-z0-9]/g, '');
-  return ASSET_BASE_PATH + `schoollogos/${clean}.png`;
+  const file = SCHOOL_LOGO_ALIASES[clean] || clean;
+  return ASSET_BASE_PATH + `schoollogos/${file}.png`;
+}
+
+// Used in <img onerror> so a missing file falls back to a badge.
+function schoolLogoFallback(img, schoolName) {
+  img.onerror = null;
+  img.src = generateSchoolBadge(schoolName || '?');
 }
 
 function parseStatValue(val) {
@@ -307,7 +386,21 @@ function calculatePercentileMap(players, level, keys) {
     players.forEach(p => { let st = p.stats[level]; if (st) { let num = parseStatValue(getComputedStat(st, key)); if (num !== null) validPairs.push({ id: p.id, val: num }); } });
     if (validPairs.length === 0) return;
     const N = validPairs.length; map[key] = {};
-    validPairs.forEach((pair) => { let countLess = validPairs.filter(x => x.val < pair.val).length; let countEqual = validPairs.filter(x => x.val === pair.val).length; let pct = N > 1 ? ((countLess + 0.5 * countEqual) / N) * 100 : 50; map[key][pair.id] = pct; });
+    // Sort once and walk the runs, rather than rescanning every other
+    // player for each player. The old approach was quadratic per stat and
+    // ran on every filter change, so the dashboard got slower with every
+    // class added.
+    const sorted = validPairs.slice().sort((a, b) => a.val - b.val);
+    let i = 0;
+    while (i < sorted.length) {
+      let j = i;
+      while (j < sorted.length && sorted[j].val === sorted[i].val) j++;
+      const countLess = i;
+      const countEqual = j - i;
+      const pct = N > 1 ? ((countLess + 0.5 * countEqual) / N) * 100 : 50;
+      for (let k = i; k < j; k++) map[key][sorted[k].id] = pct;
+      i = j;
+    }
   });
   return map;
 }
@@ -366,7 +459,8 @@ function renderRankingsTable(data, isOverall = false) {
     const starDisplay = p.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (p.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`);
     const stateDisplay = p.state === 'INT' ? `<span class="badge-intl">INTL</span>` : `<span>${p.state}</span>`;
     const pfpImg = p.pfp && p.pfp.trim() !== "" ? p.pfp : EMPTY_PFP;
-    let statusHTML = p.commitLogo ? `<div class="status-cell"><img src="${p.commitLogo}" class="school-logo" onerror="this.style.display='none';"><span style="font-weight: 700;">${p.status}</span></div>` : `<span>${p.status}</span>`;
+    const commitSchoolSafe = String(p.committedSchool || p.status || '').replace(/'/g, "\\'");
+    let statusHTML = p.commitLogo ? `<div class="status-cell"><img src="${p.commitLogo}" class="school-logo" onerror="schoolLogoFallback(this, '${commitSchoolSafe}')"><span style="font-weight: 700;">${p.status}</span></div>` : `<span>${p.status}</span>`;
 
     row.innerHTML = `
       <td><span class="rank-num">${displayRank}</span></td>
@@ -391,7 +485,7 @@ function getSchoolRankingsData(yearFilter = 'ALL') {
   filteredRecruits.forEach(r => {
     if (r.status && r.status.includes("Committed to ")) {
       const schoolName = r.status.replace("Committed to ", "").trim();
-      if (!schoolMap[schoolName]) schoolMap[schoolName] = { name: schoolName, logo: r.commitLogo || getSchoolLogoPath(schoolName), recruits: [] };
+      if (!schoolMap[schoolName]) schoolMap[schoolName] = { name: schoolName, logo: (r.commitLogo && r.commitLogo.trim()) ? r.commitLogo : getSchoolLogoPath(schoolName), recruits: [] };
       schoolMap[schoolName].recruits.push(r);
     }
   });
@@ -424,7 +518,7 @@ function renderSchoolRankings() {
     const commitsListHTML = s.recruits.map(r => `<div class="commit-tag" onclick="event.stopPropagation(); activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');" style="cursor: pointer;"><span style="font-weight: 700;">${r.name}</span> <span style="color: var(--text-muted);">('${r.classYear.slice(-2)} ${r.pos})</span> <span>Grade: ${r.rating}</span></div>`).join('');
     row.innerHTML = `
       <td><span class="rank-num">${idx + 1}</span></td>
-      <td style="text-align: left;"><div class="status-cell"><img src="${s.logo}" class="school-logo-lg" onerror="this.style.display='none';"><strong style="font-size: 0.95rem;">${s.name}</strong></div></td>
+      <td style="text-align: left;"><div class="status-cell"><img src="${s.logo}" class="school-logo-lg" onerror="schoolLogoFallback(this, '${String(s.name).replace(/'/g, "\\'")}')"><strong style="font-size: 0.95rem;">${s.name}</strong></div></td>
       <td><span class="badge-class">${s.recruitCount} ${s.recruitCount === 1 ? 'Commit' : 'Commits'}</span></td>
       <td><div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;">${commitsListHTML}</div></td>
       <td><span class="rating-pill" style="font-size: 0.95rem; padding: 6px 14px;">${s.overallGrade} / 100</span></td>
@@ -459,7 +553,7 @@ function renderSchoolDetail(schoolName, selectedYear = '2028') {
   container.innerHTML = `
     <div class="school-detail-header">
       <div class="school-detail-brand">
-        <img src="${schoolData.logo || getSchoolLogoPath(schoolName)}" class="school-detail-logo" onerror="this.style.display='none';">
+        <img src="${schoolData.logo || getSchoolLogoPath(schoolName)}" class="school-detail-logo" onerror="schoolLogoFallback(this, '${String(schoolName).replace(/'/g, "\\'")}')">
         <div><h1 style="font-size: 1.8rem;">${schoolName.toUpperCase()}</h1><div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">RECRUITING CLASS DASHBOARD</div></div>
       </div>
       <div class="school-detail-stats">
