@@ -206,6 +206,19 @@ window.SimEngine = {
           const savedPlayers = await db.players.toArray();
 
           if (savedTeams.length > 0 && savedPlayers.length > 0) {
+            // Rebuild each roster by grouping the saved players back onto
+            // their schools, which is how the roster arrays are restored
+            // without ever having been written twice.
+            const bySchool = {};
+            savedPlayers.forEach(p => {
+              (bySchool[p.school] = bySchool[p.school] || []).push(p);
+            });
+            savedTeams.forEach(t => {
+              t.roster = bySchool[t.school] || [];
+              if (!t.simData) t.simData = {};
+              t.simData.rosterRef = t.roster;
+            });
+
             this.state.teams = savedTeams;
             this.state.activePlayers = savedPlayers;
             this.syncUI();
@@ -285,7 +298,19 @@ window.SimEngine = {
           scheduleViewWeek: this.state.scheduleViewWeek
         });
         await db.teams.clear();
-        await db.teams.bulkAdd(this.state.teams);
+        // Teams are stored WITHOUT their rosters: team.roster holds the same
+        // player objects as activePlayers, so persisting both doubled the
+        // save (rosters alone accounted for ~46 MB of a ~72 MB save after a
+        // single season). Rosters are rebuilt from players on load.
+        const slimTeams = this.state.teams.map(t => {
+          const { roster, ...rest } = t;
+          if (rest.simData) {
+            const { rosterRef, ...sim } = rest.simData;
+            rest.simData = sim;
+          }
+          return rest;
+        });
+        await db.teams.bulkAdd(slimTeams);
         await db.players.clear();
         await db.players.bulkAdd(this.state.activePlayers);
       });
@@ -5407,14 +5432,32 @@ window.SimEngine = {
   // Departed players are kept in a slim archive so the record books don't
   // lose every great career the moment its owner leaves for the draft.
   // Only their season lines are retained — no game logs.
+  DEPARTED_ARCHIVE_CAP: 3000,
+
   archiveDeparted(player) {
     if (!this.state.departedArchive) this.state.departedArchive = [];
     if (!player || !(player.seasonHistory || []).length) return;
     if (this.state.departedArchive.some(p => p.id === player.id)) return;
+
+    // Career scoring total, used both as a record-book value and as the
+    // yardstick for which careers are worth keeping.
+    const career = (player.seasonHistory || []).reduce((n, h) => {
+      const st = h.stats || {};
+      return n + (parseFloat(st.ppg) || 0) * (st.gp || 0);
+    }, 0);
+
     this.state.departedArchive.push({
       id: player.id, name: player.name, pos: player.pos,
+      careerPts: Math.round(career),
       seasonHistory: player.seasonHistory
     });
+
+    // Every departing player would otherwise be kept forever. Only the
+    // careers that could plausibly appear in a record book are retained.
+    if (this.state.departedArchive.length > this.DEPARTED_ARCHIVE_CAP * 1.3) {
+      this.state.departedArchive.sort((a, b) => (b.careerPts || 0) - (a.careerPts || 0));
+      this.state.departedArchive.length = this.DEPARTED_ARCHIVE_CAP;
+    }
   },
 
   markDeparted(player) {
