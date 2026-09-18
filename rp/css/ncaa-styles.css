@@ -2441,3 +2441,16 @@ body.offseason-open {
   font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 1px; font-size: 0.85rem;
 }
 .sim-spinner-inner { display: flex; flex-direction: column; align-items: center; }
+
+/* Record book */
+.records-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 1rem;
+}
+.record-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 0.9rem 1rem;
+}
