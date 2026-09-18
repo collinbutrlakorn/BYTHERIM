@@ -1713,10 +1713,17 @@ window.SimEngine = {
 
     // Fill the scarcest slots first — centres and point guards are the
     // hardest to cover, so they get first pick of the roster.
+    // Designated starters are an instruction from the sheet, not a
+    // preference. They are seated in the lineup before anyone else is
+    // considered, and any who can't be slotted by position are still
+    // treated as starters rather than dropping to the bench — a marked
+    // starter previously ended up at 0 minutes when another marked player
+    // occupied his slot.
     const startsByRole = (p) => ['focalpoint', 'focal', 'star', 'starter'].includes((p.role || '').replace(/[^a-z]/g, ''));
+    const designated = roster.filter(startsByRole);
+
     ['C', 'PG', 'PF', 'SG', 'SF'].forEach(slot => {
       const eligible = this.SLOT_ELIGIBILITY[slot];
-      // A player the sheet marks as a starter gets first refusal on his slot.
       const pick = roster.find(p => !assigned.has(p.id) && startsByRole(p) && eligible.includes((p.pos || '').toUpperCase()))
         || roster.find(p => !assigned.has(p.id) && eligible.includes((p.pos || '').toUpperCase()));
       if (pick) {
@@ -1735,6 +1742,21 @@ window.SimEngine = {
       pick.lineupSlot = pick.pos;
       starters.push(pick);
     }
+
+    // Any designated starter still unseated takes the place of the weakest
+    // UNMARKED player in the lineup, so the sheet's instruction holds even
+    // when two marked players share a position.
+    designated.filter(p => !assigned.has(p.id)).forEach(p => {
+      const weakestUnmarked = starters
+        .filter(x => !startsByRole(x))
+        .sort((x, y) => parseFloat(x.rating) - parseFloat(y.rating))[0];
+      if (!weakestUnmarked) return;
+      const idx = starters.indexOf(weakestUnmarked);
+      p.lineupSlot = weakestUnmarked.lineupSlot;
+      starters[idx] = p;
+      assigned.add(p.id);
+      assigned.delete(weakestUnmarked.id);
+    });
 
     const bench = roster.filter(p => !assigned.has(p.id));
     team.starters = starters.map(p => p.id);
@@ -1825,6 +1847,57 @@ window.SimEngine = {
       const room = weights.filter(x => x.mpg < 32.5 && x.mpg > 0);
       const roomTotal = room.reduce((n, x) => n + x.mpg, 0) || 1;
       room.forEach(x => { x.mpg = Math.min(33, x.mpg + overflow * (x.mpg / roomTotal)); });
+    }
+
+    // Role sets hard minute bands. Without these a designated starter could
+    // be out-earned by a higher-rated unmarked teammate, which defeats the
+    // point of designating him.
+    const starterIds = new Set(team.starters);
+    const bands = { focalpoint: [28, 35], focal: [28, 35], star: [28, 35],
+                    starter: [24, 32], sixthman: [16, 23], sixth: [16, 23],
+                    rotation: [8, 17], bench: [2, 10], depth: [2, 10], reserve: [2, 10] };
+
+    // Cast players are allocated first, inside their band and ordered by
+    // rating within it. Whatever minutes remain are then shared out among
+    // everyone else — re-normalising the whole roster afterwards would
+    // simply squash the bands back down and undo the instruction.
+    const cast = [], free = [];
+    weights.forEach(x => {
+      const key = (x.p.role || '').replace(/[^a-z]/g, '');
+      if (bands[key]) { x.band = bands[key]; cast.push(x); }
+      else free.push(x);
+    });
+
+    let spent = 0;
+    if (cast.length) {
+      const castRef = cast.reduce((n, x) => n + parseFloat(x.p.rating), 0) / cast.length;
+      cast.forEach(x => {
+        const [lo, hi] = x.band;
+        // Position within the band tracks rating relative to the other
+        // cast players, so two starters aren't identical.
+        const t = Math.max(0, Math.min(1, 0.5 + (parseFloat(x.p.rating) - castRef) * 0.06));
+        x.mpg = lo + (hi - lo) * t;
+        spent += x.mpg;
+      });
+    }
+
+    // Only relevant when the sheet has cast some players: an unmarked
+    // starter shouldn't be squeezed out by banded teammates. With no roles
+    // set, the normal rating-based weighting already handles it, and
+    // boosting here simply over-concentrated minutes into the starting five.
+    if (cast.length) {
+      free.forEach(x => { if (starterIds.has(x.p.id)) x.w *= 1.6; });
+    }
+
+    const remaining = Math.max(0, 200 - spent);
+    const freeTotal = free.reduce((n, x) => n + x.w, 0) || 1;
+    free.forEach(x => { x.mpg = (x.w / freeTotal) * remaining; });
+
+    // If the cast alone over-subscribes the game, scale only the cast back.
+    if (spent > 200 && cast.length) {
+      const scale = 200 / spent;
+      cast.forEach(x => { x.mpg *= scale; });
+      free.forEach(x => { x.mpg = 0; });
     }
 
     weights.forEach(x => {
@@ -1934,6 +2007,14 @@ window.SimEngine = {
     const athReb = 1 + ath * 0.10;
     const athStl = 1 + ath * 0.16;
     let rpg = Math.max(0.2, base.reb * usageScale * involvement * athReb);
+
+    // Rebounds relative to scoring. A player averaging more boards than
+    // points is close to nonexistent in real basketball, yet low-usage
+    // centres were routinely doing it. Anything beyond a modest cushion
+    // over his scoring average is pulled back, so a big has to actually
+    // shoot to post huge rebounding numbers.
+    const rebCeiling = ppg * 0.80 + 4.0;
+    if (rpg > rebCeiling) rpg = rebCeiling + (rpg - rebCeiling) * 0.35;
     let apg = Math.max(0.1, base.ast * usageScale);
     let stl = Math.max(0.1, base.stl * usageScale * athStl);
     let blk = Math.max(0.05, base.blk * usageScale);
@@ -2105,7 +2186,7 @@ window.SimEngine = {
     this.rollInjuries();
     // Revisit depth charts periodically rather than every week, so
     // lineups are responsive without churning constantly.
-    if (this.state.week > 3 && this.state.week % 4 === 0) this.reevaluateRotations();
+    if (this.state.week > 2 && this.state.week % 3 === 0) this.reevaluateRotations();
     const gamesThisWeek = this.state.schedule.filter(g => g.week === this.state.week && !g.played);
 
     gamesThisWeek.forEach(g => {
@@ -2175,7 +2256,12 @@ window.SimEngine = {
         // Only let real evidence move the needle, and cap the swing so a
         // hot fortnight doesn't turn a walk-on into a starter.
         const evidence = Math.min(1, gp / 8);
-        p.formAdjust = Math.max(-6, Math.min(6, bpm * 0.85)) * evidence;
+        // Form moves unmarked players substantially — a bench player
+        // outplaying a starter should work his way up. Players the sheet
+        // has explicitly cast keep their role regardless of form.
+        const cast = (p.role || '').replace(/[^a-z]/g, '');
+        const swing = cast ? 3 : 9;
+        p.formAdjust = Math.max(-swing, Math.min(swing, bpm * 1.25)) * evidence;
         p.baseRating = p.baseRating !== undefined ? p.baseRating : parseFloat(p.rating);
         p.rating = p.baseRating + p.formAdjust;
       });
