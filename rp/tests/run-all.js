@@ -2,7 +2,7 @@
 const { execFileSync } = require('child_process');
 const path = require('path');
 
-const TESTS = ['no-duplicate-members.js', 'league-stats.js', 'season-cycle.js'];
+const TESTS = ['no-duplicate-members.js', 'league-stats.js', 'season-cycle.js', 'draft-and-save.js'];
 let failed = 0;
 
 TESTS.forEach(t => {
