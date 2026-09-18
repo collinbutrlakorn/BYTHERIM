@@ -1,0 +1,40 @@
+# BYTHERIM RP — tests
+
+Run everything:
+
+    cd rp
+    node tests/run-all.js
+
+One-time setup (jsdom is the only dependency):
+
+    npm install jsdom
+
+## What each suite covers
+
+**no-duplicate-members.js** — fails if any object literal defines the same
+method twice. JavaScript silently keeps the last one, so a stale copy
+overrides working code with no error. This has caused three separate
+"blank screen" bugs in this project; it needs no dependencies and runs
+instantly, so run it after any large edit.
+
+**league-stats.js** — simulates a regular season and checks team averages
+(points, rebounds, assists, steals, blocks, turnovers, fouls, shot volume)
+against real NCAA Division I ranges. Catches tuning changes that push the
+simulation somewhere unrealistic.
+
+**season-cycle.js** — plays three full seasons with offseasons. Catches
+problems that only appear in later years: rosters draining or overflowing,
+declared players re-enrolling, offseason stages stalling, rating drift.
+
+## Adding a test
+
+`harness.js` boots the sim against the real `ncaa.html` in a headless DOM:
+
+```js
+const { boot, playSeason, playOffseason, ok } = require('./harness');
+const { Sim, window } = boot({ roster: csvString });   // omit a sheet to simulate it being down
+await Sim.init();
+await Sim.startNewGame();
+await playSeason(Sim);
+ok(Sim.state.ncaaDone, 'season finished');
+```
