@@ -133,6 +133,7 @@ window.UIController = {
           else if (targetTabId === 'recruitsTab') SimEngine.updateRecruitsTab();
           else if (targetTabId === 'draftBoardTab') SimEngine.updateDraftBoardTab();
           else if (targetTabId === 'historyTab') SimEngine.updateHistoryTab();
+          else if (targetTabId === 'recordsTab') SimEngine.updateRecordsTab();
           else if (targetTabId === 'offseasonTab') SimEngine.updateOffseasonTab();
           else if (targetTabId === 'dashTab') SimEngine.updateDashboard();
         }
