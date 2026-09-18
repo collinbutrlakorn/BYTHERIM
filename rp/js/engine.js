@@ -770,6 +770,52 @@ window.SimEngine = {
     return Math.max(55, Math.min(97, Math.round(value)));
   },
 
+  // Offensive archetypes, and what each does to a player's college role.
+  //
+  // High-school production does not carry over. A dominant prep big goes
+  // from 18/12/4 against children to a defined role against adults, and
+  // the size of that drop depends almost entirely on WHAT he is rather
+  // than how good he was. A designated scorer is recruited to score and
+  // keeps his usage; a roll big only ever sees pick-and-roll finishes and
+  // put-backs, so his usage collapses even if his rebounding stays elite.
+  //
+  //   usage   multiplier on scoring share
+  //   par     multiplier on three-point attempt rate
+  //   oreb    multiplier on offensive rebounding
+  //   ast     multiplier on assists
+  ARCHETYPES: {
+    primaryScorer: { usage: 0.96, par: 1.00, oreb: 0.90, ast: 1.00 },
+    postHub:       { usage: 1.10, par: 0.55, oreb: 1.05, ast: 1.30 },
+    slasher:       { usage: 0.90, par: 0.80, oreb: 1.00, ast: 0.95 },
+    playmaker:     { usage: 0.84, par: 0.95, oreb: 0.75, ast: 1.35 },
+    shooter:       { usage: 0.70, par: 1.45, oreb: 0.60, ast: 0.80 },
+    rollBig:       { usage: 0.74, par: 0.20, oreb: 1.22, ast: 0.60 },
+    defender:      { usage: 0.70, par: 0.90, oreb: 1.00, ast: 0.85 },
+    connector:     { usage: 0.74, par: 1.00, oreb: 0.90, ast: 1.10 }
+  },
+
+  classifyArchetype(text, pos) {
+    const t = (text || '').toLowerCase();
+    const p = String(pos || '').toUpperCase();
+    const has = (...words) => words.some(w => t.includes(w));
+    const isBig = ['C', 'PF', 'F/C'].includes(p);
+
+    // Order matters: the most defining trait wins.
+    if (has('lob threat', 'rim runner', 'roll man', 'vertical spacer', 'play finisher', 'screen and roll', 'pick-and-roll finisher')) return 'rollBig';
+    if (isBig && has('post-up', 'post up', 'back to the basket', 'post hub', 'passing big', 'high-post')) return 'postHub';
+    if (has('three level scorer', 'three-level scorer', 'bucket getter', 'shot creator', 'shot creation', 'primary scorer', 'go-to scorer', 'iso scorer', 'scoring guard')) return 'primaryScorer';
+    if (has('floor general', 'pure point', 'primary playmaker', 'elite passer', 'court vision', 'pass first', 'facilitator')) return 'playmaker';
+    if (has('spot-up', 'spot up', 'catch and shoot', 'catch-and-shoot', 'movement shooter', 'sharpshooter', 'knockdown shooter', 'floor spacer', 'specialist')) return 'shooter';
+    if (has('downhill', 'slasher', 'attacks the rim', 'rim pressure', 'driving', 'explosive finisher')) return 'slasher';
+    if (has('lockdown', 'point of attack', 'defensive specialist', 'elite rim protection', 'rim protector', 'stopper')) return 'defender';
+    if (has('glue guy', 'connector', 'role player', 'does the little things')) return 'connector';
+
+    // Nothing decisive: infer a sensible default from position.
+    if (isBig) return 'rollBig';
+    if (p === 'PG') return 'playmaker';
+    return 'connector';
+  },
+
   buildPlaystyleProfile(raw, getVal) {
     const prof = { score: 1, reb: 1, ast: 1, stl: 1, blk: 1, threePar: 1, threePct: 1, ftPct: 1, usage: 1 };
     let found = false;
@@ -812,6 +858,7 @@ window.SimEngine = {
 
     // Scouting tags are always available even when box scores aren't.
     const tags = (getVal(['strengths'], '') + ' ' + getVal(['scouting'], '') + ' ' + getVal(['attributes'], '')).toLowerCase();
+    prof.archetype = this.classifyArchetype(tags, getVal(['pos', 'position'], ''));
     const weak = getVal(['weaknesses'], '').toLowerCase();
     const has = (txt, ...words) => words.some(w => txt.includes(w));
 
@@ -1933,16 +1980,16 @@ window.SimEngine = {
       PG: { reb: 3.5, ast: 4.00, stl: 1.34, blk: 0.13 },
       SG: { reb: 4.1, ast: 2.20, stl: 1.17, blk: 0.23 },
       SF: { reb: 5.7, ast: 1.60, stl: 1.08, blk: 0.45 },
-      PF: { reb: 6.7, ast: 1.58, stl: 1.02, blk: 1.05 },
-      C:  { reb: 8.8, ast: 1.05, stl: 0.72, blk: 1.82 },
+      PF: { reb: 6.7, ast: 1.58, stl: 1.02, blk: 1.02 },
+      C:  { reb: 8.8, ast: 1.05, stl: 0.72, blk: 1.72 },
       G:  { reb: 3.3, ast: 3.40, stl: 1.25, blk: 0.185 },
       // A combo guard fills either backcourt slot, so his profile sits
       // between a point guard's and a shooting guard's.
       CG: { reb: 3.4, ast: 3.00, stl: 1.26, blk: 0.20 },
-      F:  { reb: 6.0, ast: 1.65, stl: 1.00, blk: 0.86 },
+      F:  { reb: 6.0, ast: 1.65, stl: 1.00, blk: 0.84 },
       // Wings, and combo bigs, both appear in the roster sheet.
       W:  { reb: 4.9, ast: 2.05, stl: 1.12, blk: 0.355 },
-      'F/C': { reb: 7.9, ast: 1.22, stl: 0.78, blk: 1.55 },
+      'F/C': { reb: 7.9, ast: 1.22, stl: 0.78, blk: 1.48 },
       'G/F': { reb: 4.0, ast: 2.60, stl: 1.18, blk: 0.31 }
     };
     const base = POS[pos] || POS[isBig ? 'PF' : 'SF'];
@@ -1982,6 +2029,20 @@ window.SimEngine = {
       usageShare = Math.min(usageShare, bigCeiling);
     }
 
+    // Archetype governs how much of a player's high-school role survives
+    // the jump. Off-ball bigs and specialists lose most of their usage;
+    // designated scorers keep theirs.
+    const arch = (ps && ps.archetype && this.ARCHETYPES[ps.archetype]) || null;
+    if (arch) usageShare *= arch.usage;
+
+    // Freshmen are squeezed hardest of all — they're sharing the floor
+    // with grown men and slotting into an existing pecking order. Only
+    // genuine top-of-the-class recruits are handed the offense.
+    if (player.class === 'FR') {
+      const elite = (parseFloat(player.rsci) || 999) <= 10;
+      usageShare *= elite ? 1.00 : 0.91;
+    }
+
     // A designated focal point carries more of the offense than his rating
     // alone implies; a declared bench player carries less.
     usageShare = Math.max(0.35, Math.min(1.85, usageShare * roleMult));
@@ -2004,7 +2065,9 @@ window.SimEngine = {
     // the ball shouldn't still post double-digit boards; the flat
     // positional rate was producing ~8 ppg / ~10 rpg seasons.
     const involvement = 0.72 + 0.28 * Math.max(0.5, Math.min(1.6, usageShare));
-    const athReb = 1 + ath * 0.10;
+    // A roll big still crashes the glass hard even though he barely
+    // touches the ball — that's the whole point of the role.
+    const athReb = (1 + ath * 0.10) * (arch ? arch.oreb : 1);
     const athStl = 1 + ath * 0.16;
     let rpg = Math.max(0.2, base.reb * usageScale * involvement * athReb);
 
@@ -2013,8 +2076,8 @@ window.SimEngine = {
     // centres were routinely doing it. Anything beyond a modest cushion
     // over his scoring average is pulled back, so a big has to actually
     // shoot to post huge rebounding numbers.
-    const rebCeiling = ppg * 0.80 + 4.0;
-    if (rpg > rebCeiling) rpg = rebCeiling + (rpg - rebCeiling) * 0.35;
+    const rebCeiling = ppg * 0.62 + 3.0;
+    if (rpg > rebCeiling) rpg = rebCeiling + (rpg - rebCeiling) * 0.30;
     let apg = Math.max(0.1, base.ast * usageScale);
     let stl = Math.max(0.1, base.stl * usageScale * athStl);
     let blk = Math.max(0.05, base.blk * usageScale);
@@ -2044,6 +2107,9 @@ window.SimEngine = {
     let threePar = THREE_PAR[pos] !== undefined ? THREE_PAR[pos] : (isBig ? 0.18 : 0.50);
     if (player.playstyle) {
       threePar = Math.max(0.05, Math.min(0.85, threePar * player.playstyle.threePar));
+    }
+    if (arch) {
+      threePar = Math.max(0.03, Math.min(0.90, threePar * arch.par));
     }
     if (coach) {
       threePar = Math.max(0.05, Math.min(0.88, threePar * coach.threePar));
@@ -2075,12 +2141,19 @@ window.SimEngine = {
       // Clamped: playstyle, scouting tags and the coach's system each
       // multiply these, and unbounded stacking was a major contributor to
       // 20-rebound and 12-assist seasons.
+      // These multipliers stack on top of positional baselines that are
+      // already calibrated to league norms, so wide clamps let an imported
+      // recruit blow straight past what any generated player can reach —
+      // an elite centre was landing at 13.9 rpg and 3.1 bpg before a game
+      // was even simulated. Tight bands keep playstyle as flavour rather
+      // than amplification, which is why imported classes used to look
+      // unrealistic while later, generated-heavy years read fine.
       const lim = (v, lo, hi) => Math.max(lo, Math.min(hi, v || 1));
-      ppg *= lim(ps.score, 0.75, 1.30);
-      rpg *= lim(ps.reb, 0.75, 1.25);
-      apg *= lim(ps.ast, 0.70, 1.35);
-      stl *= lim(ps.stl, 0.75, 1.30);
-      blk *= lim(ps.blk, 0.70, 1.40);
+      ppg *= lim(ps.score, 0.82, 1.20);
+      rpg *= lim(ps.reb, 0.85, 1.14);
+      apg *= lim(ps.ast, 0.78, 1.28);
+      stl *= lim(ps.stl, 0.82, 1.22);
+      blk *= lim(ps.blk, 0.80, 1.25);
     }
 
     // A genuine focal point creates for others as well as scoring. When a
@@ -2098,7 +2171,7 @@ window.SimEngine = {
         : ['SF', 'W'].includes(pos) ? (handles ? 0.85 : 0.55)
         : ['PF', 'F'].includes(pos) ? (handles ? 0.70 : 0.32)
         : 0.28;
-      const creator = (ps && ps.ast ? ps.ast : 1) * posFactor;
+      const creator = (ps && ps.ast ? ps.ast : 1) * posFactor * (arch ? arch.ast : 1);
       apg *= 1 + (usageShare - 1.10) * 1.75 * creator;
     }
 
