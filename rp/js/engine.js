@@ -41,6 +41,10 @@ window.SimEngine = {
     offseasonStage: 'champion',
     offseasonStageIndex: 0,
     combineResults: [],
+    lastDevelopment: [],
+    departedArchive: [],
+    recordsScope: null,
+    recordsMode: 'season',
     draftResults: [],
     declarationSort: 'board',
     historySeasonView: null,
@@ -187,6 +191,7 @@ window.SimEngine = {
           this.state.seasonHistory = savedState.seasonHistory || [];
           this.state.allRecruits = savedState.allRecruits || [];
           this.state.departedNames = new Set(savedState.departedNames || []);
+          this.state.departedArchive = savedState.departedArchive || [];
           this.state.seasonInitialized = savedState.seasonInitialized || false;
           this.state.lastTransfers = savedState.lastTransfers || [];
           this.state.lastDeclarations = savedState.lastDeclarations || [];
@@ -268,6 +273,7 @@ window.SimEngine = {
           seasonHistory: this.state.seasonHistory,
           allRecruits: this.state.allRecruits,
           departedNames: Array.from(this.state.departedNames || []),
+          departedArchive: this.state.departedArchive,
           seasonInitialized: this.state.seasonInitialized,
           lastTransfers: this.state.lastTransfers,
           lastDeclarations: this.state.lastDeclarations,
@@ -1522,7 +1528,12 @@ window.SimEngine = {
     this.state.leagueShootingTotals = { pts: 0, fga: 0, fta: 0 };
     this.state.activePlayers.forEach(p => {
       p.injuredUntilWeek = null; p.gamesMissed = 0;
-      if (p.baseRating !== undefined) { p.rating = p.baseRating; delete p.baseRating; }
+      // Clear the in-season form marker only. Do NOT restore rating from
+      // it: reevaluateRotations already unwinds form at the end of every
+      // pass, so by this point p.rating is the true, newly-developed
+      // value. Overwriting it here silently erased every player's
+      // offseason growth, which is why ratings never moved year to year.
+      if (p.baseRating !== undefined) delete p.baseRating;
     });
     this.state.schedule = [];
     this.state.regularSeasonDone = false;
@@ -1838,7 +1849,7 @@ window.SimEngine = {
     const roleMult = team && team._roleWeight ? team._roleWeight(player) : 1;
 
     const usageRef = (team && team.usageReference) ? team.usageReference : 78;
-    let usageShare = Math.max(0.42, Math.min(1.70, 1 + (r - usageRef) * 0.037));
+    let usageShare = Math.max(0.42, Math.min(1.68, 1 + (r - usageRef) * 0.033));
 
     // Usage ceiling by archetype. An off-ball big living on rolls and lobs
     // finishes plays rather than creating them and tops out around 17%
@@ -2757,9 +2768,21 @@ window.SimEngine = {
       if (toSign <= 0) return;
 
       const usedNames = new Set(roster.map(p => p.name));
-      const baseline = roster.length
+
+      // Recruit to the PROGRAM's level, not to whatever is left on the
+      // roster right now. Using the current roster average meant a team
+      // that just lost its best players signed a weaker class, which made
+      // it weaker again the next year — a feedback loop that deflated
+      // league-wide talent by more than ten rating points over four
+      // seasons. Blue-bloods reload; they don't spiral.
+      const tier = RosterGen.getConferenceTier(team.conference);
+      const range = RosterGen.TIER_RANGES[tier] || [62, 78];   // [min, max]
+      const programLevel = (range[0] + range[1]) / 2;
+      const rosterAvg = roster.length
         ? roster.reduce((n, p) => n + parseFloat(p.rating), 0) / roster.length
-        : 70;
+        : programLevel;
+      // Mostly the program's standing, nudged by how the roster is doing.
+      const baseline = programLevel * 0.75 + rosterAvg * 0.25;
 
       for (let i = 0; i < toSign; i++) {
         const needs = this.rosterNeeds(team);
@@ -2771,7 +2794,18 @@ window.SimEngine = {
         // Incoming signings are freshmen, and unranked ones shouldn't
         // out-rate the players already there.
         p.class = 'FR';
-        p.rating = Math.min(p.rating, Math.max(58, Math.round(baseline + 2)));
+        // Set the incoming rating explicitly rather than inheriting the
+        // filler generator's unranked-freshman penalty, which exists to
+        // stop generated players out-rating real recruits at universe
+        // creation and is far too harsh for an actual signing class.
+        //
+        // Freshmen should arrive a few points below their program's level
+        // and close that gap through development. A career adds roughly
+        // four points, so entering ~3 under keeps the league's talent
+        // level flat instead of bleeding downward every season.
+        const spread = (Math.random() + Math.random() - 1) * 6;
+        p.rating = Math.max(50, Math.min(92, Math.round(baseline - 5.5 + spread)));
+        p.potential = Math.min(99, Math.round(p.rating + 5 + Math.random() * 8));
         p.school_logo = this.getTeamLogo(team.school);
         p.stats = this.getZeroStats();
         p.statsFull = this.getZeroStats();
@@ -3154,6 +3188,19 @@ window.SimEngine = {
     this.state.lastDeclarationsYear = this.state.year;
   },
 
+  // Progresses every returning player's rating. Newly-signed freshmen are
+  // skipped — they haven't played a college season yet.
+  runPlayerDevelopment() {
+    if (typeof DevelopmentCore === 'undefined') return;
+    const returning = this.state.activePlayers.filter(p => (p.stats && p.stats.gp) > 0);
+    const changes = DevelopmentCore.developRoster(returning);
+    this.state.lastDevelopment = changes.slice(0, 25).concat(changes.slice(-15));
+    if (changes.length) {
+      const up = changes.filter(c => c.delta > 0).length;
+      console.log(`Development: ${changes.length} players changed rating (${up} improved).`);
+    }
+  },
+
   async completeOffseason() {
     this.state.offseasonStageIndex = 0;
 
@@ -3186,16 +3233,15 @@ window.SimEngine = {
       });
 
       team.roster = team.roster.filter(p => {
-        if (declaredIds.has(p.id)) { this.markDeparted(p); return false; }  // off to the draft
+        if (declaredIds.has(p.id)) { this.archiveDeparted(p); this.markDeparted(p); return false; }
         const nextClass = classProgression[p.class];
         if (nextClass) { p.class = nextClass; return true; }
-        this.markDeparted(p);                                                // eligibility exhausted
+        this.archiveDeparted(p);                                             // eligibility exhausted
+        this.markDeparted(p);
         return false;
       });
 
-      team.roster.forEach(p => {
-        p.rating = Math.min(99, parseFloat(p.rating) + Math.floor(Math.random() * 4));
-      });
+      team.roster.forEach(p => this.developPlayer(p));
 
       team.simData = { teamOvr: 0, wins: 0, losses: 0, confWins: 0, confLosses: 0, rosterRef: team.roster, winPct: '.000' };
       team.apRank = null;
@@ -3224,6 +3270,11 @@ window.SimEngine = {
     this.enforceRosterLimits();
     this.backfillRosters();
     this.filterActiveData();
+
+    // Returning players develop before the new season is set up, so the
+    // rotation and stat expectations are built from their new ratings.
+    this.runPlayerDevelopment();
+
     this.initSeasonData();
     this.openOffseason('champion');
     this.logNews(`Advanced to ${this.state.year} Offseason. Graduated seniors cleared; incoming recruits added.`);
@@ -3296,7 +3347,8 @@ window.SimEngine = {
       ['recruits',           () => this.updateRecruitsTab(), 'recruitsBody'],
       ['draft board',        () => this.updateDraftBoardTab(), 'draftBoardContainer'],
       ['offseason',          () => this.updateOffseasonTab()],
-      ['history',            () => this.updateHistoryTab(), 'historyContainer']
+      ['history',            () => this.updateHistoryTab(), 'historyContainer'],
+      ['records',            () => this.updateRecordsTab(), 'recordsContainer']
     ]);
   },
 
@@ -5255,7 +5307,116 @@ window.SimEngine = {
       !departed.has(r.name));
   },
 
+  // --- Player development ---
+  //
+  // Offseason growth used to be a flat random 0-3 for every player, which
+  // meant a senior who never left the bench improved at the same rate as a
+  // blue-chip freshman who played 32 minutes a night — and ratings simply
+  // inflated across the board every year. Development now depends on the
+  // four things that actually drive it: how young a player is, how much
+  // headroom he has, whether he actually played, and whether he
+  // outperformed what his rating implied.
+
+  // Growth curve by the class a player is LEAVING. The freshman-to-
+  // sophomore jump is far and away the largest; by the senior year most
+  // players are close to what they'll be.
+  CLASS_GROWTH: { FR: 4.4, SO: 3.0, JR: 1.7, SR: 0.7, GR: 0.3 },
+
+  // When the roster sheet doesn't supply a Potential value, infer one.
+  // Recruiting pedigree is the best available proxy for ceiling: a
+  // top-ten recruit is expected to become a far better player than an
+  // unranked one at the same current rating.
+  derivePotential(player) {
+    const rating = parseFloat(player.rating) || 70;
+    const rsci = parseFloat(player.rsci) || null;
+    let ceiling;
+    if (rsci) {
+      if (rsci <= 10) ceiling = rating + 13;
+      else if (rsci <= 30) ceiling = rating + 10;
+      else if (rsci <= 75) ceiling = rating + 8;
+      else if (rsci <= 150) ceiling = rating + 6;
+      else ceiling = rating + 5;
+    } else {
+      ceiling = rating + 5;
+    }
+    // Younger players have more of their development still ahead of them.
+    const classBonus = { FR: 4, SO: 2, JR: 0.5, SR: 0, GR: 0 }[player.class] || 0;
+    return Math.min(99, Math.round(ceiling + classBonus));
+  },
+
+  developPlayer(player) {
+    const before = parseFloat(player.rating) || 70;
+    const cls = player.class || 'SO';
+    const st = player.stats || {};
+
+    const potential = (player.potential && player.potential > before)
+      ? player.potential
+      : this.derivePotential(player);
+
+    // How much room is left between where he is and his ceiling. A player
+    // already at his ceiling stops improving and can slip slightly.
+    const headroom = potential - before;
+    // Headroom shapes growth but shouldn't dominate it, or high-rated
+    // starters would develop more slowly than deep-bench players.
+    const headroomFactor = Math.max(0.25, Math.min(1.30, 0.45 + headroom / 16));
+
+    // Development needs reps. A player who barely got on the floor
+    // improves far less than one who played real minutes — but the curve
+    // flattens, so 34 minutes isn't meaningfully better than 26.
+    // Weighted so playing time genuinely drives development: a player who
+    // sat all year improves far less than one who started, even though the
+    // starter has less headroom left to close.
+    const mpg = parseFloat(st.mpg) || 0;
+    const reps = 0.18 + 0.82 * Math.min(1, mpg / 22);
+
+    // Did he outplay his rating? BPM is compared against what that rating
+    // would have predicted, so exceeding expectations accelerates growth
+    // and badly underperforming slows it.
+    const actualBpm = parseFloat(st.bpm) || 0;
+    const impliedBpm = ((before - 74) * 0.50) + Math.max(0, before - 90) * 0.85;
+    const overperformance = Math.max(-4, Math.min(5, actualBpm - impliedBpm));
+
+    const base = (this.CLASS_GROWTH[cls] || 1.5) * reps * headroomFactor;
+    const merit = overperformance * 0.42;
+
+    // Noise, plus rare genuine breakouts and stagnations.
+    let noise = (Math.random() + Math.random() - 1) * 2.2;
+    const roll = Math.random();
+    if (roll < 0.035) noise += 3 + Math.random() * 4;        // leap
+    else if (roll < 0.075) noise -= 3 + Math.random() * 3.5; // stalled
+
+    let growth = base + merit + noise;
+
+    // A player can't blow straight past his ceiling in one offseason, and
+    // nobody falls off a cliff.
+    growth = Math.max(-5, Math.min(headroom > 0 ? headroom + 2 : 1.5, growth));
+
+    const after = Math.max(45, Math.min(99, Math.round(before + growth)));
+    player.rating = after;
+    player.potential = potential;
+
+    // Keep a trail so a profile can show how a player has grown.
+    if (!player.ratingHistory) player.ratingHistory = [];
+    player.ratingHistory.push({ year: this.state.year, from: before, to: after });
+    if (player.ratingHistory.length > 8) player.ratingHistory.shift();
+
+    return after - before;
+  },
+
   // Permanently retires a player from the college universe.
+  // Departed players are kept in a slim archive so the record books don't
+  // lose every great career the moment its owner leaves for the draft.
+  // Only their season lines are retained — no game logs.
+  archiveDeparted(player) {
+    if (!this.state.departedArchive) this.state.departedArchive = [];
+    if (!player || !(player.seasonHistory || []).length) return;
+    if (this.state.departedArchive.some(p => p.id === player.id)) return;
+    this.state.departedArchive.push({
+      id: player.id, name: player.name, pos: player.pos,
+      seasonHistory: player.seasonHistory
+    });
+  },
+
   markDeparted(player) {
     if (!this.state.departedNames) this.state.departedNames = new Set();
     if (player && player.name) this.state.departedNames.add(player.name);
@@ -5624,6 +5785,136 @@ window.SimEngine = {
       <button class="sim-btn" onclick="SimEngine.openOffseason('champion')">Open Offseason</button>`;
   },
 
+  // --- Record books ---
+  //
+  // Every completed season is already archived per player and per team, so
+  // the record books are derived on demand rather than maintained
+  // separately — nothing can drift out of sync with the season archive.
+
+  // Career totals for everyone with at least one archived season, plus the
+  // players currently active.
+  buildCareerIndex() {
+    const careers = {};
+    const consider = this.state.activePlayers.concat(this.state.departedArchive || []);
+    consider.forEach(p => {
+      const seasons = p.seasonHistory || [];
+      if (seasons.length === 0) return;
+      const c = careers[p.id] || (careers[p.id] = {
+        id: p.id, name: p.name, schools: [], seasons: 0,
+        pts: 0, reb: 0, ast: 0, stl: 0, blk: 0, gp: 0
+      });
+      seasons.forEach(h => {
+        const st = h.stats || {};
+        const gp = st.gp || 0;
+        c.seasons += 1;
+        c.gp += gp;
+        c.pts += (parseFloat(st.ppg) || 0) * gp;
+        c.reb += (parseFloat(st.rpg) || 0) * gp;
+        c.ast += (parseFloat(st.apg) || 0) * gp;
+        c.stl += (parseFloat(st.stl) || 0) * gp;
+        c.blk += (parseFloat(st.blk) || 0) * gp;
+        if (!c.schools.includes(h.school)) c.schools.push(h.school);
+      });
+    });
+    return Object.values(careers);
+  },
+
+  // Best individual SEASONS on record, optionally limited to one school.
+  bestSeasons(statKey, limit = 10, school = null) {
+    const out = [];
+    this.state.activePlayers.concat(this.state.departedArchive || []).forEach(p => {
+      (p.seasonHistory || []).forEach(h => {
+        if (school && h.school !== school) return;
+        if ((h.stats.gp || 0) < 12) return;
+        out.push({
+          name: p.name, id: p.id, school: h.school, year: h.year,
+          value: parseFloat(h.stats[statKey]) || 0
+        });
+      });
+    });
+    return out.sort((a, b) => b.value - a.value).slice(0, limit);
+  },
+
+  careerLeaders(field, limit = 10, school = null) {
+    let careers = this.buildCareerIndex();
+    if (school) careers = careers.filter(c => c.schools.includes(school));
+    return careers
+      .map(c => ({ ...c, value: c[field] }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, limit);
+  },
+
+  setRecordsScope(school) {
+    this.state.recordsScope = school === 'ALL' ? null : school;
+    this.updateRecordsTab();
+  },
+
+  setRecordsMode(mode) {
+    this.state.recordsMode = mode;
+    this.updateRecordsTab();
+  },
+
+  updateRecordsTab() {
+    const el = document.getElementById('recordsContainer');
+    if (!el) return;
+
+    const anyHistory = this.state.activePlayers.some(p => (p.seasonHistory || []).length > 0);
+    if (!anyHistory) {
+      el.innerHTML = `<p class="empty-table-msg">Record books build as seasons are completed. Finish a season and advance the offseason to begin.</p>`;
+      return;
+    }
+
+    const scope = this.state.recordsScope || null;
+    const mode = this.state.recordsMode || 'season';
+    const schools = [...new Set(this.state.teams.map(t => t.school))].sort();
+
+    const picker = `<div class="filters-container mb-1">
+      <select class="filter-select" onchange="SimEngine.setRecordsScope(this.value)">
+        <option value="ALL">All of Division I</option>
+        ${schools.map(sc => `<option value="${sc}" ${sc === scope ? 'selected' : ''}>${sc}</option>`).join('')}
+      </select>
+      <select class="filter-select" onchange="SimEngine.setRecordsMode(this.value)">
+        <option value="season" ${mode === 'season' ? 'selected' : ''}>Single-Season Records</option>
+        <option value="career" ${mode === 'career' ? 'selected' : ''}>Career Records</option>
+      </select>
+    </div>`;
+
+    const playerLink = (r) =>
+      `<span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(r.id).replace(/'/g, "\\'")}')">${r.name}</span>`;
+    const teamLink = (sc) =>
+      `<span class="clickable-school" onclick="SimEngine.goToTeamPage('${String(sc).replace(/'/g, "\\'")}')">${sc}</span>`;
+
+    const cats = mode === 'season'
+      ? [['ppg', 'Points Per Game'], ['rpg', 'Rebounds Per Game'], ['apg', 'Assists Per Game'],
+         ['stl', 'Steals Per Game'], ['blk', 'Blocks Per Game'], ['bpm', 'Box Plus/Minus']]
+      : [['pts', 'Career Points'], ['reb', 'Career Rebounds'], ['ast', 'Career Assists'],
+         ['stl', 'Career Steals'], ['blk', 'Career Blocks'], ['gp', 'Games Played']];
+
+    const cards = cats.map(([key, label]) => {
+      const rows = mode === 'season'
+        ? this.bestSeasons(key, 10, scope)
+        : this.careerLeaders(key, 10, scope);
+      const body = rows.map((r, i) => `<tr>
+        <td class="rank-cell">${i + 1}</td>
+        <td>${playerLink(r)}</td>
+        <td class="sub-text">${mode === 'season' ? teamLink(r.school) : (r.schools || []).map(teamLink).join(', ')}</td>
+        <td class="sub-text-sm">${mode === 'season' ? `${r.year}-${(r.year + 1).toString().slice(2)}` : r.seasons + ' yr'}</td>
+        <td class="bold-text">${mode === 'season' ? r.value.toFixed(1) : Math.round(r.value).toLocaleString()}</td>
+      </tr>`).join('');
+      return `<div class="record-card">
+        <h5 class="award-table-title">${label}</h5>
+        <div class="table-scroll"><table class="data-table">
+          <thead><tr><th>#</th><th>Player</th><th>School</th><th>${mode === 'season' ? 'Season' : 'Span'}</th><th>${mode === 'season' ? 'Avg' : 'Total'}</th></tr></thead>
+          <tbody>${body || `<tr><td colspan="5" class="empty-table-msg">No qualifying seasons yet.</td></tr>`}</tbody>
+        </table></div>
+      </div>`;
+    }).join('');
+
+    el.innerHTML = picker +
+      `<p class="sub-text mb-1">${scope ? scope + ' program records' : 'Division I records'} — ${mode === 'season' ? 'best individual seasons' : 'career totals'}. Minimum 12 games for a qualifying season.</p>
+       <div class="records-grid">${cards}</div>`;
+  },
+
   // --- Historical Seasons ---
 
   setHistorySeason(year) {
@@ -5824,158 +6115,6 @@ window.SimEngine = {
       </table></div>`;
   },
 
-  // --- Offseason takeover ---
-
-  // The offseason is its own full-screen experience rather than a tab:
-  // it opens over the sim the way the home screen does, walks through
-  // champion / declarations / transfers, and is dismissed explicitly.
-  openOffseason(stage) {
-    this.state.offseasonStage = stage || this.state.offseasonStage || 'champion';
-    const overlay = document.getElementById('offseasonOverlay');
-    if (!overlay) return;
-    overlay.style.display = 'block';
-    document.body.classList.add('offseason-open');
-    this.renderOffseasonOverlay();
-  },
-
-  closeOffseason() {
-    const overlay = document.getElementById('offseasonOverlay');
-    if (overlay) overlay.style.display = 'none';
-    document.body.classList.remove('offseason-open');
-  },
-
-  setOffseasonStage(stage) {
-    this.state.offseasonStage = stage;
-    this.renderOffseasonOverlay();
-  },
-
-
-  renderOffseasonChampion() {
-    let champSchool = null, champYear = this.state.year;
-    if (this.state.ncaaTournament && this.state.ncaaTournament.champion) {
-      champSchool = this.state.ncaaTournament.champion.school;
-    } else if ((this.state.seasonHistory || []).length > 0) {
-      const last = this.state.seasonHistory[this.state.seasonHistory.length - 1];
-      champSchool = last.champion;
-      champYear = last.year;
-    }
-    if (!champSchool) return `<p class="empty-table-msg">Finish the NCAA Tournament to begin the offseason.</p>`;
-
-    const t = this.state.teams.find(x => x.school === champSchool);
-    const hist = t && (t.history || []).find(h => h.year === champYear);
-    const record = hist ? `${hist.wins}-${hist.losses}` : (t && t.simData ? `${t.simData.wins}-${t.simData.losses}` : '');
-    const histEntry = (this.state.seasonHistory || []).find(h => h.year === champYear);
-
-    let html = `<div class="champion-spotlight">
-      <img src="${this.getTeamLogo(champSchool)}" class="champion-logo">
-      <div>
-        <div class="champion-label">${champYear}-${(champYear + 1).toString().slice(2)} National Champions</div>
-        <div class="champion-name">${champSchool}</div>
-        <div class="champion-record">${record}${t && t.conference ? ' · ' + t.conference : ''}</div>
-      </div>
-    </div>`;
-
-    if (histEntry) {
-      html += `<div class="offseason-recap">
-        ${histEntry.runnerUp ? `<p class="sub-text">Defeated <strong>${histEntry.runnerUp}</strong> in the championship game.</p>` : ''}
-        ${histEntry.finalFour && histEntry.finalFour.length ? `<p class="sub-text">Final Four: ${histEntry.finalFour.join(', ')}</p>` : ''}
-        ${histEntry.npoy ? `<p class="sub-text">National Player of the Year: <strong>${histEntry.npoy.name}</strong> (${histEntry.npoy.school})</p>` : ''}
-        ${histEntry.dpoy ? `<p class="sub-text">Defensive Player of the Year: <strong>${histEntry.dpoy.name}</strong> (${histEntry.dpoy.school})</p>` : ''}
-      </div>`;
-    }
-    return html;
-  },
-
-  renderOffseasonDeclarations() {
-    // Prefer the snapshot taken during the offseason; fall back to the live
-    // list when the offseason screen is opened before advancing.
-    let decls = (this.state.lastDeclarations && this.state.lastDeclarations.length)
-      ? this.state.lastDeclarations
-      : (this.state.draftDeclarations || []);
-    const returning = this.state.returningPlayers || [];
-
-    let html = `<p class="sub-text mb-1">Seniors and players out of eligibility enter automatically. Early entrants can withdraw and return to school — combine results from the Draft RP page will drive that decision once it's available.</p>`;
-
-    html += `<div class="filters-container mb-1">
-      <select class="filter-select" onchange="SimEngine.setDeclarationSort(this.value)">
-        <option value="board" ${this.state.declarationSort === 'board' ? 'selected' : ''}>Sort by Draft Board</option>
-        <option value="school" ${this.state.declarationSort === 'school' ? 'selected' : ''}>Group by School</option>
-      </select>
-    </div>`;
-
-    if (this.state.declarationSort === 'school') {
-      decls = [...decls].sort((x, y) =>
-        x.school === y.school ? (x.boardRank || 999) - (y.boardRank || 999) : x.school.localeCompare(y.school));
-    } else {
-      decls = [...decls].sort((x, y) => (x.boardRank || 999) - (y.boardRank || 999));
-    }
-
-    if (decls.length === 0) {
-      html += `<p class="empty-table-msg">No players have declared yet.</p>`;
-    } else {
-      html += `<h5 class="award-table-title">Declared (${decls.length})</h5>
-        <div class="table-scroll mb-1-5"><table class="data-table">
-          <thead><tr><th>#</th><th>Player</th><th>School</th><th>Pos</th><th>Cl</th><th>PPG</th><th>Board</th><th>Status</th></tr></thead><tbody>
-          ${decls.map((d, i) => `<tr>
-            <td class="bold-sub-text">${i + 1}</td>
-            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(d.id).replace(/'/g, "\\'")}')">${d.name}</span></td>
-            <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(d.school)}" class="xs-logo"><span>${d.school}</span></div></td>
-            <td class="sub-text">${d.pos}</td>
-            <td class="sub-text">${d.class}</td>
-            <td class="bold-text">${d.ppg}</td>
-            <td class="sub-text-sm">${d.boardRank && d.boardRank <= 200 ? '#' + d.boardRank : '—'}</td>
-          <td class="sub-text-sm">${d.mandatory ? 'Auto entry' : 'Early entry'}</td>
-          </tr>`).join('')}
-        </tbody></table></div>`;
-    }
-
-    if (returning.length > 0) {
-      html += `<h5 class="award-table-title">Withdrew — Returning to School (${returning.length})</h5>
-        <div class="table-scroll"><table class="data-table">
-          <thead><tr><th>Player</th><th>School</th><th>Pos</th><th>Big Board</th></tr></thead><tbody>
-          ${returning.map(r => `<tr>
-            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(r.id).replace(/'/g, "\\'")}')">${r.name}</span></td>
-            <td class="sub-text">${r.school}</td>
-            <td class="sub-text">${r.pos}</td>
-            <td class="sub-text-sm">${r.boardRank <= 200 ? '#' + r.boardRank : 'Unranked'}</td>
-          </tr>`).join('')}
-        </tbody></table></div>`;
-    }
-    return html;
-  },
-
-  renderOffseasonTransfers() {
-    const transfers = this.state.lastTransfers || [];
-    if (transfers.length === 0) {
-      return `<p class="empty-table-msg">No transfers yet — the portal opens when you advance the offseason.</p>`;
-    }
-    return `<p class="sub-text mb-1">${transfers.length} players changed schools. Producing well against a weak schedule pulls players upward; highly-rated players who underperformed or barely played look for a new situation.</p>
-      <div class="table-scroll"><table class="data-table">
-        <thead><tr><th>Player</th><th>Pos</th><th>Cl</th><th>PPG</th><th>From</th><th></th><th>To</th><th>Reason</th></tr></thead><tbody>
-        ${transfers.map(t => `<tr>
-          <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(t.id || t.name).replace(/'/g, "\\'")}')">${t.name}</span></td>
-          <td class="sub-text">${t.pos}</td>
-          <td class="sub-text">${t.class}</td>
-          <td class="bold-text">${t.ppg}</td>
-          <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(t.from)}" class="xs-logo"><span>${t.from}</span></div></td>
-          <td class="transfer-arrow">&rarr;</td>
-          <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(t.to)}" class="xs-logo"><span>${t.to}</span></div></td>
-          <td class="sub-text-sm">${t.reason}</td>
-        </tr>`).join('')}
-      </tbody></table></div>`;
-  },
-
-  // Kept so the sidebar/menu entry still works — it just opens the takeover.
-  updateOffseasonTab() {
-    const el = document.getElementById('offseasonContainer');
-    if (!el) return;
-    if (!this.state.ncaaDone && (this.state.seasonHistory || []).length === 0) {
-      el.innerHTML = `<p class="empty-table-msg">Finish the NCAA Tournament to begin the offseason.</p>`;
-      return;
-    }
-    el.innerHTML = `<p class="sub-text mb-1">The offseason opens as a full-screen experience.</p>
-      <button class="sim-btn" onclick="SimEngine.openOffseason('champion')">Open Offseason</button>`;
-  },
 
   // --- Historical Seasons ---
 
