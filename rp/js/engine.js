@@ -784,14 +784,18 @@ window.SimEngine = {
   //   oreb    multiplier on offensive rebounding
   //   ast     multiplier on assists
   ARCHETYPES: {
-    primaryScorer: { usage: 0.96, par: 1.00, oreb: 0.90, ast: 1.00 },
-    postHub:       { usage: 1.10, par: 0.55, oreb: 1.05, ast: 1.30 },
-    slasher:       { usage: 0.90, par: 0.80, oreb: 1.00, ast: 0.95 },
-    playmaker:     { usage: 0.84, par: 0.95, oreb: 0.75, ast: 1.35 },
-    shooter:       { usage: 0.70, par: 1.45, oreb: 0.60, ast: 0.80 },
-    rollBig:       { usage: 0.74, par: 0.20, oreb: 1.22, ast: 0.60 },
-    defender:      { usage: 0.70, par: 0.90, oreb: 1.00, ast: 0.85 },
-    connector:     { usage: 0.74, par: 1.00, oreb: 0.90, ast: 1.10 }
+    primaryScorer: { usage: 0.96, par: 0.98, oreb: 0.90, ast: 1.00, ftr: 1.10 },
+    postHub:       { usage: 1.10, par: 0.55, oreb: 1.05, ast: 1.30, ftr: 1.18 },
+    slasher:       { usage: 0.92, par: 0.72, oreb: 1.00, ast: 0.95, ftr: 1.22 },
+    playmaker:     { usage: 0.86, par: 0.88, oreb: 0.75, ast: 1.35, ftr: 1.00 },
+    shooter:       { usage: 0.72, par: 1.40, oreb: 0.60, ast: 0.80, ftr: 0.58 },
+    // A roll big finishes far more possessions than his usage suggests:
+    // every lob, dump-off and put-back is a shot, and he gets fouled on
+    // most of them. Suppressing his volume too hard pushed those attempts
+    // out to the guards.
+    rollBig:       { usage: 1.02, par: 0.14, oreb: 1.22, ast: 0.60, ftr: 1.12 },
+    defender:      { usage: 0.72, par: 0.85, oreb: 1.00, ast: 0.85, ftr: 1.00 },
+    connector:     { usage: 0.78, par: 0.95, oreb: 0.90, ast: 1.10, ftr: 1.00 }
   },
 
   classifyArchetype(text, pos) {
@@ -2061,6 +2065,18 @@ window.SimEngine = {
     // introduced a rounding bias that wrecked free-throw percentage.
     let ppg = Math.max(0.4, (2.2 + Math.max(4, r - 38) * 0.228) * scoringUsage);
 
+    // Interior finishers get a volume floor proportional to their minutes.
+    // Lobs, dump-offs and put-backs happen regardless of how small a
+    // player's role is, so a big who is on the floor at all is taking
+    // shots — a bench centre was otherwise ending up at barely one attempt
+    // a night while still pulling down rebounds. Scouted roll men and post
+    // hubs get the higher floor; any other interior player gets a smaller
+    // one purely on position.
+    const scoutedInterior = arch && (ps.archetype === 'rollBig' || ps.archetype === 'postHub');
+    const positionalInterior = !arch && ['C', 'F/C', 'PF'].includes(pos);
+    if (scoutedInterior) ppg = Math.max(ppg, mpg * 0.30);
+    else if (positionalInterior) ppg = Math.max(ppg, mpg * 0.22);
+
     // Rebounding scales partly with involvement. A big who barely touches
     // the ball shouldn't still post double-digit boards; the flat
     // positional rate was producing ~8 ppg / ~10 rpg seasons.
@@ -2095,13 +2111,15 @@ window.SimEngine = {
 
     let ftPct = Math.min(0.92, Math.max(0.48,
       (isBig ? 0.705 : 0.825) * (player.playstyle ? player.playstyle.ftPct : 1)));
-    let fta = Math.max(0.2, (ppg * (isBig ? 0.282 : 0.178)) * (coach ? coach.freeThrows : 1));
+    let fta = Math.max(0.2, (ppg * (isBig ? 0.282 : 0.178))
+      * (coach ? coach.freeThrows : 1)
+      * (arch ? arch.ftr : 1));
     // Three-point rate by position rather than a blunt big/small split.
     // The old single "big" rate had power forwards and centres launching
     // far too many threes; genuine stretch bigs now come from the
     // playstyle multiplier applied just below, not from the baseline.
     const THREE_PAR = {
-      PG: 0.465, SG: 0.515, CG: 0.495, SF: 0.465, W: 0.465, 'G/F': 0.465, G: 0.485, F: 0.26,
+      PG: 0.435, SG: 0.480, CG: 0.460, SF: 0.440, W: 0.440, 'G/F': 0.440, G: 0.450, F: 0.26,
       PF: 0.22, C: 0.07, 'F/C': 0.12
     };
     let threePar = THREE_PAR[pos] !== undefined ? THREE_PAR[pos] : (isBig ? 0.18 : 0.50);
