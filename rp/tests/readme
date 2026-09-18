@@ -32,6 +32,13 @@ earlier), and the save file stays bounded. That last check exists because
 the save once stored every player twice — inside `players` and again
 inside each team's roster — which pushed a five-season file near 100 MB.
 
+**save-integrity.js** — confirms everything written to IndexedDB survives
+structured clone, and that a save/load round trip restores the universe.
+A single function attached to a team object once broke every save in the
+app: Dexie raises DataCloneError and aborts the transaction, so the only
+symptom was "saves stopped working." Run this after any change that adds
+properties to teams, players, or league state.
+
 ## Adding a test
 
 `harness.js` boots the sim against the real `ncaa.html` in a headless DOM:
