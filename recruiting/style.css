@@ -314,3 +314,42 @@ tr:hover td { background-color: var(--bg-hover); cursor: pointer; }
   .pos-filter-wrapper { width: 100%; justify-content: space-between; }
   .bio-badge { flex: 1 1 calc(50% - 8px); max-width: 100%; }
 }
+
+/* Load / error state shown while the recruiting sheet is fetched, and when
+   it can't be reached. Previously a failed load left the page blank. */
+.load-state {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 12, 18, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 900;
+  text-align: center;
+  padding: 2rem;
+}
+
+.load-inner { max-width: 460px; }
+
+.load-inner h2 {
+  font-size: 1.3rem;
+  margin-bottom: 0.6rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.load-inner p { color: #b9c2d0; line-height: 1.55; }
+
+.load-error .load-inner h2 { color: #e5484d; }
+
+.load-spinner {
+  width: 46px;
+  height: 46px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.18);
+  border-top-color: #4FAEF5;
+  animation: loadSpin 0.8s linear infinite;
+}
+
+@keyframes loadSpin { to { transform: rotate(360deg); } }
