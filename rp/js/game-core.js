@@ -197,6 +197,23 @@ function capIndividualShare(boxes, key, maxShare) {
 
 // Keeps offensive and defensive boards consistent with the total after
 // the cap has moved rebounds between players.
+// An offensive rebound is nearly always a put-back attempt, and a player
+// takes other shots besides. So a player's field goal attempts should
+// never sit below his offensive rebounds — a line like 4 OREB on 2 FGA
+// describes something that doesn't happen. Any excess is moved to the
+// defensive glass, where the board still counts but implies no shot.
+function capOffensiveRebounds(boxes) {
+  boxes.forEach(b => {
+    const oreb = b.oreb || 0;
+    const fga = b.fga || 0;
+    if (oreb <= fga) return;
+    const excess = oreb - fga;
+    b.oreb = fga;
+    b.dreb = (b.dreb || 0) + excess;
+  });
+  return boxes;
+}
+
 function resyncRebounds(boxes) {
   boxes.forEach(b => {
     const total = b.reb || 0;
@@ -334,6 +351,7 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
     let boxes = capTeamAssists(reconcileTeamScore(raw, score));
     boxes = capIndividualShare(boxes, 'reb', 0.31);
     boxes = resyncRebounds(boxes);
+    boxes = capOffensiveRebounds(boxes);
     boxes = capIndividualShare(boxes, 'ast', 0.72);
     // Shot volume. The real top-five attempt leaders sit between roughly
     // 17 and 20 a night, and even on a lopsided roster one player rarely
@@ -351,7 +369,7 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
   };
 }
 
-const GameCore = { generateRawPlayerBox, reconcileTeamScore, capTeamAssists, capIndividualShare, capShotVolume, simulateSingleGame, getZeroBox };
+const GameCore = { generateRawPlayerBox, reconcileTeamScore, capTeamAssists, capIndividualShare, capShotVolume, capOffensiveRebounds, simulateSingleGame, getZeroBox };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = GameCore;
 else if (typeof window !== 'undefined') window.GameCore = GameCore;
