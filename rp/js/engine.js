@@ -302,7 +302,22 @@ window.SimEngine = {
         // player objects as activePlayers, so persisting both doubled the
         // save (rosters alone accounted for ~46 MB of a ~72 MB save after a
         // single season). Rosters are rebuilt from players on load.
-        const slimTeams = this.state.teams.map(t => {
+        // Any non-serialisable property reaching IndexedDB throws
+        // DataCloneError and aborts the whole save, so they're stripped here
+        // rather than relying on nothing ever attaching one.
+        const serialisable = (obj) => {
+          const out = {};
+          Object.keys(obj).forEach(k => {
+            const v = obj[k];
+            if (typeof v === 'function') return;
+            if (k.startsWith('_')) return;   // internal caches
+            out[k] = v;
+          });
+          return out;
+        };
+
+        const slimTeams = this.state.teams.map(raw => {
+          const t = serialisable(raw);
           const { roster, ...rest } = t;
           if (rest.simData) {
             const { rosterRef, ...sim } = rest.simData;
@@ -1678,6 +1693,19 @@ window.SimEngine = {
   // same talent now distribute it differently depending on positional fit,
   // and a good freshman stuck behind an established player at his own
   // position gets bench minutes instead of automatically starting.
+  // Role multiplier from the sheet's optional Role column. A plain
+  // function on the engine, never attached to saved state.
+  roleWeightFor(player) {
+    switch (((player && player.role) || '').replace(/[^a-z]/g, '')) {
+      case 'focalpoint': case 'focal': case 'star': return 1.35;
+      case 'starter': return 1.15;
+      case 'sixthman': case 'sixth': return 0.92;
+      case 'rotation': return 0.78;
+      case 'bench': case 'depth': case 'reserve': return 0.5;
+      default: return 1;
+    }
+  },
+
   buildRotation(team) {
     const roster = [...(team.roster || [])].sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
     const assigned = new Set();
@@ -1724,17 +1752,11 @@ window.SimEngine = {
     // An explicit Role from the sheet overrides the model's own read of a
     // player: a designated focal point starts and carries the offense even
     // if the ratings alone wouldn't put him there.
-    const roleWeight = (p) => {
-      switch ((p.role || '').replace(/[^a-z]/g, '')) {
-        case 'focalpoint': case 'focal': case 'star': return 1.35;
-        case 'starter': return 1.15;
-        case 'sixthman': case 'sixth': return 0.92;
-        case 'rotation': return 0.78;
-        case 'bench': case 'depth': case 'reserve': return 0.5;
-        default: return 1;
-      }
-    };
-    team._roleWeight = roleWeight;
+    const roleWeight = (p) => this.roleWeightFor(p);
+    // Deliberately NOT stored on the team: IndexedDB serialises with
+    // structured clone, which throws on functions and silently killed
+    // every save. The role multiplier is derived on demand instead.
+
 
     const trust = (team.coachProfile && team.coachProfile.freshmanTrust) || 1;
     const youthFactor = (p) => {
@@ -1871,7 +1893,7 @@ window.SimEngine = {
     // shooting; Role scales how much of the offense runs through a player.
     const ath = player.athleticism !== null && player.athleticism !== undefined
       ? Math.max(-1, Math.min(1, (player.athleticism - 75) / 25)) : 0;
-    const roleMult = team && team._roleWeight ? team._roleWeight(player) : 1;
+    const roleMult = this.roleWeightFor(player);
 
     const usageRef = (team && team.usageReference) ? team.usageReference : 78;
     let usageShare = Math.max(0.42, Math.min(1.68, 1 + (r - usageRef) * 0.033));
