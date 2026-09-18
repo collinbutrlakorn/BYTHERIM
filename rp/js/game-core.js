@@ -62,8 +62,19 @@ function generateRawPlayerBox(player, minutesMultiplier = 1) {
   // Split total rebounds into offensive/defensive. Bigs crash the offensive
   // glass more than guards, so the offensive share scales with the player's
   // expected block rate as a rough proxy for size/role.
+  // Offensive rebound share of a player's total boards.
+  //
+  // Two things drive it. Size and role: bigs live in the paint and crash
+  // the glass, guards get back on defense. And shot profile: a big who
+  // spends his possessions behind the arc simply isn't standing where
+  // offensive rebounds happen, so a high three-point attempt rate pulls
+  // his offensive share down toward a wing's. The old flat 0.34 for
+  // anything blocking shots gave power forwards absurd OREB rates.
   const isBigish = (parseFloat(exp.blk) || 0) >= 0.8;
-  const orebShare = (isBigish ? 0.34 : 0.20) + (Math.random() * 0.10 - 0.05);
+  const par = parseFloat(exp.threePar) || 0.4;
+  const perimeterPull = Math.max(0, Math.min(1, par / 0.55));   // 0 = rim-bound, 1 = spacing big
+  const baseShare = isBigish ? 0.41 : 0.27;
+  const orebShare = baseShare * (1 - perimeterPull * 0.38) + (Math.random() * 0.08 - 0.04);
   const oreb = Math.min(reb, Math.round(reb * Math.max(0, orebShare)));
   const dreb = reb - oreb;
   const ast = Math.round((parseFloat(exp.apg) || 0) * scale * variance());
