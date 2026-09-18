@@ -820,64 +820,138 @@ window.SimEngine = {
     return 'connector';
   },
 
+  // Reads a recruit's actual pre-college statistics.
+  //
+  // The recruiting sheet carries four full stat tiers — hs_, aau_, fiba_
+  // and intl_ — each with box score, advanced and shot-location columns.
+  // AAU is preferred over high school: it's played against real recruits
+  // rather than whoever happened to attend the same school, so it's much
+  // closer to what a player looks like in college. High school is the
+  // fallback, then international competition.
+  //
+  // Column names here mirror the recruiting page's own schema exactly
+  // (hs_ppg, aau_usg, hs_rimFga and so on), so the whole tier is read
+  // rather than the handful of names that happened to overlap.
+  readRecruitTier(raw) {
+    const TIERS = ['aau', 'hs', 'fiba', 'intl'];
+    const num = (v) => {
+      if (v === undefined || v === null || v === '') return null;
+      const n = parseFloat(String(v).replace('%', ''));
+      return isNaN(n) ? null : n;
+    };
+
+    for (const tier of TIERS) {
+      const get = (col) => raw[tier + col];
+      const ppg = num(get('ppg'));
+      // A tier counts as present only if it has real production in it.
+      if (ppg === null || num(get('gp')) === 0) continue;
+
+      return {
+        tier,
+        gp: num(get('gp')), mpg: num(get('mpg')),
+        ppg, rpg: num(get('rpg')), apg: num(get('apg')),
+        spg: num(get('spg')), bpg: num(get('bpg')), topg: num(get('topg')),
+        usg: num(get('usg')), bpm: num(get('bpm')),
+        ts: num(get('ts')), efg: num(get('efg')),
+        orebPct: num(get('oreb')), drebPct: num(get('dreb')), trbPct: num(get('trb')),
+        astPct: num(get('ast')), blkPct: num(get('blk')), stlPct: num(get('stl')),
+        ftr: num(get('ftr')), p3ar: num(get('p3ar')),
+        fga3: num(get('fga3')), fga2: num(get('fga2')), fta: num(get('fta')),
+        rimFga: num(get('rimfga')), longMidFga: num(get('longmidfga')),
+        fg3: num(get('fg3')), ft: num(get('ft'))
+      };
+    }
+    return null;
+  },
+
+  // Classifies a recruit from what he actually did, falling back to the
+  // scouting text only when the numbers aren't there. Shot location is the
+  // single most telling signal: a big whose attempts are nearly all at the
+  // rim is a roll man, one who posts real usage and assist rates is a hub.
+  archetypeFromStats(t, pos) {
+    if (!t) return null;
+    const p = String(pos || '').toUpperCase();
+    const isBig = ['C', 'PF', 'F/C'].includes(p);
+    const isGuard = ['PG', 'SG', 'G', 'CG'].includes(p);
+
+    const par = t.p3ar !== null ? t.p3ar : (t.fga3 !== null && t.fga2 !== null && (t.fga3 + t.fga2) > 0
+      ? t.fga3 / (t.fga3 + t.fga2) : null);
+    const rimShare = (t.rimFga !== null && t.fga2) ? t.rimFga / Math.max(1, t.fga2) : null;
+    const usg = t.usg;
+
+    if (isBig) {
+      const rimHeavy = (rimShare !== null && rimShare >= 0.62) || (par !== null && par <= 0.12);
+      if (usg !== null && usg >= 24 && (t.astPct === null || t.astPct >= 10)) return 'postHub';
+      if (rimHeavy && (usg === null || usg < 22)) return 'rollBig';
+      if (par !== null && par >= 0.35) return 'shooter';
+      return usg !== null && usg >= 22 ? 'postHub' : 'rollBig';
+    }
+
+    if (usg !== null && usg >= 28) return 'primaryScorer';
+    if (t.astPct !== null && t.astPct >= 24 && isGuard) return 'playmaker';
+    if (par !== null && par >= 0.55 && (usg === null || usg < 22)) return 'shooter';
+    if (rimShare !== null && rimShare >= 0.55) return 'slasher';
+    if (t.stlPct !== null && t.stlPct >= 3.2 && (usg === null || usg < 20)) return 'defender';
+    if (usg !== null && usg >= 23) return 'primaryScorer';
+    return 'connector';
+  },
+
   buildPlaystyleProfile(raw, getVal) {
     const prof = { score: 1, reb: 1, ast: 1, stl: 1, blk: 1, threePar: 1, threePct: 1, ftPct: 1, usage: 1 };
     let found = false;
 
-    // Try the common shapes a HS/AAU stat column might take.
-    const statVal = (names) => {
-      for (const base of names) {
-        for (const pre of ['hs', 'aau', '']) {
-          const v = getVal([pre + base], '');
-          if (v !== '' && !isNaN(parseFloat(v))) return parseFloat(v);
-        }
-      }
-      return null;
-    };
+    const pos = getVal(['pos', 'position'], '');
+    const tier = this.readRecruitTier(raw);
 
-    const ppg = statVal(['ppg', 'points', 'pts']);
-    const rpg = statVal(['rpg', 'rebounds', 'reb', 'trb']);
-    const apg = statVal(['apg', 'assists', 'ast']);
-    const spg = statVal(['spg', 'steals', 'stl']);
-    const bpg = statVal(['bpg', 'blocks', 'blk']);
-    const tpa = statVal(['3pa', 'threepa', 'threepointattempts']);
-    const tpp = statVal(['3ppct', 'threeppct', '3p', 'threepointpct']);
-    const ftp = statVal(['ftpct', 'ft', 'freethrowpct']);
+    if (tier) {
+      found = true;
+      prof.sourceTier = tier.tier;
+      prof.priorUsage = tier.usg;
 
-    // Ratios against a typical high-major HS line, clamped so one strange
-    // number can't distort a whole career.
-    const ratio = (v, typical) => v === null ? null : Math.max(0.6, Math.min(1.6, v / typical));
-    const apply = (key, v, typical) => {
-      const r = ratio(v, typical);
-      if (r !== null) { prof[key] = r; found = true; }
-    };
-    apply('score', ppg, 18);
-    apply('reb', rpg, 7);
-    apply('ast', apg, 3.5);
-    apply('stl', spg, 2);
-    apply('blk', bpg, 1.2);
-    apply('threePar', tpa, 5);
-    if (tpp !== null) { prof.threePct = Math.max(0.75, Math.min(1.3, (tpp > 1 ? tpp / 100 : tpp) / 0.34)); found = true; }
-    if (ftp !== null) { prof.ftPct = Math.max(0.8, Math.min(1.2, (ftp > 1 ? ftp / 100 : ftp) / 0.72)); found = true; }
+      // Rates are compared against typical high-major prospect levels and
+      // clamped tightly — these describe a player's tendencies, they don't
+      // scale his college production up. Amplifying here is what used to
+      // send imported recruits past anything a generated player could do.
+      const ratio = (v, typical, lo, hi) =>
+        v === null ? 1 : Math.max(lo, Math.min(hi, v / typical));
 
-    // Scouting tags are always available even when box scores aren't.
+      prof.reb = ratio(tier.trbPct, 11, 0.85, 1.14);
+      prof.ast = ratio(tier.astPct, 16, 0.78, 1.28);
+      prof.stl = ratio(tier.stlPct, 2.6, 0.82, 1.22);
+      prof.blk = ratio(tier.blkPct, 3.0, 0.80, 1.25);
+      prof.score = ratio(tier.usg, 24, 0.82, 1.20);
+
+      const par = tier.p3ar !== null ? tier.p3ar
+        : (tier.fga3 !== null && tier.fga2 !== null && (tier.fga3 + tier.fga2) > 0
+            ? tier.fga3 / (tier.fga3 + tier.fga2) : null);
+      prof.threePar = par === null ? 1 : Math.max(0.35, Math.min(1.75, par / 0.35));
+      prof.threePct = ratio(tier.fg3, 34, 0.80, 1.22);
+      prof.ftPct = ratio(tier.ft, 72, 0.85, 1.15);
+    }
+
+    // Scouting text still contributes, but only where the numbers are
+    // silent — it's a description of a player, not a measurement of him.
     const tags = (getVal(['strengths'], '') + ' ' + getVal(['scouting'], '') + ' ' + getVal(['attributes'], '')).toLowerCase();
-    prof.archetype = this.classifyArchetype(tags, getVal(['pos', 'position'], ''));
     const weak = getVal(['weaknesses'], '').toLowerCase();
     const has = (txt, ...words) => words.some(w => txt.includes(w));
 
-    if (has(tags, 'shoot', 'shooter', 'stroke', 'range', 'spacing')) { prof.threePar *= 1.25; prof.threePct *= 1.08; found = true; }
-    if (has(tags, 'playmak', 'passer', 'passing', 'vision', 'facilitat')) { prof.ast *= 1.35; found = true; }
-    if (has(tags, 'rebound', 'glass', 'motor')) { prof.reb *= 1.20; found = true; }
-    if (has(tags, 'rim protect', 'shot block', 'block')) { prof.blk *= 1.40; found = true; }
-    if (has(tags, 'defend', 'defense', 'lockdown', 'perimeter d')) { prof.stl *= 1.25; found = true; }
-    if (has(tags, 'scorer', 'bucket', 'three level', 'shot creat', 'iso')) { prof.score *= 1.15; prof.usage *= 1.12; found = true; }
-    if (has(tags, 'athlet', 'explosive', 'finisher', 'rim')) { prof.score *= 1.06; found = true; }
+    if (tags.trim()) {
+      found = true;
+      const nudge = (key, mult, lo, hi) => { prof[key] = Math.max(lo, Math.min(hi, prof[key] * mult)); };
+      if (has(tags, 'shoot', 'shooter', 'stroke', 'range', 'spacing')) { nudge('threePar', 1.12, 0.35, 1.75); nudge('threePct', 1.05, 0.80, 1.22); }
+      if (has(tags, 'playmak', 'passer', 'passing', 'vision', 'facilitat')) nudge('ast', 1.12, 0.78, 1.28);
+      if (has(tags, 'rebound', 'glass', 'motor')) nudge('reb', 1.08, 0.85, 1.14);
+      if (has(tags, 'rim protect', 'shot block', 'block')) nudge('blk', 1.12, 0.80, 1.25);
+      if (has(tags, 'defend', 'defense', 'lockdown', 'perimeter d')) nudge('stl', 1.10, 0.82, 1.22);
+      if (has(tags, 'scorer', 'bucket', 'three level', 'shot creat', 'iso')) nudge('score', 1.08, 0.82, 1.20);
+      if (has(weak, 'shoot', 'jumper', 'range')) { nudge('threePct', 0.90, 0.80, 1.22); nudge('threePar', 0.88, 0.35, 1.75); }
+      if (has(weak, 'playmak', 'passing', 'tunnel')) nudge('ast', 0.88, 0.78, 1.28);
+      if (has(weak, 'free throw')) nudge('ftPct', 0.92, 0.85, 1.15);
+    }
 
-    if (has(weak, 'shoot', 'jumper', 'range')) { prof.threePct *= 0.85; prof.threePar *= 0.8; found = true; }
-    if (has(weak, 'playmak', 'passing', 'tunnel')) { prof.ast *= 0.75; found = true; }
-    if (has(weak, 'free throw')) { prof.ftPct *= 0.9; found = true; }
-    if (has(weak, 'strength', 'frame', 'thin')) { prof.reb *= 0.88; found = true; }
+    // Statistics decide the archetype where they exist; text is the
+    // fallback for recruits without a stat line.
+    prof.archetype = this.archetypeFromStats(tier, pos) || this.classifyArchetype(tags, pos);
 
     return found ? prof : null;
   },
