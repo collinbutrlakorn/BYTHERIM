@@ -301,6 +301,30 @@
   .draft-empty.small { padding: 2rem; }
   .draft-empty p { margin-bottom: 1rem; }
 
+  /* Mock draft: lottery strip and NBA team cells */
+  .lottery-strip {
+    display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center;
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: var(--r-md); padding: 0.75rem 1rem; margin-bottom: 1rem;
+  }
+  .lottery-label {
+    font-family: 'Oswald', sans-serif; font-size: 0.75rem; text-transform: uppercase;
+    letter-spacing: 0.6px; color: var(--text-muted); margin-right: 0.5rem;
+  }
+  .lottery-winner {
+    display: flex; align-items: center; gap: 0.4rem;
+    background: var(--bg-color); border: 1px solid var(--border);
+    border-radius: var(--r-pill); padding: 0.3rem 0.7rem; font-size: 0.82rem;
+  }
+  .lottery-pick { font-family: 'Oswald', sans-serif; font-weight: 700; color: var(--accent); }
+  .lottery-team { white-space: nowrap; }
+  .lottery-record { color: var(--text-muted); font-size: 0.74rem; }
+  .nba-logo-sm { width: 26px; height: 26px; object-fit: contain; flex-shrink: 0; }
+  .nba-team-cell { display: flex; align-items: center; gap: 0.5rem; }
+  .reach-tag { font-size: 0.68rem; font-weight: 700; padding: 0.05rem 0.35rem; border-radius: var(--r-pill); margin-left: 0.25rem; }
+  .reach-tag.steal { background: rgba(61,220,132,0.18); color: var(--win); }
+  .reach-tag.reach { background: rgba(229,72,77,0.18); color: var(--loss); }
+
   @media (max-width: 720px) {
     .draft-title h1 { font-size: 1.55rem; }
     .draft-brand-logo { width: 56px; height: 56px; }
@@ -344,6 +368,7 @@
   <div class="draft-view-nav">
     <button class="draft-view-btn active" data-view="master" onclick="DraftRP.setView('master')">Master Big Board</button>
     <button class="draft-view-btn" data-view="custom" onclick="DraftRP.setView('custom')">My Big Board</button>
+    <button class="draft-view-btn" data-view="mock" onclick="DraftRP.setView('mock')">Mock Draft</button>
   </div>
 
   <div id="draftBody">
@@ -375,6 +400,7 @@
 <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
 <script src="js/db.js"></script>
 <script src="js/draft-core.js"></script>
+<script src="js/nba-core.js"></script>
 <script src="js/draft-rp.js"></script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
