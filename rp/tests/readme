@@ -39,6 +39,12 @@ app: Dexie raises DataCloneError and aborts the transaction, so the only
 symptom was "saves stopped working." Run this after any change that adds
 properties to teams, players, or league state.
 
+**recruiting-page.js** — covers `/recruiting`: a failed or empty sheet must
+produce a visible message rather than a blank page, school logos resolve
+through the alias table (Texas Christian → tcu.png) with a generated badge
+fallback, and the dashboard renders quickly. Note it reads `../../recruiting`,
+so it only works with the repo laid out as-is.
+
 ## Adding a test
 
 `harness.js` boots the sim against the real `ncaa.html` in a headless DOM:
