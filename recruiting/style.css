@@ -1,16 +1,68 @@
 /* ==========================================================================
    1. DESIGN SYSTEM & TYPOGRAPHY
    ========================================================================== */
+/* ============================================================
+   BYTHERIM Recruiting — theme tokens.
+
+   These mirror the tokens used by the NCAA RP and Draft RP so all three
+   sites read as one product: the same logo blue, the same near-black
+   surfaces, the same corner radii and shadows. The page was previously a
+   monochrome white-on-pure-black design that stood apart from everything
+   else.
+
+   The old variable names are kept as aliases at the bottom of this block
+   so existing rules keep working without a sweep through the whole file.
+   ============================================================ */
 :root {
-  --bg-dark: #000000;          
-  --bg-card: #111111;          
-  --bg-hover: #1e1e1e;         
-  --accent-main: #ffffff;      
-  --accent-hover: #cccccc;     
-  --text-main: #ffffff;        
-  --text-muted: #888888;       
-  --border-color: #333333;     
-  --star-color: #ffffff;       
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-pill: 999px;
+  --shadow-soft: 0 4px 16px rgba(0, 0, 0, 0.28);
+  --shadow-lift: 0 10px 28px rgba(0, 0, 0, 0.4);
+
+  --bg-color: #06070a;
+  --card-bg: #101319;
+  --card-hover: #191d26;
+  --accent: #4FAEF5;
+  --accent-dark: #1E7FC4;
+  --accent-contrast: #06131f;
+  --text-main: #ffffff;
+  --text-muted: #98a2b3;
+  --border: #222833;
+  --win: #3ddc84;
+  --loss: #e5484d;
+  --gold: #d4af37;
+  --accent-soft: rgba(79, 174, 245, 0.14);
+  --accent-soft-strong: rgba(79, 174, 245, 0.30);
+
+  /* Back-compatible aliases for the original stylesheet. */
+  --bg-dark: var(--bg-color);
+  --bg-card: var(--card-bg);
+  --bg-hover: var(--card-hover);
+  --accent-main: var(--accent);
+  --accent-hover: var(--accent-dark);
+  --border-color: var(--border);
+  --star-color: var(--gold);
+}
+
+:root[data-theme="light"] {
+  --bg-color: #ffffff;
+  --card-bg: #f4f6f9;
+  --card-hover: #e8ecf2;
+  --accent: #0A6FB8;
+  --accent-dark: #075289;
+  --accent-contrast: #ffffff;
+  --text-main: #0b0e13;
+  --text-muted: #5a6472;
+  --border: #d6dbe3;
+  --win: #17914f;
+  --loss: #c62828;
+  --gold: #9a7611;
+  --accent-soft: rgba(10, 111, 184, 0.10);
+  --accent-soft-strong: rgba(10, 111, 184, 0.22);
+  --shadow-soft: 0 4px 16px rgba(15, 23, 42, 0.10);
+  --shadow-lift: 0 10px 28px rgba(15, 23, 42, 0.16);
 }
 
 * { 
@@ -353,3 +405,403 @@ tr:hover td { background-color: var(--bg-hover); cursor: pointer; }
 }
 
 @keyframes loadSpin { to { transform: rotate(360deg); } }
+
+/* ============================================================
+   Component refresh.
+
+   Everything below restyles the existing markup — no class names change,
+   so app.js is untouched. The goal is the same page, rendered the way the
+   rest of BYTHERIM is: condensed display type, card surfaces with real
+   borders and radii, the blue accent used for emphasis rather than plain
+   white, and consistent spacing.
+   ============================================================ */
+
+body {
+  background: var(--bg-color);
+  color: var(--text-main);
+  font-family: 'Asap Condensed', 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5,
+.recruiting-section-title,
+.profile-name-row,
+.nav-btn,
+.sub-nav-btn {
+  font-family: 'Oswald', 'Inter', system-ui, sans-serif;
+  letter-spacing: 0.4px;
+}
+
+/* ---- Header and navigation ---- */
+header {
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border);
+  padding: 0.85rem 1.4rem;
+  box-shadow: var(--shadow-soft);
+}
+
+nav { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+
+.nav-btn {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  border-radius: var(--r-pill);
+  padding: 0.45rem 1rem;
+  font-size: 0.86rem;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.nav-btn:hover { background: var(--card-hover); color: var(--text-main); }
+
+.nav-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.sub-nav-group { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+
+.sub-nav-btn {
+  background: var(--card-bg);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 0.32rem 0.85rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sub-nav-btn:hover { border-color: var(--accent-dark); color: var(--text-main); }
+.sub-nav-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+
+/* ---- Surfaces ---- */
+.recruiting-box,
+.profile-card,
+.about-card,
+.query-builder-box,
+.spec-box,
+.stats-box-full,
+.school-stat-card,
+.commit-standout-box,
+.uncommitted-box,
+.feedback-section {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-soft);
+}
+
+.recruiting-section-title {
+  font-size: 0.92rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+/* ---- Controls ---- */
+.controls-bar,
+.stats-controls-bar {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 0.7rem 0.9rem;
+}
+
+.search-input,
+.select-input {
+  background: var(--bg-color);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 0.45rem 0.7rem;
+  font-family: inherit;
+  font-size: 0.88rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.search-input:focus,
+.select-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.pos-pill {
+  background: var(--bg-color);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: var(--r-pill);
+  padding: 0.25rem 0.7rem;
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pos-pill.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
+.query-btn {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border: none;
+  border-radius: var(--r-sm);
+  padding: 0.4rem 0.85rem;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.query-btn:hover { filter: brightness(1.12); }
+.query-btn-danger { background: var(--loss); color: #fff; }
+.query-btn-toggle { background: var(--card-hover); color: var(--text-main); border: 1px solid var(--border); }
+
+.query-badge {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: var(--r-pill);
+  padding: 0.1rem 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* ---- Tables ---- */
+.table-container {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
+
+table { border-collapse: collapse; width: 100%; }
+
+thead th {
+  background: var(--bg-color);
+  color: var(--text-muted);
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 0.6rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+thead th.sortable { cursor: pointer; }
+thead th.sortable:hover { color: var(--accent); }
+
+tbody td {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+
+tbody tr { transition: background 0.12s ease; }
+tbody tr:hover { background: var(--card-hover); }
+tbody tr:last-child td { border-bottom: none; }
+
+.rank-num {
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.player-name { font-weight: 600; }
+.player-sub { display: block; font-size: 0.74rem; color: var(--text-muted); }
+
+.player-avatar-sm,
+.school-logo,
+.school-logo-lg {
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-color);
+  border: 1px solid var(--border);
+}
+
+.player-cell,
+.status-cell { display: flex; align-items: center; gap: 0.55rem; }
+
+/* ---- Ratings, stars, pills ---- */
+.rating-pill {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid var(--accent-soft-strong);
+  border-radius: var(--r-pill);
+  padding: 0.12rem 0.55rem;
+  font-family: 'Oswald', sans-serif;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.stars-5 { color: var(--gold); letter-spacing: 1px; }
+.stars-4 { color: var(--accent); letter-spacing: 1px; }
+.stars-3 { color: var(--text-muted); letter-spacing: 1px; }
+
+.badge-pos, .badge-class, .badge-intl, .commit-tag, .offer-pill, .accolade-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--bg-color);
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  padding: 0.18rem 0.6rem;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.badge-pos { color: var(--accent); border-color: var(--accent-soft-strong); background: var(--accent-soft); }
+.badge-intl { color: var(--gold); border-color: rgba(212, 175, 55, 0.35); }
+.commit-tag { color: var(--win); border-color: rgba(61, 220, 132, 0.3); }
+
+/* ---- Player profile ---- */
+.profile-header {
+  display: flex;
+  gap: 1.2rem;
+  align-items: center;
+  padding: 1.1rem;
+  background: linear-gradient(140deg, var(--accent-soft), var(--card-bg) 62%);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+}
+
+.player-avatar-lg {
+  width: 116px;
+  height: 116px;
+  border-radius: var(--r-md);
+  object-fit: cover;
+  border: 2px solid var(--border);
+  background: var(--bg-color);
+}
+
+.profile-name-row { font-size: 1.85rem; line-height: 1.1; }
+
+.bio-badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 0.5rem;
+}
+
+.bio-badge {
+  background: var(--bg-color);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 0.45rem 0.6rem;
+}
+
+.bio-badge-label {
+  display: block;
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+}
+
+.bio-badge-val { font-weight: 600; font-size: 0.95rem; }
+
+.spec-item { display: flex; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid var(--border); }
+.spec-item:last-child { border-bottom: none; }
+.spec-label { color: var(--text-muted); font-size: 0.82rem; }
+.spec-value { font-weight: 600; font-size: 0.88rem; }
+
+.scouting-report-full { line-height: 1.6; color: var(--text-muted); }
+.scouting-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; }
+
+/* ---- School rankings ---- */
+.school-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: linear-gradient(140deg, var(--accent-soft), var(--card-bg) 62%);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 1rem 1.2rem;
+}
+
+.school-detail-logo { width: 78px; height: 78px; object-fit: contain; }
+.school-detail-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.6rem; }
+.school-stat-card { padding: 0.7rem; text-align: center; }
+.school-stat-lbl { display: block; font-size: 0.68rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.6px; }
+.school-stat-val { font-family: 'Oswald', sans-serif; font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+
+.school-commits-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0.7rem; }
+
+.commit-player-card {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 0.7rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.commit-player-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+
+/* ---- Back button ---- */
+.back-btn {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  border-radius: var(--r-pill);
+  padding: 0.35rem 0.9rem;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.back-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ---- Theme toggle ---- */
+.theme-toggle {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  border-radius: var(--r-pill);
+  width: 36px;
+  height: 36px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.theme-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ---- Feedback ---- */
+.feedback-textarea {
+  background: var(--bg-color);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 0.7rem;
+  font-family: inherit;
+  width: 100%;
+  resize: vertical;
+}
+
+.feedback-textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.feedback-success { color: var(--win); font-weight: 600; }
+
+@media (max-width: 760px) {
+  .profile-header { flex-direction: column; text-align: center; }
+  .player-avatar-lg { width: 96px; height: 96px; }
+  .profile-name-row { font-size: 1.45rem; }
+  nav { justify-content: center; }
+  .table-container { overflow-x: auto; }
+}
