@@ -35,6 +35,15 @@ function clearLoadState() {
   if (el) el.style.display = 'none';
 }
 
+// Light/dark switching, matching the NCAA RP and Draft RP. Kept under its
+// own storage key so the three sites can differ if the user wants.
+function toggleTheme() {
+  const root = document.documentElement;
+  const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  root.setAttribute('data-theme', next);
+  try { localStorage.setItem('bytherim-recruiting-theme', next); } catch (e) {}
+}
+
 const ACCOLADE_MAP = {
   "McDonald's All-American": "mcdaag.png",
   "Nike Hoop Summit": "nikehoopsummit.png",
