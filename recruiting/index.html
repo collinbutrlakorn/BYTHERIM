@@ -10,13 +10,25 @@
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Oswald:wght@400;500;600;700&family=Asap+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
 
   <!-- External Libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
 
   <!-- External CSS Link -->
   <link rel="stylesheet" href="style.css">
+  <script>
+    // Applied before first paint so a light-theme user doesn't see a
+    // dark flash. Uses its own key but the same mechanism as the RP sites.
+    (function () {
+      try {
+        var saved = localStorage.getItem('bytherim-recruiting-theme');
+        if (saved === 'light' || saved === 'dark') {
+          document.documentElement.setAttribute('data-theme', saved);
+        }
+      } catch (e) { /* storage unavailable */ }
+    })();
+  </script>
 </head>
 <body>
 
@@ -39,6 +51,7 @@
       <button class="nav-btn" onclick="switchTab('schoolRankings')">School Rankings</button>
       <button class="nav-btn" onclick="switchTab('stats')">Statistics</button>
       <button class="nav-btn" onclick="switchTab('about')">About Me</button>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Switch between light and dark" aria-label="Toggle theme">◐</button>
     </nav>
   </header>
   <!-- END OF UPDATED HEADER -->
