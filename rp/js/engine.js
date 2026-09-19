@@ -1404,13 +1404,11 @@ window.SimEngine = {
       const gp = team.simData.wins + team.simData.losses;
       return gp > 0 ? team.simData.wins / gp : 0.5;
     };
-    // Build the full ranking first, pin the generational prospects into
-    // their established range, and only then trim to the requested depth —
-    // pinning after the slice would silently drop anyone who hadn't made
-    // the cut on production alone.
-    const full = DraftCore.buildBigBoard(this.state.activePlayers, winPctFor, this.state.activePlayers.length);
-    const pinned = DraftCore.applyPinnedProspects(full, this.state.year + 1, this.state.activePlayers, winPctFor);
-    return pinned.slice(0, limit);
+    // Prospects are ranked purely on the model now. Named players were
+    // previously pinned into fixed draft ranges because the board couldn't
+    // see their pre-college production; now that the recruiting sheet's
+    // full stat tiers are read, the model gets there on its own.
+    return DraftCore.buildBigBoard(this.state.activePlayers, winPctFor, limit);
   },
 
   // A published Google Sheet occasionally returns a transient error or a
