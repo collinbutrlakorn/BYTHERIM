@@ -24,17 +24,20 @@
   --bg-color: #06070a;
   --card-bg: #101319;
   --card-hover: #191d26;
-  --accent: #4FAEF5;
-  --accent-dark: #1E7FC4;
-  --accent-contrast: #06131f;
+  /* Sampled from recruitingrplogo.png: burnt orange #d05800 on a navy
+     field. Lifted slightly so it holds contrast on a near-black surface. */
+  --accent: #F0761F;
+  --accent-dark: #C04E00;
+  --accent-contrast: #140a03;
+  --brand-navy: #102040;
   --text-main: #ffffff;
   --text-muted: #98a2b3;
   --border: #222833;
   --win: #3ddc84;
   --loss: #e5484d;
   --gold: #d4af37;
-  --accent-soft: rgba(79, 174, 245, 0.14);
-  --accent-soft-strong: rgba(79, 174, 245, 0.30);
+  --accent-soft: rgba(240, 118, 31, 0.15);
+  --accent-soft-strong: rgba(240, 118, 31, 0.32);
 
   /* Back-compatible aliases for the original stylesheet. */
   --bg-dark: var(--bg-color);
@@ -50,17 +53,18 @@
   --bg-color: #ffffff;
   --card-bg: #f4f6f9;
   --card-hover: #e8ecf2;
-  --accent: #0A6FB8;
-  --accent-dark: #075289;
+  --accent: #C04E00;
+  --accent-dark: #8F3A00;
   --accent-contrast: #ffffff;
+  --brand-navy: #102040;
   --text-main: #0b0e13;
   --text-muted: #5a6472;
   --border: #d6dbe3;
   --win: #17914f;
   --loss: #c62828;
   --gold: #9a7611;
-  --accent-soft: rgba(10, 111, 184, 0.10);
-  --accent-soft-strong: rgba(10, 111, 184, 0.22);
+  --accent-soft: rgba(192, 78, 0, 0.11);
+  --accent-soft-strong: rgba(192, 78, 0, 0.24);
   --shadow-soft: 0 4px 16px rgba(15, 23, 42, 0.10);
   --shadow-lift: 0 10px 28px rgba(15, 23, 42, 0.16);
 }
@@ -433,14 +437,6 @@ h1, h2, h3, h4, h5,
 }
 
 /* ---- Header and navigation ---- */
-header {
-  background: var(--card-bg);
-  border-bottom: 1px solid var(--border);
-  padding: 0.85rem 1.4rem;
-  box-shadow: var(--shadow-soft);
-}
-
-nav { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 
 .nav-btn {
   background: transparent;
@@ -624,14 +620,28 @@ tbody tr:last-child td { border-bottom: none; }
 .player-name { font-weight: 600; }
 .player-sub { display: block; font-size: 0.74rem; color: var(--text-muted); }
 
-.player-avatar-sm,
-.school-logo,
-.school-logo-lg {
+/* Avatars are portraits, so a circle suits them. School marks are
+   wordmarks and shields — cropping them to a circle cut off most of the
+   logo, so they're shown whole. */
+.player-avatar-sm {
   border-radius: 50%;
   object-fit: cover;
   background: var(--bg-color);
   border: 1px solid var(--border);
 }
+
+.school-logo,
+.school-logo-lg,
+.commit-standout-logo,
+.accolade-logo {
+  border-radius: 0;
+  object-fit: contain;
+  background: transparent;
+  border: none;
+}
+
+.school-logo { width: 24px; height: 24px; }
+.school-logo-lg { width: 34px; height: 34px; }
 
 .player-cell,
 .status-cell { display: flex; align-items: center; gap: 0.55rem; }
@@ -804,4 +814,155 @@ tbody tr:last-child td { border-bottom: none; }
   .profile-name-row { font-size: 1.45rem; }
   nav { justify-content: center; }
   .table-container { overflow-x: auto; }
+}
+
+/* ============================================================
+   Universal BYTHERIM header and footer.
+
+   Lifted from the main site so navigation is identical everywhere, with
+   the recruiting section's own header sitting beneath it.
+   ============================================================ */
+
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1.6rem;
+  background: var(--bg-color);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 300;
+}
+
+.brand-logo { display: flex; align-items: center; }
+.logo-img { height: 38px; width: auto; }
+
+.nav-links { display: flex; align-items: center; gap: 0.35rem; }
+
+.nav-links a {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.86rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0.4rem 0.75rem;
+  border-radius: var(--r-pill);
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.nav-links a:hover { color: var(--text-main); background: var(--card-hover); }
+
+.rp-btn {
+  background: var(--accent);
+  color: var(--accent-contrast) !important;
+  font-weight: 600;
+}
+
+.rp-btn:hover { filter: brightness(1.1); background: var(--accent); }
+
+.rp-btn .badge {
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: var(--r-pill);
+  padding: 0.05rem 0.4rem;
+  font-size: 0.66rem;
+  margin-left: 0.3rem;
+}
+
+.nav-toggle { display: none; background: none; border: none; cursor: pointer; padding: 0.4rem; }
+.nav-toggle .bar { display: block; width: 22px; height: 2px; background: var(--text-main); margin: 4px 0; border-radius: 2px; }
+
+/* ---- Recruiting section header ---- */
+.recruiting-header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  padding: 0.9rem 1.6rem;
+  background: var(--card-bg);
+  border-bottom: 2px solid var(--accent);
+}
+
+.recruiting-brand { cursor: pointer; display: flex; align-items: center; flex-shrink: 0; }
+
+/* Deliberately large and left-aligned, the way a recruiting site leads
+   with its masthead. */
+.recruiting-logo-img {
+  height: 76px;
+  width: auto;
+  max-width: 340px;
+  object-fit: contain;
+}
+
+.recruiting-nav { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-left: auto; }
+
+/* ---- Footer ---- */
+.footer {
+  background: var(--card-bg);
+  border-top: 1px solid var(--border);
+  margin-top: 3rem;
+  padding: 2.2rem 1.6rem 1rem;
+}
+
+.footer-container {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.footer-logo { height: 40px; width: auto; margin-bottom: 0.7rem; }
+.footer-desc { color: var(--text-muted); font-size: 0.88rem; line-height: 1.6; max-width: 320px; }
+
+.footer-column h4 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--accent);
+  margin-bottom: 0.7rem;
+}
+
+.footer-column a {
+  display: block;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 0.88rem;
+  padding: 0.22rem 0;
+  transition: color 0.15s ease;
+}
+
+.footer-column a:hover { color: var(--text-main); }
+
+.footer-bottom {
+  max-width: 1200px;
+  margin: 1.6rem auto 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+@media (max-width: 860px) {
+  .nav-toggle { display: block; }
+  .nav-links {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    background: var(--card-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0.6rem 1rem;
+  }
+  .nav-links.active { display: flex; }
+  .navbar { position: relative; }
+  .recruiting-header { gap: 0.8rem; padding: 0.7rem 1rem; }
+  .recruiting-logo-img { height: 54px; max-width: 240px; }
+  .recruiting-nav { margin-left: 0; width: 100%; }
+  .footer-container { grid-template-columns: 1fr; gap: 1.4rem; }
 }
