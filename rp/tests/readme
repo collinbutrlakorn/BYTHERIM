@@ -45,6 +45,13 @@ through the alias table (Texas Christian → tcu.png) with a generated badge
 fallback, and the dashboard renders quickly. Note it reads `../../recruiting`,
 so it only works with the repo laid out as-is.
 
+**recruiting-branding.js** — checks the recruiting page carries the same
+universal header and footer as the main site (with paths stepped up one
+level), that the section masthead leads with the recruiting logo, that the
+accent colour comes from that logo rather than the NCAA RP's blue, and that
+school marks render uncropped while player avatars stay circular. Like the
+suite above, it reads `../../recruiting` and `../../index.html`.
+
 ## Adding a test
 
 `harness.js` boots the sim against the real `ncaa.html` in a headless DOM:
