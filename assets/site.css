@@ -472,6 +472,26 @@ h1, h2, h3, h4, .display {
 .x-feed-note { color: var(--muted); font-size: 0.92rem; line-height: 1.5; margin: 0.2rem 0 0; }
 .x-feed-note a { color: var(--accent); }
 
+/* TikTok's embed is a fixed white card; let it sit flush and rounded. */
+.tt-body { padding-top: 0.8rem; }
+.tt-body .tiktok-embed, .tt-body iframe { border-radius: var(--r-sm); overflow: hidden; }
+.ig-posts .instagram-media { margin: 0 auto 0.8rem !important; min-width: 0 !important; width: 100% !important; }
+.ig-card {
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  padding: 1.1rem; border-radius: var(--r-md); color: #fff;
+  background: linear-gradient(135deg, #4f5bd5 0%, #962fbf 35%, #d62976 65%, #fa7e1e 100%);
+}
+.ig-card > span:nth-child(2) { flex: 1; min-width: 150px; display: flex; flex-direction: column; }
+.ig-card b { font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 1.2rem; }
+.ig-card > span:nth-child(2) span { opacity: 0.9; font-size: 0.92rem; }
+.ig-mark { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: rgba(255, 255, 255, 0.16); }
+.ig-cta { display: inline-flex; align-items: center; gap: 0.35rem; font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.5px; font-size: 0.85rem; padding: 0.45rem 0.85rem; border-radius: 999px; background: rgba(0, 0, 0, 0.25); }
+.ig-card:hover .ig-cta { background: rgba(0, 0, 0, 0.4); }
+.social-split { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 1.1rem; align-items: start; }
+.social-split .x-feed { margin-top: 0; }
+.social-side { display: flex; flex-direction: column; gap: 1rem; }
+@media (max-width: 1000px) { .social-split { grid-template-columns: 1fr; } }
+
 /* ---------------------------------------------------------------- RP hub */
 .site-nav .nav-rp.active::after { display: none; }
 .site-nav .nav-rp.active { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35); }
@@ -769,6 +789,31 @@ h1, h2, h3, h4, .display {
 .tier-head::before { content: ''; width: 10px; height: 10px; border-radius: 3px; background: var(--tier, var(--faint)); }
 .tier-head::after { content: ''; flex: 1; height: 1px; background: var(--border); }
 .tier-head b { color: var(--text); font-weight: 600; }
+.tier-head em { font-style: normal; color: var(--tier, var(--muted)); font-weight: 500; }
+.tier-head span { color: var(--faint); letter-spacing: 0.8px; }
+
+/* Year switcher for past boards. */
+.board-years { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 1rem; }
+.board-years .chip { height: 32px; padding: 0 0.85rem; font-family: 'Oswald', sans-serif; font-size: 0.9rem; letter-spacing: 0.5px; display: inline-flex; align-items: center; }
+
+/* Tier guide. */
+.tier-info-btn { gap: 0.35rem; height: 30px; }
+.tier-info-btn svg { opacity: 0.85; }
+.tier-info { padding: 1.1rem 1.2rem; margin: 0.4rem 0 0.8rem; max-width: 720px; }
+.tier-info h3 { font-size: 1.1rem; text-transform: uppercase; margin-bottom: 0.2rem; }
+.tier-info p { color: var(--muted); font-size: 0.92rem; margin: 0 0 0.8rem; }
+.tier-list { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.35rem 1.4rem; }
+.tier-list li { display: flex; align-items: baseline; gap: 0.6rem; padding: 0.3rem 0; border-bottom: 1px solid var(--border); }
+.tier-list li::before { content: ''; flex: none; width: 10px; height: 10px; border-radius: 3px; background: var(--tier); transform: translateY(1px); }
+.tier-list b { font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 0.85rem; letter-spacing: 0.8px; text-transform: uppercase; width: 58px; flex: none; }
+.tier-list span { color: var(--text); font-size: 0.95rem; }
+
+/* Past boards: the HT/WT column becomes where he was drafted. */
+.pr-drafted { display: flex; align-items: center; justify-content: center; gap: 0.35rem; font-size: 0.92rem; }
+.pr-drafted img { width: 22px; height: 22px; object-fit: contain; }
+.pr-drafted b { font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 1rem; }
+.pr-drafted small { color: var(--faint); font-size: 0.72rem; }
+.pr-drafted.muted { color: var(--faint); font-size: 0.82rem; }
 
 .pr {
   position: relative;
@@ -862,6 +907,8 @@ h1, h2, h3, h4, .display {
 @media (max-width: 1000px) {
   .board-cols, .pr-main { grid-template-columns: 40px 44px minmax(0, 2.2fr) 48px 48px 58px minmax(0, 1.3fr); }
   .board-cols .col-size, .pr-size { display: none; }
+  .past-board .board-cols, .past-board .pr-main { grid-template-columns: 40px 44px minmax(0, 2.2fr) 48px 48px 84px 58px minmax(0, 1.3fr); }
+  .past-board .board-cols .col-size { display: block; }
 }
 
 @media (max-width: 720px) {
@@ -872,6 +919,7 @@ h1, h2, h3, h4, .display {
   .board-toolbar { position: static; gap: 0.5rem; padding: 0.65rem 0; }
   .board-search { max-width: none; flex-basis: 100%; }
   .board-count { margin-left: 0; }
+  .tier-list { grid-template-columns: 1fr; }
   .board-cols { display: none; }
   .pr-main {
     grid-template-columns: 34px 42px minmax(0, 1fr) auto;
@@ -879,6 +927,7 @@ h1, h2, h3, h4, .display {
     gap: 0.65rem;
     padding: 0.6rem 0.75rem;
   }
+  .past-board .pr-main { grid-template-columns: 34px 42px minmax(0, 1fr) auto; }
   .pr-rank { grid-area: rank; font-size: 1.15rem; }
   .pr-photo { grid-area: photo; width: 42px; height: 42px; }
   .pr-id { grid-area: id; }
@@ -895,3 +944,5 @@ h1, h2, h3, h4, .display {
   .pr-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.45rem 0.8rem; }
   .pr { scroll-margin-top: 76px; }
 }
+
+.more-social-title { font-size: 1.05rem; text-transform: uppercase; margin-bottom: 0.7rem; }

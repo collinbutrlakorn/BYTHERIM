@@ -11,7 +11,12 @@
        player's conference
    College stats come from data/stats.json, which tools/update-stats.mjs
    refreshes daily from Barttorvik. Numbers typed into the sheet's stat
-   columns take priority for the current season (use them for pros).
+   columns take priority (use them for pros).
+
+   Boards: the current board is the sheet's first tab. Past boards are
+   found automatically: any tab named with a year and "Board" (for
+   example "2025 Board") shows up on the draft page's year switcher —
+   unless it's still an unedited copy of the current board.
 
    Optional sheet columns (add any of them; nothing changes if absent):
      Prev Rank   last edition's rank, shown as movement on the board
@@ -20,6 +25,10 @@
      Strengths / Weaknesses   separate items with ";" or new lines
      Film        a YouTube or other link to highlights / film
      Stats Name  the player's name as Barttorvik spells it, if different
+   Past boards also read:
+     Draft Pick  the actual pick number, or "Undrafted" / "Returned"
+     Draft Team  the team that drafted him ("Spurs", "SAS", "San Antonio Spurs")
+     Draft Year  only needed if he was drafted in a later year than the board
    Requires site.js (BTR.parseCSV).
    ============================================================ */
 (function () {
@@ -35,6 +44,14 @@
   const seasonLabel = y => `${y - 1}-${String(y).slice(2)}`;
   const CURRENT_SEASON = seasonLabel(BOARD.draftYear);
   const LAST_SEASON = seasonLabel(BOARD.draftYear - 1);
+  const PUB_BASE = BOARD.sheet.replace(/\/pub(html)?\?.*$/, '');
+
+  // Tier names, as BYTHERIM defines them.
+  const TIERS = {
+    1: 'Superstar', 2: 'All-NBA', 3: 'All-Star', 4: 'Sub All-Star / Strong Starter', 5: 'Solid Starter',
+    6: 'T7 Rotation Player', 7: 'Backend Rotation', 8: 'Upside Swing', 9: '2-Way', 10: 'E10',
+    '?': 'Possible Entry / Return'
+  };
 
   const SCHOOL_NAMES = {
     gtech: 'Georgia Tech', ohiostate: 'Ohio State', unc: 'North Carolina', stjohns: "St. John's",
@@ -42,6 +59,47 @@
   };
   const CONFERENCES = new Set(['ACC', 'B10', 'B12', 'BE', 'SEC', 'P12', 'WCC', 'MWC', 'A10', 'AAC', 'BSky', 'MVC', 'CUSA', 'SBC', 'MAC', 'WAC', 'CAA', 'Ivy']);
   const CONF_LABEL = { B10: 'Big Ten', B12: 'Big 12', BE: 'Big East', P12: 'Pac-12', BSky: 'Big Sky', MWC: 'Mountain West', A10: 'A-10' };
+
+  // NBA teams: display name, abbreviation, the file in nbalogos/, and
+  // other ways the sheet might spell them.
+  const NBA_TEAMS = [
+    ['Atlanta Hawks', 'ATL', 'Atlanta Hawks', 'hawks atlanta'],
+    ['Boston Celtics', 'BOS', 'Boston Celtics', 'celtics boston'],
+    ['Brooklyn Nets', 'BKN', 'Brooklyn Nets', 'nets brooklyn bkn brk'],
+    ['Charlotte Hornets', 'CHA', 'Charlotte Hornets', 'hornets charlotte cha cho'],
+    ['Chicago Bulls', 'CHI', 'Chicago Bulls', 'bulls chicago'],
+    ['Cleveland Cavaliers', 'CLE', 'Cleveland Cavaliers', 'cavaliers cavs cleveland'],
+    ['Dallas Mavericks', 'DAL', 'Dallas Mavericks', 'mavericks mavs dallas'],
+    ['Denver Nuggets', 'DEN', 'Denver Nuggets', 'nuggets denver'],
+    ['Detroit Pistons', 'DET', 'Detroit Pistons', 'pistons detroit'],
+    ['Golden State Warriors', 'GSW', 'Golden State Warriors', 'warriors goldenstate gs gsw'],
+    ['Houston Rockets', 'HOU', 'Houston Rockets', 'rockets houston'],
+    ['Indiana Pacers', 'IND', 'Indiana Pacers', 'pacers indiana'],
+    ['Los Angeles Clippers', 'LAC', 'Los Angeles Clippers', 'clippers laclippers lac'],
+    ['Los Angeles Lakers', 'LAL', 'Los Angeles Lakers', 'lakers lalakers lal'],
+    ['Memphis Grizzlies', 'MEM', 'Memphis Grizzlies', 'grizzlies grizz memphis'],
+    ['Miami Heat', 'MIA', 'Miami Heat', 'heat miami'],
+    ['Milwaukee Bucks', 'MIL', 'Milwaukee Bucks', 'bucks milwaukee'],
+    ['Minnesota Timberwolves', 'MIN', 'Minnesota Timberwolves', 'timberwolves wolves minnesota'],
+    ['New Orleans Pelicans', 'NOP', 'New Orleans Pelicans', 'pelicans neworleans nop no'],
+    ['New York Knicks', 'NYK', 'New York Knicks', 'knicks newyork nyk ny'],
+    ['Oklahoma City Thunder', 'OKC', 'OKC Thunder', 'thunder okc oklahomacity'],
+    ['Orlando Magic', 'ORL', 'Orlando Magic', 'magic orlando'],
+    ['Philadelphia 76ers', 'PHI', 'Philadelphia 76ers', '76ers sixers philadelphia philly'],
+    ['Phoenix Suns', 'PHX', 'Phoenix Suns', 'suns phoenix phx pho'],
+    ['Portland Trail Blazers', 'POR', 'Portland Trailblazers', 'trailblazers blazers portland'],
+    ['Sacramento Kings', 'SAC', 'Sacramento Kings', 'kings sacramento'],
+    ['San Antonio Spurs', 'SAS', 'San Antonio Spurs', 'spurs sanantonio sas sa'],
+    ['Toronto Raptors', 'TOR', 'Toronto Raptors', 'raptors toronto'],
+    ['Utah Jazz', 'UTA', 'Utah Jazz', 'jazz utah uta utah'],
+    ['Washington Wizards', 'WAS', 'Washington Wizards', 'wizards washington was wsh']
+  ].map(([name, abbr, logo, alts]) => ({ name, abbr, logo, keys: [name, abbr, logo, ...alts.split(' ')].map(k => k.toLowerCase().replace(/[^a-z0-9]/g, '')) }));
+
+  function nbaTeam(raw) {
+    const k = clean(raw).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!k) return null;
+    return NBA_TEAMS.find(t => t.keys.includes(k)) || { name: clean(raw), abbr: clean(raw), logo: null };
+  }
 
   // Stat groups as they're shown on a profile. Keys are the sheet headers;
   // "3P&" is the sheet's spelling of 3P%.
@@ -84,7 +142,23 @@
     return clean(name).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   }
 
-  function normalize(row) {
+  const list = v => clean(v).split(/\s*(?:;|\n)\s*/).map(x => x.replace(/^[-•*]\s*/, '').trim()).filter(Boolean);
+
+  // Where a prospect on a past board actually went.
+  function draftResult(pickRaw, teamRaw, yearRaw, boardYear) {
+    const pickText = clean(pickRaw), teamText = clean(teamRaw);
+    if (!pickText && !teamText) return null;
+    const year = parseInt(yearRaw, 10) || boardYear;
+    const team = nbaTeam(teamText);
+    const n = parseInt(pickText.replace(/^#/, ''), 10);
+    if (!isNaN(n) && /^#?\d+$/.test(pickText)) return { pick: n, round: n <= 30 ? 1 : 2, team, year };
+    let status = pickText;
+    if (/undraft|udfa|^ud$/i.test(pickText)) status = 'Undrafted';
+    else if (/return|stay|withdr|back to school/i.test(pickText)) status = 'Returned to school';
+    return { pick: null, status: status || 'Drafted', team, year };
+  }
+
+  function normalize(row, boardYear = BOARD.draftYear) {
     const get = (...keys) => {
       for (const k of keys) {
         const hit = Object.keys(row).find(h => h.trim().toLowerCase() === k.toLowerCase());
@@ -109,10 +183,12 @@
     const tierNum = parseInt(tierRaw, 10);
     const school = displaySchool(get('school', 'school/team', 'team', 'college'));
     const isPro = /^pro$/i.test(school);
+    const draftDate = boardYear === BOARD.draftYear ? BOARD.draftDate : `${boardYear}-06-25`;
 
     return {
       id: slug(name),
       name,
+      boardYear,
       rank: isNaN(rank) ? null : rank,
       tier: isNaN(tierNum) ? (tierRaw || null) : tierNum,
       archetype: get('archetype', 'style'),
@@ -121,7 +197,7 @@
       height: get('height', 'ht'),
       weight: get('weight', 'wt').replace(/\s*lbs?$/i, '') ,
       dob: get('dob', 'date of birth', 'birthdate'),
-      age: ageOn(get('dob', 'date of birth', 'birthdate'), BOARD.draftDate),
+      age: ageOn(get('dob', 'date of birth', 'birthdate'), draftDate),
       school: isPro ? 'Pro' : school,
       isPro,
       conference: CONF_LABEL[conference] || conference,
@@ -133,50 +209,112 @@
       strengths: list(get('strengths', 'strength')),
       weaknesses: list(get('weaknesses', 'weakness')),
       film: /^https?:\/\//i.test(get('film', 'highlights', 'video')) ? get('film', 'highlights', 'video') : '',
+      draft: draftResult(get('draft pick', 'actual pick', 'nba pick', 'drafted'), get('draft team', 'nba team', 'drafted by'), get('draft year'), boardYear),
       sheetStats: stats,
       seasons: []   // filled in by loadBoard()
     };
   }
 
-  const list = v => clean(v).split(/\s*(?:;|\n)\s*/).map(x => x.replace(/^[-•*]\s*/, '').trim()).filter(Boolean);
-
-  // Newest season first. The sheet's own numbers stand in for the current
-  // season (that's how pro stats get in); Barttorvik covers college.
-  function attachSeasons(p, college) {
+  // Newest season first. On the current board the sheet's own numbers
+  // stand in for this season (that's how pro stats get in) and Barttorvik
+  // covers college, this season and last. A past board shows the season
+  // that led into that draft.
+  function attachSeasons(p, college, boardYear = BOARD.draftYear) {
     const seasons = [];
     const auto = label => (college && college.seasons && college.seasons[label] || {})[p.id];
+    const current = boardYear === BOARD.draftYear;
+    const label = current ? CURRENT_SEASON : seasonLabel(boardYear);
     if (Object.keys(p.sheetStats).length) {
-      seasons.push({ label: CURRENT_SEASON, team: p.isPro ? 'Pro' : p.school, stats: p.sheetStats, source: 'sheet' });
-    } else if (auto(CURRENT_SEASON)) {
-      seasons.push({ label: CURRENT_SEASON, source: 'barttorvik', ...auto(CURRENT_SEASON) });
+      seasons.push({ label, team: p.isPro ? 'Pro' : p.school, stats: p.sheetStats, source: 'sheet' });
+    } else if (auto(label)) {
+      seasons.push({ label, source: 'barttorvik', ...auto(label) });
     }
-    if (auto(LAST_SEASON)) seasons.push({ label: LAST_SEASON, source: 'barttorvik', ...auto(LAST_SEASON) });
+    if (current && auto(LAST_SEASON)) seasons.push({ label: LAST_SEASON, source: 'barttorvik', ...auto(LAST_SEASON) });
     p.seasons = seasons;
     p.stats = seasons.length ? seasons[0].stats : {};
     p.hasStats = seasons.length > 0;
   }
 
-  let cache = null;
-  async function loadBoard() {
-    if (cache) return cache;
-    const [res, college] = await Promise.all([
-      fetch(BOARD.sheet),
-      // Stats are a bonus: if the file is missing the board still loads.
-      fetch(BOARD.stats).then(r => (r.ok ? r.json() : null)).catch(() => null)
-    ]);
-    if (!res.ok) throw new Error('Board sheet returned HTTP ' + res.status);
-    const rows = BTR.parseCSV(await res.text()).map(normalize).filter(p => p.name);
-    rows.forEach(p => attachSeasons(p, college));
-    // Ranked prospects in board order; everyone else follows by tier.
-    const tierSort = t => (typeof t === 'number' ? t : 99);
-    rows.sort((a, b) => {
-      if (a.rank != null && b.rank != null) return a.rank - b.rank;
-      if (a.rank != null) return -1;
-      if (b.rank != null) return 1;
-      return tierSort(a.tier) - tierSort(b.tier) || a.name.localeCompare(b.name);
-    });
-    cache = rows;
-    return rows;
+  // ------------------------------------------------------------ boards
+  // The published sheet's HTML page lists every tab with its id, which is
+  // how tabs like "2025 Board" are found without any setup.
+  let boardsPromise = null;
+  function listBoards() {
+    if (boardsPromise) return boardsPromise;
+    boardsPromise = (async () => {
+      const boards = [{ year: BOARD.draftYear, name: `${BOARD.draftYear} Board`, url: BOARD.sheet, current: true }];
+      try {
+        const res = await fetch(`${PUB_BASE}/pubhtml`);
+        if (res.ok) boards.push(...parseTabs(await res.text()).filter(t => t.year !== BOARD.draftYear));
+      } catch (e) { /* only the current board, then */ }
+      const seen = new Set();
+      return boards.filter(b => !seen.has(b.year) && seen.add(b.year)).sort((a, b) => b.year - a.year);
+    })();
+    return boardsPromise;
+  }
+
+  function parseTabs(html) {
+    const tabs = [];
+    const re = /items\.push\(\{name: "((?:[^"\\]|\\.)*)",[^}]*?gid: "(-?\d+)"/g;
+    let m;
+    while ((m = re.exec(html))) {
+      const name = m[1].replace(/\\x([0-9a-f]{2})/gi, (_, h) => String.fromCharCode(parseInt(h, 16))).replace(/\\(.)/g, '$1');
+      const year = (name.match(/\b(?:19|20)\d{2}\b/) || [])[0];
+      if (!year || !/board/i.test(name)) continue;
+      tabs.push({ year: +year, name, url: `${PUB_BASE}/pub?gid=${m[2]}&single=true&output=csv` });
+    }
+    return tabs;
+  }
+
+  let statsPromise = null;
+  const loadStats = () => statsPromise || (statsPromise =
+    // Stats are a bonus: if the file is missing the board still loads.
+    fetch(BOARD.stats).then(r => (r.ok ? r.json() : null)).catch(() => null));
+
+  const cache = {};
+  function loadBoard(year = BOARD.draftYear) {
+    if (cache[year]) return cache[year];
+    cache[year] = (async () => {
+      let url = BOARD.sheet;
+      if (year !== BOARD.draftYear) {
+        const b = (await listBoards()).find(x => x.year === year);
+        if (!b) throw new Error(`No ${year} board in the sheet`);
+        url = b.url;
+      }
+      const [res, college] = await Promise.all([fetch(url), loadStats()]);
+      if (!res.ok) throw new Error('Board sheet returned HTTP ' + res.status);
+      const rows = BTR.parseCSV(await res.text()).map(r => normalize(r, year)).filter(p => p.name);
+      rows.forEach(p => attachSeasons(p, college, year));
+      // Ranked prospects in board order; everyone else follows by tier.
+      const tierSort = t => (typeof t === 'number' ? t : 99);
+      rows.sort((a, b) => {
+        if (a.rank != null && b.rank != null) return a.rank - b.rank;
+        if (a.rank != null) return -1;
+        if (b.rank != null) return 1;
+        return tierSort(a.tier) - tierSort(b.tier) || a.name.localeCompare(b.name);
+      });
+      return rows;
+    })();
+    cache[year].catch(() => { delete cache[year]; });
+    return cache[year];
+  }
+
+  // Past-board tabs that are still a copy of the current board (same
+  // prospects in the same order) haven't been filled in yet, so they're
+  // left off the year switcher until they are.
+  const signature = rows => rows.slice(0, 15).map(p => p.id).join('|');
+  let filledPromise = null;
+  function listFilledBoards() {
+    if (filledPromise) return filledPromise;
+    filledPromise = (async () => {
+      const boards = await listBoards();
+      const current = signature(await loadBoard());
+      const checked = await Promise.all(boards.map(b => b.current ? b
+        : loadBoard(b.year).then(rows => (rows.length && signature(rows) !== current ? b : null)).catch(() => null)));
+      return checked.filter(Boolean);
+    })();
+    filledPromise.catch(() => { filledPromise = null; });
+    return filledPromise;
   }
 
   // Colour for age on draft night: youngest green, oldest red.
@@ -186,5 +324,10 @@
     return Math.round(130 * (1 - t));
   }
 
-  window.BOARD = { ...BOARD, STAT_GROUPS, CURRENT_SEASON, LAST_SEASON, loadBoard, normalize, attachSeasons, ageHue, slug };
+  const tierName = t => TIERS[t] || '';
+
+  window.BOARD = {
+    ...BOARD, STAT_GROUPS, TIERS, CURRENT_SEASON, LAST_SEASON,
+    loadBoard, listBoards, listFilledBoards, parseTabs, normalize, attachSeasons, ageHue, slug, seasonLabel, tierName, nbaTeam
+  };
 })();

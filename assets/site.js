@@ -23,6 +23,8 @@
       spotify:  { label: 'Spotify',        url: 'https://open.spotify.com/show/5o5uMpUFLXYs1qktXKPFJg' },
       apple:    { label: 'Apple Podcasts', url: 'https://podcasts.apple.com/us/podcast/bytherim-podcast/id6807326876' },
       x:        { label: 'X',              url: 'https://x.com/collinbutr' },
+      instagram:{ label: 'Instagram',      url: 'https://www.instagram.com/bytherimhoops/' },
+      tiktok:   { label: 'TikTok',         url: 'https://www.tiktok.com/@bytherim' },
       substack: { label: 'Substack',       url: 'https://collindunks.substack.com' }
     },
     // Leave empty to hide the "Support" block on the About page. Paste your
@@ -33,6 +35,11 @@
     // has posts, they're shown instead of the live timeline. Single posts
     // load far more reliably than X's timeline embed does.
     xPosts: [],
+    // Optional: links to specific Instagram posts or reels to show on the
+    // home page, e.g. 'https://www.instagram.com/p/ABC123/'. Instagram
+    // doesn't allow embedding a whole profile, so without posts listed the
+    // home page shows a profile card that links to Instagram instead.
+    instagramPosts: [],
     feeds: {
       substack: 'https://collindunks.substack.com/feed',
       podcast: 'https://api.substack.com/feed/podcast/9314968.rss'
@@ -68,6 +75,9 @@
     apple: '<path d="M12 1.5a8.9 8.9 0 0 0-3.1 17.3.7.7 0 0 0 .9-.8l-.2-1.4a.7.7 0 0 0-.4-.5 6.9 6.9 0 1 1 5.6 0 .7.7 0 0 0-.4.5l-.2 1.4a.7.7 0 0 0 .9.8A8.9 8.9 0 0 0 12 1.5zm0 3.6a5.3 5.3 0 0 0-2.4 10.1.3.3 0 0 0 .4-.3v-1a.7.7 0 0 0-.2-.5 3.7 3.7 0 1 1 4.4 0 .7.7 0 0 0-.2.5v1a.3.3 0 0 0 .4.3A5.3 5.3 0 0 0 12 5.1zm0 3.3a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm0 5c-1 0-1.8.5-1.8 1.5l.6 6.2c.1.8.5 1.3 1.2 1.3s1.1-.5 1.2-1.3l.6-6.2c0-1-.8-1.5-1.8-1.5z"/>',
     x: '<path d="M18.2 2.3h3.3l-7.2 8.2 8.5 11.2h-6.7l-5.2-6.8-6 6.8H1.7l7.7-8.8L1.3 2.3h6.8l4.7 6.2zm-1.2 17.5h1.8L7.1 4.1H5.1z"/>',
     substack: '<path d="M22.5 8.2h-21V5.4h21v2.8zM1.5 10.8V24L12 18.1 22.5 24V10.8zM22.5 0h-21v2.8h21V0z"/>',
+    instagram: '<path fill-rule="evenodd" d="M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zm0 2a3 3 0 0 0-3 3v10a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V7a3 3 0 0 0-3-3H7zm5 3.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zm0 2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zm5.25-3.75a1.25 1.25 0 1 1 0 2.5 1.25 1.25 0 0 1 0-2.5z"/>',
+    tiktok: '<path d="M12.53.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>',
+    info: '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 2a8 8 0 1 1 0 16 8 8 0 0 1 0-16zm-1 6h2v7h-2zm0-3.5h2v2h-2z"/>',
     theme: '<path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18V4a8 8 0 0 1 0 16z"/>',
     play: '<path d="M8 5v14l11-7z"/>',
     arrow: '<path d="M13.2 5.3 19.9 12l-6.7 6.7-1.4-1.4 4.3-4.3H4v-2h12.1l-4.3-4.3z"/>'
@@ -296,7 +306,7 @@
     <div class="footer-brand">
       <img src="${BASE}logo.png" alt="BYTHERIM" width="138" height="40">
       <p>Draft analysis, film breakdowns and NBA conversation — plus a full college basketball simulation universe.</p>
-      <div class="social-row">${socialButtons(['youtube', 'spotify', 'apple', 'x', 'substack'])}</div>
+      <div class="social-row">${socialButtons(['youtube', 'spotify', 'apple', 'x', 'instagram', 'tiktok', 'substack'])}</div>
     </div>
     <div class="footer-col">
       <h4>BYTHERIM</h4>
@@ -312,7 +322,7 @@
     </div>
     <div class="footer-col">
       <h4>Listen &amp; Follow</h4>
-      ${['youtube', 'spotify', 'apple', 'x', 'substack'].map(k => `<a href="${CONFIG.social[k].url}" target="_blank" rel="noopener">${CONFIG.social[k].label}</a>`).join('')}
+      ${['youtube', 'spotify', 'apple', 'x', 'instagram', 'tiktok', 'substack'].map(k => `<a href="${CONFIG.social[k].url}" target="_blank" rel="noopener">${CONFIG.social[k].label}</a>`).join('')}
     </div>
   </div>
   <div class="footer-bottom">&copy; ${new Date().getFullYear()} BYTHERIM</div>
@@ -341,60 +351,125 @@
     });
   }
 
-  // ---------------------------------------------------------------- X feed
-  // X's official timeline widget. X only serves it reliably to some
-  // visitors (it can be rate-limited or blank for people who aren't
-  // signed in to X), so the card always carries a working Follow link and
-  // swaps in a short note if the timeline hasn't appeared after a while.
-  // Usage: <div data-x-feed></div>  (optional data-height="600")
-  function xFeed(el) {
-    const handle = CONFIG.social.x.url.replace(/\/+$/, '').split('/').pop();
-    const theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
-    const height = +el.dataset.height || 560;
-    el.classList.add('x-feed');
-    el.innerHTML = `
-      <div class="x-feed-head">
-        <span class="x-feed-icon">${icon('x', 16)}</span>
-        <div><b>On X</b><span>@${esc(handle)}</span></div>
-        <a class="btn btn-ghost btn-sm" href="${CONFIG.social.x.url}" target="_blank" rel="noopener">Follow</a>
-      </div>
-      <div class="x-feed-body" style="min-height:${Math.min(height, 240)}px">${
-        CONFIG.xPosts.length
-          ? CONFIG.xPosts.map(u => `<blockquote class="twitter-tweet" data-theme="${theme}" data-dnt="true" data-conversation="none"><a href="${esc(u.replace('://x.com/', '://twitter.com/'))}"></a></blockquote>`).join('')
-          : `<a class="twitter-timeline" data-theme="${theme}" data-height="${height}" data-dnt="true"
-               data-chrome="noheader nofooter noborders transparent"
-               href="https://twitter.com/${esc(handle)}?ref_src=twsrc%5Etfw">Posts from @${esc(handle)}</a>`
-      }</div>`;
-    if (CONFIG.xPosts.length) el.querySelector('.x-feed-body').classList.add('x-feed-posts');
-    const body = el.querySelector('.x-feed-body');
+  // ---------------------------------------------------------------- social embeds
+  // One card per network, drawn from <div data-embed="x|tiktok|instagram">
+  // (optional data-height). Every card carries a working Follow link, loads
+  // the network's script only when it's about to scroll into view, and
+  // swaps in a short note if the embed hasn't appeared after a while —
+  // X and Instagram in particular don't always serve embeds to visitors
+  // who aren't signed in.
+  const handleOf = key => decodeURIComponent(CONFIG.social[key].url.replace(/\/+$/, '').split('/').pop()).replace(/^@/, '');
 
-    const fallback = () => {
-      const frames = [...body.querySelectorAll('iframe[id^="twitter-widget"]')];
-      if (frames.some(f => f.offsetHeight > 80)) return;
-      body.innerHTML = `<p class="x-feed-note">Posts can't be shown here right now. X limits embedded feeds for visitors who aren't signed in.
-        <a href="${CONFIG.social.x.url}" target="_blank" rel="noopener">See the latest on X</a>.</p>`;
+  function embedHead(key, title, follow = true) {
+    const s = CONFIG.social[key];
+    return `
+      <div class="x-feed-head">
+        <span class="x-feed-icon">${icon(key, 16)}</span>
+        <div><b>${title}</b><span>@${esc(handleOf(key))}</span></div>
+        ${follow ? `<a class="btn btn-ghost btn-sm" href="${s.url}" target="_blank" rel="noopener">Follow</a>` : ''}
+      </div>`;
+  }
+
+  function whenVisible(el, fn) {
+    if (!('IntersectionObserver' in window)) return fn();
+    const io = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) { io.disconnect(); fn(); }
+    }, { rootMargin: '400px' });
+    io.observe(el);
+  }
+
+  function loadScript(id, src, onerror) {
+    if (document.getElementById(id)) return false;
+    const sc = document.createElement('script');
+    sc.id = id; sc.async = true; sc.src = src; sc.onerror = onerror;
+    document.head.appendChild(sc);
+    return true;
+  }
+
+  // Shown when a network doesn't render its embed in time.
+  function embedFallback(body, key, what) {
+    return () => {
+      if ([...body.querySelectorAll('iframe')].some(f => f.offsetHeight > 80)) return;
+      body.innerHTML = `<p class="x-feed-note">${what} can't be shown here right now.
+        <a href="${CONFIG.social[key].url}" target="_blank" rel="noopener">See the latest on ${CONFIG.social[key].label}</a>.</p>`;
       body.style.minHeight = '';
     };
-
-    // Load X's script only when the card is about to scroll into view.
-    const load = () => {
-      if (!document.getElementById('x-widgets')) {
-        const sc = document.createElement('script');
-        sc.id = 'x-widgets'; sc.async = true; sc.src = 'https://platform.twitter.com/widgets.js';
-        sc.onerror = fallback;
-        document.head.appendChild(sc);
-      } else if (window.twttr && window.twttr.widgets) {
-        window.twttr.widgets.load(el);
-      }
-      setTimeout(fallback, 9000);
-    };
-    if ('IntersectionObserver' in window) {
-      const io = new IntersectionObserver(entries => {
-        if (entries.some(e => e.isIntersecting)) { io.disconnect(); load(); }
-      }, { rootMargin: '400px' });
-      io.observe(el);
-    } else load();
   }
+
+  const EMBEDS = {
+    // X's timeline widget, or pinned posts from CONFIG.xPosts.
+    x(el, theme, height) {
+      const handle = handleOf('x');
+      const posts = CONFIG.xPosts || [];
+      el.innerHTML = embedHead('x', 'On X') + `
+        <div class="x-feed-body${posts.length ? ' x-feed-posts' : ''}" style="min-height:${Math.min(height, 240)}px">${
+          posts.length
+            ? posts.map(u => `<blockquote class="twitter-tweet" data-theme="${theme}" data-dnt="true" data-conversation="none"><a href="${esc(u.replace('://x.com/', '://twitter.com/'))}"></a></blockquote>`).join('')
+            : `<a class="twitter-timeline" data-theme="${theme}" data-height="${height}" data-dnt="true"
+                 data-chrome="noheader nofooter noborders transparent"
+                 href="https://twitter.com/${esc(handle)}?ref_src=twsrc%5Etfw">Posts from @${esc(handle)}</a>`
+        }</div>`;
+      const body = el.querySelector('.x-feed-body');
+      const fallback = embedFallback(body, 'x', 'Posts');
+      whenVisible(el, () => {
+        if (!loadScript('x-widgets', 'https://platform.twitter.com/widgets.js', fallback) && window.twttr && window.twttr.widgets) window.twttr.widgets.load(el);
+        setTimeout(fallback, 9000);
+      });
+    },
+
+    // TikTok's official creator (profile) embed: header plus recent videos.
+    tiktok(el) {
+      const handle = handleOf('tiktok');
+      el.innerHTML = embedHead('tiktok', 'On TikTok') + `
+        <div class="x-feed-body tt-body" style="min-height:240px">
+          <blockquote class="tiktok-embed" cite="https://www.tiktok.com/@${esc(handle)}" data-unique-id="${esc(handle)}" data-embed-type="creator" style="max-width:780px;min-width:288px;margin:0">
+            <section><a target="_blank" rel="noopener" href="https://www.tiktok.com/@${esc(handle)}">@${esc(handle)}</a></section>
+          </blockquote>
+        </div>`;
+      const body = el.querySelector('.x-feed-body');
+      const fallback = embedFallback(body, 'tiktok', 'Videos');
+      whenVisible(el, () => {
+        if (!loadScript('tiktok-embed', 'https://www.tiktok.com/embed.js', fallback) && window.tiktokEmbed && window.tiktokEmbed.lib) window.tiktokEmbed.lib.render(body.querySelectorAll('.tiktok-embed'));
+        setTimeout(fallback, 10000);
+      });
+    },
+
+    // Instagram has no profile embed, only single posts. With posts listed
+    // in CONFIG.instagramPosts they're embedded; otherwise a profile card.
+    instagram(el) {
+      const handle = handleOf('instagram');
+      const posts = CONFIG.instagramPosts || [];
+      if (!posts.length) {
+        el.innerHTML = embedHead('instagram', 'On Instagram', false) + `
+          <a class="ig-card" href="${CONFIG.social.instagram.url}" target="_blank" rel="noopener">
+            <span class="ig-mark">${icon('instagram', 30)}</span>
+            <span><b>@${esc(handle)}</b><span>Follow BYTHERIM on Instagram.</span></span>
+            <span class="ig-cta">Open Instagram ${icon('arrow', 14)}</span>
+          </a>`;
+        return;
+      }
+      el.innerHTML = embedHead('instagram', 'On Instagram') + `
+        <div class="x-feed-body x-feed-posts ig-posts" style="min-height:240px">${posts.map(u =>
+          `<blockquote class="instagram-media" data-instgrm-permalink="${esc(u)}" data-instgrm-version="14"><a href="${esc(u)}" target="_blank" rel="noopener">View this post on Instagram</a></blockquote>`).join('')}
+        </div>`;
+      const body = el.querySelector('.x-feed-body');
+      const fallback = embedFallback(body, 'instagram', 'Posts');
+      whenVisible(el, () => {
+        if (!loadScript('ig-embed', 'https://www.instagram.com/embed.js', fallback) && window.instgrm) window.instgrm.Embeds.process();
+        setTimeout(fallback, 10000);
+      });
+    }
+  };
+
+  function socialEmbed(el) {
+    const key = el.dataset.embed || 'x';
+    if (!EMBEDS[key] || !CONFIG.social[key]) return;
+    const theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+    el.classList.add('x-feed', 'embed-' + key);
+    EMBEDS[key](el, theme, +el.dataset.height || 560);
+  }
+  // Kept for pages that still use <div data-x-feed>.
+  const xFeed = el => { el.dataset.embed = 'x'; socialEmbed(el); };
 
   // Called as the first thing in <body>: draws the header in place so it
   // paints with the page, then adds the footer once the page is parsed.
@@ -414,6 +489,7 @@
         el.innerHTML = socialButtons(el.dataset.social.split(','), el.hasAttribute('data-labels'));
       });
       document.querySelectorAll('[data-x-feed]').forEach(xFeed);
+      document.querySelectorAll('[data-embed]').forEach(socialEmbed);
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addFooter);
     else addFooter();
@@ -422,6 +498,6 @@
 
   window.BTR = {
     CONFIG, mount, toggleTheme, icon, esc, stripHtml, truncate, fmtDate, fmtDuration,
-    fetchFeed, loadPosts, parseCSV, schoolLogo, schoolKey, initialsBadge, socialButtons, postCard, hydrateIcons, xFeed
+    fetchFeed, loadPosts, parseCSV, schoolLogo, schoolKey, initialsBadge, socialButtons, postCard, hydrateIcons, xFeed, socialEmbed
   };
 })();
