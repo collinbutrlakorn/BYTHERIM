@@ -9,6 +9,17 @@
      - stat cells holding "-" or a conference tag ("ACC") before the
        season starts — treated as no stat, and the tag kept as the
        player's conference
+   College stats come from data/stats.json, which tools/update-stats.mjs
+   refreshes daily from Barttorvik. Numbers typed into the sheet's stat
+   columns take priority for the current season (use them for pros).
+
+   Optional sheet columns (add any of them; nothing changes if absent):
+     Prev Rank   last edition's rank, shown as movement on the board
+     Wingspan    shown with the measurements
+     Comparison  player comp, shown on the profile
+     Strengths / Weaknesses   separate items with ";" or new lines
+     Film        a YouTube or other link to highlights / film
+     Stats Name  the player's name as Barttorvik spells it, if different
    Requires site.js (BTR.parseCSV).
    ============================================================ */
 (function () {
@@ -17,8 +28,13 @@
   const BOARD = {
     sheet: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTjSzV7c31_8uY69vD-UzxT_rqX_mqjOxECd0aFr-gien0cULby0kLa8iV3ISnuskTr7u2AevhwB7ZN/pub?output=csv',
     draftYear: 2027,
-    draftDate: '2027-06-24'   // used for age on draft night
+    draftDate: '2027-06-24',  // used for age on draft night
+    stats: 'data/stats.json'  // written by tools/update-stats.mjs
   };
+  // Seasons are named by the year they end: 2027 -> "2026-27".
+  const seasonLabel = y => `${y - 1}-${String(y).slice(2)}`;
+  const CURRENT_SEASON = seasonLabel(BOARD.draftYear);
+  const LAST_SEASON = seasonLabel(BOARD.draftYear - 1);
 
   const SCHOOL_NAMES = {
     gtech: 'Georgia Tech', ohiostate: 'Ohio State', unc: 'North Carolina', stjohns: "St. John's",
@@ -111,17 +127,46 @@
       conference: CONF_LABEL[conference] || conference,
       image: get('espn image url', 'image', 'headshot', 'photo'),
       scouting: get('scouting report', 'scouting', 'report'),
-      stats,
-      hasStats: Object.keys(stats).length > 0
+      prevRank: (n => (isNaN(n) ? null : n))(parseInt(get('prev rank', 'previous rank', 'last rank', 'prev'), 10)),
+      wingspan: get('wingspan', 'wing'),
+      comp: get('comparison', 'comp', 'player comp'),
+      strengths: list(get('strengths', 'strength')),
+      weaknesses: list(get('weaknesses', 'weakness')),
+      film: /^https?:\/\//i.test(get('film', 'highlights', 'video')) ? get('film', 'highlights', 'video') : '',
+      sheetStats: stats,
+      seasons: []   // filled in by loadBoard()
     };
+  }
+
+  const list = v => clean(v).split(/\s*(?:;|\n)\s*/).map(x => x.replace(/^[-•*]\s*/, '').trim()).filter(Boolean);
+
+  // Newest season first. The sheet's own numbers stand in for the current
+  // season (that's how pro stats get in); Barttorvik covers college.
+  function attachSeasons(p, college) {
+    const seasons = [];
+    const auto = label => (college && college.seasons && college.seasons[label] || {})[p.id];
+    if (Object.keys(p.sheetStats).length) {
+      seasons.push({ label: CURRENT_SEASON, team: p.isPro ? 'Pro' : p.school, stats: p.sheetStats, source: 'sheet' });
+    } else if (auto(CURRENT_SEASON)) {
+      seasons.push({ label: CURRENT_SEASON, source: 'barttorvik', ...auto(CURRENT_SEASON) });
+    }
+    if (auto(LAST_SEASON)) seasons.push({ label: LAST_SEASON, source: 'barttorvik', ...auto(LAST_SEASON) });
+    p.seasons = seasons;
+    p.stats = seasons.length ? seasons[0].stats : {};
+    p.hasStats = seasons.length > 0;
   }
 
   let cache = null;
   async function loadBoard() {
     if (cache) return cache;
-    const res = await fetch(BOARD.sheet);
+    const [res, college] = await Promise.all([
+      fetch(BOARD.sheet),
+      // Stats are a bonus: if the file is missing the board still loads.
+      fetch(BOARD.stats).then(r => (r.ok ? r.json() : null)).catch(() => null)
+    ]);
     if (!res.ok) throw new Error('Board sheet returned HTTP ' + res.status);
     const rows = BTR.parseCSV(await res.text()).map(normalize).filter(p => p.name);
+    rows.forEach(p => attachSeasons(p, college));
     // Ranked prospects in board order; everyone else follows by tier.
     const tierSort = t => (typeof t === 'number' ? t : 99);
     rows.sort((a, b) => {
@@ -141,5 +186,5 @@
     return Math.round(130 * (1 - t));
   }
 
-  window.BOARD = { ...BOARD, STAT_GROUPS, loadBoard, normalize, ageHue, slug };
+  window.BOARD = { ...BOARD, STAT_GROUPS, CURRENT_SEASON, LAST_SEASON, loadBoard, normalize, attachSeasons, ageHue, slug };
 })();

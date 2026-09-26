@@ -28,6 +28,11 @@
     // Leave empty to hide the "Support" block on the About page. Paste your
     // Ko-fi (or similar) page here and it appears automatically.
     supportUrl: '',
+    // Optional: links to specific X posts to pin on the NBA page, newest
+    // first, e.g. 'https://x.com/collinbutr/status/1234567890'. When this
+    // has posts, they're shown instead of the live timeline. Single posts
+    // load far more reliably than X's timeline embed does.
+    xPosts: [],
     feeds: {
       substack: 'https://collindunks.substack.com/feed',
       podcast: 'https://api.substack.com/feed/podcast/9314968.rss'
@@ -259,16 +264,20 @@
     }).join('');
   }
 
+  // Pages one folder down (rp/) pass base '../' to mount(), so every
+  // shared link and image still resolves.
+  let BASE = '';
+
   function headerHTML(active) {
     const links = CONFIG.nav.map(n =>
-      `<a href="${n.href}"${n.id === active ? ' class="active" aria-current="page"' : ''}>${n.label}</a>`).join('');
+      `<a href="${BASE}${n.href}"${n.id === active ? ' class="active" aria-current="page"' : ''}>${n.label}</a>`).join('');
     return `
 <header class="site-header">
   <div class="site-header-inner">
-    <a href="./" class="brand" aria-label="BYTHERIM home"><img src="logo.png" alt="BYTHERIM" width="138" height="40"></a>
+    <a href="${BASE || './'}" class="brand" aria-label="BYTHERIM home"><img src="${BASE}logo.png" alt="BYTHERIM" width="138" height="40"></a>
     <nav class="site-nav" id="siteNav" aria-label="Main">
       ${links}
-      <a href="./rp/" class="nav-rp">BYTHERIM RP</a>
+      <a href="${BASE}rp/" class="nav-rp${active === 'rp' ? ' active" aria-current="page' : ''}">BYTHERIM RP</a>
     </nav>
     <div class="header-tools">
       <button class="icon-btn" type="button" data-action="theme" aria-label="Switch between light and dark" title="Light / dark">${icon('theme')}</button>
@@ -285,21 +294,21 @@
 <footer class="site-footer">
   <div class="footer-inner">
     <div class="footer-brand">
-      <img src="logo.png" alt="BYTHERIM" width="138" height="40">
+      <img src="${BASE}logo.png" alt="BYTHERIM" width="138" height="40">
       <p>Draft analysis, film breakdowns and NBA conversation — plus a full college basketball simulation universe.</p>
       <div class="social-row">${socialButtons(['youtube', 'spotify', 'apple', 'x', 'substack'])}</div>
     </div>
     <div class="footer-col">
       <h4>BYTHERIM</h4>
-      <a href="./">Home</a>
-      ${CONFIG.nav.map(n => `<a href="${n.href}">${n.label}</a>`).join('')}
+      <a href="${BASE || './'}">Home</a>
+      ${CONFIG.nav.map(n => `<a href="${BASE}${n.href}">${n.label}</a>`).join('')}
     </div>
     <div class="footer-col">
       <h4>RP Universe</h4>
-      <a href="./rp/">RP Hub</a>
-      <a href="./rp/ncaa.html">NCAA Simulation</a>
-      <a href="./recruiting/">Recruiting</a>
-      <a href="./rp/draft.html">Draft RP</a>
+      <a href="${BASE}rp/">RP Hub</a>
+      <a href="${BASE}rp/ncaa.html">NCAA Simulation</a>
+      <a href="${BASE}recruiting/">Recruiting</a>
+      <a href="${BASE}rp/draft.html">Draft RP</a>
     </div>
     <div class="footer-col">
       <h4>Listen &amp; Follow</h4>
@@ -332,9 +341,65 @@
     });
   }
 
+  // ---------------------------------------------------------------- X feed
+  // X's official timeline widget. X only serves it reliably to some
+  // visitors (it can be rate-limited or blank for people who aren't
+  // signed in to X), so the card always carries a working Follow link and
+  // swaps in a short note if the timeline hasn't appeared after a while.
+  // Usage: <div data-x-feed></div>  (optional data-height="600")
+  function xFeed(el) {
+    const handle = CONFIG.social.x.url.replace(/\/+$/, '').split('/').pop();
+    const theme = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+    const height = +el.dataset.height || 560;
+    el.classList.add('x-feed');
+    el.innerHTML = `
+      <div class="x-feed-head">
+        <span class="x-feed-icon">${icon('x', 16)}</span>
+        <div><b>On X</b><span>@${esc(handle)}</span></div>
+        <a class="btn btn-ghost btn-sm" href="${CONFIG.social.x.url}" target="_blank" rel="noopener">Follow</a>
+      </div>
+      <div class="x-feed-body" style="min-height:${Math.min(height, 240)}px">${
+        CONFIG.xPosts.length
+          ? CONFIG.xPosts.map(u => `<blockquote class="twitter-tweet" data-theme="${theme}" data-dnt="true" data-conversation="none"><a href="${esc(u.replace('://x.com/', '://twitter.com/'))}"></a></blockquote>`).join('')
+          : `<a class="twitter-timeline" data-theme="${theme}" data-height="${height}" data-dnt="true"
+               data-chrome="noheader nofooter noborders transparent"
+               href="https://twitter.com/${esc(handle)}?ref_src=twsrc%5Etfw">Posts from @${esc(handle)}</a>`
+      }</div>`;
+    if (CONFIG.xPosts.length) el.querySelector('.x-feed-body').classList.add('x-feed-posts');
+    const body = el.querySelector('.x-feed-body');
+
+    const fallback = () => {
+      const frames = [...body.querySelectorAll('iframe[id^="twitter-widget"]')];
+      if (frames.some(f => f.offsetHeight > 80)) return;
+      body.innerHTML = `<p class="x-feed-note">Posts can't be shown here right now. X limits embedded feeds for visitors who aren't signed in.
+        <a href="${CONFIG.social.x.url}" target="_blank" rel="noopener">See the latest on X</a>.</p>`;
+      body.style.minHeight = '';
+    };
+
+    // Load X's script only when the card is about to scroll into view.
+    const load = () => {
+      if (!document.getElementById('x-widgets')) {
+        const sc = document.createElement('script');
+        sc.id = 'x-widgets'; sc.async = true; sc.src = 'https://platform.twitter.com/widgets.js';
+        sc.onerror = fallback;
+        document.head.appendChild(sc);
+      } else if (window.twttr && window.twttr.widgets) {
+        window.twttr.widgets.load(el);
+      }
+      setTimeout(fallback, 9000);
+    };
+    if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver(entries => {
+        if (entries.some(e => e.isIntersecting)) { io.disconnect(); load(); }
+      }, { rootMargin: '400px' });
+      io.observe(el);
+    } else load();
+  }
+
   // Called as the first thing in <body>: draws the header in place so it
   // paints with the page, then adds the footer once the page is parsed.
-  function mount(active) {
+  function mount(active, opts) {
+    BASE = (opts && opts.base) || '';
     const here = document.currentScript;
     if (here) here.insertAdjacentHTML('beforebegin', headerHTML(active));
     else document.body.insertAdjacentHTML('afterbegin', headerHTML(active));
@@ -348,6 +413,7 @@
       document.querySelectorAll('[data-social]').forEach(el => {
         el.innerHTML = socialButtons(el.dataset.social.split(','), el.hasAttribute('data-labels'));
       });
+      document.querySelectorAll('[data-x-feed]').forEach(xFeed);
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addFooter);
     else addFooter();
@@ -356,6 +422,6 @@
 
   window.BTR = {
     CONFIG, mount, toggleTheme, icon, esc, stripHtml, truncate, fmtDate, fmtDuration,
-    fetchFeed, loadPosts, parseCSV, schoolLogo, schoolKey, initialsBadge, socialButtons, postCard, hydrateIcons
+    fetchFeed, loadPosts, parseCSV, schoolLogo, schoolKey, initialsBadge, socialButtons, postCard, hydrateIcons, xFeed
   };
 })();

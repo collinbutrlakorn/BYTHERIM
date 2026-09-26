@@ -352,6 +352,11 @@ h1, h2, h3, h4, .display {
 .hero p { color: #d3d7de; font-size: 1.12rem; max-width: 520px; }
 .hero .eyebrow { color: #d892c9; }
 .hero-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 1.6rem; }
+/* For banners with text baked into the image (the RP hub): the image sits
+   right, the copy stays narrow, and the shade covers more of the left. */
+.hero-busy { background-position: right center; }
+.hero-busy::before { background: linear-gradient(90deg, rgba(6, 7, 10, 0.97) 0%, rgba(6, 7, 10, 0.92) 45%, rgba(6, 7, 10, 0.35) 70%, rgba(6, 7, 10, 0.05) 90%); }
+.hero-busy .hero-copy, .hero-busy p { max-width: 470px; }
 .hero .btn-ghost { color: #fff; border-color: rgba(255, 255, 255, 0.35); }
 .hero .btn-ghost:hover { border-color: #fff; color: #fff; background: rgba(255, 255, 255, 0.08); }
 
@@ -451,6 +456,107 @@ h1, h2, h3, h4, .display {
 .rp-band-copy p { color: var(--muted); }
 .rp-band-links { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.4rem; }
 .rp-band-media { background: var(--navy) center / cover no-repeat; min-height: 260px; }
+
+/* ---------------------------------------------------------------- X feed */
+.x-feed { margin-top: 1rem; }
+.x-feed-head { display: flex; align-items: center; gap: 0.7rem; margin-bottom: 0.8rem; }
+.x-feed-head > div { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.x-feed-head b { font-family: 'Oswald', sans-serif; font-size: 1.15rem; font-weight: 500; text-transform: uppercase; }
+.x-feed-head span { color: var(--muted); font-size: 0.88rem; }
+.x-feed-icon { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); }
+.x-feed-icon svg { fill: currentColor; }
+.x-feed-body { border-top: 1px solid var(--border); padding-top: 0.6rem; }
+.x-feed-body .twitter-timeline:not(iframe) { color: var(--muted); font-size: 0.9rem; }
+.x-feed-posts { max-height: 720px; overflow-y: auto; }
+.x-feed-posts .twitter-tweet { margin: 0 auto 0.6rem !important; }
+.x-feed-note { color: var(--muted); font-size: 0.92rem; line-height: 1.5; margin: 0.2rem 0 0; }
+.x-feed-note a { color: var(--accent); }
+
+/* ---------------------------------------------------------------- RP hub */
+.site-nav .nav-rp.active::after { display: none; }
+.site-nav .nav-rp.active { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.35); }
+
+.rp-path {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.1rem;
+  counter-reset: none;
+}
+.rp-module-link {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1.2rem 1.2rem 1.3rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--mod);
+  border-radius: var(--r-md);
+  color: var(--text);
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.rp-module-link:hover { border-color: var(--border-strong); border-top-color: var(--mod); transform: translateY(-2px); }
+.rp-step {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.78rem;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+/* The module logos have light lettering, so they sit on a dark tile in both themes. */
+.rp-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 8;
+  border-radius: var(--r-sm);
+  background: radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--mod) 22%, #0d0f14) 0%, #0b0d12 70%);
+  overflow: hidden;
+}
+.rp-logo img { width: 100%; height: 100%; object-fit: contain; }
+.rp-status {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--win);
+}
+.rp-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.rp-module h3 { font-size: 1.35rem; text-transform: uppercase; }
+.rp-module p { color: var(--muted); font-size: 0.97rem; flex: 1; }
+.rp-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.9rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.rp-module-link:hover .rp-cta svg { transform: translateX(3px); }
+.rp-cta svg { transition: transform 0.15s ease; }
+
+.rp-crosslink {
+  padding: 1.4rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.rp-crosslink h2 { font-size: 1.4rem; text-transform: uppercase; margin: 0.2rem 0; }
+.rp-crosslink p { color: var(--muted); margin: 0; }
+
+@media (max-width: 900px) {
+  .rp-path { grid-template-columns: 1fr; max-width: 560px; }
+}
 
 /* ---------------------------------------------------------------- podcast */
 .listen-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
@@ -582,6 +688,8 @@ h1, h2, h3, h4, .display {
   .post-grid { grid-template-columns: 1fr; }
   .hero { min-height: 380px; align-items: flex-end; padding-bottom: 2rem; }
   .hero::before { background: linear-gradient(0deg, rgba(6, 7, 10, 0.95) 12%, rgba(6, 7, 10, 0.55) 60%, rgba(6, 7, 10, 0.25) 100%); }
+  .hero-busy { background-position: 72% center; }
+  .hero-busy::before { background: linear-gradient(0deg, rgba(6, 7, 10, 0.97) 35%, rgba(6, 7, 10, 0.93) 75%, rgba(6, 7, 10, 0.7) 100%); }
   .section-head { flex-wrap: wrap; align-items: flex-start; }
   .ep-row { grid-template-columns: 72px minmax(0, 1fr); gap: 0.85rem; }
   .ep-row .art { width: 72px; height: 72px; }
@@ -719,6 +827,34 @@ h1, h2, h3, h4, .display {
 .stat b { display: block; font-family: 'Oswald', sans-serif; font-size: 1.05rem; font-weight: 500; color: var(--text); }
 .stat i { font-style: normal; color: var(--faint); font-size: 0.7rem; }
 .pr-actions { margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+/* Movement since the last edition (sheet's Prev Rank column). */
+.bd-move { display: block; font-family: 'Asap Condensed', sans-serif; font-size: 0.68rem; font-weight: 600; line-height: 1; margin-top: 2px; letter-spacing: 0.2px; }
+.bd-move.up { color: var(--win); }
+.bd-move.down { color: var(--loss); }
+.bd-move.new { color: var(--accent); text-transform: uppercase; font-size: 0.6rem; letter-spacing: 0.6px; }
+
+/* Strengths / weaknesses. */
+.pr-lists { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; margin-top: 1rem; max-width: 72ch; }
+.pr-list h5, .pr-stats-head h5 { font-size: 0.78rem; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 0.35rem; }
+.pr-list.plus h5 { color: var(--win); }
+.pr-list.minus h5 { color: var(--loss); }
+.pr-list ul { list-style: none; display: flex; flex-direction: column; gap: 0.25rem; }
+.pr-list li { position: relative; padding-left: 0.95rem; color: var(--text); font-size: 0.95rem; line-height: 1.45; }
+.pr-list li::before { position: absolute; left: 0; font-weight: 700; }
+.pr-list.plus li::before { content: '+'; color: var(--win); }
+.pr-list.minus li::before { content: '–'; color: var(--loss); }
+
+/* Season header above the stat grid. */
+.pr-stats-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+.pr-stats-head h5 { color: var(--text); margin: 0; }
+.pr-stats-head span { color: var(--muted); font-size: 0.88rem; }
+.season-tabs .chip { font-size: 0.78rem; padding: 0.2rem 0.6rem; }
+.pr-stats-note { font-size: 0.88rem; margin: 0; }
+.pr-stats-foot { color: var(--faint); font-size: 0.8rem; }
+.pr-source { font-size: 0.8rem; color: var(--faint); text-decoration: underline; text-underline-offset: 2px; }
+.pr-source:hover { color: var(--text); }
+@media (max-width: 620px) { .pr-lists { grid-template-columns: 1fr; } }
 
 .radar-toggle { width: 100%; margin-top: 1.2rem; }
 .board-empty { padding: 2.5rem 1rem; text-align: center; color: var(--muted); }
