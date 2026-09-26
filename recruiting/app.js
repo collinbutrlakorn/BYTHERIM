@@ -73,6 +73,167 @@ let statsSortDir = 'desc';
 let recruits = [];
 let activeRecruit = null;
 
+// ============================================================
+// Shared ranking index.
+//
+// National, position and state ranks are computed once per load and read
+// everywhere (rankings rows, the school pop-up, player profiles) so the
+// three can never disagree. International players are ranked in their own
+// pool: they don't take national or state ranks from domestic prospects,
+// which is also why they're left out of a class's national list unless
+// the International region is selected.
+// ============================================================
+let rankIndex = {};
+
+function isInternational(p) {
+  const st = String(p && p.state || '').toUpperCase();
+  return st === 'INT' || st === 'INTL';
+}
+
+// Author's sheet rank first; unranked players fall in behind by rating.
+function sheetOrder(a, b) {
+  const ra = typeof a.rank === 'number' ? a.rank : Infinity;
+  const rb = typeof b.rank === 'number' ? b.rank : Infinity;
+  if (ra !== rb) return ra - rb;
+  return (b.rating || 0) - (a.rating || 0);
+}
+
+function buildRankIndex() {
+  rankIndex = {};
+  const byClass = {};
+  recruits.forEach(r => { (byClass[r.classYear] = byClass[r.classYear] || []).push(r); });
+
+  Object.values(byClass).forEach(list => {
+    const domestic = list.filter(r => !isInternational(r)).sort(sheetOrder);
+    const intl = list.filter(isInternational).sort(sheetOrder);
+
+    const posCount = {}, stateCount = {};
+    domestic.forEach((r, i) => {
+      posCount[r.pos] = (posCount[r.pos] || 0) + 1;
+      const hasState = r.state && r.state !== 'ALL';
+      if (hasState) stateCount[r.state] = (stateCount[r.state] || 0) + 1;
+      rankIndex[r.id] = {
+        intl: false,
+        national: i + 1,
+        pos: posCount[r.pos],
+        state: hasState ? stateCount[r.state] : null,
+        stateLabel: hasState ? r.state : null
+      };
+    });
+
+    const intlPos = {};
+    intl.forEach((r, i) => {
+      intlPos[r.pos] = (intlPos[r.pos] || 0) + 1;
+      rankIndex[r.id] = { intl: true, national: null, intlRank: i + 1, pos: intlPos[r.pos], state: i + 1, stateLabel: 'INTL' };
+    });
+  });
+}
+
+function commitSchoolOf(p) {
+  if (p.committedSchool && String(p.committedSchool).trim()) return String(p.committedSchool).trim();
+  const st = String(p.status || '');
+  const m = st.match(/(?:committed|signed)\s+(?:to|with)\s+(.+)/i);
+  return m ? m[1].trim() : null;
+}
+
+function starsHTML(stars) {
+  if (stars === 5) return '<span class="stars stars-5" title="5-star">★★★★★</span>';
+  if (stars === 4) return '<span class="stars stars-4" title="4-star">★★★★☆</span>';
+  if (stars === 3) return '<span class="stars stars-3" title="3-star">★★★☆☆</span>';
+  return '<span class="stars stars-3" title="unrated">☆☆☆☆☆</span>';
+}
+
+function escAttr(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, "\\'"); }
+
+function openRecruitProfile(p) {
+  activeRecruit = p;
+  renderProfile(p);
+  switchTab('profile');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// One row format used by the class rankings AND the school pop-up.
+//
+// On desktop it's a normal table row. On a phone the stylesheet turns it
+// into a stacked card: rank block on the left, then name / school
+// (hometown) / position and size stacked, then stars over the grade, then
+// just the committed school's logo — the way 247 lays out its mobile list.
+// The mobile-only lines carry the information whose columns get hidden.
+function buildRecruitRow(p, opts = {}) {
+  const ri = rankIndex[p.id] || {};
+  const tr = document.createElement('tr');
+  tr.className = 'recruit-row';
+  tr.addEventListener('click', () => (opts.onOpen ? opts.onOpen(p) : openRecruitProfile(p)));
+
+  const mainRank = opts.displayRank != null ? opts.displayRank
+    : (ri.intl ? ri.intlRank : (ri.national != null ? ri.national : '—'));
+
+  const subs = [];
+  if (ri.pos != null) subs.push(`<span class="rank-sub" title="Position rank">${p.pos} ${ri.pos}</span>`);
+  if (ri.intl) subs.push(`<span class="rank-sub rank-intl" title="International rank">INTL ${ri.intlRank}</span>`);
+  else if (ri.state != null) subs.push(`<span class="rank-sub" title="State rank">${ri.stateLabel} ${ri.state}</span>`);
+
+  const pfpImg = p.pfp && p.pfp.trim() !== '' ? p.pfp : EMPTY_PFP;
+  const hsLine = p.hs && p.hs !== 'N/A'
+    ? `${p.hs}${p.hometown && p.hometown !== 'N/A' ? ` (${p.hometown})` : ''}`
+    : (p.hometown || '');
+  const metaBits = [];
+  if (opts.showClass) metaBits.push(`'${String(p.classYear).slice(-2)}`);
+  metaBits.push(p.pos);
+  metaBits.push(`${p.height} / ${p.weight}`);
+
+  const stateDisplay = isInternational(p) ? '<span class="badge-intl">INTL</span>' : `<span>${p.state && p.state !== 'ALL' ? p.state : '—'}</span>`;
+
+  const school = commitSchoolOf(p);
+  let commitHTML;
+  if (school) {
+    const logo = (p.commitLogo && p.commitLogo.trim()) ? p.commitLogo : getSchoolLogoPath(school);
+    commitHTML = `<div class="commit-cell" title="Committed to ${escAttr(school)}">
+        <img src="${logo}" class="school-logo" alt="${escAttr(school)}" onerror="schoolLogoFallback(this, '${escAttr(school)}')">
+        <span class="commit-name desktop-only">${school}</span>
+      </div>`;
+  } else {
+    commitHTML = `<span class="commit-none"><span class="desktop-only">${p.status || 'Uncommitted'}</span><span class="mobile-only">—</span></span>`;
+  }
+
+  tr.innerHTML = `
+    <td class="col-rank"><div class="rank-stack"><span class="rank-num">${mainRank}</span>${subs.join('')}</div></td>
+    <td class="col-player">
+      <div class="player-cell">
+        <img src="${pfpImg}" class="player-avatar-sm" alt="" onerror="this.src='${EMPTY_PFP}';">
+        <div class="player-text">
+          <span class="player-name">${p.name}</span>
+          <span class="player-sub desktop-only">${p.hometown}</span>
+          <span class="player-sub mobile-only">${hsLine}</span>
+          <span class="player-sub player-meta mobile-only">${metaBits.join(' · ')}</span>
+        </div>
+      </div>
+    </td>
+    <td class="col-class"><span class="badge-class">'${String(p.classYear).slice(-2)}</span></td>
+    <td class="col-pos"><span class="badge-pos">${p.pos}</span></td>
+    <td class="col-htwt"><span>${p.height} / ${p.weight}</span></td>
+    <td class="col-state">${stateDisplay}</td>
+    <td class="col-hs"><span>${p.hs}</span></td>
+    <td class="col-grade"><div class="grade-stack">${starsHTML(p.stars)}<span class="rating-pill">${p.rating}</span></div></td>
+    <td class="col-commit">${commitHTML}</td>`;
+  return tr;
+}
+
+// Column headers matching buildRecruitRow, shared by every recruit table.
+function recruitTableHead() {
+  return `<tr>
+    <th class="col-rank">Rank</th>
+    <th class="col-player" style="text-align: left;">Player</th>
+    <th class="col-class">Class</th>
+    <th class="col-pos">Pos</th>
+    <th class="col-htwt">HT / WT</th>
+    <th class="col-state">State</th>
+    <th class="col-hs">High School / Club</th>
+    <th class="col-grade">Rating</th>
+    <th class="col-commit" style="text-align: left;">Commit</th>
+  </tr>`;
+}
+
 window.onload = () => {
   if (GOOGLE_SHEET_CSV_URL === 'YOUR_PUBLISHED_CSV_URL_HERE' || !GOOGLE_SHEET_CSV_URL) {
     alert("Please set your published Google Sheets CSV URL inside the <script> tags at 'GOOGLE_SHEET_CSV_URL'.");
@@ -154,6 +315,8 @@ window.onload = () => {
           weaknesses: parseArray(row.weaknesses),
           stats: { hs: buildStatTier(row, 'hs'), aau: buildStatTier(row, 'aau'), fiba: buildStatTier(row, 'fiba'), intl: buildStatTier(row, 'intl') }
         }));
+
+        buildRankIndex();
 
         if (recruits.length > 0) {
           activeRecruit = recruits[0];
@@ -356,8 +519,8 @@ function updateQueryRule(id, field, val) { const rule = queryRules.find(r => r.i
 
 function renderQueryRulesUI() {
   const container = document.getElementById('queryRulesContainer'); const badge = document.getElementById('queryEngagedBadge'); const toggleBtn = document.getElementById('toggleQueryBtn');
-  if (isQueryEngaged) { badge.innerText = 'ENGAGED'; badge.style.background = 'rgba(39, 174, 96, 0.2)'; badge.style.color = '#2ecc71'; badge.style.border = '1px solid #2ecc71'; toggleBtn.innerText = 'Disengage Query Search'; toggleBtn.classList.add('engaged'); }
-  else { badge.innerText = 'OFF'; badge.style.background = 'rgba(255, 255, 255, 0.05)'; badge.style.color = 'var(--text-muted)'; badge.style.border = '1px solid var(--border-color)'; toggleBtn.innerText = 'Engage Query Search'; toggleBtn.classList.remove('engaged'); }
+  if (isQueryEngaged) { badge.innerText = 'ENGAGED'; badge.style.background = 'rgba(39, 174, 96, 0.2)'; badge.style.color = 'var(--win)'; badge.style.border = '1px solid var(--win)'; toggleBtn.innerText = 'Disengage Query Search'; toggleBtn.classList.add('engaged'); }
+  else { badge.innerText = 'OFF'; badge.style.background = 'var(--heat-neutral-bg)'; badge.style.color = 'var(--text-muted)'; badge.style.border = '1px solid var(--border-color)'; toggleBtn.innerText = 'Engage Query Search'; toggleBtn.classList.remove('engaged'); }
   if (queryRules.length === 0) { container.innerHTML = `<div style="font-size: 0.75rem; color: var(--text-muted); font-style: italic; padding: 4px 0;">No active stat query rules. Click "+ Add Stat Rule" to query player statistics.</div>`; return; }
   const availableStats = STAT_LABELS[currentStatView];
   container.innerHTML = queryRules.map((rule) => {
@@ -416,75 +579,76 @@ function calculatePercentileMap(players, level, keys) {
 
 function getPercentileStyle(pct, key) {
   if (pct === undefined || pct === null) return '';
-  
+
   const negativeStats = ['topg', 'tov', 'drtg'];
   let effectivePct = pct;
-  
-  if (negativeStats.includes(key)) {
-    effectivePct = 100 - pct;
-  }
+  if (negativeStats.includes(key)) effectivePct = 100 - pct;
 
-  if (effectivePct >= 60) { 
-    let intensity = (effectivePct - 60) / 40; 
-    let alpha = 0.12 + intensity * 0.38; 
-    return `background-color: rgba(39, 174, 96, ${alpha.toFixed(2)}); color: #a3e635; font-weight: 700;`; 
-  } else if (effectivePct <= 40) { 
-    let intensity = (40 - effectivePct) / 40; 
-    let alpha = 0.12 + intensity * 0.38; 
-    return `background-color: rgba(231, 76, 60, ${alpha.toFixed(2)}); color: #f87171; font-weight: 700;`; 
+  // Background tint is unchanged; the TEXT colour comes from theme
+  // variables. The old fixed lime/salmon text was built for a black
+  // background and washed out on white, and neutral cells used pure white
+  // text, which disappeared entirely in light mode.
+  if (effectivePct >= 60) {
+    const intensity = (effectivePct - 60) / 40;
+    const alpha = 0.12 + intensity * 0.38;
+    return `background-color: rgba(39, 174, 96, ${alpha.toFixed(2)}); color: var(--heat-good-text); font-weight: 700;`;
+  } else if (effectivePct <= 40) {
+    const intensity = (40 - effectivePct) / 40;
+    const alpha = 0.12 + intensity * 0.38;
+    return `background-color: rgba(231, 76, 60, ${alpha.toFixed(2)}); color: var(--heat-bad-text); font-weight: 700;`;
   }
-  return `background-color: rgba(255, 255, 255, 0.05); color: #ffffff;`;
+  return `background-color: var(--heat-neutral-bg); color: var(--text-main);`;
 }
 
 function filterRecruits() {
-  const query = String(document.getElementById('searchInput').value).toLowerCase();
+  const query = String(document.getElementById('searchInput').value).toLowerCase().trim();
   const classYr = document.getElementById('classFilter').value;
   const state = document.getElementById('stateFilter').value;
   const pos = document.getElementById('posFilter').value;
   const star = document.getElementById('starFilter').value;
+  const overall = classYr === 'OVERALL';
+
+  // International prospects have their own pool. They stay out of a
+  // class's national list unless the International region is chosen, or
+  // the all-classes view is on — and a search always finds them, so a
+  // player can never be hidden from someone looking for him by name.
+  const includeIntl = overall || state === 'INT' || query !== '';
 
   let filtered = recruits.filter(r => {
-    const matchesSearch = String(r.name || "").toLowerCase().includes(query) || String(r.hs || "").toLowerCase().includes(query);
-    const matchesClass = (classYr === 'OVERALL') ? true : (r.classYear === classYr);
+    if (!includeIntl && isInternational(r)) return false;
+    const matchesSearch = !query || String(r.name || "").toLowerCase().includes(query) || String(r.hs || "").toLowerCase().includes(query);
+    const matchesClass = overall ? true : (r.classYear === classYr);
     const matchesState = state === 'ALL' || r.state === state;
     const matchesPos = pos === 'ALL' || r.pos === pos;
     const matchesStar = star === 'ALL' || r.stars.toString() === star;
     return matchesSearch && matchesClass && matchesState && matchesPos && matchesStar;
   });
 
-  if (classYr === 'OVERALL') filtered.sort((a, b) => b.rating - a.rating);
-  else filtered.sort((a, b) => { const rankA = a.rank === "N/A" ? 9999 : a.rank; const rankB = b.rank === "N/A" ? 9999 : b.rank; return rankA - rankB; });
-  renderRankingsTable(filtered, classYr === 'OVERALL');
+  if (overall) {
+    filtered.sort((a, b) => b.rating - a.rating);
+  } else {
+    const key = r => { const ri = rankIndex[r.id] || {}; return ri.intl ? 100000 + ri.intlRank : (ri.national || 99999); };
+    filtered.sort((a, b) => key(a) - key(b));
+  }
+  renderRankingsTable(filtered, overall);
 }
 
 function renderRankingsTable(data, isOverall = false) {
+  const table = document.getElementById('rankingsTable');
+  // The Class column only means anything when several classes are mixed.
+  if (table) table.classList.toggle('show-class', isOverall);
+
   const tbody = document.getElementById('recruitsTableBody'); tbody.innerHTML = '';
-  if (data.length === 0) { tbody.innerHTML = `<tr><td colspan="10" style="color: var(--text-muted); padding: 2rem;">No players match the current filter selection.</td></tr>`; return; }
+  if (data.length === 0) { tbody.innerHTML = `<tr><td colspan="9" class="table-empty">No players match the current filter selection.</td></tr>`; return; }
 
+  const frag = document.createDocumentFragment();
   data.forEach((p, index) => {
-    const row = document.createElement('tr');
-    row.onclick = () => { activeRecruit = p; renderProfile(p); switchTab('profile'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-    const displayRank = isOverall ? `${index + 1}` : `${p.rank}`;
-    const starDisplay = p.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (p.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`);
-    const stateDisplay = p.state === 'INT' ? `<span class="badge-intl">INTL</span>` : `<span>${p.state}</span>`;
-    const pfpImg = p.pfp && p.pfp.trim() !== "" ? p.pfp : EMPTY_PFP;
-    const commitSchoolSafe = String(p.committedSchool || p.status || '').replace(/'/g, "\\'");
-    let statusHTML = p.commitLogo ? `<div class="status-cell"><img src="${p.commitLogo}" class="school-logo" onerror="schoolLogoFallback(this, '${commitSchoolSafe}')"><span style="font-weight: 700;">${p.status}</span></div>` : `<span>${p.status}</span>`;
-
-    row.innerHTML = `
-      <td><span class="rank-num">${displayRank}</span></td>
-      <td><div class="player-cell"><img src="${pfpImg}" class="player-avatar-sm" onerror="this.src='${EMPTY_PFP}';"><div><span class="player-name">${p.name}</span><span class="player-sub">${p.hometown}</span></div></div></td>
-      <td><span class="badge-class">'${p.classYear.slice(-2)}</span></td>
-      <td><span class="badge-pos">${p.pos}</span></td>
-      <td><span>${p.height} / ${p.weight}</span></td>
-      <td>${stateDisplay}</td>
-      <td><span>${p.hs}</span></td>
-      <td>${starDisplay}</td>
-      <td><span class="rating-pill">${p.rating}</span></td>
-      <td style="text-align: left;">${statusHTML}</td>
-    `;
-    tbody.appendChild(row);
+    frag.appendChild(buildRecruitRow(p, {
+      displayRank: isOverall ? index + 1 : null,
+      showClass: isOverall
+    }));
   });
+  tbody.appendChild(frag);
 }
 
 function getSchoolRankingsData(yearFilter = 'ALL') {
@@ -492,8 +656,8 @@ function getSchoolRankingsData(yearFilter = 'ALL') {
   let filteredRecruits = yearFilter !== 'ALL' ? recruits.filter(r => r.classYear === yearFilter) : recruits;
 
   filteredRecruits.forEach(r => {
-    if (r.status && r.status.includes("Committed to ")) {
-      const schoolName = r.status.replace("Committed to ", "").trim();
+    const schoolName = commitSchoolOf(r);
+    if (schoolName) {
       if (!schoolMap[schoolName]) schoolMap[schoolName] = { name: schoolName, logo: (r.commitLogo && r.commitLogo.trim()) ? r.commitLogo : getSchoolLogoPath(schoolName), recruits: [] };
       schoolMap[schoolName].recruits.push(r);
     }
@@ -503,7 +667,9 @@ function getSchoolRankingsData(yearFilter = 'ALL') {
     s.recruits.sort((a, b) => b.rating - a.rating);
     let currentScore = 0; let weight = 1.0;
     s.recruits.forEach((r) => { let impact = (r.rating / 100) * weight; currentScore = currentScore + ((100 - currentScore) * impact); weight *= 0.8; });
-    return { ...s, recruitCount: s.recruits.length, overallGrade: parseFloat(currentScore.toFixed(2)) };
+    const starCounts = { 5: 0, 4: 0, 3: 0 };
+    s.recruits.forEach(r => { if (starCounts[r.stars] !== undefined) starCounts[r.stars] += 1; });
+    return { ...s, recruitCount: s.recruits.length, starCounts, overallGrade: parseFloat(currentScore.toFixed(2)) };
   });
 
   schoolList.sort((a, b) => b.overallGrade - a.overallGrade || b.recruitCount - a.recruitCount);
@@ -523,20 +689,138 @@ function renderSchoolRankings() {
   if (schoolList.length === 0) { tbody.innerHTML = `<tr><td colspan="5" style="color: var(--text-muted); padding: 2rem;">No school commitments registered for this selection.</td></tr>`; return; }
 
   schoolList.forEach((s, idx) => {
-    const row = document.createElement('tr'); row.onclick = () => selectSchool(s.name, yearFilter);
-    const commitsListHTML = s.recruits.map(r => `<div class="commit-tag" onclick="event.stopPropagation(); activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');" style="cursor: pointer;"><span style="font-weight: 700;">${r.name}</span> <span style="color: var(--text-muted);">('${r.classYear.slice(-2)} ${r.pos})</span> <span>Grade: ${r.rating}</span></div>`).join('');
+    const row = document.createElement('tr');
+    row.className = 'school-row';
+    row.onclick = () => openSchoolModal(s.name, yearFilter);
     row.innerHTML = `
-      <td><span class="rank-num">${idx + 1}</span></td>
-      <td style="text-align: left;"><div class="status-cell"><img src="${s.logo}" class="school-logo-lg" onerror="schoolLogoFallback(this, '${String(s.name).replace(/'/g, "\\'")}')"><strong style="font-size: 0.95rem;">${s.name}</strong></div></td>
-      <td><span class="badge-class">${s.recruitCount} ${s.recruitCount === 1 ? 'Commit' : 'Commits'}</span></td>
-      <td><div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;">${commitsListHTML}</div></td>
-      <td><span class="rating-pill" style="font-size: 0.95rem; padding: 6px 14px;">${s.overallGrade} / 100</span></td>
+      <td class="col-srank"><span class="rank-num">${idx + 1}</span></td>
+      <td class="col-school">
+        <div class="status-cell">
+          <img src="${s.logo}" class="school-logo-lg" alt="" onerror="schoolLogoFallback(this, '${escAttr(s.name)}')">
+          <div class="player-text">
+            <span class="player-name">${s.name}</span>
+            <span class="player-sub mobile-only">${s.recruitCount} ${s.recruitCount === 1 ? 'commit' : 'commits'}</span>
+          </div>
+        </div>
+      </td>
+      <td class="col-commits">${s.recruitCount}</td>
+      <td class="col-breakdown">${starBreakdownHTML(s.starCounts)}</td>
+      <td class="col-sgrade"><span class="rating-pill grade-pill">${s.overallGrade}<span class="grade-max desktop-only"> / 100</span></span></td>
     `;
     tbody.appendChild(row);
   });
 }
 
-function selectSchool(schoolName, defaultYear = '2028') { activeSelectedSchool = schoolName; renderSchoolDetail(schoolName, defaultYear); switchTab('schoolDetail'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function starBreakdownHTML(c) {
+  c = c || {};
+  return `<div class="star-breakdown">
+    <span class="sb sb-5" title="5-star commits"><span class="sb-star">5★</span><b>${c[5] || 0}</b></span>
+    <span class="sb sb-4" title="4-star commits"><span class="sb-star">4★</span><b>${c[4] || 0}</b></span>
+    <span class="sb sb-3" title="3-star commits"><span class="sb-star">3★</span><b>${c[3] || 0}</b></span>
+  </div>`;
+}
+
+// ============================================================
+// School pop-up.
+//
+// Clicking a school opens its class in a modal — team ranking, class
+// grade and star breakdown up top, then its commits listed in exactly the
+// same rows as the class rankings page.
+// ============================================================
+function availableClassYears() {
+  return [...new Set(recruits.map(r => String(r.classYear)))].filter(Boolean).sort();
+}
+
+function openSchoolModal(schoolName, year) {
+  let modal = document.getElementById('schoolModal');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'schoolModal';
+    modal.className = 'school-modal-backdrop';
+    modal.addEventListener('click', e => { if (e.target === modal) closeSchoolModal(); });
+    document.body.appendChild(modal);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSchoolModal(); });
+  }
+  activeSelectedSchool = schoolName;
+  renderSchoolModal(schoolName, year || 'ALL');
+  modal.classList.add('open');
+  document.body.classList.add('modal-open');
+}
+
+function closeSchoolModal() {
+  const modal = document.getElementById('schoolModal');
+  if (!modal || !modal.classList.contains('open')) return;
+  modal.classList.remove('open');
+  document.body.classList.remove('modal-open');
+}
+
+function renderSchoolModal(schoolName, year) {
+  const modal = document.getElementById('schoolModal');
+  if (!modal) return;
+
+  const list = getSchoolRankingsData(year);
+  const idx = list.findIndex(s => s.name === schoolName);
+  const data = idx >= 0 ? list[idx] : null;
+  const logo = data ? data.logo : getSchoolLogoPath(schoolName);
+  const commits = data ? data.recruits.slice().sort((a, b) => {
+    const ka = (rankIndex[a.id] || {}).national || 99999, kb = (rankIndex[b.id] || {}).national || 99999;
+    return ka - kb || b.rating - a.rating;
+  }) : [];
+  const yearLabel = year === 'ALL' ? 'All Classes' : `Class of ${year}`;
+  const showClass = year === 'ALL';
+
+  const years = availableClassYears();
+  const options = [`<option value="ALL" ${year === 'ALL' ? 'selected' : ''}>All Classes</option>`]
+    .concat(years.map(y => `<option value="${y}" ${y === year ? 'selected' : ''}>Class of ${y}</option>`)).join('');
+
+  modal.innerHTML = `
+    <div class="school-modal" role="dialog" aria-modal="true" aria-label="${escAttr(schoolName)} recruiting class">
+      <button class="school-modal-close" onclick="closeSchoolModal()" aria-label="Close">&times;</button>
+      <div class="school-modal-head">
+        <img src="${logo}" class="school-modal-logo" alt="" onerror="schoolLogoFallback(this, '${escAttr(schoolName)}')">
+        <div class="school-modal-title">
+          <h2>${schoolName}</h2>
+          <div class="school-modal-sub">${yearLabel} Recruiting</div>
+        </div>
+        <select class="select-input school-modal-year" onchange="renderSchoolModal('${escAttr(schoolName)}', this.value)">${options}</select>
+      </div>
+
+      <div class="school-modal-stats">
+        <div class="school-stat-card">
+          <div class="school-stat-val">${data ? '#' + (idx + 1) : '—'}</div>
+          <div class="school-stat-lbl">Team Ranking${data ? ` <span class="of-n">of ${list.length}</span>` : ''}</div>
+        </div>
+        <div class="school-stat-card">
+          <div class="school-stat-val">${data ? data.overallGrade : '—'}</div>
+          <div class="school-stat-lbl">Class Grade</div>
+        </div>
+        <div class="school-stat-card">
+          <div class="school-stat-val">${commits.length}</div>
+          <div class="school-stat-lbl">Commits</div>
+        </div>
+        <div class="school-stat-card school-stat-stars">
+          ${starBreakdownHTML(data ? data.starCounts : null)}
+          <div class="school-stat-lbl">Star Breakdown</div>
+        </div>
+      </div>
+
+      ${commits.length === 0
+        ? `<div class="table-empty">No commitments for ${schoolName} in the ${yearLabel.toLowerCase()}.</div>`
+        : `<div class="table-container"><table class="recruit-table${showClass ? ' show-class' : ''}">
+             <thead>${recruitTableHead()}</thead><tbody></tbody>
+           </table></div>`}
+    </div>`;
+
+  const tbody = modal.querySelector('tbody');
+  if (tbody) {
+    commits.forEach(p => tbody.appendChild(buildRecruitRow(p, {
+      showClass,
+      onOpen: (rec) => { closeSchoolModal(); openRecruitProfile(rec); }
+    })));
+  }
+}
+
+function selectSchool(schoolName, defaultYear = 'ALL') { openSchoolModal(schoolName, defaultYear); }
 
 function renderSchoolDetail(schoolName, selectedYear = '2028') {
   const container = document.getElementById('schoolDetailContainer');
@@ -711,34 +995,13 @@ function renderProfile(p) {
   const container = document.getElementById('profileContainer');
   const starDisplay = p.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (p.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`);
   
-  // Calculate Dynamic Ranks within same Class Year
-  const classRecruits = recruits.filter(r => r.classYear === p.classYear);
-  classRecruits.sort((a, b) => {
-    const rA = (a.rank && !isNaN(parseInt(a.rank))) ? parseInt(a.rank) : (1000 - a.rating);
-    const rB = (b.rank && !isNaN(parseInt(b.rank))) ? parseInt(b.rank) : (1000 - b.rating);
-    return rA - rB;
-  });
-
-  // Overall Class Rank
-  const classRankIdx = classRecruits.findIndex(r => r.id === p.id);
-  const classRank = classRankIdx !== -1 ? `#${classRankIdx + 1}` : (p.rank !== "N/A" ? `#${p.rank}` : 'N/A');
-
-  // Position Rank in Class
-  const posRecruits = classRecruits.filter(r => r.pos === p.pos);
-  const posRankIdx = posRecruits.findIndex(r => r.id === p.id);
-  const posRank = posRankIdx !== -1 ? `#${posRankIdx + 1}` : 'N/A';
-
-  // State Rank in Class
-  let stateRank = 'N/A';
-  if (p.state && p.state !== 'ALL' && p.state !== 'INT') {
-    const stateRecruits = classRecruits.filter(r => r.state === p.state);
-    const stateRankIdx = stateRecruits.findIndex(r => r.id === p.id);
-    if (stateRankIdx !== -1) stateRank = `#${stateRankIdx + 1} (${p.state})`;
-  } else if (p.state === 'INT') {
-    const intlRecruits = classRecruits.filter(r => r.state === 'INT');
-    const intlRankIdx = intlRecruits.findIndex(r => r.id === p.id);
-    if (intlRankIdx !== -1) stateRank = `#${intlRankIdx + 1} (INTL)`;
-  }
+  // Ranks come from the shared index so the profile always agrees with the
+  // rankings rows. International players have no national or state rank —
+  // they're ranked among internationals instead.
+  const ri = rankIndex[p.id] || {};
+  const classRank = ri.intl ? '—' : (ri.national != null ? `#${ri.national}` : 'N/A');
+  const posRank = ri.pos != null ? `#${ri.pos}${ri.intl ? ' (INTL)' : ''}` : 'N/A';
+  const stateRank = ri.intl ? `#${ri.intlRank} (INTL)` : (ri.state != null ? `#${ri.state} (${ri.stateLabel})` : 'N/A');
 
   const statusHTML = p.commitLogo ? `
     <div class="commit-standout-box">
@@ -843,8 +1106,8 @@ function renderProfile(p) {
     <div class="scouting-report-full">
       <h3>Scouting Report</h3><p>${p.scouting}</p>
       <div class="scouting-columns">
-        <div><div class="recruiting-section-title" style="color: #a3e635;">Strengths</div><ul style="padding-left: 1rem; color: var(--text-muted); margin-top: 8px;">${p.strengths.map(s => `<li>${s}</li>`).join('')}</ul></div>
-        <div><div class="recruiting-section-title" style="color: #f87171;">Areas for Growth</div><ul style="padding-left: 1rem; color: var(--text-muted); margin-top: 8px;">${p.weaknesses.map(w => `<li>${w}</li>`).join('')}</ul></div>
+        <div><div class="recruiting-section-title" style="color: var(--heat-good-text);">Strengths</div><ul style="padding-left: 1rem; color: var(--text-muted); margin-top: 8px;">${p.strengths.map(s => `<li>${s}</li>`).join('')}</ul></div>
+        <div><div class="recruiting-section-title" style="color: var(--heat-bad-text);">Areas for Growth</div><ul style="padding-left: 1rem; color: var(--text-muted); margin-top: 8px;">${p.weaknesses.map(w => `<li>${w}</li>`).join('')}</ul></div>
       </div>
     </div>
 
