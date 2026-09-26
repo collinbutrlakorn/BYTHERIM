@@ -48,7 +48,7 @@ ok(html.includes('footerYear'),'footer year is set dynamically');
 
 // --- page still boots ---
 const d=new JSDOM(html,{url:"http://localhost/recruiting/",runScripts:"outside-only"});
-const w=d.window,c=vm.createContext(w);
+const w=d.window,c=d.getInternalVMContext();
 const store={};
 Object.defineProperty(w,'localStorage',{value:{getItem:k=>store[k]||null,setItem:(k,v)=>{store[k]=v;},removeItem:k=>{}},configurable:true});
 w.Papa={parse:(u,o)=>o.complete({data:[{id:"1",name:"Test",pos:"C",rank:"1",classYear:"2029",rating:"95",status:"Committed",committedSchool:"Duke",hs_gp:"20",hs_ppg:"18"}]})};
