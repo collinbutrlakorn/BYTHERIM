@@ -7,7 +7,7 @@ function ok(c,m){if(!c)throw new Error("FAILED: "+m);console.log("OK: "+m);}
 const html=fs.readFileSync(path.join(RECRUITING,'index.html'),'utf8');
 // --- error path: sheet unreachable ---
 const d1=new JSDOM(html,{url:"http://localhost/recruiting/",runScripts:"outside-only"});
-const w1=d1.window,c1=vm.createContext(w1);
+const w1=d1.window,c1=d1.getInternalVMContext();
 w1.Papa={parse:(url,opts)=>{ opts.error(new Error("network")); }};
 w1.alert=()=>{};
 vm.runInContext(fs.readFileSync(path.join(RECRUITING,'app.js'),'utf8'),c1,{filename:'app.js'});
@@ -19,7 +19,7 @@ ok(ls.className.includes('load-error'),'error styling applied');
 
 // --- empty sheet ---
 const d2=new JSDOM(html,{url:"http://localhost/recruiting/",runScripts:"outside-only"});
-const w2=d2.window,c2=vm.createContext(w2);
+const w2=d2.window,c2=d2.getInternalVMContext();
 w2.Papa={parse:(url,opts)=>{ opts.complete({data:[]}); }};
 w2.alert=()=>{};
 vm.runInContext(fs.readFileSync(path.join(RECRUITING,'app.js'),'utf8'),c2,{filename:'app.js'});
@@ -28,7 +28,7 @@ ok(/contained no rows/.test(w2.document.getElementById('loadState').innerHTML),'
 
 // --- happy path with real-shaped rows ---
 const d3=new JSDOM(html,{url:"http://localhost/recruiting/",runScripts:"outside-only"});
-const w3=d3.window,c3=vm.createContext(w3);
+const w3=d3.window,c3=d3.getInternalVMContext();
 const rows=[];
 for(let i=0;i<40;i++) rows.push({id:"r"+i,rank:String(i+1),classYear:"2029",name:"Recruit "+i,
   pos:["PG","SG","SF","PF","C"][i%5],height:"6'6\"",weight:"200 lbs",state:"NC",hometown:"Raleigh, NC",
