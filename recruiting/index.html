@@ -98,6 +98,7 @@
             <option value="INT">International</option>
             <option value="AL">Alabama (AL)</option><option value="AK">Alaska (AK)</option><option value="AZ">Arizona (AZ)</option><option value="AR">Arkansas (AR)</option>
             <option value="CA">California (CA)</option><option value="CO">Colorado (CO)</option><option value="CT">Connecticut (CT)</option><option value="DE">Delaware (DE)</option>
+            <option value="DC">Washington, D.C. (DC)</option>
             <option value="FL">Florida (FL)</option><option value="GA">Georgia (GA)</option><option value="HI">Hawaii (HI)</option><option value="ID">Idaho (ID)</option>
             <option value="IL">Illinois (IL)</option><option value="IN">Indiana (IN)</option><option value="IA">Iowa (IA)</option><option value="KS">Kansas (KS)</option>
             <option value="KY">Kentucky (KY)</option><option value="LA">Louisiana (LA)</option><option value="ME">Maine (ME)</option><option value="MD">Maryland (MD)</option>
@@ -127,19 +128,18 @@
         </div>
       </div>
       <div class="table-container">
-        <table>
+        <table id="rankingsTable" class="recruit-table">
           <thead>
             <tr>
-              <th>Rank</th>
-              <th>Player Name</th>
-              <th>Class</th>
-              <th>POS</th>
-              <th>HT / WT</th>
-              <th>State/Region</th>
-              <th>High School / Club</th>
-              <th>Stars</th>
-              <th>Rating</th>
-              <th style="text-align: left;">Status</th>
+              <th class="col-rank">Rank</th>
+              <th class="col-player" style="text-align: left;">Player</th>
+              <th class="col-class">Class</th>
+              <th class="col-pos">Pos</th>
+              <th class="col-htwt">HT / WT</th>
+              <th class="col-state">State</th>
+              <th class="col-hs">High School / Club</th>
+              <th class="col-grade">Rating</th>
+              <th class="col-commit" style="text-align: left;">Commit</th>
             </tr>
           </thead>
           <tbody id="recruitsTableBody"></tbody>
@@ -170,14 +170,14 @@
         </div>
       </div>
       <div class="table-container">
-        <table>
+        <table id="schoolRankingsTable" class="school-table">
           <thead>
             <tr>
-              <th>Rank</th>
-              <th style="text-align: left;">School</th>
-              <th>Commits</th>
-              <th>Committed Recruits</th>
-              <th>Class Overall Grade</th>
+              <th class="col-srank">Rank</th>
+              <th class="col-school" style="text-align: left;">School</th>
+              <th class="col-commits">Commits</th>
+              <th class="col-breakdown">5★ / 4★ / 3★</th>
+              <th class="col-sgrade">Class Grade</th>
             </tr>
           </thead>
           <tbody id="schoolRankingsTableBody"></tbody>
