@@ -18,7 +18,10 @@ function boot(opts = {}) {
   const html = fs.readFileSync(path.join(RP, 'ncaa.html'), 'utf8');
   const dom = new JSDOM(html, { url: 'http://localhost/', runScripts: 'outside-only' });
   const w = dom.window;
-  const ctx = vm.createContext(w);
+  // getInternalVMContext is jsdom's supported way to run scripts against a
+  // window created with runScripts: 'outside-only'. vm.createContext(window)
+  // only worked on older jsdom releases and throws on current ones.
+  const ctx = dom.getInternalVMContext();
 
   w.confirm = () => true;
   w.alert = () => {};
