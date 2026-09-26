@@ -1,153 +1,113 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
- <title>BYTHERIM | RP League Simulation</title>
-<meta name="title" content="BYTHERIM | RP League Simulation">
-<meta name="description" content="Custom NBA roleplay and league simulation tracking, stats, rosters, and multi-season history.">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BYTHERIM RP | College Basketball Universe</title>
+  <meta name="description" content="The BYTHERIM RP universe: high school recruiting, a full college basketball simulation, and an NBA draft of its own.">
 
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://collinbutrlakorn.github.io/BYTHERIM/rp/">
-<meta property="og:title" content="BYTHERIM | RP League Simulation">
-<meta property="og:description" content="Custom NBA roleplay and league simulation tracking, stats, rosters, and multi-season history.">
-<meta property="og:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
-
-<meta property="twitter:card" content="summary_large_image">
-<meta property="twitter:url" content="https://collinbutrlakorn.github.io/BYTHERIM/rp/">
-<meta property="twitter:title" content="BYTHERIM | RP League Simulation">
-<meta property="twitter:description" content="Custom NBA roleplay and league simulation tracking, stats, rosters, and multi-season history.">
-<meta property="twitter:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://collinbutrlakorn.github.io/BYTHERIM/rp/">
+  <meta property="og:title" content="BYTHERIM RP | College Basketball Universe">
+  <meta property="og:description" content="High school recruiting, a full college basketball simulation, and an NBA draft of its own.">
+  <meta property="og:image" content="https://collinbutrlakorn.github.io/BYTHERIM/assets/hero-rp-banner.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="BYTHERIM RP | College Basketball Universe">
+  <meta name="twitter:description" content="High school recruiting, a full college basketball simulation, and an NBA draft of its own.">
+  <meta name="twitter:image" content="https://collinbutrlakorn.github.io/BYTHERIM/assets/hero-rp-banner.jpg">
 
   <link rel="icon" type="image/png" href="../favicon.png">
-
-  <link rel="stylesheet" href="../style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@400;500;600;700&family=Oswald:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/site.css">
+  <script src="../assets/site.js"></script>
 </head>
 <body>
+<script>BTR.mount('rp', { base: '../' })</script>
 
- <header class="navbar">
-  <a href="../" class="brand-logo">
-    <img src="../logo.png" alt="BYTHERIM Logo" class="logo-img">
-  </a>
+<section class="hero hero-busy" style="background-image: url('../assets/hero-rp-banner.jpg');">
+  <div class="container">
+    <div class="hero-copy">
+      <span class="eyebrow">BYTHERIM RP</span>
+      <h1>The RP universe</h1>
+      <p>Choose your pathway through a custom roleplaying universe — from grassroots high school recruiting battles to college dominance and professional draft boards.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="./ncaa.html">Open the NCAA Sim</a>
+        <a class="btn btn-ghost" href="../recruiting/">Recruiting Hub</a>
+      </div>
+    </div>
+  </div>
+</section>
 
-  <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
-    <span class="bar"></span>
-    <span class="bar"></span>
-    <span class="bar"></span>
-  </button>
+<main>
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <h2>One career, three stages</h2>
+          <p>Every player moves through the same universe: recruited out of high school, developed in college, drafted into the pros.</p>
+        </div>
+      </div>
 
-  <nav class="nav-links" id="navLinks">
-    <a href="../podcast.html">Podcast</a>
-    <a href="../draft.html">Draft</a>
-    <a href="../nba.html">NBA</a>
-    <a href="../about.html">About</a>
-    <a href="./" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
-  </nav>
-</header>
-
-  <section class="hero-banner" style="background-image: url('../assets/hero-rp-banner.jpg');">
-    <div class="hero-content">
-      <span class="tag">SIMULATION NETWORK</span>
-      <h1>BYTHERIM RP EXPERIENCE</h1>
-      <p>Choose your pathway in our custom roleplaying universe—from grassroots high school recruiting battles to collegiate dominance and professional draft boards.</p>
+      <ol class="rp-path">
+        <li class="rp-module" style="--mod: #F0761F;">
+          <a href="../recruiting/" class="rp-module-link">
+            <span class="rp-step">01 · High school</span>
+            <span class="rp-logo"><img src="../recruiting/recruitingrplogo.png" alt="" loading="lazy"></span>
+            <span class="rp-status">Live</span>
+            <h3>Recruiting Hub</h3>
+            <p>Class rankings, prospect profiles, offer tracking and commitment announcements.</p>
+            <span class="rp-cta">Open Recruiting <span data-icon="arrow"></span></span>
+          </a>
+        </li>
+        <li class="rp-module" style="--mod: #4FAEF5;">
+          <a href="./ncaa.html" class="rp-module-link">
+            <span class="rp-step">02 · College</span>
+            <span class="rp-logo"><img src="./ncaarplogo.png" alt="" loading="lazy"></span>
+            <span class="rp-status">Live</span>
+            <h3>NCAA Simulation</h3>
+            <p>Every Division I program: standings, player development, award races and the tournament bracket.</p>
+            <span class="rp-cta">Open the Sim <span data-icon="arrow"></span></span>
+          </a>
+        </li>
+        <li class="rp-module" style="--mod: #E8435F;">
+          <a href="./draft.html" class="rp-module-link">
+            <span class="rp-step">03 · Pros</span>
+            <span class="rp-logo"><img src="./draftrplogo.png" alt="" loading="lazy"></span>
+            <span class="rp-status">Live</span>
+            <h3>Draft RP</h3>
+            <p>Pro scouting reports, draft stock movement, combine measurements and franchise outcomes.</p>
+            <span class="rp-cta">Open the Draft <span data-icon="arrow"></span></span>
+          </a>
+        </li>
+      </ol>
     </div>
   </section>
 
-  <main class="container">
-    <h2 class="section-title">ACTIVE & UPCOMING MODULES</h2>
-    <div class="grid">
-
-      <article class="card rp-card active-module">
-        <div class="rp-card-header">
-          <img src="../recruiting/recruitingrplogo.png" alt="High School Recruiting RP Logo" class="rp-module-logo">
-          <div class="rp-status live">● LIVE NOW</div>
+  <section class="section">
+    <div class="container">
+      <div class="card rp-crosslink">
+        <div>
+          <span class="eyebrow">Real-world coverage</span>
+          <h2>Looking for the real 2027 class?</h2>
+          <p>BYTHERIM's big board ranks the actual prospects in the 2027 NBA Draft.</p>
         </div>
-        <h3>High School Recruiting Hub</h3>
-        <p>Explore class rankings, prospect profiles, offer tracking, and live commitment announcements.</p>
-        <a href="../recruiting/" class="cta-btn module-btn">Launch Recruiting Hub →</a>
-      </article>
-
-      <article class="card rp-card active-module">
-        <div class="rp-card-header">
-          <img src="./ncaarplogo.png" alt="NCAA RP Logo" class="rp-module-logo">
-          <div class="rp-status live">● LIVE NOW</div>
-        </div>
-        <h3>College Career Simulation</h3>
-        <p>Track team standings, player development arcs, national award races, and tournament brackets.</p>
-        <a href="./ncaa.html" class="cta-btn module-btn">Launch NCAA Sim →</a>
-      </article>
-
-      <article class="card rp-card active-module">
-        <div class="rp-card-header">
-          <img src="./draftrplogo.png" alt="NBA Draft RP Logo" class="rp-module-logo">
-          <div class="rp-status live">● LIVE NOW</div>
-        </div>
-        <h3>NBA Draft & Pro League</h3>
-        <p>Pro scouting reports, draft stock movements, combine metrics, and franchise trajectory logs.</p>
-        <a href="./draft.html" class="cta-btn module-btn">Launch Draft Hub →</a>
-      </article>
-
-    </div>
-  </main>
-
-  <div class="donate-card">
-    <h3>Fuel Independent Scouting</h3>
-    <p>
-      BYTHERIM is self-funded and operated independently. Contributions directly support server compute for the Recruiting Portal database, live scouting event operations, and video editing tools.
-    </p>
-    <a href="https://ko-fi.com" target="_blank" rel="noopener" class="donate-btn">
-      <span class="btn-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M2 21h18v-2H2v2zm2-4h14V5H4v12zm2-10h10v8H6V7zm14 1h2v5h-2V8zm0-2c1.1 0 2 .9 2 2v5c0 1.1-.9 2-2 2h-2V6h2z"/>
-        </svg>
-      </span>
-      <span>Support the Platform</span>
-    </a>
-  </div>
-
-  <footer class="footer">
-    <div class="footer-container">
-      <div class="footer-brand">
-        <img src="../logo.png" alt="BYTHERIM Logo" class="footer-logo">
-        <p class="footer-desc">In-depth draft analysis, film breakdowns, and NBA discourse.</p>
-      </div>
-      
-      <div class="footer-column">
-        <h4>Navigation</h4>
-        <a href="../">Home</a>
-        <a href="../podcast.html">Podcast</a>
-        <a href="../draft.html">Draft</a>
-        <a href="../nba.html">NBA</a>
-        <a href="../about.html">About</a>
-        <a href="./">BYTHERIM RP</a>
-      </div>
-
-      <div class="footer-column">
-        <h4>Platforms</h4>
-        <a href="https://youtube.com/@bytherim" target="_blank" rel="noopener">YouTube</a>
-        <a href="https://open.spotify.com" target="_blank" rel="noopener">Spotify</a>
-        <a href="https://x.com/collinbutr" target="_blank" rel="noopener">X / Twitter</a>
-        <a href="https://collindunks.substack.com" target="_blank" rel="noopener">Substack</a>
+        <a class="btn btn-ghost" href="../draft.html">2027 Big Board</a>
       </div>
     </div>
+  </section>
 
-    <div class="footer-bottom">
-      <p>© 2026 BYTHERIM. All rights reserved.</p>
+  <!-- Shown only once a support link is set in assets/site.js (CONFIG.supportUrl). -->
+  <section class="section" data-support>
+    <div class="container">
+      <div class="card support-block">
+        <h2>Fuel independent scouting</h2>
+        <p>BYTHERIM is self-funded and independently run. Support keeps the recruiting database, the sim and the film work going.</p>
+        <a class="btn btn-primary" data-support-link href="#" target="_blank" rel="noopener">Support BYTHERIM</a>
+      </div>
     </div>
-  </footer>
-
-  <script>
-    const navToggle = document.getElementById('navToggle');
-    const navLinks = document.getElementById('navLinks');
-
-    if (navToggle && navLinks) {
-      navToggle.addEventListener('click', () => {
-        navToggle.classList.toggle('active');
-        navLinks.classList.toggle('active');
-      });
-    }
-  </script>
-
+  </section>
+</main>
 </body>
 </html>
