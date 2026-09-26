@@ -10,6 +10,8 @@
      Freshmen on the board are skipped, since a same-named college player
      from last season would be someone else.
    - This season: filled in automatically once games have been played.
+   - Past boards (sheet tabs named like "2025 Board"): each prospect's
+     season leading into that draft.
 
    Matching is by name. Nicknames and one-letter spelling differences
    ("Cam"/"Cameron", "Cadeu"/"Cadeau") are matched too, but only when the
@@ -36,7 +38,6 @@ if (!SHEET || !DRAFT_YEAR) throw new Error('Could not read the sheet URL / draft
 
 // Barttorvik names seasons by the year they end: 2026 = 2025-26.
 const seasonLabel = y => `${y - 1}-${String(y).slice(2)}`;
-const SEASONS = [DRAFT_YEAR - 1, DRAFT_YEAR]; // last season, this season
 const torvikUrl = y => `https://barttorvik.com/getadvstats.php?year=${y}&csv=1`;
 
 // Column positions in Barttorvik's player file (it has no header row).
@@ -155,6 +156,18 @@ function pick(p, cands) {
   return { ambiguous: cands.length };
 }
 
+// Common short forms that aren't just the start of the full name.
+const NICKNAMES = {
+  nate: 'nathan', nathaniel: 'nathan', matt: 'matthew', mike: 'michael', rob: 'robert', bob: 'robert', bobby: 'robert',
+  will: 'william', bill: 'william', billy: 'william', liam: 'william', alex: 'alexander', zach: 'zachary', zack: 'zachary',
+  josh: 'joshua', chris: 'christopher', tony: 'anthony', jon: 'jonathan', johnny: 'john', dan: 'daniel', danny: 'daniel',
+  dave: 'david', ed: 'edward', eddie: 'edward', tom: 'thomas', tommy: 'thomas', andy: 'andrew', drew: 'andrew',
+  jake: 'jacob', joe: 'joseph', joey: 'joseph', nick: 'nicholas', ben: 'benjamin', sam: 'samuel', jim: 'james',
+  jimmy: 'james', jamie: 'james', steve: 'steven', stephen: 'steven', greg: 'gregory', jeff: 'jeffrey', ken: 'kenneth',
+  kenny: 'kenneth', larry: 'lawrence', manny: 'emmanuel', mo: 'mohamed', mohammed: 'mohamed', muhammad: 'mohamed'
+};
+const canonFirst = f => NICKNAMES[f] || f;
+
 function findPlayer(p, rows, byName) {
   const key = nameKey(p.lookup);
   // 1. Exact name.
@@ -170,7 +183,7 @@ function findPlayer(p, rows, byName) {
     const k = nameKey(r[C.name]);
     const [f2, ...r2] = k.split(' ');
     const l2 = r2.join(' ');
-    const nickname = l2 === last && first.length >= 2 && f2.length >= 2 && (f2.startsWith(first) || first.startsWith(f2));
+    const nickname = l2 === last && first.length >= 2 && f2.length >= 2 && (f2.startsWith(first) || first.startsWith(f2) || canonFirst(f2) === canonFirst(first));
     const typo = editDistance(k, key) <= 2 && k[0] === key[0];
     return (nickname || typo) && (sameSchool(p, r) || dobClose(p, r)) && dobOk(p, r);
   });
@@ -179,29 +192,75 @@ function findPlayer(p, rows, byName) {
   return { row: null };
 }
 
-// ------------------------------------------------------------ board
-const boardRows = parseCSV(await get(SHEET));
-const header = boardRows.shift().map(h => h.trim().toLowerCase());
-const col = (...names) => names.map(n => header.indexOf(n)).find(i => i >= 0);
-const iName = col('name', 'prospect', 'player'), iDob = col('dob', 'date of birth', 'birthdate');
-const iClass = col('class', 'year'), iSchool = col('school', 'school/team', 'team', 'college');
-const iStatsName = col('stats name', 'torvik name');
+// ------------------------------------------------------------ boards
+// The current board is the sheet's first tab. Past boards are any tab
+// named with a year and "Board" ("2025 Board"), found through the
+// published sheet's HTML page, which lists every tab and its id.
+const PUB_BASE = SHEET.replace(/\/pub(html)?\?.*$/, '');
+async function listBoards() {
+  const boards = [{ year: DRAFT_YEAR, url: SHEET, current: true }];
+  try {
+    const html = await get(`${PUB_BASE}/pubhtml`);
+    const re = /items\.push\(\{name: "((?:[^"\\]|\\.)*)",[^}]*?gid: "(-?\d+)"/g;
+    let m;
+    while ((m = re.exec(html))) {
+      const name = m[1].replace(/\\x([0-9a-f]{2})/gi, (_, h) => String.fromCharCode(parseInt(h, 16))).replace(/\\(.)/g, '$1');
+      const year = +((name.match(/\b(?:19|20)\d{2}\b/) || [])[0]);
+      if (!year || !/board/i.test(name) || boards.some(b => b.year === year)) continue;
+      boards.push({ year, url: `${PUB_BASE}/pub?gid=${m[2]}&single=true&output=csv` });
+    }
+  } catch (e) { report.push(`Past boards: couldn't read the sheet's tab list (${e.message})`); }
+  return boards;
+}
 
-const prospects = boardRows.map(r => ({
-  id: slug(r[iName] || ''),
-  name: (r[iName] || '').trim(),
-  lookup: ((iStatsName != null && r[iStatsName]) || r[iName] || '').trim(),
-  dob: isoDate(iDob != null ? r[iDob] : ''),
-  cls: (iClass != null ? r[iClass] : '').trim().toUpperCase(),
-  school: (iSchool != null ? r[iSchool] : '').trim(),
-  isPro: /^pro$/i.test((iSchool != null ? r[iSchool] : '').trim())
-})).filter(p => p.name);
+async function loadProspects(url) {
+  const boardRows = parseCSV(await get(url));
+  const header = boardRows.shift().map(h => h.trim().toLowerCase());
+  const col = (...names) => names.map(n => header.indexOf(n)).find(i => i >= 0);
+  const iName = col('name', 'prospect', 'player'), iDob = col('dob', 'date of birth', 'birthdate');
+  const iClass = col('class', 'year'), iSchool = col('school', 'school/team', 'team', 'college');
+  const iStatsName = col('stats name', 'torvik name');
+  return boardRows.map(r => ({
+    id: slug(r[iName] || ''),
+    name: (r[iName] || '').trim(),
+    lookup: ((iStatsName != null && r[iStatsName]) || r[iName] || '').trim(),
+    dob: isoDate(iDob != null ? r[iDob] : ''),
+    cls: (iClass != null ? r[iClass] : '').trim().toUpperCase(),
+    school: (iSchool != null ? r[iSchool] : '').trim(),
+    isPro: /^pro$/i.test((iSchool != null ? r[iSchool] : '').trim())
+  })).filter(p => p.name);
+}
 
 // ------------------------------------------------------------ seasons
 const out = { updated: new Date().toISOString(), source: 'barttorvik.com', seasons: {} };
 const report = [];
 
-for (const year of SEASONS) {
+// Which Barttorvik season each board needs:
+//   current board  -> last season (returning players) and this season
+//   past board     -> the season that led into that draft
+const jobs = new Map(); // year -> [{ prospects, why, skip }]
+const addJob = (year, job) => (jobs.get(year) || jobs.set(year, []).get(year)).push(job);
+// A past-board tab that's still a copy of the current board (same
+// prospects, same order) hasn't been filled in yet; skip it.
+const signature = list => list.slice(0, 15).map(p => p.id).join('|');
+let currentSignature = null;
+for (const b of await listBoards()) {
+  let prospects;
+  try { prospects = await loadProspects(b.url); }
+  catch (e) { report.push(`${b.year} board: could not download (${e.message})`); continue; }
+  if (b.current) currentSignature = signature(prospects);
+  else if (signature(prospects) === currentSignature) { report.push(`${b.year} board: still a copy of the ${DRAFT_YEAR} board; skipped until it's filled in`); continue; }
+  if (b.current) {
+    // Freshmen and internationals weren't in college last season, so a
+    // same-named player from then would be someone else.
+    addJob(DRAFT_YEAR - 1, { prospects, why: 'last season', skip: p => p.cls === 'FR' || p.cls === 'INTL', listMisses: true });
+    addJob(DRAFT_YEAR, { prospects, why: 'this season', skip: () => false });
+  } else {
+    addJob(b.year, { prospects, why: `${b.year} board`, skip: p => p.cls === 'INTL', listMisses: true });
+  }
+}
+
+for (const [year, yearJobs] of [...jobs].sort((a, b) => a[0] - b[0])) {
   const label = seasonLabel(year);
   let rows;
   try { rows = parseCSV(await get(torvikUrl(year))); }
@@ -215,21 +274,23 @@ for (const year of SEASONS) {
   const byName = new Map();
   rows.forEach(r => { const k = nameKey(r[C.name]); (byName.get(k) || byName.set(k, []).get(k)).push(r); });
 
-  const isLastSeason = year === DRAFT_YEAR - 1;
-  const season = {};
-  const unmatched = [];
-  for (const p of prospects) {
-    if (p.isPro) continue;                                     // pros aren't in the D-I file
-    if (isLastSeason && (p.cls === 'FR' || p.cls === 'INTL')) continue; // weren't in college last year
-    const m = findPlayer(p, rows, byName);
-    if (m.ambiguous) { report.push(`${label}: ${p.name} matched ${m.ambiguous} players that can't be told apart; skipped`); continue; }
-    if (!m.row) { if (isLastSeason) unmatched.push(p.name); continue; }
-    if (m.fuzzy) report.push(`${label}: matched "${p.lookup}" to Barttorvik's "${m.row[C.name]}" (${m.row[C.team]}) — check the spelling on the sheet`);
-    season[p.id] = statLine(m.row);
+  const season = out.seasons[label] || (out.seasons[label] = {});
+  for (const job of yearJobs) {
+    const unmatched = [];
+    let found = 0;
+    for (const p of job.prospects) {
+      if (p.isPro || job.skip(p) || season[p.id]) { if (season[p.id]) found++; continue; }
+      const m = findPlayer(p, rows, byName);
+      if (m.ambiguous) { report.push(`${label}: ${p.name} matched ${m.ambiguous} players that can't be told apart; skipped`); continue; }
+      if (!m.row) { if (job.listMisses) unmatched.push(p.name); continue; }
+      if (m.fuzzy) report.push(`${label}: matched "${p.lookup}" to Barttorvik's "${m.row[C.name]}" (${m.row[C.team]}) — check the spelling on the sheet`);
+      season[p.id] = statLine(m.row);
+      found++;
+    }
+    report.push(`${label} (${job.why}): stats for ${found} prospects`);
+    if (unmatched.length) report.push(`${label} (${job.why}): no D-I line found for ${unmatched.join(', ')} (add a "Stats Name" column if the spelling differs)`);
   }
-  out.seasons[label] = season;
-  report.push(`${label}: stats for ${Object.keys(season).length} prospects`);
-  if (unmatched.length) report.push(`${label}: no D-I line found for ${unmatched.join(', ')} (add a "Stats Name" column if the spelling differs)`);
+  if (!Object.keys(season).length) delete out.seasons[label];
 }
 
 mkdirSync(dirname(OUT), { recursive: true });
