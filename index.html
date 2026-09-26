@@ -129,7 +129,7 @@
     document.getElementById('boardTeaser').innerHTML = top.map(p => `
       <li><a href="draft.html#${p.id}">
         <span class="bt-rank">${p.rank}</span>
-        <img class="bt-logo" src="${esc(p.isPro ? initialsBadge('PRO') : schoolLogo(p.school))}" alt="" onerror="this.onerror=null;this.src='${initialsBadge(p.school || '?')}'">
+        <img class="bt-logo" src="${esc(schoolLogo(p.isPro ? 'pro' : p.school))}" alt="" onerror="this.onerror=null;this.src='${initialsBadge(p.school || '?')}'">
         <span style="min-width:0"><span class="bt-name">${esc(p.name)}</span><span class="bt-sub">${esc(p.school)} · ${esc(p.archetype || p.cls)}</span></span>
         <span class="bt-pos">${esc(p.pos)}</span>
       </a></li>`).join('');

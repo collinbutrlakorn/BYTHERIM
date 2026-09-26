@@ -82,16 +82,25 @@
   const CLASSES = ['FR', 'SO', 'JR', 'SR', 'INTL'];
   const CLASS_LABEL = { FR: 'Freshman', SO: 'Sophomore', JR: 'Junior', SR: 'Senior', INTL: 'International' };
 
-  const state = { all: [], q: '', pos: 'ALL', cls: 'ALL', radarOpen: false, openId: null };
+  const state = { all: [], q: '', pos: 'ALL', cls: 'ALL', radarOpen: false, openId: null, season: {}, hasPrev: false };
 
   const tierColor = t => TIER_COLORS[t] || 'var(--faint)';
   const tierLabel = t => (t == null ? 'Unassigned' : `Tier ${t}`);
 
   function logoFor(p) {
-    return p.isPro ? initialsBadge('PRO') : schoolLogo(p.school);
+    return schoolLogo(p.isPro ? 'pro' : p.school); // schoollogos/pro.png for pros
   }
   function photoFor(p) {
     return p.image || initialsBadge(p.name);
+  }
+
+  // Movement since the last edition, when the sheet has a Prev Rank column.
+  function moveHTML(p) {
+    if (!state.hasPrev || p.rank == null) return '';
+    if (p.prevRank == null) return '<span class="bd-move new" title="New to the board">New</span>';
+    const d = p.prevRank - p.rank;
+    if (!d) return '';
+    return `<span class="bd-move ${d > 0 ? 'up' : 'down'}" title="${d > 0 ? 'Up' : 'Down'} ${Math.abs(d)} from #${p.prevRank}">${d > 0 ? '▲' : '▼'}${Math.abs(d)}</span>`;
   }
 
   // ------------------------------------------------------------ rows
@@ -104,7 +113,7 @@
     return `
 <article class="pr${open ? ' open' : ''}" id="p-${p.id}" style="--tier:${tierColor(p.tier)}">
   <button class="pr-main" type="button" aria-expanded="${open}" aria-controls="d-${p.id}" data-id="${p.id}">
-    <span class="pr-rank${p.rank == null ? ' unranked' : ''}">${p.rank != null ? p.rank : 'NR'}</span>
+    <span class="pr-rank${p.rank == null ? ' unranked' : ''}">${p.rank != null ? p.rank : 'NR'}${moveHTML(p)}</span>
     <img class="pr-photo" src="${esc(photoFor(p))}" alt="" loading="lazy" onerror="this.onerror=null;this.src='${initialsBadge(p.name)}'">
     <span class="pr-id">
       <span class="pr-name">${esc(p.name)}</span>
@@ -125,6 +134,25 @@
   }
 
   function detailHTML(p) {
+    const { facts, report, lists } = detailFacts(p);
+    const stats = statsHTML(p);
+    const film = p.film ? `<a class="btn btn-ghost btn-sm" href="${esc(p.film)}" target="_blank" rel="noopener">Watch film</a>` : '';
+    return `
+<img class="pr-bigphoto" src="${esc(photoFor(p))}" alt="${esc(p.name)}" loading="lazy" onerror="this.onerror=null;this.src='${initialsBadge(p.name)}'">
+<div>
+  <dl class="pr-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
+  <h4>${esc(p.archetype || 'Scouting report')}</h4>
+  ${report}
+  ${lists}
+  ${stats}
+  <div class="pr-actions">
+    ${film}
+    <button class="btn btn-ghost btn-sm" type="button" data-copy="${p.id}">Copy link</button>
+  </div>
+</div>`;
+  }
+
+  function detailFacts(p) {
     const facts = [
       ['Board rank', p.rank != null ? `#${p.rank}` : 'On the radar'],
       ['Tier', p.tier != null ? p.tier : '—'],
@@ -132,39 +160,62 @@
       ['Class', CLASS_LABEL[p.cls] || p.cls],
       ['Height', p.height],
       ['Weight', p.weight ? `${p.weight} lbs` : ''],
+      ['Wingspan', p.wingspan],
       ['Draft-night age', p.age != null ? p.age.toFixed(1) : ''],
       ['Born', p.dob],
       ['School', p.isPro ? 'Professional' : p.school],
-      ['Conference', p.conference]
+      ['Conference', p.conference],
+      ['Previous rank', state.hasPrev && p.prevRank != null ? `#${p.prevRank}` : ''],
+      ['NBA comparison', p.comp]
     ].filter(([, v]) => v !== '' && v != null);
 
     const report = p.scouting
       ? `<p class="pr-report">${esc(p.scouting)}</p>`
       : `<p class="pr-note">Full scouting report coming soon.</p>`;
 
-    let stats;
-    if (p.hasStats) {
-      stats = `<div class="pr-stats">${BOARD.STAT_GROUPS.map(g => {
-        const cells = g.stats.filter(([k]) => p.stats[k] != null)
-          .map(([k, label]) => `<span class="stat"><b>${esc(p.stats[k])}</b><i>${label}</i></span>`).join('');
-        return cells ? `<div class="pr-statgroup"><span class="pr-statlabel">${g.title}</span>${cells}</div>` : '';
-      }).join('')}</div>`;
-    } else {
-      // No real numbers yet — say so once, rather than a grid of dashes.
-      stats = `<p class="pr-note" style="margin-top:1rem">${p.isPro ? 'Professional stats' : '2026-27 season stats'} will appear here once the season is underway.</p>`;
-    }
+    const lists = (p.strengths.length || p.weaknesses.length) ? `
+  <div class="pr-lists">
+    ${p.strengths.length ? `<div class="pr-list plus"><h5>Strengths</h5><ul>${p.strengths.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+    ${p.weaknesses.length ? `<div class="pr-list minus"><h5>Weaknesses</h5><ul>${p.weaknesses.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
+  </div>` : '';
 
+    return { facts, report, lists };
+  }
+
+  // Newest season first. A prospect with last season's numbers but none
+  // yet this season shows last season, labelled as such.
+  function statsHTML(p) {
+    if (!p.hasStats) {
+      const what = p.isPro ? 'Professional stats' : `${BOARD.CURRENT_SEASON} stats`;
+      return `<p class="pr-note" style="margin-top:1rem">${what} will appear here once the season is underway.</p>`;
+    }
+    const i = Math.min(state.season[p.id] || 0, p.seasons.length - 1);
+    const s = p.seasons[i];
+    const tabs = p.seasons.length > 1
+      ? `<div class="chip-group season-tabs">${p.seasons.map((x, j) =>
+          `<button type="button" class="chip${j === i ? ' active' : ''}" data-season="${p.id}:${j}">${esc(x.label)}</button>`).join('')}</div>`
+      : '';
+    const heading = s.label === BOARD.LAST_SEASON ? `Last season · ${s.label}` : `${s.label} season`;
+    const meta = [s.team, s.gp ? `${s.gp} games` : '', s.mpg ? `${s.mpg} min` : ''].filter(Boolean).join(' · ');
+    const pending = p.seasons.length === 1 && s.label === BOARD.LAST_SEASON
+      ? `<p class="pr-note pr-stats-note">${BOARD.CURRENT_SEASON} numbers replace these once he's played.</p>` : '';
+    const source = s.source === 'barttorvik'
+      ? `<a class="pr-source" href="https://barttorvik.com/playerstat.php?link=y&year=${s.label.slice(0, 2)}${s.label.slice(-2)}&p=${encodeURIComponent(s.torvikName || p.name)}&t=${encodeURIComponent(s.team || '')}" target="_blank" rel="noopener">Barttorvik</a>`
+      : '';
     return `
-<img class="pr-bigphoto" src="${esc(photoFor(p))}" alt="${esc(p.name)}" loading="lazy" onerror="this.onerror=null;this.src='${initialsBadge(p.name)}'">
-<div>
-  <dl class="pr-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
-  <h4>${esc(p.archetype || 'Scouting report')}</h4>
-  ${report}
-  ${stats}
-  <div class="pr-actions">
-    <button class="btn btn-ghost btn-sm" type="button" data-copy="${p.id}">Copy link</button>
-  </div>
-</div>`;
+  <div class="pr-stats">
+    <div class="pr-stats-head">
+      <div><h5>${esc(heading)}</h5>${meta ? `<span>${esc(meta)}</span>` : ''}</div>
+      ${tabs}
+    </div>
+    ${BOARD.STAT_GROUPS.map(g => {
+      const cells = g.stats.filter(([k]) => s.stats[k] != null)
+        .map(([k, label]) => `<span class="stat"><b>${esc(s.stats[k])}</b><i>${label}</i></span>`).join('');
+      return cells ? `<div class="pr-statgroup"><span class="pr-statlabel">${g.title}</span>${cells}</div>` : '';
+    }).join('')}
+    ${pending}
+    ${source ? `<span class="pr-stats-foot">College stats via ${source}</span>` : ''}
+  </div>`;
   }
 
   // Groups a list into tier sections, keeping board order within each.
@@ -259,6 +310,8 @@
     const cls = e.target.closest('[data-cls]');
     if (cls) { state.cls = cls.dataset.cls; renderChips(); return render(); }
     if (e.target.closest('#radarToggle')) { state.radarOpen = !state.radarOpen; return render(); }
+    const season = e.target.closest('[data-season]');
+    if (season) { const [id, j] = season.dataset.season.split(':'); state.season[id] = +j; return render(); }
     const copy = e.target.closest('[data-copy]');
     if (copy) {
       const url = `${location.origin}${location.pathname}#${copy.dataset.copy}`;
@@ -266,6 +319,12 @@
         .then(() => { copy.textContent = 'Link copied'; setTimeout(() => { copy.textContent = 'Copy link'; }, 1600); })
         .catch(() => prompt('Copy this link:', url));
     }
+  });
+
+  // Following a #prospect link while already on the board opens that profile.
+  window.addEventListener('hashchange', () => {
+    const id = decodeURIComponent(location.hash.slice(1));
+    if (id && id !== state.openId && state.all.some(p => p.id === id)) toggleProspect(id, true);
   });
 
   let t;
@@ -277,6 +336,7 @@
   // ------------------------------------------------------------ load
   BOARD.loadBoard().then(rows => {
     state.all = rows;
+    state.hasPrev = rows.some(p => p.prevRank != null);
     renderChips();
     renderSummary();
     const hash = decodeURIComponent(location.hash.slice(1));
