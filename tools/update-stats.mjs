@@ -155,7 +155,9 @@ function bbrefTables(html) {
     tables[m[1]] = [...body.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map(tr => {
       const row = {};
       for (const c of tr[1].matchAll(/<(?:th|td)[^>]*data-stat="([^"]+)"[^>]*>([\s\S]*?)<\/(?:th|td)>/g)) {
-        row[c[1]] = c[2].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').trim();
+        row[c[1]] = c[2].replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ')
+          .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n)).replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
+          .replace(/&amp;/g, '&').trim();
       }
       return row;
     }).filter(r => /^\d{4}-\d{2}$/.test(r.season || ''));
@@ -196,7 +198,13 @@ function parseBbref(html, url) {
   const seasons = [];
   if (/\/international\//i.test(url)) {
     // One row per season and competition, as Basketball-Reference lists them.
-    for (const r of tables['player-stats-totals-all-'] || []) {
+    // Players with only a domestic league (or only tournaments) have no
+    // combined "all" table, just the league / tournament ones.
+    const all = tables['player-stats-totals-all-'];
+    const rows = all && all.length ? all
+      : [...(tables['player-stats-totals-league-'] || []), ...(tables['player-stats-totals-tournament-'] || [])]
+          .sort((a, b) => a.season.localeCompare(b.season));
+    for (const r of rows) {
       if (!num(r.g)) continue;
       seasons.push({ label: r.season, team: [r.team, r.league && `(${r.league})`].filter(Boolean).join(' '), stats: lineFromTotals(sumTotals([r])) });
     }

@@ -1,5 +1,6 @@
-// Covers the recruiting page's chrome: the universal BYTHERIM header and
-// footer are present and point at the right paths, the section masthead
+// Covers the recruiting page's chrome: the shared BYTHERIM header and
+// footer (assets/chrome.css + site.js, same as every other page), the
+// section masthead
 // leads with the recruiting logo, the accent is sampled from that logo
 // rather than the NCAA RP's blue, and school marks are shown uncropped.
 const fs=require("fs"),vm=require("vm"),path=require("path");const {JSDOM}=require("jsdom");
@@ -10,22 +11,22 @@ const css=fs.readFileSync(R+'style.css','utf8');
 // The main site's header is generated from CONFIG.nav in assets/site.js.
 const siteJs=fs.readFileSync(path.join(__dirname,'..','..','assets','site.js'),'utf8');
 
-// --- universal header matches the main site ---
-['podcast.html','draft.html','nba.html','about.html'].forEach(p=>{
-  ok(html.includes('../'+p),`universal nav links ${p} (path stepped up one level)`);});
-ok(html.includes('href="../rp/"'),'links to the RP sim');
-ok(html.includes('href="../"'),'BYTHERIM logo returns to the site home');
+// --- shared header and footer, same as the rest of the site ---
+ok(html.includes('href="../assets/chrome.css"')&&html.includes('src="../assets/site.js"'),'loads the shared header and footer');
+ok(html.indexOf('../assets/chrome.css')<html.indexOf('href="style.css"'),'shared chrome loads before the recruiting styles');
+ok(html.includes("BTR.mount('rp', { base: '../' })"),'header mounted with a ../ base path, under BYTHERIM RP');
+ok(html.indexOf("BTR.mount(")<html.indexOf('recruiting-header'),'site header sits above the section masthead');
+ok(!html.includes('class="navbar"')&&!html.includes('class="footer"')&&!html.includes('footerYear'),'old hand-copied header and footer removed');
+ok(!html.includes('bytherim-recruiting-theme')&&!html.includes('toggleTheme'),'no separate theme switch; the site header button owns it');
 const navBlock=(siteJs.match(/nav:\s*\[([\s\S]*?)\]/)||['',''])[1];
-const mainItems=[...navBlock.matchAll(/label:\s*'([^']+)'/g)].map(m=>m[1]);
-ok(mainItems.length>=4,'main-site nav read from assets/site.js');
-const ourNav=(html.match(/<nav class="nav-links"[\s\S]*?<\/nav>/)||[''])[0];
-const missing=mainItems.filter(t=>t&&!ourNav.includes(t));
-ok(missing.length===0,'every main-site nav item present: '+mainItems.join(', '));
+ok([...navBlock.matchAll(/label:\s*'([^']+)'/g)].length>=4,'main-site nav comes from assets/site.js');
+// Host-page rules for bare header/nav elements can't reach the shared header.
+const chrome=fs.readFileSync(path.join(__dirname,'..','..','assets','chrome.css'),'utf8');
+ok(/\.site-header\s*\{\s*display:\s*block;\s*padding:\s*0/.test(chrome),'chrome.css resets padding/layout a page might put on <header>');
 
-// --- logo.png moved out of the recruiting header ---
-const recHeader=(html.match(/<div class="recruiting-header">[\s\S]*?<\/div>\s*<\/div>/)||[''])[0];
-ok(!recHeader.includes('logo.png')||recHeader.includes('recruitingrplogo'),'main logo no longer sits in the recruiting header');
-ok(html.indexOf('class="navbar"')<html.indexOf('recruiting-header'),'universal header sits above the section header');
+// --- About tab removed (the main site has one); its dead feedback form too ---
+ok(!/switchTab\('about'\)/.test(html)&&!html.includes('about-tab'),'no About Me tab');
+ok(!html.includes('feedback-form'),'feedback form (which never sent anywhere) removed');
 
 // --- recruiting logo large and left ---
 ok(html.includes('recruiting-logo-img'),'recruiting logo has its own class');
@@ -44,10 +45,6 @@ ok(/\.school-logo,[\s\S]{0,140}object-fit:\s*contain/.test(css),'school logos us
 ok(/\.school-logo,[\s\S]{0,140}border-radius:\s*0/.test(css),'school logos are no longer circles');
 ok(/\.player-avatar-sm\s*\{[^}]*border-radius:\s*50%/.test(css),'player avatars stay circular');
 
-// --- footer ---
-ok(html.includes('footer-container')&&html.includes('footer-bottom'),'universal footer present');
-ok(html.includes('footerYear'),'footer year is set dynamically');
-
 // --- page still boots ---
 const d=new JSDOM(html,{url:"http://localhost/recruiting/",runScripts:"outside-only"});
 const w=d.window,c=d.getInternalVMContext();
@@ -58,6 +55,5 @@ w.alert=()=>{};
 vm.runInContext(fs.readFileSync(R+'app.js','utf8'),c,{filename:'app.js'});
 w.onload();
 ok(vm.runInContext('recruits.length',c)===1,'page still parses recruits after the restructure');
-vm.runInContext('toggleTheme()',c);
-ok(w.document.documentElement.getAttribute('data-theme')==='light','theme toggle still works from the new header');
+ok(!/function submitFeedback/.test(fs.readFileSync(R+'app.js','utf8')),'feedback handler removed from app.js');
 console.log("\nHeader, footer and branding verified.");

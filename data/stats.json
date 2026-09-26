@@ -1,5 +1,5 @@
 {
- "updated": "2026-09-26T15:31:08.032Z",
+ "updated": "2026-09-26T20:47:23.058Z",
  "source": "barttorvik.com, basketball-reference.com",
  "seasons": {
   "2022-23": {
@@ -6669,5 +6669,476 @@
    }
   }
  },
- "pro": {}
+ "pro": {
+  "stefan-joksimovic": {
+   "url": "https://www.basketball-reference.com/international/players/stefan-joksimovic-1.html",
+   "seasons": [
+    {
+     "label": "2025-26",
+     "team": "Baskonia (EuroLeague)",
+     "stats": {
+      "G": "11",
+      "MP": "5.9",
+      "PTS": "0.6",
+      "REB": "0.5",
+      "AST": "0.3",
+      "STL": "0.3",
+      "BLK": "0.0",
+      "TS%": "25.0%",
+      "eFG%": "25.0%",
+      "2P%": "33.3%",
+      "3P%": "12.5%",
+      "3Pr": "0.57",
+      "FTr": "0.00"
+     }
+    },
+    {
+     "label": "2025-26",
+     "team": "Baskonia (Liga ACB)",
+     "stats": {
+      "G": "10",
+      "MP": "8.3",
+      "PTS": "2.9",
+      "REB": "1.1",
+      "AST": "0.9",
+      "STL": "0.3",
+      "BLK": "0.0",
+      "TS%": "50.8%",
+      "eFG%": "52.0%",
+      "2P%": "40.0%",
+      "3P%": "40.0%",
+      "FT%": "37.5%",
+      "3Pr": "0.60",
+      "FTr": "0.32"
+     }
+    }
+   ]
+  },
+  "klark-riethauser": {
+   "url": "https://www.basketball-reference.com/international/players/klark-riethauser-1.html",
+   "seasons": [
+    {
+     "label": "2025-26",
+     "team": "Élan Chalon (LNB Élite)",
+     "stats": {
+      "G": "3",
+      "MP": "12.7",
+      "PTS": "0.0",
+      "REB": "0.0",
+      "AST": "0.0",
+      "STL": "0.0",
+      "BLK": "0.0"
+     }
+    }
+   ]
+  },
+  "hugo-yimga-makouri": {
+   "url": "https://www.basketball-reference.com/international/players/hugo-yimga-moukouri-1.html",
+   "seasons": [
+    {
+     "label": "2025-26",
+     "team": "Nanterre 92 (LNB Élite)",
+     "stats": {
+      "G": "29",
+      "MP": "18.4",
+      "PTS": "8.9",
+      "REB": "3.8",
+      "AST": "0.3",
+      "STL": "0.4",
+      "BLK": "0.2",
+      "TS%": "86.5%",
+      "eFG%": "66.1%",
+      "2P%": "75.0%",
+      "3P%": "40.5%",
+      "FT%": "84.7%",
+      "3Pr": "0.63",
+      "FTr": "0.61"
+     }
+    }
+   ]
+  },
+  "marc-owen-fodzo-dada": {
+   "url": "https://www.basketball-reference.com/international/players/marc-owen-fodzo-dada-1.html",
+   "seasons": [
+    {
+     "label": "2024-25",
+     "team": "Nancy (LNB Élite)",
+     "stats": {
+      "G": "7",
+      "MP": "5.6",
+      "PTS": "1.4",
+      "REB": "1.0",
+      "AST": "0.4",
+      "STL": "0.6",
+      "BLK": "0.3",
+      "TS%": "36.0%",
+      "eFG%": "34.6%",
+      "2P%": "33.3%",
+      "3P%": "25.0%",
+      "FT%": "50.0%",
+      "3Pr": "0.31",
+      "FTr": "0.15"
+     }
+    },
+    {
+     "label": "2025-26",
+     "team": "Nancy (LNB Élite)",
+     "stats": {
+      "G": "29",
+      "MP": "13.3",
+      "PTS": "6.0",
+      "REB": "1.1",
+      "AST": "1.9",
+      "STL": "0.5",
+      "BLK": "0.1",
+      "TS%": "83.0%",
+      "eFG%": "56.3%",
+      "2P%": "75.8%",
+      "3P%": "28.3%",
+      "FT%": "63.3%",
+      "3Pr": "0.58",
+      "FTr": "0.76"
+     }
+    }
+   ]
+  },
+  "cameron-houindo": {
+   "url": "https://www.basketball-reference.com/international/players/cameron-houindo-1.html",
+   "seasons": [
+    {
+     "label": "2025-26",
+     "team": "Cedevita Olimpija (EuroCup)",
+     "stats": {
+      "G": "8",
+      "MP": "6.9",
+      "PTS": "2.6",
+      "REB": "1.5",
+      "AST": "0.3",
+      "STL": "0.0",
+      "BLK": "0.0",
+      "TS%": "47.6%",
+      "eFG%": "46.7%",
+      "2P%": "50.0%",
+      "3P%": "0.0%",
+      "FT%": "43.8%",
+      "3Pr": "0.07",
+      "FTr": "1.07"
+     }
+    },
+    {
+     "label": "2025-26",
+     "team": "KK Cedevita Olimpija (ABA)",
+     "stats": {
+      "G": "14",
+      "MP": "13.0",
+      "PTS": "4.1",
+      "REB": "2.6",
+      "AST": "0.7",
+      "STL": "0.4",
+      "BLK": "0.6",
+      "TS%": "50.9%",
+      "eFG%": "48.9%",
+      "2P%": "55.0%",
+      "3P%": "0.0%",
+      "FT%": "52.0%",
+      "3Pr": "0.11",
+      "FTr": "0.56"
+     }
+    }
+   ]
+  },
+  "dash-daniels": {
+   "url": "https://www.basketball-reference.com/international/players/dash-daniels-1.html",
+   "seasons": [
+    {
+     "label": "2025-26",
+     "team": "Melbourne (NBL)",
+     "stats": {
+      "G": "33",
+      "MP": "14.2",
+      "PTS": "4.2",
+      "REB": "2.3",
+      "AST": "0.8",
+      "STL": "0.6",
+      "BLK": "0.2",
+      "TS%": "48.3%",
+      "eFG%": "48.9%",
+      "2P%": "44.6%",
+      "3P%": "37.5%",
+      "FT%": "37.9%",
+      "3Pr": "0.37",
+      "FTr": "0.22"
+     }
+    }
+   ]
+  },
+  "michael-ruzic": {
+   "url": "https://www.basketball-reference.com/international/players/michael-ruzic-1.html",
+   "seasons": [
+    {
+     "label": "2023-24",
+     "team": "Joventut (EuroCup)",
+     "stats": {
+      "G": "14",
+      "MP": "16.6",
+      "PTS": "6.5",
+      "REB": "2.6",
+      "AST": "0.4",
+      "STL": "0.3",
+      "BLK": "0.5",
+      "TS%": "73.1%",
+      "eFG%": "71.1%",
+      "2P%": "70.0%",
+      "3P%": "48.1%",
+      "FT%": "83.3%",
+      "3Pr": "0.47",
+      "FTr": "0.21"
+     }
+    },
+    {
+     "label": "2023-24",
+     "team": "Joventut (Liga ACB)",
+     "stats": {
+      "G": "26",
+      "MP": "17.0",
+      "PTS": "4.9",
+      "REB": "3.0",
+      "AST": "0.5",
+      "STL": "0.5",
+      "BLK": "0.5",
+      "TS%": "57.9%",
+      "eFG%": "57.7%",
+      "2P%": "60.0%",
+      "3P%": "37.0%",
+      "FT%": "53.8%",
+      "3Pr": "0.52",
+      "FTr": "0.13"
+     }
+    },
+    {
+     "label": "2024-25",
+     "team": "Joventut (EuroCup)",
+     "stats": {
+      "G": "7",
+      "MP": "15.4",
+      "PTS": "5.0",
+      "REB": "1.7",
+      "AST": "0.1",
+      "STL": "0.0",
+      "BLK": "0.6",
+      "TS%": "55.3%",
+      "eFG%": "56.9%",
+      "2P%": "63.2%",
+      "3P%": "30.0%",
+      "FT%": "33.3%",
+      "3Pr": "0.34",
+      "FTr": "0.21"
+     }
+    },
+    {
+     "label": "2024-25",
+     "team": "Joventut (Liga ACB)",
+     "stats": {
+      "G": "17",
+      "MP": "11.1",
+      "PTS": "2.6",
+      "REB": "1.6",
+      "AST": "0.2",
+      "STL": "0.2",
+      "BLK": "0.3",
+      "TS%": "48.2%",
+      "eFG%": "50.0%",
+      "2P%": "62.5%",
+      "3P%": "20.0%",
+      "FT%": "33.3%",
+      "3Pr": "0.38",
+      "FTr": "0.38"
+     }
+    },
+    {
+     "label": "2025-26",
+     "team": "Joventut (Liga ACB)",
+     "stats": {
+      "G": "29",
+      "MP": "17.8",
+      "PTS": "7.0",
+      "REB": "4.0",
+      "AST": "0.7",
+      "STL": "0.1",
+      "BLK": "0.7",
+      "TS%": "66.2%",
+      "eFG%": "60.8%",
+      "2P%": "64.4%",
+      "3P%": "33.3%",
+      "FT%": "59.5%",
+      "3Pr": "0.25",
+      "FTr": "0.31"
+     }
+    }
+   ]
+  },
+  "victor-wembanyama": {
+   "url": "https://www.basketball-reference.com/international/players/victor-wembanyama-1.html",
+   "seasons": [
+    {
+     "label": "2019-20",
+     "team": "Nanterre (EuroCup)",
+     "stats": {
+      "G": "1",
+      "MP": "3.0",
+      "PTS": "0.0",
+      "REB": "0.0",
+      "AST": "0.0",
+      "STL": "0.0",
+      "BLK": "0.0"
+     }
+    },
+    {
+     "label": "2020-21",
+     "team": "Nanterre (EuroCup)",
+     "stats": {
+      "G": "4",
+      "MP": "8.3",
+      "PTS": "1.3",
+      "REB": "2.3",
+      "AST": "0.5",
+      "STL": "0.0",
+      "BLK": "1.0",
+      "TS%": "41.7%",
+      "eFG%": "41.7%",
+      "2P%": "25.0%",
+      "3P%": "50.0%",
+      "3Pr": "0.33",
+      "FTr": "0.00"
+     }
+    },
+    {
+     "label": "2020-21",
+     "team": "Nanterre (LNB Pro A)",
+     "stats": {
+      "G": "18",
+      "MP": "16.9",
+      "PTS": "6.8",
+      "REB": "4.7",
+      "AST": "0.8",
+      "STL": "0.2",
+      "BLK": "1.9",
+      "TS%": "53.8%",
+      "eFG%": "51.9%",
+      "2P%": "50.0%",
+      "3P%": "36.4%",
+      "FT%": "68.4%",
+      "3Pr": "0.42",
+      "FTr": "0.18"
+     }
+    },
+    {
+     "label": "2021-22",
+     "team": "ASVEL (EuroLeague)",
+     "stats": {
+      "G": "13",
+      "MP": "17.5",
+      "PTS": "6.5",
+      "REB": "3.8",
+      "AST": "0.5",
+      "STL": "0.4",
+      "BLK": "1.9",
+      "TS%": "42.6%",
+      "eFG%": "40.2%",
+      "2P%": "37.3%",
+      "3P%": "30.3%",
+      "FT%": "66.7%",
+      "3Pr": "0.36",
+      "FTr": "0.16"
+     }
+    },
+    {
+     "label": "2021-22",
+     "team": "ASVEL (LNB Pro A)",
+     "stats": {
+      "G": "16",
+      "MP": "18.4",
+      "PTS": "9.4",
+      "REB": "5.1",
+      "AST": "0.8",
+      "STL": "0.9",
+      "BLK": "1.8",
+      "TS%": "54.0%",
+      "eFG%": "52.3%",
+      "2P%": "60.5%",
+      "3P%": "26.0%",
+      "FT%": "70.0%",
+      "3Pr": "0.38",
+      "FTr": "0.15"
+     }
+    },
+    {
+     "label": "2022-23",
+     "team": "Paris (LNB Pro A)",
+     "stats": {
+      "G": "34",
+      "MP": "32.1",
+      "PTS": "21.6",
+      "REB": "10.4",
+      "AST": "2.4",
+      "STL": "0.7",
+      "BLK": "3.0",
+      "TS%": "57.7%",
+      "eFG%": "51.4%",
+      "2P%": "56.1%",
+      "3P%": "27.5%",
+      "FT%": "82.8%",
+      "3Pr": "0.32",
+      "FTr": "0.40"
+     }
+    }
+   ]
+  },
+  "scoot-henderson": {
+   "url": "https://www.basketball-reference.com/gleague/players/h/hendesc01d.html",
+   "seasons": [
+    {
+     "label": "2021-22",
+     "team": "G League Ignite",
+     "stats": {
+      "G": "11",
+      "MP": "24.5",
+      "PTS": "14.0",
+      "REB": "4.9",
+      "AST": "3.7",
+      "STL": "1.6",
+      "BLK": "0.1",
+      "TS%": "58.0%",
+      "eFG%": "45.3%",
+      "2P%": "50.0%",
+      "3P%": "17.4%",
+      "FT%": "77.8%",
+      "3Pr": "0.20",
+      "FTr": "0.31"
+     }
+    },
+    {
+     "label": "2022-23",
+     "team": "G League Ignite",
+     "stats": {
+      "G": "25",
+      "MP": "30.2",
+      "PTS": "17.6",
+      "REB": "5.1",
+      "AST": "6.4",
+      "STL": "1.2",
+      "BLK": "0.4",
+      "TS%": "54.9%",
+      "eFG%": "47.3%",
+      "2P%": "47.0%",
+      "3P%": "32.4%",
+      "FT%": "75.0%",
+      "3Pr": "0.18",
+      "FTr": "0.19",
+      "USG%": "27.4%"
+     }
+    }
+   ]
+  }
+ }
 }

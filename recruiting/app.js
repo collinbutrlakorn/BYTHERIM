@@ -35,14 +35,6 @@ function clearLoadState() {
   if (el) el.style.display = 'none';
 }
 
-// Light/dark switching, matching the NCAA RP and Draft RP. Kept under its
-// own storage key so the three sites can differ if the user wants.
-function toggleTheme() {
-  const root = document.documentElement;
-  const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
-  root.setAttribute('data-theme', next);
-  try { localStorage.setItem('bytherim-recruiting-theme', next); } catch (e) {}
-}
 
 const ACCOLADE_MAP = {
   "McDonald's All-American": "mcdaag.png",
@@ -437,9 +429,6 @@ function switchTab(tabName, isBack = false) {
   } else if (tabName === 'stats') {
     document.getElementById('stats-tab').classList.add('active');
     if (document.querySelectorAll('.nav-btn')[2]) document.querySelectorAll('.nav-btn')[2].classList.add('active');
-  } else if (tabName === 'about') {
-    document.getElementById('about-tab').classList.add('active');
-    if (document.querySelectorAll('.nav-btn')[3]) document.querySelectorAll('.nav-btn')[3].classList.add('active');
   } else if (tabName === 'profile') {
     document.getElementById('profile-tab').classList.add('active');
   } else if (tabName === 'schoolDetail') {
@@ -1118,19 +1107,4 @@ function renderProfile(p) {
       ${statsTablesHTML}
     </div>
   `;
-}
-
-function submitFeedback(event) {
-  event.preventDefault();
-  const feedbackText = document.getElementById('feedbackInput').value.trim();
-  if (!feedbackText) return;
-
-  console.log("Feedback submitted:", feedbackText);
-
-  document.getElementById('feedbackInput').value = '';
-  const successMsg = document.getElementById('feedbackSuccess');
-  successMsg.style.display = 'block';
-  setTimeout(() => {
-    successMsg.style.display = 'none';
-  }, 4000);
 }

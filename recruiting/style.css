@@ -87,7 +87,6 @@
 body { 
   background-color: var(--bg-dark); 
   color: var(--text-main); 
-  padding-bottom: 50px; 
 }
 
 h1, h2, h3, h4, th, .brand-title, .rank-num {

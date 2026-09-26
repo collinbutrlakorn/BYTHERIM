@@ -32,6 +32,7 @@ const PAST_2025 = [
   '1,1,Past Frosh,1/1/2006,FR,"6\'8""",220,SF,Duke,Wing,',             // freshmen count on past boards
   '2,2,Past Intl,2/2/2006,INTL,"6\'6""",200,SG,Pro,Guard,https://www.basketball-reference.com/international/players/past-intl-1.html',
   '3,3,Ignite Guy,3/3/2005,,"6\'9""",210,SF,Pro,Wing,https://www.basketball-reference.com/gleague/players/i/ignitgu01d.html',
+  '5,4,League Only,5/5/2006,INTL,6-7,205,SF,Pro,Wing,https://www.basketball-reference.com/international/players/league-only-1.html',
   '4,3,Other Link,4/4/2005,INTL,"6\'5""",190,SG,Pro,Guard,https://basketball.realgm.com/player/Other-Link/Summary/1'  // not Basketball-Reference: never fetched
 ].join('\n');
 
@@ -45,6 +46,10 @@ const INTL_HTML = `<table id="player-stats-totals-all-"><thead></thead><tbody>
   ${intlRow('2024-25', 'Baskonia', 'Liga ACB', { g: 10, mp: 83, fg: 10, fga: 25, fg3: 6, fg3a: 15, fg2: 4, fg2a: 10, ft: 3, fta: 8, trb: 11, ast: 9, stl: 3, blk: 0, pts: 29 })}
   ${intlRow('2025-26', 'Real Madrid', 'Liga ACB', { g: 20, mp: 400, fg: 60, fga: 120, fg3: 20, fg3a: 60, fg2: 40, fg2a: 60, ft: 20, fta: 25, trb: 60, ast: 40, stl: 20, blk: 5, pts: 160 })}
 </tbody><tfoot><tr><th data-stat="season">2 Seasons</th></tr></tfoot></table>`;
+// Players with only a domestic league have no combined "all" table.
+const LEAGUE_ONLY_HTML = `<table id="player-stats-totals-league-"><tbody>
+  ${intlRow('2025-26', '&#201;lan Chalon', 'LNB &#201;lite', { g: 3, mp: 38, fg: 0, fga: 0, fg3: 0, fg3a: 0, fg2: 0, fg2a: 0, ft: 0, fta: 0, trb: 0, ast: 0, stl: 0, blk: 0, pts: 0 })}
+</tbody></table>`;
 const glRow = (season, team, t) => `<tr><th data-stat="season">${season}</th>${td('team_id', team)}` + Object.entries(t).map(([k, v]) => td(k, v)).join('') + '</tr>';
 const GL_HTML = `<table id="nbdl_totals-reg"><tbody>${glRow('2024-25', 'GLI', { g: 26, mp: 831, fg: 141, fga: 315, fg3: 24, fg3a: 88, fg2: 117, fg2a: 227, ft: 40, fta: 56, trb: 160, ast: 50, stl: 20, blk: 50, pts: 346 })}</tbody></table>
 <table id="nbdl_totals-sc"><tbody>${glRow('2024-25', 'GLI', { g: 9, mp: 221, fg: 41, fga: 85, fg3: 6, fg3a: 27, fg2: 35, fg2a: 58, ft: 10, fta: 15, trb: 55, ast: 16, stl: 10, blk: 15, pts: 98 })}</tbody></table>
@@ -90,7 +95,7 @@ const TORVIK_2024 = row('Exact Match', 'Duke', '2006-02-13', 3.3, 2024);
 // fetch() stand-in, loaded into the updater's process with --import.
 const preload = path.join(tmp, 'fake-fetch.mjs');
 fs.writeFileSync(preload, `
-const data = ${JSON.stringify({ sheet: SHEET, past: PAST_2025, pubhtml: PUBHTML, intl: INTL_HTML, gl: GL_HTML, y2024: TORVIK_2024, y2025: TORVIK_2025, y2026: TORVIK_2026, y2027: TORVIK_2027 })};
+const data = ${JSON.stringify({ sheet: SHEET, past: PAST_2025, pubhtml: PUBHTML, intl: INTL_HTML, gl: GL_HTML, leagueOnly: LEAGUE_ONLY_HTML, y2024: TORVIK_2024, y2025: TORVIK_2025, y2026: TORVIK_2026, y2027: TORVIK_2027 })};
 globalThis.fetched = [];
 globalThis.fetch = async url => {
   url = String(url);
@@ -99,6 +104,7 @@ globalThis.fetch = async url => {
     : url.includes('gid=5') ? data.past
     : url.includes('/international/players/past-intl-1.html') ? data.intl
     : url.includes('/gleague/players/i/ignitgu01d.html') ? data.gl
+    : url.includes('/international/players/league-only-1.html') ? data.leagueOnly
     : url.includes('docs.google.com') ? data.sheet          // current board, and the 2024 copy (gid=6)
     : url.includes('year=2024') ? data.y2024
     : url.includes('year=2025') ? data.y2025
@@ -141,6 +147,8 @@ ok(intl[1].stats['TS%'] === '50.8%' && intl[1].stats.FTr === '0.32' && !('BPM' i
 const gl = (pro['ignite-guy'] || {}).seasons || [];
 ok(gl.length === 1 && gl[0].team === 'G League Ignite' && gl[0].stats.G === '35', 'Basketball-Reference: G League regular season and Showcase Cup added together');
 ok(gl[0].stats['USG%'] === '21.7%', 'Basketball-Reference: usage read from the advanced table, even inside an HTML comment');
+const lo = (pro['league-only'] || {}).seasons || [];
+ok(lo.length === 1 && lo[0].team === 'Élan Chalon (LNB Élite)' && lo[0].stats.G === '3', 'Basketball-Reference: league-only pages read too, accented names decoded');
 ok(!pro['other-link'], 'Stats Links that aren\'t Basketball-Reference pages are never fetched');
 ok(!(stats.seasons['2024-25'] || {})['past-intl'], 'a pro is never matched to a same-named college player');
 ok(!stats.seasons['2026-27'] && /2026-27: no games played yet/.test(log), 'this season stays empty until games are played');
