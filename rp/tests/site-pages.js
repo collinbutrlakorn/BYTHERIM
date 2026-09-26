@@ -79,9 +79,22 @@ const BOARD_CSV = [
 // data/stats.json as tools/update-stats.mjs writes it.
 const line = (pts, team, gp) => ({ torvikName: 'x', team, conf: 'B10', gp, mpg: '30.1', stats: { PTS: pts, REB: '4.0', AST: '5.5', 'TS%': '57.0%', BPM: '4.4' } });
 const STATS = { updated: '2026-09-26T00:00:00Z', source: 'barttorvik.com', seasons: {
-  '2025-26': { 'conf-big': line('9.1', 'Ohio St.', 31), 'old-guard': line('15.2', 'Arizona', 33) },
+  '2025-26': { 'conf-big': line('9.1', 'Ohio St.', 31), 'old-guard': line('15.2', 'Arizona', 33), 'past-star': line('22.1', 'Duke', 35) },
   '2026-27': { 'conf-big': line('12.4', 'Ohio St.', 4) }
 } };
+// A past board (the sheet's "2026 Board" tab) with actual draft results,
+// and the published sheet's tab list. "2025 Board" is still an unedited
+// copy of the current board, so the site should leave it off.
+const PAST_CSV = [
+  'pick,tier,name,DOB,class,height,weight,position,school,archetype,Draft Pick,Draft Team,Draft Year',
+  '1,1,Past Star,01/01/2007,FR,"6\'9""",230 lbs,SF,Duke,Wing-Creator,1,Wizards,',
+  '2,2,Past Guard,02/02/2006,SO,"6\'4""",190 lbs,PG,BYU,Floor General,31,BOS,',
+  '3,2,Past Return,03/03/2007,FR,"6\'10""",240 lbs,C,Kansas,Rim-Runner,Returned,,',
+  '4,3,Late Pick,04/04/2005,JR,"6\'6""",210 lbs,SF,Oregon,Wing,5,Spurs,2027',
+  '5,?,Maybe Guy,05/05/2004,SR,"6\'3""",185 lbs,SG,Iowa,Shooter,Undrafted,,'
+].join('\n');
+const PUBHTML = 'var items = [];' + [['2027 Board', '0'], ['2026 Board', '111'], ['2025 Board', '222'], ['TorvikData', '333']]
+  .map(([n, g]) => `items.push({name: "${n}", pageUrl: "https:\\/\\/docs.google.com\\/x?gid=${g}", gid: "${g}",initialSheet: ("${g}" == gid)});`).join('');
 const RANKINGS_CSV = 'Rank,Conference Rank,Stock,Team,Conference\n1,1,Up,San Antonio Spurs,West\n2,1,Down,Boston Celtics,East\n3,2,,OKC Thunder,West';
 const FEED = {
   status: 'ok', feed: { image: 'https://example.com/show.jpg' },
@@ -91,18 +104,20 @@ const FEED = {
   ]
 };
 
-function boot(page, { feedsDown = false, hash = '' } = {}) {
+function boot(page, { feedsDown = false, hash = '', query = '' } = {}) {
   const file = path.join(ROOT, page + '.html');
   const errors = [];
   const vc = new VirtualConsole();
   vc.on('jsdomError', e => { if (!/Could not load (img|iframe|link)|Not implemented/.test(e.message)) errors.push(e.message); });
   const dom = new JSDOM(fs.readFileSync(file, 'utf8'), {
-    url: 'http://localhost/' + page + '.html' + hash, runScripts: 'dangerously', resources: new LocalOnly(), virtualConsole: vc, pretendToBeVisual: true,
+    url: 'http://localhost/' + page + '.html' + query + hash, runScripts: 'dangerously', resources: new LocalOnly(), virtualConsole: vc, pretendToBeVisual: true,
     beforeParse(w) {
       const res = (body, type) => Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(body), json: () => Promise.resolve(typeof body === 'string' ? JSON.parse(body) : body) });
       w.fetch = url => {
         url = String(url);
-        if (url.includes('2PACX-1vTjSz')) return res(BOARD_CSV);
+        if (url.includes('2PACX-1vTjSz') && url.endsWith('/pubhtml')) return res(PUBHTML);
+        if (url.includes('2PACX-1vTjSz') && url.includes('gid=111')) return res(PAST_CSV);
+        if (url.includes('2PACX-1vTjSz')) return res(BOARD_CSV);   // current board, and the 2025 copy (gid=222)
         if (url.includes('2PACX-1vQMJM')) return res(RANKINGS_CSV);
         if (url.includes('rss2json')) return feedsDown ? Promise.reject(new Error('down')) : res(url.includes('podcast') ? { ...FEED, items: [FEED.items[0]] } : FEED);
         if (url.includes('itunes.apple.com')) return res({ results: [] });
@@ -293,9 +308,83 @@ function boot(page, { feedsDown = false, hash = '' } = {}) {
   // ---------------------------------------------------------- X feed
   {
     const { w, d } = await boot('nba');
-    const card = d.querySelector('[data-x-feed]');
+    const card = d.querySelector('[data-embed="x"]');
     ok(card && card.querySelector('.x-feed-head a').href === 'https://x.com/collinbutr', 'nba: X card has a working Follow link');
     ok(card.querySelector('a.twitter-timeline[href^="https://twitter.com/collinbutr"]'), 'nba: X timeline embed for @collinbutr');
+    w.close();
+  }
+
+  // ---------------------------------------------------------- tiers + past boards
+  const tick = (ms = 60) => new Promise(r => setTimeout(r, ms));
+  {
+    const { w, d } = await boot('draft');
+    await tick();
+    const heads = [...d.querySelectorAll('.tier-head')].map(h => h.textContent);
+    ok(heads[0].includes('Tier 2') && heads[0].includes('All-NBA') && heads[1].includes('All-Star'), 'draft: tier headings carry the tier name');
+    d.getElementById('tierInfoBtn').click();
+    const panel = d.getElementById('tierInfo');
+    ok(!panel.hidden && panel.querySelectorAll('.tier-list li').length === 11, 'draft: Tiers button opens the guide with all 11 tiers');
+    ok(panel.textContent.includes('Superstar') && panel.textContent.includes('Possible Entry / Return'), 'draft: guide names each tier, including "?"');
+    d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
+    ok(panel.hidden, 'draft: Escape closes the tier guide');
+
+    const years = [...d.querySelectorAll('#yearChips [data-year]')].map(a => a.dataset.year);
+    ok(years.join() === '2027,2026', 'draft: year switcher lists filled-in past boards (' + years.join() + ')');
+    ok(!years.includes('2025'), 'draft: a tab that is still a copy of the current board is left off');
+
+    d.querySelector('[data-year="2026"]').click();
+    await tick(120);
+    ok(w.location.search === '?year=2026', 'draft: switching years updates the address');
+    ok(d.getElementById('boardEyebrow').textContent.includes('2026') && d.getElementById('boardEyebrow').textContent.includes('Final board'), 'draft: heading shows the past draft');
+    ok(d.getElementById('colSize').textContent === 'Drafted', 'draft: the HT/WT column becomes Drafted on past boards');
+    const summary = d.getElementById('boardSummary').textContent.replace(/\s+/g, ' ');
+    ok(/2\s*Drafted/.test(summary) && /1\s*First round/.test(summary), 'draft: summary counts who was drafted that year and in the first round [' + summary + ']');
+    const cell = id => d.querySelector(`#p-${id} .pr-drafted`);
+    ok(cell('past-star').textContent.includes('#1') && cell('past-star').querySelector('img').getAttribute('src') === 'nbalogos/Washington%20Wizards.png', 'draft: pick number with the team logo ("Wizards" resolved)');
+    ok(cell('past-guard').querySelector('img').getAttribute('src') === 'nbalogos/Boston%20Celtics.png', 'draft: team abbreviations resolve too ("BOS")');
+    ok(cell('late-pick').querySelector('small').textContent === '2027', 'draft: a later draft year is shown');
+    ok(cell('past-return').textContent.includes('Returned') && cell('maybe-guy').textContent.includes('Undrafted'), 'draft: Returned and Undrafted shown');
+    ok(d.querySelector('#p-past-star .pr-mobile-meta').textContent.includes('Drafted #1 WAS'), 'draft: phone rows say where he was drafted');
+    ok([...d.querySelectorAll('.tier-head')].some(h => h.textContent.includes('Tier ?') && h.textContent.includes('Possible Entry / Return')), 'draft: "?" tier labelled Possible Entry / Return');
+
+    d.querySelector('#p-past-star .pr-main').click();
+    let row = d.getElementById('p-past-star');
+    ok(row.querySelector('.pr-facts').textContent.includes('1st pick (round 1) · Washington Wizards · 2026'), 'draft: profile spells out the pick, round, team and year');
+    ok(/Tier1 · Superstar/.test(row.querySelector('.pr-facts').textContent.replace(/\s{2,}/g, '')), 'draft: profile tier shows its name');
+    ok(/2025-26 season/.test(row.querySelector('.pr-stats-head').textContent) && !row.textContent.includes('replace these'), 'draft: past board shows the season before that draft');
+    ok(w.location.search + w.location.hash === '?year=2026#past-star', 'draft: profile link keeps the year');
+    d.querySelector('#p-past-guard .pr-main').click();
+    row = d.getElementById('p-past-guard');
+    ok(row.querySelector('.pr-facts').textContent.includes('31st pick (round 2) · Boston Celtics'), 'draft: second-round picks labelled');
+    ok(!row.textContent.includes('will appear here'), 'draft: no "stats coming" note on past boards');
+    w.close();
+  }
+  {
+    const { w, d } = await boot('draft', { query: '?year=2026', hash: '#late-pick' });
+    await tick(120);
+    ok(d.getElementById('p-late-pick').classList.contains('open'), 'draft: ?year=2026#prospect link opens straight to that profile');
+    ok(d.querySelector('[data-year="2026"]').classList.contains('active'), 'draft: that year is highlighted');
+    w.close();
+  }
+
+  // ---------------------------------------------------------- TikTok + Instagram
+  {
+    const { w, d } = await boot('index');
+    const tt = d.querySelector('[data-embed="tiktok"]');
+    ok(tt.querySelector('blockquote.tiktok-embed[cite="https://www.tiktok.com/@bytherim"][data-embed-type="creator"]'), 'home: TikTok profile embed for @bytherim');
+    ok(tt.querySelector('.x-feed-head a').href === 'https://www.tiktok.com/@bytherim', 'home: TikTok card has a Follow link');
+    const ig = d.querySelector('[data-embed="instagram"]');
+    ok(ig.querySelector('a.ig-card').href === 'https://www.instagram.com/bytherimhoops/', 'home: Instagram card links to @bytherimhoops');
+    ok(ig.querySelectorAll('a[href*="instagram.com"]').length === 1, 'home: Instagram card has a single link, not a duplicate Follow button');
+    const foot = [...d.querySelectorAll('.site-footer a')].map(a => a.href);
+    ok(foot.includes('https://www.instagram.com/bytherimhoops/') && foot.includes('https://www.tiktok.com/@bytherim'), 'footer: Instagram and TikTok listed');
+    ok(d.querySelectorAll('#boardTeaser li a').length === 4, 'home: teaser still shows the current board');
+    w.close();
+  }
+  {
+    const { w, d } = await boot('about');
+    const labels = [...d.querySelectorAll('main .social-row .social-btn')].map(a => a.textContent.trim());
+    ok(labels.includes('Instagram') && labels.includes('TikTok'), 'about: Follow along includes Instagram and TikTok');
     w.close();
   }
 
