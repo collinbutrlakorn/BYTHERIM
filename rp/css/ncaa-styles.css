@@ -2,9 +2,8 @@
    Theme tokens.
 
    Two themes, both driven off the NCAA RP logo's blue so buttons,
-   headers and accents match the mark. The default follows the OS
-   setting via prefers-color-scheme; an explicit choice is stored on
-   <html data-theme="..."> and always wins.
+   headers and accents match the mark. Dark by default, like the rest of
+   BYTHERIM; the site header's theme button sets <html data-theme>.
    ============================================================ */
 
 :root {
@@ -52,27 +51,8 @@
   --shadow-lift: 0 10px 28px rgba(15, 23, 42, 0.16);
 }
 
-/* Follow the OS when the user hasn't picked a theme explicitly. */
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme]) {
-    --bg-color: #ffffff;
-    --card-bg: #f4f6f9;
-    --card-hover: #e8ecf2;
-    --accent: #0A6FB8;
-    --accent-dark: #075289;
-    --accent-contrast: #ffffff;
-    --text-main: #0b0e13;
-    --text-muted: #5a6472;
-    --border: #d6dbe3;
-    --win: #17914f;
-    --loss: #c62828;
-    --gold: #9a7611;
-    --accent-soft: rgba(10, 111, 184, 0.10);
-    --accent-soft-strong: rgba(10, 111, 184, 0.22);
-    --shadow-soft: 0 4px 16px rgba(15, 23, 42, 0.10);
-    --shadow-lift: 0 10px 28px rgba(15, 23, 42, 0.16);
-  }
-}
+/* No "follow the device" rule: like the rest of BYTHERIM, the RP is dark
+   by default and switches with the theme button in the site header. */
 
 * {
   box-sizing: border-box;
@@ -2454,3 +2434,50 @@ body.offseason-open {
   border-radius: var(--r-md);
   padding: 0.9rem 1rem;
 }
+
+/* ============================================================
+   Masthead: module logo on the left with its name beside it, the same
+   pattern as the recruiting page, sitting under the shared site header.
+   ============================================================ */
+.rp-header {
+  gap: 1rem;
+  padding: 1.4rem 5% 0.6rem;
+}
+.rp-header-logo { width: 72px; height: 72px; flex: none; }
+.rp-header-kicker {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-decoration: none;
+}
+.rp-header-kicker:hover { text-decoration: underline; text-underline-offset: 3px; }
+.rp-header .rp-header-title {
+  font-size: clamp(1.6rem, 3.4vw, 2.3rem);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--text-main);
+  margin: 0.1rem 0 0;
+  padding: 0;
+  border: 0;
+}
+@media (max-width: 720px) {
+  .rp-header { padding: 1rem 1rem 0.4rem; gap: 0.8rem; }
+  .rp-header-logo { width: 54px; height: 54px; }
+}
+
+/* Links styled as buttons never show an underline. */
+a.sim-btn, a.sim-btn:hover { text-decoration: none; }
+
+/* Form controls take the page font (browsers don't pass it down). */
+button, input, select, textarea { font-family: inherit; }
+
+/* The masthead above already shows the NCAA RP logo. */
+.home-screen-logo { display: none; }
+
+/* The closed drawer sits just off-screen; keep its shadow from bleeding
+   onto the page edge until it's open. */
+.side-drawer:not(.open) { box-shadow: none; visibility: hidden; transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.25s; }
+.side-drawer.open { visibility: visible; transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1); }

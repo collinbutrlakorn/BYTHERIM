@@ -12,6 +12,9 @@
    - This season: filled in automatically once games have been played.
    - Past boards (sheet tabs named like "2025 Board"): each prospect's
      season leading into that draft.
+   - Pros and G League players: any sheet row whose "Stats Link" is a
+     Basketball-Reference international or G League page gets its
+     season lines from that page.
 
    Matching is by name. Nicknames and one-letter spelling differences
    ("Cam"/"Cameron", "Cadeu"/"Cadeau") are matched too, but only when the
@@ -118,16 +121,102 @@ function statLine(r) {
 // Barttorvik's robots.txt asks for 10 seconds between requests; the job
 // only makes a handful a day, spaced out accordingly.
 const CRAWL_DELAY_MS = +(process.env.CRAWL_DELAY_MS ?? 10000);
-let lastTorvik = 0;
+// Basketball-Reference asks for at least 3 seconds (and under 20 requests
+// a minute); 4 seconds keeps well inside that.
+const BBREF_DELAY_MS = +(process.env.BBREF_DELAY_MS ?? 4000);
+const lastHit = {};
+async function politely(host, delay) {
+  const wait = (lastHit[host] || 0) + delay - Date.now();
+  if (wait > 0) await new Promise(r => setTimeout(r, wait));
+  lastHit[host] = Date.now();
+}
 async function get(url) {
-  if (url.includes('barttorvik.com')) {
-    const wait = lastTorvik + CRAWL_DELAY_MS - Date.now();
-    if (wait > 0) await new Promise(r => setTimeout(r, wait));
-    lastTorvik = Date.now();
-  }
+  if (url.includes('barttorvik.com')) await politely('torvik', CRAWL_DELAY_MS);
+  if (url.includes('basketball-reference.com')) await politely('bbref', BBREF_DELAY_MS);
   const res = await fetch(url, { headers: { 'User-Agent': 'BYTHERIM big board (github.com/collinbutrlakorn/BYTHERIM)' } });
   if (!res.ok) throw new Error(`${url} returned HTTP ${res.status}`);
   return res.text();
+}
+
+// ------------------------------------------------------------ Basketball-Reference
+// Pros and G League players aren't in Barttorvik. For anyone whose sheet
+// row has a "Stats Link" to their Basketball-Reference international or
+// G League page, that page is read instead (one request per linked
+// player, spaced out per the site's crawl delay).
+const BBREF_PAGE = /^https:\/\/www\.basketball-reference\.com\/(international|gleague)\/players\//i;
+
+// All stat tables on a page (some are shipped inside HTML comments),
+// as { tableId: [ { data-stat: text } ] } from each table body.
+function bbrefTables(html) {
+  html = html.replace(/<!--|-->/g, '');
+  const tables = {};
+  for (const m of html.matchAll(/<table[^>]*\bid="([^"]+)"[\s\S]*?<\/table>/g)) {
+    const body = (m[0].split(/<tbody>/)[1] || '').split('</tbody>')[0];
+    tables[m[1]] = [...body.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/g)].map(tr => {
+      const row = {};
+      for (const c of tr[1].matchAll(/<(?:th|td)[^>]*data-stat="([^"]+)"[^>]*>([\s\S]*?)<\/(?:th|td)>/g)) {
+        row[c[1]] = c[2].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').trim();
+      }
+      return row;
+    }).filter(r => /^\d{4}-\d{2}$/.test(r.season || ''));
+  }
+  return tables;
+}
+
+const TOTAL_KEYS = ['g', 'mp', 'fg', 'fga', 'fg3', 'fg3a', 'fg2', 'fg2a', 'ft', 'fta', 'trb', 'ast', 'stl', 'blk', 'pts'];
+function sumTotals(rows) {
+  const t = {};
+  TOTAL_KEYS.forEach(k => { t[k] = rows.reduce((a, r) => a + (num(r[k]) || 0), 0); });
+  return t;
+}
+
+// Season totals -> the same stat keys Barttorvik lines use.
+function lineFromTotals(t, usg) {
+  const per = v => (t.g ? f1(v / t.g) : null);
+  const ratio = (a, b) => (b ? a / b : null);
+  const s = {
+    G: t.g ? String(t.g) : null, MP: per(t.mp),
+    PTS: per(t.pts), REB: per(t.trb), AST: per(t.ast), STL: per(t.stl), BLK: per(t.blk),
+    'TS%': t.fga + t.fta ? pct(t.pts / (2 * (t.fga + 0.44 * t.fta))) : null,
+    'eFG%': t.fga ? pct((t.fg + 0.5 * t.fg3) / t.fga) : null,
+    '2P%': t.fg2a ? pct(t.fg2 / t.fg2a) : null,
+    '3P%': t.fg3a ? pct(t.fg3 / t.fg3a) : null,
+    'FT%': t.fta ? pct(t.ft / t.fta) : null,
+    '3Pr': t.fga ? rate(ratio(t.fg3a, t.fga)) : null,
+    FTr: t.fga ? rate(ratio(t.fta, t.fga)) : null,
+    'USG%': usg != null ? pct100(usg) : null
+  };
+  Object.keys(s).forEach(k => s[k] == null && delete s[k]);
+  return s;
+}
+
+const GLEAGUE_TEAMS = { GLI: 'G League Ignite' };
+function parseBbref(html, url) {
+  const tables = bbrefTables(html);
+  const seasons = [];
+  if (/\/international\//i.test(url)) {
+    // One row per season and competition, as Basketball-Reference lists them.
+    for (const r of tables['player-stats-totals-all-'] || []) {
+      if (!num(r.g)) continue;
+      seasons.push({ label: r.season, team: [r.team, r.league && `(${r.league})`].filter(Boolean).join(' '), stats: lineFromTotals(sumTotals([r])) });
+    }
+  } else {
+    // G League: regular season and Showcase Cup are separate tables; add
+    // them into one line per season and team.
+    const groups = new Map();
+    for (const r of [...(tables['nbdl_totals-reg'] || []), ...(tables['nbdl_totals-sc'] || [])]) {
+      const key = `${r.season}|${r.team_id}`;
+      (groups.get(key) || groups.set(key, []).get(key)).push(r);
+    }
+    for (const [key, rows] of groups) {
+      const [season, team] = key.split('|');
+      const adv = (tables['nbdl_advanced-reg'] || []).find(r => r.season === season && r.team_id === team);
+      const t = sumTotals(rows);
+      if (!t.g) continue;
+      seasons.push({ label: season, team: GLEAGUE_TEAMS[team] || `${team} (G League)`, stats: lineFromTotals(t, adv ? num(adv.usg_pct) : null) });
+    }
+  }
+  return seasons.sort((a, b) => a.label.localeCompare(b.label));
 }
 
 // ------------------------------------------------------------ matching
@@ -229,10 +318,12 @@ async function loadProspects(url) {
   const iName = col('name', 'prospect', 'player'), iDob = col('dob', 'date of birth', 'birthdate');
   const iClass = col('class', 'year'), iSchool = col('school', 'school/team', 'team', 'college');
   const iStatsName = col('stats name', 'torvik name');
+  const iLink = col('stats link', 'realgm', 'stats url');
   return boardRows.map(r => ({
     id: slug(r[iName] || ''),
     name: (r[iName] || '').trim(),
     lookup: ((iStatsName != null && r[iStatsName]) || r[iName] || '').trim(),
+    link: (iLink != null ? r[iLink] : '').trim(),
     dob: isoDate(iDob != null ? r[iDob] : ''),
     cls: (iClass != null ? r[iClass] : '').trim().toUpperCase(),
     school: (iSchool != null ? r[iSchool] : '').trim(),
@@ -241,7 +332,8 @@ async function loadProspects(url) {
 }
 
 // ------------------------------------------------------------ seasons
-const out = { updated: new Date().toISOString(), source: 'barttorvik.com', seasons: {} };
+const out = { updated: new Date().toISOString(), source: 'barttorvik.com, basketball-reference.com', seasons: {}, pro: {} };
+const linked = new Map(); // Basketball-Reference page -> prospect ids
 const report = [];
 
 // Which Barttorvik season each board needs:
@@ -259,6 +351,10 @@ for (const b of await listBoards()) {
   catch (e) { report.push(`${b.year} board: could not download (${e.message})`); continue; }
   if (b.current) currentSignature = signature(prospects);
   else if (signature(prospects) === currentSignature) { report.push(`${b.year} board: still a copy of the ${DRAFT_YEAR} board; skipped until it's filled in`); continue; }
+  prospects.filter(p => BBREF_PAGE.test(p.link)).forEach(p => {
+    const url = p.link.replace(/[?#].*$/, '');
+    (linked.get(url) || linked.set(url, new Set()).get(url)).add(p.id);
+  });
   if (b.current) {
     // Freshmen and internationals weren't in college last season, so a
     // same-named player from then would be someone else.
@@ -302,11 +398,20 @@ for (const [year, yearJobs] of [...jobs].sort((a, b) => a[0] - b[0])) {
   if (!Object.keys(season).length) delete out.seasons[label];
 }
 
+for (const [url, ids] of linked) {
+  try {
+    const seasons = parseBbref(await get(url), url);
+    if (!seasons.length) { report.push(`Basketball-Reference: no stat lines on ${url}`); continue; }
+    ids.forEach(id => { out.pro[id] = { url, seasons }; });
+  } catch (e) { report.push(`Basketball-Reference: could not read ${url} (${e.message})`); }
+}
+if (linked.size) report.push(`Basketball-Reference: stats for ${Object.keys(out.pro).length} linked players`);
+
 mkdirSync(dirname(OUT), { recursive: true });
 // Keep the file byte-identical when nothing changed, so the daily job
 // doesn't commit just because the timestamp moved.
 let previous = null;
 try { previous = JSON.parse(readFileSync(OUT, 'utf8')); } catch (e) { /* first run */ }
-if (previous && JSON.stringify(previous.seasons) === JSON.stringify(out.seasons)) out.updated = previous.updated;
+if (previous && JSON.stringify([previous.seasons, previous.pro || {}]) === JSON.stringify([out.seasons, out.pro])) out.updated = previous.updated;
 writeFileSync(OUT, JSON.stringify(out, null, 1) + '\n');
 console.log(report.join('\n'));

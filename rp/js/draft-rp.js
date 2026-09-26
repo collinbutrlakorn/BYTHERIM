@@ -35,6 +35,9 @@ const DraftRP = {
   THEME_KEY: 'bytherim-rp-theme',
 
   initTheme() {
+    // On the site, the shared header's theme button owns light/dark
+    // (assets/site.js); this only runs if the page is opened without it.
+    if (window.BTR) return;
     let saved = null;
     try { saved = localStorage.getItem(this.THEME_KEY); } catch (e) { /* storage blocked */ }
     this.applyTheme(saved || 'system');

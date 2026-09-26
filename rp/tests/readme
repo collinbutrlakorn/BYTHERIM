@@ -66,7 +66,9 @@ draft page's tiers, profiles, stats, search, On the Radar and `#slug` deep
 links work, along with the season-by-season stats table (games and minutes
 included), the optional sheet
 columns (Prev Rank, Wingspan, Comparison, Strengths, Weaknesses, Film), the
-`pro.png` logo, the RP hub one folder down, the X, TikTok and Instagram
+`pro.png` logo, the RP hub one folder down, the NCAA RP and Draft RP
+using the shared header and footer (assets/chrome.css) with the site fonts
+and theme, Basketball-Reference stat rows for linked pros, the X, TikTok and Instagram
 cards, tier names and the tier guide, and past boards: the year switcher
 (which skips tabs that are still a copy of the current board), the Drafted
 column, team logos from names or abbreviations, and year-aware links.

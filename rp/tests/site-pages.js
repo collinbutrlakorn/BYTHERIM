@@ -50,11 +50,27 @@ const allSource = PAGES.map(p => read(p + '.html')).join('\n') + siteJs;
 ok(siteJs.includes('open.spotify.com/show/'), 'Spotify points at the show');
 ok(siteJs.includes('podcasts.apple.com/us/podcast/'), 'Apple Podcasts points at the show');
 
-// The sim and Draft RP still rely on the root stylesheet, so it must stay.
-ok(fs.existsSync(path.join(ROOT, 'style.css')), 'root style.css kept for the RP sim pages');
+// The NCAA RP and Draft RP share the site's header and footer through
+// assets/chrome.css (header/footer only, so the sim's own styles are
+// untouched), load the site fonts, and follow the site's theme button.
 ['ncaa.html', 'draft.html'].forEach(f => {
-  if (fs.existsSync(path.join(ROOT, 'rp', f))) ok(read('rp/' + f).includes('../style.css'), `rp/${f} still finds its stylesheet`);
+  const html = read('rp/' + f);
+  ok(html.includes('href="../assets/chrome.css"') && html.includes('src="../assets/site.js"'), `rp/${f}: loads the shared header and footer`);
+  ok(html.indexOf('../assets/chrome.css') < html.indexOf('css/ncaa-styles.css'), `rp/${f}: shared chrome loads before the RP's own styles`);
+  ok(html.includes("BTR.mount('rp', { base: '../' })"), `rp/${f}: header mounted with a ../ base path`);
+  ok(!html.includes('../style.css') && !html.includes('class="navbar"') && !html.includes('class="footer"'), `rp/${f}: old header, footer and stylesheet gone`);
+  ok(/family=[^"]*Oswald/.test(html), `rp/${f}: loads Oswald, the font its headings use`);
+  ok(!html.includes('theme-toggle'), `rp/${f}: no second theme switch; the site header's button owns it`);
 });
+ok(!/prefers-color-scheme/.test(read('rp/css/ncaa-styles.css')), 'rp styles: dark by default like the site (no follow-the-device rule)');
+{
+  const chrome = read('assets/chrome.css');
+  ok(!/^\s*(html|body|img|a|button|h[1-6]|\*)\s*[,{]/m.test(chrome), 'chrome.css: no page-wide rules that could reach into the sim');
+  ok(/\.site-header,\s*\.site-footer\s*\{[^}]*--accent:\s*#c86fb4/.test(chrome), 'chrome.css: site colours set on the header and footer themselves');
+}
+// Nothing links the old root stylesheet any more, so it can be deleted.
+const htmlFiles = ['index', 'podcast', 'draft', 'nba', 'about'].map(p => p + '.html').concat(['rp/index.html', 'rp/ncaa.html', 'rp/draft.html', 'recruiting/index.html']);
+ok(htmlFiles.every(f => !/href="(\.\.\/)?style\.css"/.test(read(f)) || f.startsWith('recruiting/')), 'no page loads the old root style.css');
 
 // The RP hub now uses the main site's design, one folder down.
 {
@@ -81,6 +97,13 @@ const line = (pts, team, gp) => ({ torvikName: 'x', team, conf: 'B10', gp, mpg: 
 const STATS = { updated: '2026-09-26T00:00:00Z', source: 'barttorvik.com', seasons: {
   '2025-26': { 'conf-big': line('9.1', 'Ohio St.', 31), 'old-guard': line('15.2', 'Arizona', 33), 'past-star': line('22.1', 'Duke', 35) },
   '2026-27': { 'conf-big': line('12.4', 'Ohio St.', 4) }
+}, pro: {
+  'euro-guard': { url: 'https://www.basketball-reference.com/international/players/euro-guard-1.html', seasons: [
+    { label: '2025-26', team: 'Baskonia (EuroLeague)', stats: { G: '11', MP: '5.9', PTS: '0.6' } },
+    { label: '2025-26', team: 'Baskonia (Liga ACB)', stats: { G: '10', MP: '8.3', PTS: '2.9' } },
+    { label: '2026-27', team: 'Real Madrid (Liga ACB)', stats: { G: '3', MP: '20.0', PTS: '8.0' } },
+    { label: '2027-28', team: 'Real Madrid (Liga ACB)', stats: { G: '1', MP: '20.0', PTS: '9.0' } }
+  ] }
 } };
 // A past board (the sheet's "2026 Board" tab) with actual draft results,
 // and the published sheet's tab list. "2025 Board" is still an unedited
@@ -221,7 +244,7 @@ function table(row) {
     ok(w.BOARD.normalize({ name: 'X', 'Stats Link': 'https://basketball.realgm.com/player/X/Summary/1' }).statsLink.includes('realgm'), 'board: Stats Link column read');
     ok(w.BOARD.normalize({ name: 'X', GP: '31', MPG: '28.5', PTS: '9.0' }).sheetStats.G === '31' && w.BOARD.normalize({ name: 'X', MIN: '28.5' }).sheetStats.MP === '28.5', 'board: games and minutes read from G/GP and MP/MPG/MIN columns');
     const euro = rows.find(r => r.name === 'Euro Guard');
-    ok(euro.isPro && !euro.hasStats, 'board: "-" cells ignored and Pro detected');
+    ok(euro.isPro && Object.keys(euro.sheetStats).length === 0, 'board: "-" cells ignored and Pro detected');
     const big = rows.find(r => r.name === 'Conf Big');
     ok(big.school === 'Ohio State', 'board: slug-style school names cleaned up (" ohiostate " -> Ohio State)');
     ok(big.conference === 'SEC' && Object.keys(big.sheetStats).length === 0, 'board: a conference tag in a stat cell is kept as the conference, not a stat');
@@ -323,6 +346,21 @@ function table(row) {
     const card = d.querySelector('[data-embed="x"]');
     ok(card && card.querySelector('.x-feed-head a').href === 'https://x.com/collinbutr', 'nba: X card has a working Follow link');
     ok(card.querySelector('a.twitter-timeline[href^="https://twitter.com/collinbutr"]'), 'nba: X timeline embed for @collinbutr');
+    w.close();
+  }
+
+  // ---------------------------------------------------------- Basketball-Reference pros
+  {
+    const { w, d } = await boot('draft');
+    d.querySelector('#p-euro-guard .pr-main').click();
+    const row = d.getElementById('p-euro-guard');
+    const t = table(row);
+    ok(t.rows.map(r => r[0] + ' ' + r[1]).join(' | ') === '2025-26 Baskonia (EuroLeague) | 2025-26 Baskonia (Liga ACB) | 2026-27 Real Madrid (Liga ACB)', 'draft: pro rows from Basketball-Reference, one per competition, oldest first [' + t.rows.map(r => r[0] + ' ' + r[1]).join(' | ') + ']');
+    ok(!t.rows.some(r => r[0] === '2027-28'), 'draft: seasons after the draft are left off');
+    ok(t.cols.includes('G') && t.cols.includes('MP') && !t.cols.includes('BPM'), 'draft: columns with no data for him are dropped');
+    ok(/International stats via\s*Basketball-Reference/.test(row.querySelector('.pr-stats-foot').textContent), 'draft: Basketball-Reference credited');
+    ok(!row.textContent.includes('Full stats'), 'draft: no duplicate "Full stats" link to the same page');
+    ok(!row.textContent.includes('will appear here'), 'draft: no "stats coming" note once a pro has stats');
     w.close();
   }
 

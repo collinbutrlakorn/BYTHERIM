@@ -13,11 +13,13 @@
 <meta property="og:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
 
 <link rel="icon" type="image/png" href="../favicon.png">
-<link rel="stylesheet" href="../style.css">
-<link rel="stylesheet" href="css/ncaa-styles.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@400;500;600;700&family=Oswald:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@400;500;600;700&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Shared BYTHERIM header and footer (assets/chrome.css + site.js), then the RP's own styles. -->
+<link rel="stylesheet" href="../assets/chrome.css">
+<link rel="stylesheet" href="css/ncaa-styles.css">
+<script src="../assets/site.js"></script>
 
 <style>
   /* ============================================================
@@ -26,6 +28,23 @@
      every colour from the shared RP theme tokens so it follows
      light/dark with the rest of the RP suite.
      ============================================================ */
+
+  /* Draft RP's accent is its logo's red, as the RP hub shows it (the NCAA
+     RP keeps its blue). Both tints clear 4.5:1 as text in their theme. */
+  :root {
+    --accent: #F0566F;
+    --accent-dark: #C0283F;
+    --accent-contrast: #1a0509;
+    --accent-soft: rgba(240, 86, 111, 0.14);
+    --accent-soft-strong: rgba(240, 86, 111, 0.30);
+  }
+  :root[data-theme="light"] {
+    --accent: #C0283F;
+    --accent-dark: #962034;
+    --accent-contrast: #ffffff;
+    --accent-soft: rgba(192, 40, 63, 0.10);
+    --accent-soft-strong: rgba(192, 40, 63, 0.22);
+  }
 
   .draft-container {
     max-width: 1400px;
@@ -333,17 +352,7 @@
 </head>
 <body>
 
-<header class="navbar">
-  <a href="../" class="brand-logo">
-    <img src="../logo.png" alt="BYTHERIM Logo" class="logo-img">
-  </a>
-  <nav class="nav-links">
-    <a href="../podcast.html">Podcast</a>
-    <a href="../draft.html">Draft</a>
-    <a href="../nba.html">NBA</a>
-    <a href="./" class="active-nav">BYTHERIM RP <span class="badge">SIM</span></a>
-  </nav>
-</header>
+<script>BTR.mount('rp', { base: '../' })</script>
 
 <div class="draft-container">
 
@@ -356,11 +365,6 @@
       </div>
     </div>
     <div class="draft-header-actions">
-      <div class="theme-toggle" role="group" aria-label="Theme">
-        <button class="theme-btn" data-theme-mode="light" onclick="DraftRP.applyTheme('light')">Light</button>
-        <button class="theme-btn" data-theme-mode="dark" onclick="DraftRP.applyTheme('dark')">Dark</button>
-        <button class="theme-btn" data-theme-mode="system" onclick="DraftRP.applyTheme('system')">Auto</button>
-      </div>
       <a href="./ncaa.html" class="sim-btn sim-btn-secondary btn-sm">NCAA RP</a>
     </div>
   </div>
@@ -377,25 +381,7 @@
 
 </div>
 
-<footer class="footer">
-  <div class="footer-container">
-    <div class="footer-brand">
-      <img src="../logo.png" alt="BYTHERIM Logo" class="footer-logo">
-      <p class="footer-desc">In-depth draft analysis, film breakdowns, and NBA discourse.</p>
-    </div>
-    <div class="footer-column">
-      <h4>Navigation</h4>
-      <a href="../">Home</a>
-      <a href="../draft.html">Draft</a>
-      <a href="../nba.html">NBA</a>
-      <a href="./">BYTHERIM RP</a>
-      <a href="./ncaa.html">NCAA RP</a>
-    </div>
-  </div>
-  <div class="footer-bottom">
-    <p>© 2026 BYTHERIM. All rights reserved.</p>
-  </div>
-</footer>
+<!-- The shared BYTHERIM footer is added by site.js. -->
 
 <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
 <script src="js/db.js"></script>

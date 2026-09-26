@@ -29,8 +29,10 @@
      Strengths / Weaknesses   separate items with ";" or new lines
      Film        a YouTube or other link to highlights / film
      Stats Name  the player's name as Barttorvik spells it, if different
-     Stats Link  a page with his full stats (RealGM for internationals),
-                 shown as a "Full stats" link under the table
+     Stats Link  a Basketball-Reference international or G League page
+                 (e.g. basketball-reference.com/international/players/...)
+                 fills in that player's stats automatically; any other
+                 page is shown as a "Full stats" link under the table
    Past boards also read:
      Draft Pick  the actual pick number, or "Undrafted" / "Returned"
      Draft Team  the team that drafted him ("Spurs", "SAS", "San Antonio Spurs")
@@ -248,6 +250,19 @@
       seasons.push({ label, source: 'barttorvik', ...auto(label) });
     }
     if (current && auto(LAST_SEASON)) seasons.push({ label: LAST_SEASON, source: 'barttorvik', ...auto(LAST_SEASON) });
+    // Pros and G League players linked to a Basketball-Reference page: every
+    // season up to this board's draft, one row per competition. A season
+    // typed into the sheet wins over the page's line for that season.
+    const pro = college && college.pro && college.pro[p.id];
+    if (pro) {
+      const typed = new Set(seasons.filter(s => s.source === 'sheet').map(s => s.label));
+      pro.seasons.forEach((s, i) => {
+        if (s.label <= label && !typed.has(s.label)) seasons.push({ ...s, source: 'bbref', url: pro.url, order: i });
+      });
+    }
+    // Newest first; rows from the same season keep the page's order once
+    // the table flips them back to oldest first.
+    seasons.sort((a, b) => b.label.localeCompare(a.label) || (b.order || 0) - (a.order || 0));
     p.seasons = seasons;
     p.stats = seasons.length ? seasons[0].stats : {};
     p.hasStats = seasons.length > 0;
