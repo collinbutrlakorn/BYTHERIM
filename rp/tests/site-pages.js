@@ -50,20 +50,38 @@ const allSource = PAGES.map(p => read(p + '.html')).join('\n') + siteJs;
 ok(siteJs.includes('open.spotify.com/show/'), 'Spotify points at the show');
 ok(siteJs.includes('podcasts.apple.com/us/podcast/'), 'Apple Podcasts points at the show');
 
-// RP pages still rely on the root stylesheet, so it must stay.
-ok(fs.existsSync(path.join(ROOT, 'style.css')), 'root style.css kept for the RP pages');
-['index.html', 'ncaa.html', 'draft.html'].forEach(f => {
+// The sim and Draft RP still rely on the root stylesheet, so it must stay.
+ok(fs.existsSync(path.join(ROOT, 'style.css')), 'root style.css kept for the RP sim pages');
+['ncaa.html', 'draft.html'].forEach(f => {
   if (fs.existsSync(path.join(ROOT, 'rp', f))) ok(read('rp/' + f).includes('../style.css'), `rp/${f} still finds its stylesheet`);
 });
 
+// The RP hub now uses the main site's design, one folder down.
+{
+  const hub = read('rp/index.html');
+  ok(/<meta charset="UTF-8">/i.test(hub) && !/<style[\s>]/i.test(hub), 'rp hub: charset set, no inline styles');
+  ok(hub.includes('href="../assets/site.css"') && hub.includes('src="../assets/site.js"'), 'rp hub: loads the shared design from ../assets');
+  ok(hub.includes("BTR.mount('rp', { base: '../' })"), 'rp hub: header mounted with a ../ base path');
+  ok(!hub.includes('../style.css'), 'rp hub: old stylesheet dropped');
+}
+
 // ------------------------------------------------------------ boot helpers
+// Last six columns are the optional ones: Prev Rank, Wingspan, Comparison,
+// Strengths, Weaknesses, Film.
 const BOARD_CSV = [
-  'pick,tier,name,DOB,class,height,weight,position,school,archetype,ESPN Image URL,Scouting Report,PTS,REB,AST,STL,BLK,TS%,eFG%,USG%,BPM,OBPM,DBPM,3Pr,FTr,2P%,3P&,FT%',
-  '1,2,Test Wing,10/12/2007,FR,"6\'8""",235 lbs,SF,Kansas,Wing-Creator,,"Big wing.",18.4,7.1,3.9,1.2,0.8,58.2%,54.0%,28.5%,8.9,6.1,2.8,0.34,0.41,55.1%,35.6%,77.0%',
-  '2,3,Euro Guard,01/02/2008,INTL,"6\'6""",195 lbs,SG,pro,Playmaking Guard,,,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-',
-  '3,3,Conf Big, 03/04/2007,SO,"7\'0""",240 lbs,C, ohiostate ,Rim-Runner,,,SEC,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-',
-  ',,Radar Guy,05/06/2008,FR,"6\'3""",180 lbs,PG,Duke,,,,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-'
+  'pick,tier,name,DOB,class,height,weight,position,school,archetype,ESPN Image URL,Scouting Report,PTS,REB,AST,STL,BLK,TS%,eFG%,USG%,BPM,OBPM,DBPM,3Pr,FTr,2P%,3P&,FT%,Prev Rank,Wingspan,Comparison,Strengths,Weaknesses,Film',
+  '1,2,Test Wing,10/12/2007,FR,"6\'8""",235 lbs,SF,Kansas,Wing-Creator,,"Big wing.",18.4,7.1,3.9,1.2,0.8,58.2%,54.0%,28.5%,8.9,6.1,2.8,0.34,0.41,55.1%,35.6%,77.0%,3,"7\'0""",Paul George,Pull-up shooting; Size on the wing,Handle under pressure,https://youtube.com/watch?v=abc',
+  '2,3,Euro Guard,01/02/2008,INTL,"6\'6""",195 lbs,SG,pro,Playmaking Guard,,,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,,,,,,',
+  '3,3,Conf Big, 03/04/2007,SO,"7\'0""",240 lbs,C, ohiostate ,Rim-Runner,,,SEC,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,3,,,,,',
+  '4,3,Old Guard,02/02/2004,SR,"6\'2""",185 lbs,PG,Oregon,Floor General,,,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,2,,,,,',
+  ',,Radar Guy,05/06/2008,FR,"6\'3""",180 lbs,PG,Duke,,,,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,,,,,,'
 ].join('\n');
+// data/stats.json as tools/update-stats.mjs writes it.
+const line = (pts, team, gp) => ({ torvikName: 'x', team, conf: 'B10', gp, mpg: '30.1', stats: { PTS: pts, REB: '4.0', AST: '5.5', 'TS%': '57.0%', BPM: '4.4' } });
+const STATS = { updated: '2026-09-26T00:00:00Z', source: 'barttorvik.com', seasons: {
+  '2025-26': { 'conf-big': line('9.1', 'Ohio St.', 31), 'old-guard': line('15.2', 'Arizona', 33) },
+  '2026-27': { 'conf-big': line('12.4', 'Ohio St.', 4) }
+} };
 const RANKINGS_CSV = 'Rank,Conference Rank,Stock,Team,Conference\n1,1,Up,San Antonio Spurs,West\n2,1,Down,Boston Celtics,East\n3,2,,OKC Thunder,West';
 const FEED = {
   status: 'ok', feed: { image: 'https://example.com/show.jpg' },
@@ -88,6 +106,7 @@ function boot(page, { feedsDown = false, hash = '' } = {}) {
         if (url.includes('2PACX-1vQMJM')) return res(RANKINGS_CSV);
         if (url.includes('rss2json')) return feedsDown ? Promise.reject(new Error('down')) : res(url.includes('podcast') ? { ...FEED, items: [FEED.items[0]] } : FEED);
         if (url.includes('itunes.apple.com')) return res({ results: [] });
+        if (url.includes('data/stats.json')) return res(STATS);
         return Promise.reject(new Error('unexpected fetch ' + url));
       };
       w.HTMLMediaElement.prototype.load = () => {};
@@ -135,7 +154,7 @@ function boot(page, { feedsDown = false, hash = '' } = {}) {
     ok(d.querySelectorAll('#latest .post-card').length === 2, 'home: latest posts rendered from the feed');
     const essayImg = d.querySelector('#latest .post-card:nth-child(2) img');
     ok(essayImg && essayImg.getAttribute('src').startsWith('https://substack-post-media.s3.amazonaws.com/'), 'home: Substack proxy image unwrapped to the original');
-    ok(d.querySelectorAll('#boardTeaser li a').length === 3, 'home: big-board teaser lists only ranked prospects');
+    ok(d.querySelectorAll('#boardTeaser li a').length === 4, 'home: big-board teaser lists only ranked prospects');
     ok(d.querySelector('#boardTeaser a').getAttribute('href') === 'draft.html#test-wing', 'home: teaser deep-links into the board');
     w.close();
   }
@@ -177,7 +196,7 @@ function boot(page, { feedsDown = false, hash = '' } = {}) {
     ok(euro.isPro && !euro.hasStats, 'board: "-" cells ignored and Pro detected');
     const big = rows.find(r => r.name === 'Conf Big');
     ok(big.school === 'Ohio State', 'board: slug-style school names cleaned up (" ohiostate " -> Ohio State)');
-    ok(big.conference === 'SEC' && !big.hasStats, 'board: a conference tag in a stat cell is kept as the conference, not a stat');
+    ok(big.conference === 'SEC' && Object.keys(big.sheetStats).length === 0, 'board: a conference tag in a stat cell is kept as the conference, not a stat');
     ok(rows[rows.length - 1].rank == null, 'board: unranked prospects sort after the ranked ones');
 
     // ------------------------------------------------------ draft page
@@ -206,6 +225,77 @@ function boot(page, { feedsDown = false, hash = '' } = {}) {
     const row = d.getElementById('p-conf-big');
     ok(row && (row.classList.contains('open') || row.querySelector('[aria-expanded="true"]')), 'draft: #slug deep link opens that profile');
     ok(row.textContent.includes('Full scouting report coming soon'), 'draft: prospects without a report say so plainly');
+    w.close();
+  }
+
+  // ---------------------------------------------------------- stats + extras
+  {
+    const { w, d } = await boot('draft');
+    const rows = await w.BOARD.loadBoard();
+    const by = id => rows.find(r => r.id === id);
+    ok(by('old-guard').seasons.length === 1 && by('old-guard').seasons[0].label === '2025-26', 'board: returning player gets last season from stats.json');
+    ok(by('conf-big').seasons.map(x => x.label).join() === '2026-27,2025-26', 'board: this season listed ahead of last season');
+    ok(by('test-wing').seasons[0].source === 'sheet', 'board: numbers typed in the sheet stand as this season');
+    ok(!by('radar-guy').hasStats, 'board: freshmen without numbers have no stats');
+    ok(by('test-wing').strengths.length === 2 && by('test-wing').weaknesses.length === 1, 'board: strengths and weaknesses split on ";"');
+
+    ok(d.querySelector('#p-euro-guard .pr-school img').getAttribute('src') === 'schoollogos/pro.png', 'draft: pros use schoollogos/pro.png');
+
+    ok(d.querySelector('#p-test-wing .bd-move.up').textContent.includes('2'), 'draft: movement from Prev Rank (3 -> 1 shows up 2)');
+    ok(d.querySelector('#p-old-guard .bd-move.down'), 'draft: drops show a down arrow');
+    ok(d.querySelector('#p-euro-guard .bd-move.new'), 'draft: ranked prospects without a Prev Rank are marked New');
+    ok(!d.querySelector('#p-conf-big .bd-move'), 'draft: no badge when the rank is unchanged');
+
+    d.querySelector('#p-old-guard .pr-main').click();
+    let row = d.getElementById('p-old-guard');
+    const head = row.querySelector('.pr-stats-head').textContent.replace(/\s+/g, ' ');
+    ok(/Last season · 2025-26/.test(head) && /Arizona · 33 games · 30.1 min/.test(head), 'draft: last season labelled with team, games and minutes');
+    ok(row.querySelector('.stat b').textContent === '15.2', 'draft: last season numbers shown');
+    ok(row.textContent.includes('2026-27 numbers replace these'), 'draft: says this season will replace them');
+    ok(row.querySelector('.pr-source').href.includes('barttorvik.com'), 'draft: Barttorvik credited with a link');
+
+    d.querySelector('#p-conf-big .pr-main').click();
+    row = d.getElementById('p-conf-big');
+    ok(row.querySelectorAll('.season-tabs .chip').length === 2, 'draft: season tabs when there are two seasons');
+    ok(row.querySelector('.stat b').textContent === '12.4', 'draft: this season shown first');
+    row.querySelector('[data-season="conf-big:1"]').click();
+    row = d.getElementById('p-conf-big');
+    ok(row.querySelector('.stat b').textContent === '9.1' && /Last season/.test(row.querySelector('.pr-stats-head').textContent), 'draft: tab switches to last season');
+
+    d.querySelector('#p-test-wing .pr-main').click();
+    row = d.getElementById('p-test-wing');
+    const facts = row.querySelector('.pr-facts').textContent;
+    ok(facts.includes('7\'0"') && facts.includes('Paul George') && facts.includes('#3'), 'draft: wingspan, comparison and previous rank in the facts');
+    ok(row.querySelectorAll('.pr-list.plus li').length === 2 && row.querySelectorAll('.pr-list.minus li').length === 1, 'draft: strengths and weaknesses listed');
+    ok(row.querySelector('a[href="https://youtube.com/watch?v=abc"]').textContent.includes('Watch film'), 'draft: film link shown');
+
+    w.location.hash = '#radar-guy';
+    await new Promise(r => setTimeout(r, 50));
+    ok(d.getElementById('p-radar-guy').classList.contains('open'), 'draft: following a #prospect link on the page opens it');
+    w.close();
+  }
+
+  // ---------------------------------------------------------- RP hub
+  {
+    const { w, d, errors } = await boot('rp/index');
+    ok(errors.length === 0, 'rp hub: boots with no script errors' + (errors.length ? ' ' + errors.join(' | ') : ''));
+    const hrefs = sel => [...d.querySelectorAll(sel)].map(a => a.getAttribute('href'));
+    ok(hrefs('.site-nav a:not(.nav-rp)').every(h => h.startsWith('../')), 'rp hub: header links step up a folder');
+    ok(d.querySelector('.brand').getAttribute('href') === '../' && d.querySelector('.brand img').getAttribute('src') === '../logo.png', 'rp hub: logo links home and loads');
+    ok(d.querySelector('.nav-rp').classList.contains('active'), 'rp hub: the RP pill is marked current');
+    ok(hrefs('.site-footer a').filter(h => !/^https?:/.test(h)).every(h => h.startsWith('../')), 'rp hub: footer links step up a folder');
+    const mods = hrefs('.rp-module-link');
+    ok(mods.join() === '../recruiting/,./ncaa.html,./draft.html', 'rp hub: modules link recruiting, the sim and Draft RP');
+    mods.forEach(h => ok(fs.existsSync(path.join(ROOT, 'rp', h.endsWith('/') ? h + 'index.html' : h)), 'rp hub: target exists for ' + h));
+    w.close();
+  }
+
+  // ---------------------------------------------------------- X feed
+  {
+    const { w, d } = await boot('nba');
+    const card = d.querySelector('[data-x-feed]');
+    ok(card && card.querySelector('.x-feed-head a').href === 'https://x.com/collinbutr', 'nba: X card has a working Follow link');
+    ok(card.querySelector('a.twitter-timeline[href^="https://twitter.com/collinbutr"]'), 'nba: X timeline embed for @collinbutr');
     w.close();
   }
 
