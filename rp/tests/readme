@@ -5,9 +5,9 @@ Run everything:
     cd rp
     node tests/run-all.js
 
-One-time setup (jsdom is the only dependency):
+One-time setup:
 
-    npm install jsdom
+    npm install jsdom papaparse
 
 ## What each suite covers
 
@@ -38,6 +38,27 @@ A single function attached to a team object once broke every save in the
 app: Dexie raises DataCloneError and aborts the transaction, so the only
 symptom was "saves stopped working." Run this after any change that adds
 properties to teams, players, or league state.
+
+**rp-integration.js** — plays a season from a copy of the real roster and
+recruit sheets (`tests/fixtures/`) and checks what ties the three RP pages
+together: the roster sheet's Draft column ("2029 R:1 P:5") makes a player
+declare, never withdraw, and go at exactly that pick; draft night is an
+offseason stage that gives every pick an NBA team and records the lottery;
+drafted players keep their pick; next-season rows at a new school become
+scheduled transfers labelled with the season they move into; and the
+published snapshot (`data/universe.json`) moves from live to declared to
+complete and back to live for the next draft, stays small, and carries
+every transfer and each recruit's college seasons. Set `UNIVERSE_OUT` to a
+folder to keep the snapshot from each stage.
+
+**rp-pages.js** — boots the Draft RP, the recruiting page and the RP hub
+against `tests/fixtures/universe.json`: the stage track and status line,
+the seeded mock draft (the same for every visitor) with scripted picks in
+their slots, past drafts with NBA teams and logos, the Draft Results tab
+once the draft is held, the Transfer Portal (sheet moves, simulated moves,
+filters, the Upcoming flag), the "In the NCAA RP" profile section, and the
+hub's status lines. Also checks the sim loads the NBA teams before the
+engine and has the Publish Universe button.
 
 **recruiting-page.js** — covers `/recruiting`: a failed or empty sheet must
 produce a visible message rather than a blank page, school logos resolve

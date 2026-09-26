@@ -2481,3 +2481,10 @@ button, input, select, textarea { font-family: inherit; }
    onto the page edge until it's open. */
 .side-drawer:not(.open) { box-shadow: none; visibility: hidden; transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), visibility 0s linear 0.25s; }
 .side-drawer.open { visibility: visible; transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+
+/* ---- Offseason draft results (links to the Draft RP) ---- */
+.draft-results-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.draft-results-head .award-table-title { margin-bottom: .5rem; }
+.text-link { color: var(--accent); font-weight: 600; text-decoration: none; font-size: .9rem; }
+.text-link:hover { text-decoration: underline; }
+.drawer-section code { font-size: .85em; }

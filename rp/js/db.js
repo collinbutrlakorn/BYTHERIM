@@ -1,8 +1,11 @@
-// Initialize IndexedDB database for persistent saves
-const db = new Dexie("ByTheRimUniverse");
+// Initialize IndexedDB database for persistent saves.
+// Dexie comes from a CDN. If it's blocked or down, `db` is an empty object
+// rather than an exception: every caller checks `db.leagueState` before
+// using it, and the Draft RP can still show the published universe.
+const db = typeof Dexie !== 'undefined' ? new Dexie("ByTheRimUniverse") : {};
 
 // Version 2 schema setup
-db.version(2).stores({
+if (db.version) db.version(2).stores({
     leagueState: 'id, currentYear, currentPhase, currentWeek, simCompleted',
     teams: 'school, conference, apRank',
     players: 'id, name, school, class, pos, rating, isRecruit',
@@ -12,6 +15,7 @@ db.version(2).stores({
 // Function to populate Dexie with initial data from your JSON file
 async function loadInitialData() {
     try {
+        if (!db.players) return;
         // Check if players are already loaded into Dexie to avoid duplicate imports
         const count = await db.players.count();
         if (count === 0) {

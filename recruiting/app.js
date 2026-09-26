@@ -429,6 +429,10 @@ function switchTab(tabName, isBack = false) {
   } else if (tabName === 'stats') {
     document.getElementById('stats-tab').classList.add('active');
     if (document.querySelectorAll('.nav-btn')[2]) document.querySelectorAll('.nav-btn')[2].classList.add('active');
+  } else if (tabName === 'portal') {
+    document.getElementById('portal-tab').classList.add('active');
+    if (document.querySelectorAll('.nav-btn')[3]) document.querySelectorAll('.nav-btn')[3].classList.add('active');
+    if (typeof renderPortal === 'function') renderPortal();
   } else if (tabName === 'profile') {
     document.getElementById('profile-tab').classList.add('active');
   } else if (tabName === 'schoolDetail') {
@@ -1099,6 +1103,8 @@ function renderProfile(p) {
         <div><div class="recruiting-section-title" style="color: var(--heat-bad-text);">Areas for Growth</div><ul style="padding-left: 1rem; color: var(--text-muted); margin-top: 8px;">${p.weaknesses.map(w => `<li>${w}</li>`).join('')}</ul></div>
       </div>
     </div>
+
+    ${typeof rpCareerHTML === 'function' ? rpCareerHTML(p) : ''}
 
     <div class="stats-box-full">
       <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">

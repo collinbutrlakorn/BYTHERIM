@@ -55,9 +55,9 @@
           <a href="../recruiting/" class="rp-module-link">
             <span class="rp-step">01 · High school</span>
             <span class="rp-logo"><img src="../recruiting/recruitingrplogo.png" alt="" loading="lazy"></span>
-            <span class="rp-status">Live</span>
+            <span class="rp-status" data-uni="recruiting">Live</span>
             <h3>Recruiting Hub</h3>
-            <p>Class rankings, prospect profiles, offer tracking and commitment announcements.</p>
+            <p>Class rankings, prospect profiles and commitments — then the transfer portal, and every recruit's college career and draft pick.</p>
             <span class="rp-cta">Open Recruiting <span data-icon="arrow"></span></span>
           </a>
         </li>
@@ -65,7 +65,7 @@
           <a href="./ncaa.html" class="rp-module-link">
             <span class="rp-step">02 · College</span>
             <span class="rp-logo"><img src="./ncaarplogo.png" alt="" loading="lazy"></span>
-            <span class="rp-status">Live</span>
+            <span class="rp-status" data-uni="ncaa">Live</span>
             <h3>NCAA Simulation</h3>
             <p>Every Division I program: standings, player development, award races and the tournament bracket.</p>
             <span class="rp-cta">Open the Sim <span data-icon="arrow"></span></span>
@@ -75,9 +75,9 @@
           <a href="./draft.html" class="rp-module-link">
             <span class="rp-step">03 · Pros</span>
             <span class="rp-logo"><img src="./draftrplogo.png" alt="" loading="lazy"></span>
-            <span class="rp-status">Live</span>
+            <span class="rp-status" data-uni="draft">Live</span>
             <h3>Draft RP</h3>
-            <p>Pro scouting reports, draft stock movement, combine measurements and franchise outcomes.</p>
+            <p>A big board and mock draft that move all season, the declared class, and draft night — the last step of every college offseason.</p>
             <span class="rp-cta">Open the Draft <span data-icon="arrow"></span></span>
           </a>
         </li>
@@ -109,5 +109,24 @@
     </div>
   </section>
 </main>
+
+<script>
+// The status line on each card follows the published universe
+// (data/universe.json, written by "Publish Universe" in the NCAA RP).
+fetch('../data/universe.json', { cache: 'no-cache' })
+  .then(r => (r.ok ? r.json() : null))
+  .then(u => {
+    if (!u || !u.season || !u.draft) return;
+    const set = (k, text) => { const el = document.querySelector(`[data-uni="${k}"]`); if (el) el.textContent = text; };
+    const s = u.season;
+    const phase = /offseason/i.test(s.phase || '') ? 'Offseason' : s.week ? `Week ${s.week}` : (s.phase || 'Preseason');
+    set('ncaa', `${s.label} · ${phase}`);
+    const d = u.draft;
+    set('draft', d.stage === 'complete' ? `${d.year} draft complete` : d.stage === 'declared' ? `${d.year} class declared` : `${d.year} mock draft live`);
+    const moves = (u.transfers || []).filter(t => t.season === s.label).length;
+    if (moves) set('recruiting', `${moves} transfers · ${s.label}`);
+  })
+  .catch(() => {});
+</script>
 </body>
 </html>

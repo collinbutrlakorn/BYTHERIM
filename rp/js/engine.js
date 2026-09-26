@@ -50,6 +50,10 @@ window.SimEngine = {
     historySeasonView: null,
     themeMode: 'system',
     lastTransfers: [],      // portal moves from the most recent offseason
+    transferHistory: [],    // every transfer, all seasons (feeds the recruiting page's portal)
+    draftHistory: [],       // every NBA draft held in this universe, newest last
+    draftLottery: null,     // lottery winners for the most recent draft
+    nbaLeagues: {},         // synthesised NBA season per draft year (drives the lottery)
     lastDeclarations: [],   // declarations snapshot for the offseason screen
     lastDeclarationsYear: null,
     returningPlayers: [],   // early entrants who withdrew and came back
@@ -197,6 +201,10 @@ window.SimEngine = {
           this.state.lastDeclarations = savedState.lastDeclarations || [];
           this.state.offseasonStageIndex = savedState.offseasonStageIndex || 0;
           this.state.draftResults = savedState.draftResults || [];
+          this.state.draftLottery = savedState.draftLottery || null;
+          this.state.draftHistory = savedState.draftHistory || [];
+          this.state.nbaLeagues = savedState.nbaLeagues || {};
+          this.state.transferHistory = savedState.transferHistory || [];
           this.state.combineResults = savedState.combineResults || [];
           this.state.lastDeclarationsYear = savedState.lastDeclarationsYear || null;
           this.state.returningPlayers = savedState.returningPlayers || [];
@@ -292,6 +300,10 @@ window.SimEngine = {
           lastDeclarations: this.state.lastDeclarations,
           offseasonStageIndex: this.state.offseasonStageIndex,
           draftResults: this.state.draftResults,
+          draftLottery: this.state.draftLottery,
+          draftHistory: this.state.draftHistory,
+          nbaLeagues: this.state.nbaLeagues,
+          transferHistory: this.state.transferHistory,
           combineResults: this.state.combineResults,
           lastDeclarationsYear: this.state.lastDeclarationsYear,
           returningPlayers: this.state.returningPlayers,
@@ -995,7 +1007,14 @@ window.SimEngine = {
       class: classStanding,
       ht: getVal(['height', 'ht'], "6'4"),
       wt: getVal(['weight', 'wt'], "190"),
-      hometown: getVal(['hometown', 'home', 'from'], 'N/A'),
+      // The roster sheet's FROM column holds either a hometown or a transfer
+      // note ("T - Ohio"); only the former is a hometown.
+      hometown: (() => {
+        const h = String(getVal(['hometown', 'home', 'from'], 'N/A'));
+        return /^T\s*-/i.test(h) ? 'N/A' : h;
+      })(),
+      // Scripted draft slot from the sheet's Draft column, e.g. "2030 R:1 P:3".
+      scriptedDraft: this.parseDraftSpec(getVal(['draft', 'draftpick', 'scripteddraft'], '')),
       hs: getVal(['hs', 'highschool', 'prep', 'prepschool'], ''),
       jersey: String(getVal(['jersey', 'number', 'num', 'jerseynumber', 'uniform'], '')).replace(/[^0-9]/g, ''),
       // Optional authoring columns. None of these are displayed anywhere —
@@ -2856,6 +2875,55 @@ window.SimEngine = {
     this.logNews(`${bracket.champion.school} wins the National Championship!`);
   },
 
+  // ---------- Scripted draft picks & the NBA side of the draft ----------
+
+  // The roster sheet's Draft column scripts where a player is taken:
+  // "2030 R:1 P:3" is the 2030 draft, round 1, third pick. Loose spacing
+  // and "Rd"/"Pick" spellings are accepted.
+  parseDraftSpec(v) {
+    const s = String(v || '').trim();
+    if (!s) return null;
+    const year = (s.match(/(20\d{2})/) || [])[1];
+    const round = (s.match(/R(?:d|ound)?\s*[:#.]?\s*(\d)/i) || [])[1];
+    const pick = (s.match(/P(?:ick)?\s*[:#.]?\s*(\d{1,2})/i) || [])[1];
+    if (!year || !pick) return null;
+    const r = parseInt(round || '1', 10), p = parseInt(pick, 10);
+    if (p < 1 || p > 30 || r < 1 || r > 2) return null;
+    return { year: parseInt(year, 10), round: r, pick: p, overall: (r - 1) * 30 + p };
+  },
+
+  // A player's scripted slot: from his own record, or (for saves made
+  // before the column was read) from the roster sheet rows by name.
+  scriptedDraftFor(player) {
+    if (!player) return null;
+    if (player.scriptedDraft) return player.scriptedDraft;
+    const rows = this.state.rawRosterRows || [];
+    if (!rows.length) return null;
+    if (!this._draftSpecByName) {
+      this._draftSpecByName = {};
+      rows.forEach(r => {
+        const spec = this.parseDraftSpec(r.draft || r.draftpick || r.scripteddraft);
+        const name = String(r.name || r.player || r.fullname || '').trim().toLowerCase();
+        if (spec && name) this._draftSpecByName[name] = spec;
+      });
+    }
+    return this._draftSpecByName[String(player.name || '').trim().toLowerCase()] || null;
+  },
+
+  // The NBA season behind each draft's lottery, generated once per draft
+  // year and saved, so the Draft RP's projections and the real draft use
+  // the same standings.
+  getNbaLeague(draftYear) {
+    if (typeof NBACore === 'undefined') return null;
+    if (!this.state.nbaLeagues) this.state.nbaLeagues = {};
+    if (!this.state.nbaLeagues[draftYear]) {
+      this.state.nbaLeagues[draftYear] = NBACore.generateLeagueState(draftYear);
+    }
+    return this.state.nbaLeagues[draftYear];
+  },
+
+  upcomingDraftYear() { return this.state.year + 1; },
+
   // Decides who's leaving school for the draft, right as the season ends
   // (so the Postseason tab can show it before Advance Offseason actually
   // removes anyone). Seniors/grad players always exhaust eligibility, but
@@ -2924,10 +2992,20 @@ window.SimEngine = {
         else declares = Math.random() < 0.02;
       }
 
+      // The roster sheet's Draft column overrides the model: a player
+      // scripted for this draft always declares, and one scripted for a
+      // later draft stays in school until then (unless he's out of
+      // eligibility anyway).
+      const scripted = this.scriptedDraftFor(p);
+      const draftYear = this.upcomingDraftYear();
+      if (scripted && scripted.year === draftYear) declares = true;
+      else if (scripted && scripted.year > draftYear && !mandatory) declares = false;
+
       if (declares) {
         declarations.push({
           id: p.id, name: p.name, school: p.school, pos: p.pos, class: cls,
           rating, mandatory, boardRank: rank,
+          scripted: !!(scripted && scripted.year === draftYear),
           conference: p.conference,
           ppg: p.stats ? p.stats.ppg : '0.0',
           rpg: p.stats ? p.stats.rpg : '0.0',
@@ -3322,6 +3400,7 @@ window.SimEngine = {
     const returning = [];
     this.state.draftDeclarations = (this.state.draftDeclarations || []).filter(d => {
       if (d.mandatory) return true;                 // eligibility exhausted, no choice
+      if (d.scripted) return true;                  // the sheet has him drafted this year
       const rank = boardRank[d.id] || 999;
       // Projected first-rounders almost always stay in; fringe prospects
       // usually go back to school.
@@ -3451,21 +3530,62 @@ window.SimEngine = {
     this.state.combineResults = results.slice(0, 40);
   },
 
-  // Final draft order, taken from the board after the pre-draft process.
+  // The draft itself: the lottery and standings from this draft year's
+  // NBA season set the order, teams take the best available weighted to
+  // need, and any pick scripted in the roster sheet goes exactly where the
+  // sheet says. Results are saved to the player (so it follows him into
+  // the record books) and to the universe's draft history.
   computeDraftResults() {
-    const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
-    const board = this.computeDraftBigBoard(400)
-      .filter(e => declaredIds.has(e.player.id));
-    return board.slice(0, 60).map((e, i) => ({
-      pick: i + 1,
-      id: e.player.id,
-      name: e.player.name,
-      school: e.player.school,
-      pos: e.player.pos,
-      ht: e.player.ht,
-      ppg: e.player.stats ? e.player.stats.ppg : '0.0',
-      round: i < 30 ? 1 : 2
-    }));
+    const draftYear = this.upcomingDraftYear();
+    const declared = this.state.draftDeclarations || [];
+    const declaredIds = new Set(declared.map(d => d.id));
+    const board = this.computeDraftBigBoard(400).filter(e => declaredIds.has(e.player.id));
+
+    // Scripted slots: overall pick -> board entry.
+    const fixed = {};
+    board.forEach(e => {
+      const spec = this.scriptedDraftFor(e.player);
+      if (spec && spec.year === draftYear && !fixed[spec.overall]) fixed[spec.overall] = e;
+    });
+
+    const league = this.getNbaLeague(draftYear);
+    let picks, lottery = null;
+    if (league && typeof NBACore !== 'undefined') {
+      const draft = NBACore.buildMockDraft(board, league, Math.random, fixed);
+      lottery = draft.lottery;
+      picks = draft.picks.map(pk => ({
+        entry: board.find(e => e.player.id === pk.player.id), pick: pk.pick, round: pk.round,
+        team: { id: pk.team.id, name: pk.team.name, logo: pk.team.logo }, boardRank: pk.boardRank
+      }));
+    } else {
+      // NBA data unavailable: board order, no teams.
+      picks = board.slice(0, 60).map((e, i) => ({ entry: e, pick: i + 1, round: i < 30 ? 1 : 2, team: null, boardRank: i + 1 }));
+    }
+
+    const results = picks.map(pk => {
+      const p = pk.entry.player;
+      const spec = this.scriptedDraftFor(p);
+      const result = {
+        pick: pk.pick, round: pk.round, year: draftYear,
+        id: p.id, name: p.name, school: p.school, pos: p.pos, ht: p.ht,
+        class: this.normalizeClassStanding(p.class) || p.class,
+        ppg: p.stats ? p.stats.ppg : '0.0',
+        rpg: p.stats ? p.stats.rpg : '0.0',
+        apg: p.stats ? p.stats.apg : '0.0',
+        team: pk.team, boardRank: pk.boardRank,
+        scripted: !!(spec && spec.year === draftYear && spec.overall === pk.pick)
+      };
+      p.draft = { year: draftYear, pick: pk.pick, round: pk.round, team: pk.team ? { id: pk.team.id, name: pk.team.name, logo: pk.team.logo } : null, teamId: pk.team ? pk.team.id : null };
+      return result;
+    });
+
+    this.state.draftLottery = lottery ? {
+      year: draftYear,
+      winners: lottery.lotteryWinners.map(t => ({ id: t.id, name: t.name, logo: t.logo, wins: t.wins, losses: t.losses }))
+    } : null;
+    this.state.draftHistory = (this.state.draftHistory || []).filter(d => d.year !== draftYear)
+      .concat([{ year: draftYear, picks: results, lottery: this.state.draftLottery }]);
+    return results;
   },
 
   // Captures the declaring class with complete stat lines. Declared
@@ -3517,6 +3637,13 @@ window.SimEngine = {
     })));
     this.applyTransfers(transfers);
 
+    // Every move is kept (the recruiting page's Transfer Portal reads the
+    // full history), labelled with the season the player transfers into.
+    const intoSeason = `${this.state.year + 1}-${String(this.state.year + 2).slice(2)}`;
+    this.state.transferHistory = (this.state.transferHistory || []).concat(
+      this.state.lastTransfers.map(t => ({ ...t, season: intoSeason, scheduled: t.reason === 'Scheduled transfer' })));
+    if (this.state.transferHistory.length > 4000) this.state.transferHistory = this.state.transferHistory.slice(-4000);
+
     const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
     // Kept for the offseason screen — state.draftDeclarations is cleared
     // below when the new season is set up.
@@ -3550,6 +3677,7 @@ window.SimEngine = {
     });
 
     this.state.year += 1;
+    this.getNbaLeague(this.upcomingDraftYear());
     this.state.week = 0;
     this.state.phase = 'Preseason';
     this.state.simCompleted = false;
@@ -4856,6 +4984,7 @@ window.SimEngine = {
             ${bioRow('Height', player.ht)}
             ${bioRow('Weight', player.wt ? player.wt + ' lb' : '')}
             ${bioRow('School', collegeLinks)}
+            ${bioRow('NBA Draft', player.draft ? `${player.draft.year} · Pick ${player.draft.pick}${player.draft.team ? ' · ' + (player.draft.team.name || player.draft.team) : ''}` : '')}
             ${bioRow('Hometown', player.hometown && player.hometown !== 'N/A' ? player.hometown : '')}
             ${bioRow('High School', player.hs)}
             ${bioRow('RSCI Rank', player.rsci
@@ -5702,6 +5831,152 @@ window.SimEngine = {
     return after - before;
   },
 
+  // ---------- Publishing the official universe ----------
+  //
+  // The NCAA RP runs in the owner's browser; the recruiting page and the
+  // Draft RP are read by everyone. "Publish universe" writes a compact
+  // snapshot (data/universe.json in the repo) that those pages read, so
+  // every visitor sees the same portal, draft and college careers.
+  UNIVERSE_VERSION: 1,
+
+  seasonLabelFor(year) { return `${year}-${String(year + 1).slice(2)}`; },
+
+  // Player record without game logs, split stat tables or sim internals.
+  slimPlayer(p) {
+    if (!p) return null;
+    return {
+      id: p.id, name: p.name, school: p.school, conference: p.conference, pos: p.pos,
+      class: this.normalizeClassStanding(p.class) || p.class, ht: p.ht, wt: p.wt,
+      hometown: p.hometown, hs: p.hs, jersey: p.jersey, rsci: p.rsci || null,
+      rating: p.rating, collegeHistory: p.collegeHistory || [p.school],
+      stats: this.slimStats(p.stats), draft: p.draft || null,
+      // The sheet's Draft column, so the Draft RP's mock agrees with draft night.
+      scriptedDraft: this.scriptedDraftFor(p) || null
+    };
+  },
+
+  // Season totals (totPts, totMin…) are only used to build the averages,
+  // so they're left out of the published file.
+  slimStats(st) {
+    if (!st) return null;
+    const out = {};
+    Object.keys(st).forEach(k => { if (!/^tot[A-Z]/.test(k) && typeof st[k] !== 'object') out[k] = st[k]; });
+    return out;
+  },
+
+  seasonLine(year, school, cls, st) {
+    st = st || {};
+    return {
+      year, season: this.seasonLabelFor(year), school, class: cls,
+      gp: st.gp || 0, mpg: st.mpg, ppg: st.ppg, rpg: st.rpg, apg: st.apg,
+      spg: st.stl, bpg: st.blk, fgPct: st.fgPct, threePPct: st.threePPct, bpm: st.bpm
+    };
+  },
+
+  buildUniverseSnapshot() {
+    const year = this.state.year;
+    const draftYear = this.upcomingDraftYear();
+    const players = this.state.activePlayers || [];
+    const byId = {};
+    players.forEach(p => { byId[p.id] = p; });
+
+    // Where the upcoming draft stands.
+    const thisDraft = (this.state.draftHistory || []).find(d => d.year === draftYear);
+    const declared = this.state.draftDeclarations || [];
+    const stage = thisDraft ? 'complete' : declared.length ? 'declared' : 'live';
+    const snapshotById = {};
+    (this.state.lastDeclarations || []).forEach(d => { snapshotById[d.id] = d; });
+    let pool;
+    if (stage === 'live') {
+      const board = this.computeDraftBigBoard(150).map(e => e.player);
+      // Players the sheet has going in this draft are always included, so
+      // the Draft RP's mock can hold their pick before they've played.
+      const onBoard = new Set(board.map(p => p.id));
+      players.forEach(p => {
+        const sd = this.scriptedDraftFor(p);
+        if (sd && sd.year === draftYear && !onBoard.has(p.id)) board.push(p);
+      });
+      pool = board.map(p => this.slimPlayer(p));
+    } else {
+      const source = stage === 'declared' ? declared : (this.state.lastDeclarations || declared);
+      pool = source.map(d => this.slimPlayer(byId[d.id] || snapshotById[d.id] || d)).filter(Boolean);
+    }
+
+    // College careers for everyone in the recruiting database, so the
+    // recruiting page can follow a recruit into the sim and the draft.
+    const recruitNames = new Set((this.state.allRecruits || []).map(r => String(r.name || '').trim().toLowerCase()).filter(Boolean));
+    const alumni = [];
+    const addAlum = (p, active) => {
+      if (!p || !recruitNames.has(String(p.name || '').trim().toLowerCase())) return;
+      const seasons = (p.seasonHistory || []).map(h => this.seasonLine(h.year, h.school, h.class, h.stats));
+      if (active && p.stats && p.stats.gp > 0 && !seasons.some(s => s.year === year)) {
+        seasons.push(this.seasonLine(year, p.school, this.normalizeClassStanding(p.class) || p.class, p.stats));
+      }
+      alumni.push({
+        name: p.name, pos: p.pos, school: active ? p.school : null,
+        class: active ? (this.normalizeClassStanding(p.class) || p.class) : null,
+        active, collegeHistory: p.collegeHistory || (p.school ? [p.school] : []),
+        seasons, draft: p.draft || null
+      });
+    };
+    players.forEach(p => addAlum(p, true));
+    const activeIds = new Set(players.map(p => p.id));
+    (this.state.departedArchive || []).forEach(p => { if (!activeIds.has(p.id)) addAlum(p, false); });
+
+    return {
+      version: this.UNIVERSE_VERSION,
+      publishedAt: new Date().toISOString(),
+      season: {
+        year, label: this.seasonLabelFor(year), phase: this.state.phase, week: this.state.week,
+        ncaaDone: !!this.state.ncaaDone
+      },
+      teams: (this.state.teams || []).map(t => ({
+        school: t.school, conference: t.conference,
+        wins: t.simData ? t.simData.wins : 0, losses: t.simData ? t.simData.losses : 0,
+        confWins: t.simData ? t.simData.confWins : 0, confLosses: t.simData ? t.simData.confLosses : 0,
+        apRank: t.apRank || null
+      })),
+      draft: {
+        year: draftYear, stage, pool,
+        results: thisDraft ? thisDraft.picks : [],
+        lottery: thisDraft ? thisDraft.lottery : null,
+        league: this.getNbaLeague(draftYear),
+        history: (this.state.draftHistory || []).map(d => ({ year: d.year, picks: d.picks, lottery: d.lottery }))
+      },
+      transfers: (this.state.transferHistory || []).map(t => ({
+        name: t.name, pos: t.pos, class: t.class, rating: t.rating, ppg: t.ppg,
+        from: t.from, to: t.to, season: t.season, scheduled: !!t.scheduled, reason: t.reason
+      })),
+      alumni,
+      champions: (this.state.seasonHistory || []).map(h => ({
+        year: h.year, season: this.seasonLabelFor(h.year),
+        champion: h.champion && (h.champion.school || h.champion), runnerUp: h.runnerUp && (h.runnerUp.school || h.runnerUp),
+        npoy: h.npoy || null
+      }))
+    };
+  },
+
+  async publishUniverse() {
+    const snapshot = this.buildUniverseSnapshot();
+    const json = JSON.stringify(snapshot);
+    await this.saveStateToDB();   // keeps the NBA league generated for the snapshot
+    try {
+      const blob = new Blob([json], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'universe.json';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    } catch (e) { console.error('Publish failed', e); }
+    const note = document.getElementById('publishNote');
+    if (note) {
+      note.style.display = '';
+      note.innerHTML = `<b>universe.json</b> downloaded (${(json.length / 1024).toFixed(0)} KB, ${snapshot.season.label}). Upload it to the repo's <b>data</b> folder to update the recruiting page and Draft RP for everyone.`;
+    }
+    return snapshot;
+  },
+
   // Permanently retires a player from the college universe.
   // Departed players are kept in a slim archive so the record books don't
   // lose every great career the moment its owner leaves for the draft.
@@ -5723,6 +5998,8 @@ window.SimEngine = {
     this.state.departedArchive.push({
       id: player.id, name: player.name, pos: player.pos,
       careerPts: Math.round(career),
+      collegeHistory: player.collegeHistory,
+      draft: player.draft || null,
       seasonHistory: player.seasonHistory
     });
 
@@ -6035,9 +6312,10 @@ window.SimEngine = {
     const picks = this.state.draftResults || [];
     const combine = this.state.combineResults || [];
     let html = '';
+    let combineHTML = '';
 
     if (combine.length) {
-      html += `<h5 class="award-table-title">Combine &amp; Workout Risers and Fallers</h5>
+      combineHTML = `<h5 class="award-table-title mt-2">Combine &amp; Workout Risers and Fallers</h5>
         <div class="table-scroll mb-1-5"><table class="data-table">
           <thead><tr><th>Player</th><th>School</th><th>Movement</th></tr></thead><tbody>
           ${combine.slice(0, 15).map(c => `<tr>
@@ -6049,24 +6327,30 @@ window.SimEngine = {
     }
 
     if (picks.length === 0) {
-      html += `<p class="empty-table-msg">The draft hasn't been held yet.</p>`;
-      return html;
+      return `<p class="empty-table-msg">The draft hasn't been held yet. <a href="./draft.html">See the projected mock draft on the Draft RP &rarr;</a></p>` + combineHTML;
     }
 
-    html += `<h5 class="award-table-title">${this.state.year + 1} NBA Draft</h5>
+    const nbaLogo = t => `../nbalogos/${encodeURIComponent(t.logo)}.png`;
+    const lottery = this.state.draftLottery;
+    const draftYear = picks[0].year || this.state.year + 1;
+    html += `<div class="draft-results-head">
+        <h5 class="award-table-title">${draftYear} NBA Draft</h5>
+        <a class="text-link" href="./draft.html">Full draft on the Draft RP &rarr;</a>
+      </div>
+      ${lottery && lottery.winners ? `<p class="sub-text mb-1">Lottery: ${lottery.winners.map((t, i) => `<b>${i + 1}.</b> ${t.name}`).join(' · ')}</p>` : ''}
       <div class="table-scroll"><table class="data-table">
-        <thead><tr><th>Pick</th><th>Rd</th><th>Player</th><th>School</th><th>Pos</th><th>HT</th><th>PPG</th></tr></thead><tbody>
+        <thead><tr><th>Pick</th><th>Team</th><th>Player</th><th>School</th><th>Pos</th><th>PPG</th></tr></thead><tbody>
         ${picks.map(d => `<tr>
           <td class="rank-cell">${d.pick}</td>
-          <td class="sub-text">${d.round}</td>
+          <td>${d.team ? `<div class="team-cell-wrap"><img src="${nbaLogo(d.team)}" class="xs-logo" alt="" onerror="this.remove()"><span>${d.team.name}</span></div>` : '<span class="sub-text">—</span>'}</td>
           <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(d.id).replace(/'/g, "\\'")}')">${d.name}</span></td>
           <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(d.school)}" class="xs-logo"><span>${d.school}</span></div></td>
           <td class="sub-text">${d.pos}</td>
-          <td class="sub-text">${d.ht || '—'}</td>
           <td class="bold-text">${d.ppg}</td>
         </tr>`).join('')}
       </tbody></table></div>`;
-    return html;
+    // Draft night first; the combine movement that led to it follows.
+    return html + combineHTML;
   },
 
   renderOffseasonTransfers() {

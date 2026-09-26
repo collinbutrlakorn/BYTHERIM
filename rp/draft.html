@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BYTHERIM | NBA Draft RP</title>
-<meta name="description" content="NBA Draft RP: master big board, prospect scouting profiles, and custom big board builder for the BYTHERIM roleplay universe.">
+<meta name="description" content="NBA Draft RP: the draft of the BYTHERIM college universe — an in-season big board and mock draft, the declared class, and draft-night results.">
 
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://collinbutrlakorn.github.io/BYTHERIM/rp/draft.html">
@@ -220,7 +220,9 @@
     font-weight: 700;
   }
 
-  .board-controls { display: flex; gap: 0.25rem; justify-content: flex-end; }
+  /* A td must stay a table cell (display:flex broke the row borders). */
+  .board-controls { white-space: nowrap; text-align: right; }
+  .board-controls .mini-btn + .mini-btn { margin-left: 0.25rem; }
 
   .mini-btn {
     background: transparent;
@@ -339,12 +341,39 @@
   .lottery-team { white-space: nowrap; }
   .lottery-record { color: var(--text-muted); font-size: 0.74rem; }
   .nba-logo-sm { width: 26px; height: 26px; object-fit: contain; flex-shrink: 0; }
-  .nba-team-cell { display: flex; align-items: center; gap: 0.5rem; }
+  .nba-team-cell { display: flex; flex-direction: row; align-items: center; gap: 0.5rem; }
   .reach-tag { font-size: 0.68rem; font-weight: 700; padding: 0.05rem 0.35rem; border-radius: var(--r-pill); margin-left: 0.25rem; }
   .reach-tag.steal { background: rgba(61,220,132,0.18); color: var(--win); }
   .reach-tag.reach { background: rgba(229,72,77,0.18); color: var(--loss); }
 
+  /* Where the draft stands: season -> declarations -> draft night */
+  .draft-stages {
+    list-style: none; margin: 0 0 1.25rem; padding: 0;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;
+  }
+  .draft-stages:empty { display: none; }
+  .draft-stages li {
+    display: flex; align-items: center; gap: 0.65rem;
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: var(--r-md); padding: 0.65rem 0.85rem;
+    color: var(--text-muted); min-width: 0;
+  }
+  .draft-stages li b {
+    display: block; font-family: 'Oswald', sans-serif; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.9rem; color: var(--text-main);
+  }
+  .draft-stages li small { display: block; font-size: 0.78rem; line-height: 1.25; }
+  .stage-dot {
+    flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
+    display: grid; place-items: center; font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 0.8rem;
+    border: 1px solid var(--border); color: var(--text-muted);
+  }
+  .draft-stages li.done .stage-dot { background: var(--accent-soft-strong); border-color: transparent; color: var(--accent); }
+  .draft-stages li.current { border-color: var(--accent); background: var(--accent-soft); }
+  .draft-stages li.current .stage-dot { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+
   @media (max-width: 720px) {
+    .draft-stages { grid-template-columns: 1fr; }
     .draft-title h1 { font-size: 1.55rem; }
     .draft-brand-logo { width: 56px; height: 56px; }
   }
@@ -365,12 +394,15 @@
       </div>
     </div>
     <div class="draft-header-actions">
+      <div id="draftSource"></div>
       <a href="./ncaa.html" class="sim-btn sim-btn-secondary btn-sm">NCAA RP</a>
     </div>
   </div>
 
+  <ol class="draft-stages" id="draftStages" aria-label="Where the draft stands"></ol>
+
   <div class="draft-view-nav">
-    <button class="draft-view-btn active" data-view="master" onclick="DraftRP.setView('master')">Master Big Board</button>
+    <button class="draft-view-btn active" data-view="master" onclick="DraftRP.setView('master')">Big Board</button>
     <button class="draft-view-btn" data-view="custom" onclick="DraftRP.setView('custom')">My Big Board</button>
     <button class="draft-view-btn" data-view="mock" onclick="DraftRP.setView('mock')">Mock Draft</button>
   </div>

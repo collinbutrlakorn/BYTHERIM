@@ -1247,3 +1247,67 @@ body.modal-open { overflow: hidden; }
   .recruiting-nav { gap: 0.25rem; }
   .recruiting-nav .nav-btn { padding: 0.38rem 0.7rem; font-size: 0.76rem; }
 }
+
+/* ==========================================================================
+   Transfer Portal tab and the profile's "In the NCAA RP" section
+   ========================================================================== */
+.portal-summary {
+  display: flex; flex-wrap: wrap; gap: 0.4rem 1.25rem; align-items: baseline;
+  color: var(--text-muted); font-size: 0.85rem; margin: 0 0 0.85rem;
+}
+.portal-summary b { color: var(--text-main); font-size: 1rem; }
+.portal-summary .portal-source { margin-left: auto; font-size: 0.78rem; }
+.portal-table .col-player { text-align: left; }
+.portal-table .col-move { text-align: left; }
+.portal-row:not(.has-profile) td { cursor: default; }
+.portal-move { display: inline-flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.portal-school { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; color: var(--text-main); }
+.portal-school.from { color: var(--text-muted); font-weight: 500; }
+.portal-arrow { color: var(--accent); font-weight: 700; }
+.portal-badge {
+  display: inline-block; padding: 3px 8px; border-radius: var(--r-pill);
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  border: 1px solid var(--border); color: var(--text-muted); margin: 2px;
+}
+.portal-badge.scheduled { color: var(--accent); border-color: var(--accent-soft-strong); background: var(--accent-soft); }
+.portal-badge.portal { color: var(--text-main); background: var(--card-hover); }
+.portal-badge.upcoming { color: var(--win); border-color: currentColor; }
+.portal-empty { color: var(--text-muted); padding: 2rem 1rem !important; white-space: normal !important; }
+.portal-more td { padding: 1rem !important; }
+.portal-row:hover td { background-color: var(--bg-hover); }
+
+.rp-career { margin-bottom: 1.25rem; }
+.rp-career-head {
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border-color); padding-bottom: 10px;
+}
+.rp-career-head h3 { margin: 0; }
+.rp-status { display: flex; align-items: center; gap: 0.75rem; }
+.rp-status-logo { width: 36px; height: 36px; object-fit: contain; }
+.rp-status-label { display: block; font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.rp-status-main { display: block; font-weight: 700; color: var(--text-main); }
+.rp-status.drafted .rp-status-main { color: var(--accent); }
+.rp-path { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.9rem; }
+.rp-season-table .rp-season-school { text-align: left; }
+.rp-moves { list-style: none; padding: 0; margin: 0.5rem 0 0; display: grid; gap: 0.5rem; }
+.rp-moves li { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+
+@media (max-width: 760px) {
+  .portal-summary .portal-source { margin-left: 0; width: 100%; }
+  .portal-table thead { display: none; }
+  .portal-table tbody tr.portal-row {
+    display: grid; grid-template-columns: 1fr auto; grid-template-areas:
+      "player grade" "move move" "meta meta";
+    gap: 0.5rem; padding: 0.85rem 0.9rem; border-bottom: 1px solid var(--border);
+  }
+  .portal-table tbody tr.portal-row td { padding: 0; border: none; text-align: left; white-space: normal; }
+  .portal-row .col-player { grid-area: player; min-width: 0; }
+  .portal-row .col-grade { grid-area: grade; align-self: center; }
+  .portal-row .col-move { grid-area: move; }
+  .portal-row .col-season, .portal-row .col-type { grid-area: meta; }
+  .portal-row .col-season { justify-self: start; }
+  .portal-row .col-type { justify-self: end; }
+  .rp-status { width: 100%; }
+  .rp-status .query-btn { margin-left: auto; }
+}
+a.query-btn { text-decoration: none; display: inline-flex; align-items: center; }

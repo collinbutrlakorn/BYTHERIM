@@ -127,13 +127,21 @@ function fitBonus(team, prospect) {
 }
 
 // Produces the mock draft: 60 picks, best-available weighted by fit.
-function buildMockDraft(board, league, rng = Math.random) {
+// `fixed` optionally pins board entries to overall picks ({ 3: entry }),
+// which is how picks scripted in the roster sheet land exactly.
+function buildMockDraft(board, league, rng = Math.random, fixed = {}) {
   const r = rngPick(rng);
   const lottery = runLottery(league, r);
-  const available = board.slice();
+  const pinned = new Set(Object.values(fixed || {}));
+  const available = board.filter(e => !pinned.has(e));
   const picks = [];
 
   lottery.order.slice(0, 60).forEach((team, i) => {
+    const slot = fixed && fixed[i + 1];
+    if (slot) {
+      picks.push({ pick: i + 1, round: i < 30 ? 1 : 2, team, player: slot.player, boardRank: board.indexOf(slot) + 1, needs: teamNeeds(team), scripted: true });
+      return;
+    }
     if (available.length === 0) return;
     // Teams consider a shortlist rather than only the top name, which is
     // what lets need and a little randomness move players a few spots.

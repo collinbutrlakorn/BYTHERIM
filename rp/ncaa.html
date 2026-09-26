@@ -67,6 +67,13 @@
           <button class="sim-btn sim-btn-secondary w-100 mb-1 btn-sm" onclick="document.getElementById('importSaveInput').click()">Import Save</button>
           <button class="sim-btn sim-btn-secondary w-100 btn-sm" onclick="if(confirm('Return to the home screen? Your progress is already saved automatically.')) location.reload()">Home Screen</button>
         </div>
+
+        <div class="drawer-section">
+          <h3 class="section-title">Official universe</h3>
+          <p class="sub-text-sm mb-1">Publishing saves a <code>universe.json</code> file. Upload it to the site's <code>data</code> folder and the Draft RP and Recruiting pages will show this save to everyone.</p>
+          <button class="sim-btn btn-sm w-100" id="publishBtn" onclick="SimEngine.publishUniverse()">Publish Universe</button>
+          <p id="publishNote" class="sub-text-sm mt-1" style="display:none"></p>
+        </div>
       </div>
     </aside>
     <div class="drawer-scrim" id="drawerScrim"></div>
@@ -264,7 +271,10 @@
       </div>
 
       <div id="draftBoardTab" class="tab-content">
-        <h3 class="mb-1">Draft Board</h3>
+        <div class="draft-results-head">
+          <h3 class="mb-1">Draft Board</h3>
+          <a class="text-link" href="./draft.html">Mock draft &amp; your own board on the Draft RP &rarr;</a>
+        </div>
         <div id="draftBoardContainer">
           <p class="empty-table-msg">Finish the NCAA Tournament to see who's declared for the draft.</p>
         </div>
@@ -443,6 +453,7 @@
   <script src="js/draft-core.js"></script>
   <script src="js/coach-core.js"></script>
   <script src="js/development-core.js"></script>
+  <script src="js/nba-core.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/ui.js"></script>
   <script>

@@ -37,6 +37,7 @@
       <button class="nav-btn active" onclick="switchTab('rankings')">Class Rankings</button>
       <button class="nav-btn" onclick="switchTab('schoolRankings')">School Rankings</button>
       <button class="nav-btn" onclick="switchTab('stats')">Statistics</button>
+      <button class="nav-btn" onclick="switchTab('portal')">Transfer Portal</button>
     </nav>
   </div>
   <!-- END OF UPDATED HEADER -->
@@ -220,6 +221,42 @@
       </div>
     </div>
 
+    <div id="portal-tab" class="tab-content">
+      <div class="controls-bar">
+        <input type="text" id="portalSearch" class="search-input" placeholder="Search player or school..." oninput="setPortalFilter('q', this.value)">
+        <div class="filter-group">
+          <select id="portalSeason" class="select-input" aria-label="Season" onchange="setPortalFilter('season', this.value)">
+            <option value="ALL">All Seasons</option>
+          </select>
+          <select id="portalType" class="select-input" aria-label="Type" onchange="setPortalFilter('type', this.value)">
+            <option value="ALL">Scheduled &amp; Portal</option>
+            <option value="SCHEDULED">Scheduled (roster sheet)</option>
+            <option value="PORTAL">Portal (simulation)</option>
+          </select>
+          <select id="portalPos" class="select-input" aria-label="Position" onchange="setPortalFilter('pos', this.value)">
+            <option value="ALL">All Positions</option>
+            <option value="G">Guard (G)</option><option value="W">Wing (W)</option><option value="F">Forward (F)</option><option value="C">Center (C)</option>
+            <option value="PG">PG</option><option value="CG">CG</option><option value="SG">SG</option><option value="SF">SF</option><option value="PF">PF</option>
+          </select>
+        </div>
+      </div>
+      <div class="portal-summary" id="portalSummary"></div>
+      <div class="table-container">
+        <table class="portal-table">
+          <thead>
+            <tr>
+              <th class="col-player" style="text-align: left;">Player</th>
+              <th class="col-grade">OVR</th>
+              <th class="col-move" style="text-align: left;">Move</th>
+              <th class="col-season">Season</th>
+              <th class="col-type">Type</th>
+            </tr>
+          </thead>
+          <tbody id="portalBody"><tr><td colspan="5" class="portal-empty">Loading transfers…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
     <div id="profile-tab" class="tab-content">
       <div id="profileContainer" class="profile-card"></div>
     </div>
@@ -235,6 +272,7 @@
 
   <!-- External JavaScript Link -->
   <script src="app.js"></script>
+  <script src="portal.js"></script>
 
 
   <!-- The shared BYTHERIM footer is added by site.js. -->
