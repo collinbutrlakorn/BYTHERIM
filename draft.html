@@ -112,6 +112,18 @@
     const undrafted = d.status === 'Undrafted';
     return [d.status, team && (undrafted ? `signed with ${team}` : team), undrafted ? d.year : ''].filter(Boolean).join(' · ');
   }
+  // Profile: "Pick 3" and the team's logo (name on hover); a later
+  // draft year gets a note, and Undrafted / Returned stay as words.
+  function draftFact(p) {
+    const d = p.draft;
+    if (!d) return '';
+    if (d.pick == null) return esc(d.status);
+    const logo = d.team && d.team.logo
+      ? `<img class="fact-logo" src="nbalogos/${encodeURIComponent(d.team.logo)}.png" alt="${esc(d.team.name)}" title="${esc(d.team.name)}">`
+      : (d.team ? esc(d.team.name) : '');
+    return `<span class="fact-pick">Pick ${d.pick}${logo ? ` <span aria-hidden="true">–</span> ${logo}` : ''}${d.year !== state.year ? ` <small>${d.year}</small>` : ''}</span>`;
+  }
+
   // Phone rows: "Drafted #12 SAS", "Undrafted" or "Returned".
   function draftMeta(p) {
     if (!p.draft) return '';
@@ -179,7 +191,7 @@
     return `
 <img class="pr-bigphoto" src="${esc(photoFor(p))}" alt="${esc(p.name)}" loading="lazy" onerror="this.onerror=null;this.src='${initialsBadge(p.name)}'">
 <div>
-  <dl class="pr-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
+  <dl class="pr-facts">${facts.map(([k, v, html]) => `<div><dt>${k}</dt><dd>${html || esc(v)}</dd></div>`).join('')}</dl>
   <h4>${esc(p.archetype || 'Scouting report')}</h4>
   ${report}
   ${lists}
@@ -194,7 +206,7 @@
   function detailFacts(p) {
     const facts = [
       ['Board rank', p.rank != null ? `#${p.rank}` : (isPast() ? 'Unranked' : 'On the radar')],
-      ['Drafted', isPast() ? draftLong(p) : ''],
+      ['Drafted', isPast() ? draftLong(p) : '', isPast() ? draftFact(p) : ''],
       ['Tier', p.tier != null ? [p.tier, BOARD.tierName(p.tier)].filter(Boolean).join(' · ') : '—'],
       ['Position', p.pos],
       ['Class', CLASS_LABEL[p.cls] || p.cls],
@@ -222,40 +234,44 @@
     return { facts, report, lists };
   }
 
-  // Newest season first. A prospect with last season's numbers but none
-  // yet this season shows last season, labelled as such.
+  // Stats as a Basketball-Reference-style table: one row per season,
+  // oldest first, grouped column headers above.
   function statsHTML(p) {
+    const link = p.statsLink ? `<a class="pr-source" href="${esc(p.statsLink)}" target="_blank" rel="noopener">Full stats</a>` : '';
     if (!p.hasStats) {
-      if (isPast()) return '';
+      if (isPast()) return link ? `<div class="pr-stats-foot" style="margin-top:1rem">${link}</div>` : '';
       const what = p.isPro ? 'Professional stats' : `${BOARD.CURRENT_SEASON} stats`;
-      return `<p class="pr-note" style="margin-top:1rem">${what} will appear here once the season is underway.</p>`;
+      return `<p class="pr-note" style="margin-top:1rem">${what} will appear here once the season is underway.${link ? ` ${link}` : ''}</p>`;
     }
-    const i = Math.min(state.season[p.id] || 0, p.seasons.length - 1);
-    const s = p.seasons[i];
-    const tabs = p.seasons.length > 1
-      ? `<div class="chip-group season-tabs">${p.seasons.map((x, j) =>
-          `<button type="button" class="chip${j === i ? ' active' : ''}" data-season="${p.id}:${j}">${esc(x.label)}</button>`).join('')}</div>`
-      : '';
-    const heading = isPast() ? `${s.label} season` : s.label === BOARD.LAST_SEASON ? `Last season · ${s.label}` : `${s.label} season`;
-    const meta = [s.team, s.gp ? `${s.gp} games` : '', s.mpg ? `${s.mpg} min` : ''].filter(Boolean).join(' · ');
-    const pending = !isPast() && p.seasons.length === 1 && s.label === BOARD.LAST_SEASON
-      ? `<p class="pr-note pr-stats-note">${BOARD.CURRENT_SEASON} numbers replace these once he's played.</p>` : '';
-    const source = s.source === 'barttorvik'
-      ? `<a class="pr-source" href="https://barttorvik.com/playerstat.php?link=y&year=${s.label.slice(0, 2)}${s.label.slice(-2)}&p=${encodeURIComponent(s.torvikName || p.name)}&t=${encodeURIComponent(s.team || '')}" target="_blank" rel="noopener">Barttorvik</a>`
+    const seasons = [...p.seasons].reverse();
+    const groups = BOARD.STAT_GROUPS.map(g => ({ ...g, stats: g.stats.filter(([k]) => seasons.some(s => s.stats[k] != null)) }))
+      .filter(g => g.stats.length);
+    const cols = groups.flatMap(g => g.stats);
+    const teamOf = s => s.team || (p.isPro ? 'Pro' : p.school) || '';
+    const rows = seasons.map(s => `
+        <tr>
+          <th scope="row">${esc(s.label)}</th>
+          <td class="st-team">${esc(teamOf(s))}</td>
+          ${cols.map(([k]) => `<td>${s.stats[k] != null ? esc(s.stats[k]) : ''}</td>`).join('')}
+        </tr>`).join('');
+    const pending = !isPast() && p.seasons.length === 1 && p.seasons[0].label === BOARD.LAST_SEASON
+      ? `<span>${BOARD.CURRENT_SEASON} numbers are added once he's played.</span>` : '';
+    const college = p.seasons.find(s => s.source === 'barttorvik');
+    const source = college
+      ? `<span>College stats via <a class="pr-source" href="https://barttorvik.com/playerstat.php?link=y&year=${college.label.slice(0, 2)}${college.label.slice(-2)}&p=${encodeURIComponent(college.torvikName || p.name)}&t=${encodeURIComponent(college.team || '')}" target="_blank" rel="noopener">Barttorvik</a></span>`
       : '';
     return `
   <div class="pr-stats">
-    <div class="pr-stats-head">
-      <div><h5>${esc(heading)}</h5>${meta ? `<span>${esc(meta)}</span>` : ''}</div>
-      ${tabs}
+    <div class="st-scroll" tabindex="0" role="region" aria-label="${esc(p.name)} stats">
+      <table class="st-table">
+        <thead>
+          <tr class="st-over"><th colspan="2"></th>${groups.map(g => `<th colspan="${g.stats.length}" scope="colgroup">${esc(g.title)}</th>`).join('')}</tr>
+          <tr><th scope="col">Season</th><th scope="col" class="st-team">Team</th>${cols.map(([, label]) => `<th scope="col">${label}</th>`).join('')}</tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
     </div>
-    ${BOARD.STAT_GROUPS.map(g => {
-      const cells = g.stats.filter(([k]) => s.stats[k] != null)
-        .map(([k, label]) => `<span class="stat"><b>${esc(s.stats[k])}</b><i>${label}</i></span>`).join('');
-      return cells ? `<div class="pr-statgroup"><span class="pr-statlabel">${g.title}</span>${cells}</div>` : '';
-    }).join('')}
-    ${pending}
-    ${source ? `<span class="pr-stats-foot">College stats via ${source}</span>` : ''}
+    ${pending || source || link ? `<div class="pr-stats-foot">${pending}${source}${link}</div>` : ''}
   </div>`;
   }
 
@@ -369,8 +385,6 @@
     if (yr) { e.preventDefault(); return showYear(+yr.dataset.year, { push: true }); }
     if (e.target.closest('#tierInfoBtn')) return setTierInfo(document.getElementById('tierInfo').hidden);
     if (!e.target.closest('#tierInfo')) setTierInfo(false);
-    const season = e.target.closest('[data-season]');
-    if (season) { const [id, j] = season.dataset.season.split(':'); state.season[id] = +j; return render(); }
     const copy = e.target.closest('[data-copy]');
     if (copy) {
       const url = location.origin + pageUrl(copy.dataset.copy);

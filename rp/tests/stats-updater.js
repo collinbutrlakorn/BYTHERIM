@@ -88,7 +88,7 @@ globalThis.fetch = async url => {
 
 const out = path.join(tmp, 'stats.json');
 const log = execFileSync(process.execPath, ['--import', 'file://' + preload, path.join(ROOT, 'tools', 'update-stats.mjs')],
-  { env: { ...process.env, STATS_OUT: out }, encoding: 'utf8' });
+  { env: { ...process.env, STATS_OUT: out, CRAWL_DELAY_MS: '0' }, encoding: 'utf8' });
 const stats = JSON.parse(fs.readFileSync(out, 'utf8'));
 const last = stats.seasons['2025-26'] || {};
 
@@ -117,7 +117,7 @@ ok(!stats.seasons['2026-27'] && /2026-27: no games played yet/.test(log), 'this 
 // Re-running with nothing changed keeps the file identical (no daily commit churn).
 const before = fs.readFileSync(out, 'utf8');
 execFileSync(process.execPath, ['--import', 'file://' + preload, path.join(ROOT, 'tools', 'update-stats.mjs')],
-  { env: { ...process.env, STATS_OUT: out }, encoding: 'utf8' });
+  { env: { ...process.env, STATS_OUT: out, CRAWL_DELAY_MS: '0' }, encoding: 'utf8' });
 ok(fs.readFileSync(out, 'utf8') === before, 'unchanged stats leave the file byte-identical');
 
 fs.rmSync(tmp, { recursive: true, force: true });

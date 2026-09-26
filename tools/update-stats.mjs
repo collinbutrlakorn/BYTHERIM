@@ -115,7 +115,16 @@ function statLine(r) {
   };
 }
 
+// Barttorvik's robots.txt asks for 10 seconds between requests; the job
+// only makes a handful a day, spaced out accordingly.
+const CRAWL_DELAY_MS = +(process.env.CRAWL_DELAY_MS ?? 10000);
+let lastTorvik = 0;
 async function get(url) {
+  if (url.includes('barttorvik.com')) {
+    const wait = lastTorvik + CRAWL_DELAY_MS - Date.now();
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    lastTorvik = Date.now();
+  }
   const res = await fetch(url, { headers: { 'User-Agent': 'BYTHERIM big board (github.com/collinbutrlakorn/BYTHERIM)' } });
   if (!res.ok) throw new Error(`${url} returned HTTP ${res.status}`);
   return res.text();

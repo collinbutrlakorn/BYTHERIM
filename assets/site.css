@@ -865,13 +865,31 @@ h1, h2, h3, h4, .display {
 .pr-detail h4 { font-size: 0.82rem; letter-spacing: 1.2px; text-transform: uppercase; color: var(--accent); margin: 0 0 0.4rem; }
 .pr-report { color: var(--text); line-height: 1.65; white-space: pre-line; max-width: 72ch; }
 .pr-note { color: var(--faint); font-style: italic; }
-.pr-stats { display: flex; flex-direction: column; gap: 0.7rem; margin-top: 1rem; }
-.pr-statgroup { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: stretch; }
-.pr-statlabel { width: 100%; color: var(--faint); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.8px; }
-.stat { min-width: 62px; padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); text-align: center; }
-.stat b { display: block; font-family: 'Oswald', sans-serif; font-size: 1.05rem; font-weight: 500; color: var(--text); }
-.stat i { font-style: normal; color: var(--faint); font-size: 0.7rem; }
+.pr-stats { margin-top: 1.1rem; min-width: 0; }
 .pr-actions { margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+
+/* Stats table, laid out like a Basketball-Reference player page: one row
+   per season, grouped headers, right-aligned tabular numbers. */
+.st-scroll { overflow-x: auto; margin-top: 0.2rem; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg); }
+.st-scroll:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.st-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.st-table th, .st-table td { padding: 0.42rem 0.5rem; text-align: right; }
+.st-table thead th { font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 0.74rem; letter-spacing: 0.6px; text-transform: uppercase; color: var(--muted); background: var(--surface-2); }
+.st-table thead tr:last-child th { border-bottom: 2px solid var(--border-strong); color: var(--text); text-transform: none; font-size: 0.8rem; letter-spacing: 0.3px; }
+.st-table .st-over th { font-size: 0.66rem; color: var(--faint); padding-bottom: 0.1rem; text-align: center; }
+.st-table .st-over th[colspan]:not(:first-child) { box-shadow: inset 0 -1px 0 var(--border-strong); }
+.st-table tbody tr + tr td, .st-table tbody tr + tr th { border-top: 1px solid var(--border); }
+.st-table tbody tr:hover { background: var(--hover); }
+.st-table tbody th { font-weight: 600; color: var(--text); }
+.st-table th:first-child, .st-table td:first-child { text-align: left; position: sticky; left: 0; background: inherit; }
+.st-table thead th, .st-table thead th:first-child { background: var(--surface-2); }
+.st-table tbody th:first-child { background: var(--bg); }
+.st-table tbody tr:hover th:first-child { background: var(--hover); }
+.st-table .st-team { text-align: left; color: var(--muted); max-width: 11rem; overflow: hidden; text-overflow: ellipsis; }
+.pr-stats-foot { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin-top: 0.45rem; }
+.fact-pick { display: inline-flex; align-items: center; gap: 0.35rem; }
+.fact-logo { width: 24px; height: 24px; object-fit: contain; vertical-align: middle; }
+.fact-pick small { color: var(--faint); font-weight: 500; }
 
 /* Movement since the last edition (sheet's Prev Rank column). */
 .bd-move { display: block; font-family: 'Asap Condensed', sans-serif; font-size: 0.68rem; font-weight: 600; line-height: 1; margin-top: 2px; letter-spacing: 0.2px; }
@@ -881,7 +899,7 @@ h1, h2, h3, h4, .display {
 
 /* Strengths / weaknesses. */
 .pr-lists { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; margin-top: 1rem; max-width: 72ch; }
-.pr-list h5, .pr-stats-head h5 { font-size: 0.78rem; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 0.35rem; }
+.pr-list h5 { font-size: 0.78rem; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 0.35rem; }
 .pr-list.plus h5 { color: var(--win); }
 .pr-list.minus h5 { color: var(--loss); }
 .pr-list ul { list-style: none; display: flex; flex-direction: column; gap: 0.25rem; }
@@ -890,12 +908,6 @@ h1, h2, h3, h4, .display {
 .pr-list.plus li::before { content: '+'; color: var(--win); }
 .pr-list.minus li::before { content: '–'; color: var(--loss); }
 
-/* Season header above the stat grid. */
-.pr-stats-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
-.pr-stats-head h5 { color: var(--text); margin: 0; }
-.pr-stats-head span { color: var(--muted); font-size: 0.88rem; }
-.season-tabs .chip { font-size: 0.78rem; padding: 0.2rem 0.6rem; }
-.pr-stats-note { font-size: 0.88rem; margin: 0; }
 .pr-stats-foot { color: var(--faint); font-size: 0.8rem; }
 .pr-source { font-size: 0.8rem; color: var(--faint); text-decoration: underline; text-underline-offset: 2px; }
 .pr-source:hover { color: var(--text); }

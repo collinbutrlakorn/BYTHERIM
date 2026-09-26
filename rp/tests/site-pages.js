@@ -131,6 +131,17 @@ function boot(page, { feedsDown = false, hash = '', query = '' } = {}) {
   return new Promise(r => dom.window.addEventListener('load', () => setTimeout(() => r({ dom, w: dom.window, d: dom.window.document, errors }), 400)));
 }
 
+// Reads a profile's stats table: group headings, column labels, rows.
+function table(row) {
+  const t = row.querySelector('.st-table');
+  if (!t) return { groups: [], cols: [], rows: [] };
+  return {
+    groups: [...t.querySelectorAll('.st-over th[colspan]')].map(th => th.textContent.trim()).filter(Boolean),
+    cols: [...t.querySelectorAll('thead tr:last-child th')].map(th => th.textContent.trim()),
+    rows: [...t.querySelectorAll('tbody tr')].map(tr => [...tr.children].map(c => c.textContent.trim()))
+  };
+}
+
 (async () => {
   // ---------------------------------------------------------- every page
   for (const p of PAGES) {
@@ -207,6 +218,8 @@ function boot(page, { feedsDown = false, hash = '', query = '' } = {}) {
     ok(wing.id === 'test-wing', 'board: prospects get URL-safe ids');
     ok(wing.stats['3P%'] === '35.6%', 'board: the sheet\'s "3P&" header is read as 3P%');
     ok(wing.hasStats && Object.keys(wing.stats).length === 16, 'board: all 16 stats captured');
+    ok(w.BOARD.normalize({ name: 'X', 'Stats Link': 'https://basketball.realgm.com/player/X/Summary/1' }).statsLink.includes('realgm'), 'board: Stats Link column read');
+    ok(w.BOARD.normalize({ name: 'X', GP: '31', MPG: '28.5', PTS: '9.0' }).sheetStats.G === '31' && w.BOARD.normalize({ name: 'X', MIN: '28.5' }).sheetStats.MP === '28.5', 'board: games and minutes read from G/GP and MP/MPG/MIN columns');
     const euro = rows.find(r => r.name === 'Euro Guard');
     ok(euro.isPro && !euro.hasStats, 'board: "-" cells ignored and Pro detected');
     const big = rows.find(r => r.name === 'Conf Big');
@@ -225,9 +238,10 @@ function boot(page, { feedsDown = false, hash = '', query = '' } = {}) {
     d.getElementById('p-test-wing').querySelector('.pr-main').click();
     const row = d.getElementById('p-test-wing');
     ok(row.classList.contains('open') && w.location.hash === '#test-wing', 'draft: opening a row updates the shareable link');
-    const stats = row.querySelectorAll('.stat');
-    ok(stats.length === 16, 'draft: opening a profile shows its stats grid');
-    ok(row.querySelectorAll('.pr-statlabel').length === 3, 'draft: stats grouped under three labels');
+    const t = table(row);
+    ok(t.cols.length === 18 && t.rows.length === 1 && t.cols[0] === 'Season' && t.cols[1] === 'Team', 'draft: stats shown as a table row per season (' + t.cols.length + ' columns)');
+    ok(t.groups.join() === 'Per game,Shooting,Impact', 'draft: grouped column headings, empty groups left out (no G/MP typed for him)');
+    ok(t.rows[0][0] === '2026-27' && t.rows[0][2] === '18.4', 'draft: the row starts with season, team, then the numbers');
     const search = d.getElementById('boardSearch');
     search.value = 'euro'; search.dispatchEvent(new w.Event('input', { bubbles: true }));
     await new Promise(r => setTimeout(r, 250)); // search is debounced
@@ -263,19 +277,17 @@ function boot(page, { feedsDown = false, hash = '', query = '' } = {}) {
 
     d.querySelector('#p-old-guard .pr-main').click();
     let row = d.getElementById('p-old-guard');
-    const head = row.querySelector('.pr-stats-head').textContent.replace(/\s+/g, ' ');
-    ok(/Last season · 2025-26/.test(head) && /Arizona · 33 games · 30.1 min/.test(head), 'draft: last season labelled with team, games and minutes');
-    ok(row.querySelector('.stat b').textContent === '15.2', 'draft: last season numbers shown');
-    ok(row.textContent.includes('2026-27 numbers replace these'), 'draft: says this season will replace them');
+    let t = table(row);
+    ok(t.cols.slice(0, 5).join() === 'Season,Team,G,MP,PTS', 'draft: games and minutes per game lead the stat columns');
+    ok(t.rows[0].slice(0, 5).join() === '2025-26,Arizona,33,30.1,15.2', 'draft: last season row with team, games, minutes and points');
+    ok(row.textContent.includes('2026-27 numbers are added once he'), 'draft: says this season will be added');
     ok(row.querySelector('.pr-source').href.includes('barttorvik.com'), 'draft: Barttorvik credited with a link');
 
     d.querySelector('#p-conf-big .pr-main').click();
     row = d.getElementById('p-conf-big');
-    ok(row.querySelectorAll('.season-tabs .chip').length === 2, 'draft: season tabs when there are two seasons');
-    ok(row.querySelector('.stat b').textContent === '12.4', 'draft: this season shown first');
-    row.querySelector('[data-season="conf-big:1"]').click();
-    row = d.getElementById('p-conf-big');
-    ok(row.querySelector('.stat b').textContent === '9.1' && /Last season/.test(row.querySelector('.pr-stats-head').textContent), 'draft: tab switches to last season');
+    t = table(row);
+    ok(t.rows.length === 2 && t.rows[0][0] === '2025-26' && t.rows[1][0] === '2026-27', 'draft: two seasons are two rows, oldest first');
+    ok(t.rows[0][4] === '9.1' && t.rows[1][4] === '12.4', 'draft: each row carries its own season');
 
     d.querySelector('#p-test-wing .pr-main').click();
     row = d.getElementById('p-test-wing');
@@ -343,19 +355,25 @@ function boot(page, { feedsDown = false, hash = '', query = '' } = {}) {
     ok(cell('past-star').textContent.includes('#1') && cell('past-star').querySelector('img').getAttribute('src') === 'nbalogos/Washington%20Wizards.png', 'draft: pick number with the team logo ("Wizards" resolved)');
     ok(cell('past-guard').querySelector('img').getAttribute('src') === 'nbalogos/Boston%20Celtics.png', 'draft: team abbreviations resolve too ("BOS")');
     ok(cell('late-pick').querySelector('small').textContent === '2027', 'draft: a later draft year is shown');
+    d.querySelector('#p-late-pick .pr-main').click();
+    ok(d.querySelector('#p-late-pick .fact-pick small').textContent === '2027', 'draft: profile notes a later draft year');
+    d.querySelector('#p-past-return .pr-main').click();
+    ok(d.querySelector('#p-past-return .pr-facts').textContent.includes('Returned to school'), 'draft: Returned stays in words');
     ok(cell('past-return').textContent.includes('Returned') && cell('maybe-guy').textContent.includes('Undrafted'), 'draft: Returned and Undrafted shown');
     ok(d.querySelector('#p-past-star .pr-mobile-meta').textContent.includes('Drafted #1 WAS'), 'draft: phone rows say where he was drafted');
     ok([...d.querySelectorAll('.tier-head')].some(h => h.textContent.includes('Tier ?') && h.textContent.includes('Possible Entry / Return')), 'draft: "?" tier labelled Possible Entry / Return');
 
     d.querySelector('#p-past-star .pr-main').click();
     let row = d.getElementById('p-past-star');
-    ok(row.querySelector('.pr-facts').textContent.includes('1st pick (round 1) · Washington Wizards · 2026'), 'draft: profile spells out the pick, round, team and year');
+    const pick = row.querySelector('.fact-pick');
+    ok(pick && /^Pick 1\b/.test(pick.textContent.trim()), 'draft: profile Drafted reads "Pick 1"');
+    ok(pick.querySelector('img').getAttribute('src') === 'nbalogos/Washington%20Wizards.png' && pick.querySelector('img').alt === 'Washington Wizards', 'draft: followed by the team logo (named for screen readers)');
     ok(/Tier1 · Superstar/.test(row.querySelector('.pr-facts').textContent.replace(/\s{2,}/g, '')), 'draft: profile tier shows its name');
-    ok(/2025-26 season/.test(row.querySelector('.pr-stats-head').textContent) && !row.textContent.includes('replace these'), 'draft: past board shows the season before that draft');
+    ok(table(row).rows.map(r => r[0]).join() === '2025-26' && !row.textContent.includes('added once'), 'draft: past board shows the season before that draft');
     ok(w.location.search + w.location.hash === '?year=2026#past-star', 'draft: profile link keeps the year');
     d.querySelector('#p-past-guard .pr-main').click();
     row = d.getElementById('p-past-guard');
-    ok(row.querySelector('.pr-facts').textContent.includes('31st pick (round 2) · Boston Celtics'), 'draft: second-round picks labelled');
+    ok(/^Pick 31\b/.test(row.querySelector('.fact-pick').textContent.trim()) && row.querySelector('.fact-pick img').alt === 'Boston Celtics', 'draft: second-round pick with its team logo');
     ok(!row.textContent.includes('will appear here'), 'draft: no "stats coming" note on past boards');
     w.close();
   }

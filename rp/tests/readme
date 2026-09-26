@@ -63,7 +63,23 @@ feeds and power rankings render, and pages say so when the feed is down. It
 also checks how `assets/board.js` cleans the big-board sheet (the `3P&`
 header, `-` cells, conference tags, slug-style school names) and that the
 draft page's tiers, profiles, stats, search, On the Radar and `#slug` deep
-links work.
+links work, along with the season-by-season stats table (games and minutes
+included), the optional sheet
+columns (Prev Rank, Wingspan, Comparison, Strengths, Weaknesses, Film), the
+`pro.png` logo, the RP hub one folder down, the X, TikTok and Instagram
+cards, tier names and the tier guide, and past boards: the year switcher
+(which skips tabs that are still a copy of the current board), the Drafted
+column, team logos from names or abbreviations, and year-aware links.
+
+**stats-updater.js** — runs `tools/update-stats.mjs` (the daily job that
+pulls last season's college stats from Barttorvik into `data/stats.json`)
+against a fake sheet and a fake Barttorvik file, with no network. Checks
+exact, nickname and misspelled-name matches (only when the school or
+birthday backs them up, including common nicknames like Nate/Nathan), the
+"Stats Name" override, transfers, past boards (each gets the season leading
+into its draft; unfilled copies of the current board are skipped), and that
+freshmen, pros and look-alikes at other schools are skipped. It writes to a
+temp file, never the real `data/stats.json`.
 
 ## Adding a test
 

@@ -18,6 +18,10 @@
    example "2025 Board") shows up on the draft page's year switcher —
    unless it's still an unedited copy of the current board.
 
+   Stat columns: G (games) and MP (minutes per game) sit alongside PTS,
+   REB and the rest; typed numbers show for anyone Barttorvik doesn't
+   cover (pros and internationals).
+
    Optional sheet columns (add any of them; nothing changes if absent):
      Prev Rank   last edition's rank, shown as movement on the board
      Wingspan    shown with the measurements
@@ -25,6 +29,8 @@
      Strengths / Weaknesses   separate items with ";" or new lines
      Film        a YouTube or other link to highlights / film
      Stats Name  the player's name as Barttorvik spells it, if different
+     Stats Link  a page with his full stats (RealGM for internationals),
+                 shown as a "Full stats" link under the table
    Past boards also read:
      Draft Pick  the actual pick number, or "Undrafted" / "Returned"
      Draft Team  the team that drafted him ("Spurs", "SAS", "San Antonio Spurs")
@@ -104,6 +110,7 @@
   // Stat groups as they're shown on a profile. Keys are the sheet headers;
   // "3P&" is the sheet's spelling of 3P%.
   const STAT_GROUPS = [
+    { title: 'Playing time', stats: [['G', 'G'], ['MP', 'MP']] },
     { title: 'Per game', stats: [['PTS', 'PTS'], ['REB', 'REB'], ['AST', 'AST'], ['STL', 'STL'], ['BLK', 'BLK']] },
     { title: 'Shooting', stats: [['TS%', 'TS%'], ['eFG%', 'eFG%'], ['2P%', '2P%'], ['3P%', '3P%'], ['FT%', 'FT%'], ['3Pr', '3PAr'], ['FTr', 'FTr']] },
     { title: 'Impact', stats: [['USG%', 'USG%'], ['BPM', 'BPM'], ['OBPM', 'OBPM'], ['DBPM', 'DBPM']] }
@@ -172,7 +179,10 @@
     const stats = {};
     let conference = '';
     STAT_GROUPS.forEach(g => g.stats.forEach(([key]) => {
-      const raw = key === '3P%' ? get('3P%', '3P&', '3P') : get(key);
+      const raw = key === '3P%' ? get('3P%', '3P&', '3P')
+        : key === 'G' ? get('G', 'GP', 'Games')
+        : key === 'MP' ? get('MP', 'MPG', 'MIN', 'Minutes')
+        : get(key);
       if (isNumber(raw)) stats[key] = raw;
       else if (CONFERENCES.has(raw)) conference = raw;
     }));
@@ -209,6 +219,7 @@
       strengths: list(get('strengths', 'strength')),
       weaknesses: list(get('weaknesses', 'weakness')),
       film: /^https?:\/\//i.test(get('film', 'highlights', 'video')) ? get('film', 'highlights', 'video') : '',
+      statsLink: /^https?:\/\//i.test(get('stats link', 'realgm', 'stats url')) ? get('stats link', 'realgm', 'stats url') : '',
       draft: draftResult(get('draft pick', 'actual pick', 'nba pick', 'drafted'), get('draft team', 'nba team', 'drafted by'), get('draft year'), boardYear),
       sheetStats: stats,
       seasons: []   // filled in by loadBoard()
@@ -221,7 +232,14 @@
   // that led into that draft.
   function attachSeasons(p, college, boardYear = BOARD.draftYear) {
     const seasons = [];
-    const auto = label => (college && college.seasons && college.seasons[label] || {})[p.id];
+    const auto = label => {
+      const line = (college && college.seasons && college.seasons[label] || {})[p.id];
+      if (!line) return null;
+      const extra = {};
+      if (line.gp != null) extra.G = String(line.gp);
+      if (line.mpg != null) extra.MP = String(line.mpg);
+      return { ...line, stats: { ...extra, ...line.stats } };
+    };
     const current = boardYear === BOARD.draftYear;
     const label = current ? CURRENT_SEASON : seasonLabel(boardYear);
     if (Object.keys(p.sheetStats).length) {
