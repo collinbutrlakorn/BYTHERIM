@@ -50,7 +50,20 @@ universal header and footer as the main site (with paths stepped up one
 level), that the section masthead leads with the recruiting logo, that the
 accent colour comes from that logo rather than the NCAA RP's blue, and that
 school marks render uncropped while player avatars stay circular. Like the
-suite above, it reads `../../recruiting` and `../../index.html`.
+suite above, it reads `../../recruiting`, and takes the main-site nav from
+`../../assets/site.js`.
+
+**site-pages.js** — covers the main site (home, podcast, draft, NBA, about).
+Every page declares UTF-8, loads the shared `assets/site.css` and
+`assets/site.js`, mounts the header first thing in `<body>`, and carries no
+inline style blocks or placeholder social links. Each page then boots in a
+headless DOM with the Google Sheets and Substack feeds stubbed: header and
+footer appear once, the theme toggle and phone menu work (Escape closes it),
+feeds and power rankings render, and pages say so when the feed is down. It
+also checks how `assets/board.js` cleans the big-board sheet (the `3P&`
+header, `-` cells, conference tags, slug-style school names) and that the
+draft page's tiers, profiles, stats, search, On the Radar and `#slug` deep
+links work.
 
 ## Adding a test
 

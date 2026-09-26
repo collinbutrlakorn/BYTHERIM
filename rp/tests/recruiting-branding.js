@@ -7,15 +7,17 @@ function ok(c,m){if(!c)throw new Error("FAILED: "+m);console.log("OK: "+m);}
 const R=path.join(__dirname,'..','..','recruiting')+'/';
 const html=fs.readFileSync(R+'index.html','utf8');
 const css=fs.readFileSync(R+'style.css','utf8');
-const main=fs.readFileSync(path.join(__dirname,'..','..','index.html'),'utf8');
+// The main site's header is generated from CONFIG.nav in assets/site.js.
+const siteJs=fs.readFileSync(path.join(__dirname,'..','..','assets','site.js'),'utf8');
 
 // --- universal header matches the main site ---
 ['podcast.html','draft.html','nba.html','about.html'].forEach(p=>{
   ok(html.includes('../'+p),`universal nav links ${p} (path stepped up one level)`);});
 ok(html.includes('href="../rp/"'),'links to the RP sim');
 ok(html.includes('href="../"'),'BYTHERIM logo returns to the site home');
-const mainLinks=(main.match(/<nav class="nav-links"[\s\S]*?<\/nav>/)||[''])[0];
-const mainItems=(mainLinks.match(/>([A-Za-z ]+)</g)||[]).map(x=>x.slice(1,-1).trim()).filter(Boolean);
+const navBlock=(siteJs.match(/nav:\s*\[([\s\S]*?)\]/)||['',''])[1];
+const mainItems=[...navBlock.matchAll(/label:\s*'([^']+)'/g)].map(m=>m[1]);
+ok(mainItems.length>=4,'main-site nav read from assets/site.js');
 const ourNav=(html.match(/<nav class="nav-links"[\s\S]*?<\/nav>/)||[''])[0];
 const missing=mainItems.filter(t=>t&&!ourNav.includes(t));
 ok(missing.length===0,'every main-site nav item present: '+mainItems.join(', '));
