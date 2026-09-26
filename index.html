@@ -4,426 +4,139 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BYTHERIM | NBA Draft Analysis & Film Breakdown</title>
-  <meta name="title" content="BYTHERIM | NBA Draft Analysis & Film Breakdown">
   <meta name="description" content="In-depth NBA draft analysis, prospect scouting reports, film breakdowns, and NBA discourse.">
-  
+
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://collinbutrlakorn.github.io/BYTHERIM/">
   <meta property="og:title" content="BYTHERIM | NBA Draft Analysis & Film Breakdown">
   <meta property="og:description" content="In-depth NBA draft analysis, prospect scouting reports, film breakdowns, and NBA discourse.">
   <meta property="og:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
-  
-  <meta property="twitter:card" content="summary_large_image">
-  <meta property="twitter:url" content="https://collinbutrlakorn.github.io/BYTHERIM/">
-  <meta property="twitter:title" content="BYTHERIM | NBA Draft Analysis & Film Breakdown">
-  <meta property="twitter:description" content="In-depth NBA draft analysis, prospect scouting reports, film breakdowns, and NBA discourse.">
-  <meta property="twitter:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="BYTHERIM | NBA Draft Analysis & Film Breakdown">
+  <meta name="twitter:description" content="In-depth NBA draft analysis, prospect scouting reports, film breakdowns, and NBA discourse.">
+  <meta name="twitter:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
 
   <link rel="icon" type="image/png" href="favicon.png">
-
-  <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
-
-  <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
-
-  <style>
-    /* Styling wrapper for Twitter feed embedded iframe */
-    .twitter-timeline-container {
-      width: 100%;
-      height: 480px;
-      overflow-y: auto;
-      border-radius: 8px;
-      background: var(--bg-color, #0e1117);
-      padding: 0.5rem;
-    }
-
-    /* Carousel Card & Dynamic Thumbnail Styling */
-    a.card.slide {
-      text-decoration: none;
-      color: inherit;
-      display: flex;
-      flex-direction: column;
-      cursor: pointer;
-      padding: 1.25rem;
-      min-width: 300px;
-      max-width: 320px;
-    }
-
-    a.card.slide:hover h3 {
-      color: var(--accent);
-    }
-
-    .slide .card-img-wrapper {
-      width: 100%;
-      aspect-ratio: 16 / 9;
-      border-radius: 6px;
-      overflow: hidden;
-      margin-bottom: 0.85rem;
-      background-color: var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .slide .card-img-wrapper img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transition: transform 0.3s ease;
-    }
-
-    a.card.slide:hover .card-img-wrapper img {
-      transform: scale(1.05);
-    }
-
-    .card-meta-date {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-top: auto;
-      padding-top: 0.75rem;
-    }
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@400;500;600;700&family=Oswald:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="assets/site.js"></script>
+  <script src="assets/board.js"></script>
 </head>
 <body>
+<script>BTR.mount('home')</script>
 
-<header class="navbar">
-  <a href="./" class="brand-logo">
-    <img src="logo.png" alt="BYTHERIM Logo" class="logo-img">
-  </a>
-
-  <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
-    <span class="bar"></span>
-    <span class="bar"></span>
-    <span class="bar"></span>
-  </button>
-
-  <nav class="nav-links" id="navLinks">
-    <a href="podcast.html">Podcast</a>
-    <a href="draft.html">Draft</a>
-    <a href="nba.html">NBA</a>
-    <a href="about.html">About</a>
-    <a href="./rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
-  </nav>
-</header>
-
-<div class="connect-hub">
-  <div class="connect-hub-title">CONNECT & FOLLOW</div>
-  <div class="connect-links">
-    <a href="https://youtube.com/@bytherim" target="_blank" rel="noopener" class="connect-btn yt">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-      <span>YouTube</span>
-    </a>
-    <a href="https://open.spotify.com" target="_blank" rel="noopener" class="connect-btn spotify">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.376 0 0 5.376 0 12s5.376 12 12 12 12-5.376 12-12S18.624 0 12 0zm5.521 17.341c-.218.358-.684.474-1.041.256-2.857-1.746-6.456-2.141-10.697-1.173-.404.093-.811-.162-.904-.566-.093-.404.162-.811.566-.904 4.644-1.061 8.624-.613 11.82 1.346.357.218.473.684.256 1.041zm1.472-3.276c-.274.446-.86.588-1.306.314-3.27-2.009-8.254-2.593-12.121-1.419-.506.153-1.04-.135-1.193-.64-.153-.506.135-1.04.64-1.193 4.417-1.341 9.907-.69 13.666 1.623.446.274.588.86.314 1.306zm.131-3.419C15.225 8.35 8.8 8.134 5.12 9.252c-.624.19-1.285-.164-1.474-.788-.19-.625.163-1.285.788-1.475 4.234-1.285 11.319-1.033 15.91 1.693.56.332.748 1.056.417 1.616-.333.56-1.057.749-1.617.417z"/></svg>
-      <span>Spotify</span>
-    </a>
-    <a href="https://x.com/collinbutr" target="_blank" rel="noopener" class="connect-btn x-twitter">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-      <span>X / Twitter</span>
-    </a>
-    <a href="https://collindunks.substack.com/" target="_blank" rel="noopener" class="connect-btn substack">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M22.539 8.242H1.46V5.406h21.08v2.836zM1.46 10.812V24L12 18.11 22.54 24V10.812H1.46zM22.539 0H1.46v2.836h21.08V0z"/></svg>
-      <span>Substack</span>
-    </a>
-  </div>
-</div>
-
-<section class="hero-banner" style="background-image: url('assets/hero-home-banner.jpg');">
-  <div class="hero-content">
-    <span class="tag">UNBIASED BASKETBALL COVERAGE</span>
-    <h1>UNBIASED HOOPS ANALYSIS</h1>
-    <p>BYTHERIM is an unbiased basketball platform dedicated to pure love of the game where we deliver deep-dives & scouting reports, basketball commentary, and an interactive role-playing database.</p>
-    <a href="./rp/" class="cta-btn">Enter the RP Experience →</a>
-  </div>
-</section>
-
-<main class="container">
-  
-  <div class="search-box">
-    <input 
-      type="text" 
-      id="cardSearch" 
-      placeholder="Search articles, film breakdowns, or rankings..." 
-      aria-label="Search site content"
-    >
-  </div>
-
-  <div class="carousel-header">
-    <h2 class="section-title">LATEST INSIGHTS</h2>
-    <div class="carousel-controls">
-      <button class="carousel-btn" id="prevBtn" aria-label="Previous posts">←</button>
-      <button class="carousel-btn" id="nextBtn" aria-label="Next posts">→</button>
-    </div>
-  </div>
-
-  <div class="carousel-track" id="carouselTrack">
-    <div style="color: var(--text-muted); padding: 1.5rem;">Loading latest uploads...</div>
-  </div>
-</main>
-
-<section class="container social-section">
-  <h2 class="section-title">MEDIA & COMMUNITY</h2>
-  <div class="media-grid">
-    
-    <div class="media-card">
-      <h3 class="media-header">LATEST VIDEO</h3>
-      <div class="video-container">
-        <iframe 
-          src="https://www.youtube.com/embed/videoseries?list=PL86AVwi1070FWesM2xzcu3ul8QPEMaSlx" 
-          title="BYTHERIM YouTube" 
-          frameborder="0" 
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-          allowfullscreen>
-        </iframe>
+<section class="hero" style="background-image: url('assets/hero-home-banner.jpg');">
+  <div class="container">
+    <div class="hero-copy">
+      <span class="eyebrow">Unbiased basketball coverage</span>
+      <h1>Unbiased hoops analysis</h1>
+      <p>BYTHERIM is an independent basketball platform built on love of the game — deep-dive scouting reports, NBA commentary, and an interactive role-playing universe.</p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="podcast.html">Latest episode</a>
+        <a class="btn btn-ghost" href="draft.html">2027 Big Board</a>
       </div>
     </div>
-
-   <div class="media-card twitter-brand-card">
-    <h3 class="media-header">LIVE X / TWITTER FEED</h3>
-    <div class="twitter-timeline-container">
-      <a class="twitter-timeline" 
-         data-height="480" 
-         data-theme="dark" 
-         data-chrome="noheader nofooter transparent" 
-         href="https://twitter.com/collinbutr?ref_src=twsrc%5Etfw">
-        Posts by @collinbutr
-      </a>
-    </div>
-  </div>
-
   </div>
 </section>
 
-<footer class="footer">
-  <div class="footer-container">
-    <div class="footer-brand">
-      <img src="logo.png" alt="BYTHERIM Logo" class="footer-logo">
-      <p class="footer-desc">In-depth draft analysis, film breakdowns, and NBA discourse.</p>
+<main>
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <h2>Latest</h2>
+          <p>New episodes and writing from the BYTHERIM Substack.</p>
+        </div>
+        <a class="text-link" href="nba.html">Everything <span data-icon="arrow"></span></a>
+      </div>
+      <div class="post-grid" id="latest">
+        <div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-card"></div>
+      </div>
     </div>
-    
-    <div class="footer-column">
-      <h4>Navigation</h4>
-      <a href="./">Home</a>
-      <a href="podcast.html">Podcast</a>
-      <a href="draft.html">Draft</a>
-      <a href="nba.html">NBA</a>
-      <a href="about.html">About</a>
-      <a href="./rp/">BYTHERIM RP</a>
-    </div>
+  </section>
 
-    <div class="footer-column">
-      <h4>Platforms</h4>
-      <a href="https://youtube.com/@bytherim" target="_blank" rel="noopener">YouTube</a>
-      <a href="https://open.spotify.com" target="_blank" rel="noopener">Spotify</a>
-      <a href="https://x.com/collinbutr" target="_blank" rel="noopener">X / Twitter</a>
-      <a href="https://collindunks.substack.com" target="_blank" rel="noopener">Substack</a>
+  <section class="section">
+    <div class="container home-split">
+      <div>
+        <div class="section-head">
+          <div><h2>Watch</h2><p>Film breakdowns and full episodes on YouTube.</p></div>
+          <a class="text-link" href="https://youtube.com/@bytherim" target="_blank" rel="noopener">Channel <span data-icon="arrow"></span></a>
+        </div>
+        <div class="video-frame">
+          <iframe src="https://www.youtube-nocookie.com/embed/videoseries?list=PL86AVwi1070FWesM2xzcu3ul8QPEMaSlx"
+                  title="BYTHERIM on YouTube" loading="lazy"
+                  allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        </div>
+        <div class="card listen-card">
+          <div>
+            <h3>Prefer to listen?</h3>
+            <p>Every episode is on your podcast app of choice.</p>
+          </div>
+          <div class="listen-row" data-social="spotify,apple,substack" data-labels></div>
+        </div>
+      </div>
+      <div>
+        <div class="section-head">
+          <div><h2>Big Board</h2><p>Top 10 of the 2027 class.</p></div>
+          <a class="text-link" href="draft.html">Full board <span data-icon="arrow"></span></a>
+        </div>
+        <div class="card board-teaser">
+          <ol id="boardTeaser">
+            <li><div class="skeleton" style="height:320px"></div></li>
+          </ol>
+        </div>
+      </div>
     </div>
-  </div>
+  </section>
 
-  <div class="footer-bottom">
-    <p>© 2026 BYTHERIM. All rights reserved.</p>
-  </div>
-</footer>
+  <section class="section">
+    <div class="container">
+      <div class="rp-band">
+        <div class="rp-band-copy">
+          <span class="eyebrow">BYTHERIM RP</span>
+          <h2>A full college basketball universe</h2>
+          <p>A simulated Division I world with every program, player development, a recruiting database and a draft of its own — season after season.</p>
+          <div class="rp-band-links">
+            <a class="btn btn-primary" href="./rp/">Enter the RP</a>
+            <a class="btn btn-ghost btn-sm" href="./rp/ncaa.html">NCAA Simulation</a>
+            <a class="btn btn-ghost btn-sm" href="./recruiting/">Recruiting</a>
+            <a class="btn btn-ghost btn-sm" href="./rp/draft.html">Draft RP</a>
+          </div>
+        </div>
+        <div class="rp-band-media" style="background-image: url('assets/hero-rp-banner.jpg');" role="img" aria-label="BYTHERIM RP"></div>
+      </div>
+    </div>
+  </section>
+</main>
 
 <script>
-  // Live Feed Sources
-  const SUBSTACK_FEED = 'https://collindunks.substack.com/feed';
-  
-  // YouTube Channel Feed for @BYTHERIM / @BYTHERIM/videos
-  // Replace UC_YOUR_YOUTUBE_CHANNEL_ID with your YouTube Channel ID (found in YouTube Studio settings)
-  const YOUTUBE_CHANNEL_ID = 'UC_YOUR_YOUTUBE_CHANNEL_ID'; 
-  const YOUTUBE_FEED = `https://www.youtube.com/feeds/videos.xml?channel_id=${YOUTUBE_CHANNEL_ID}`;
-
-  const RSS_CONVERTER = 'https://api.rss2json.com/v1/api.json?rss_url=';
-  const DEFAULT_THUMBNAIL = 'favicon.png';
-
-  // Helper to extract image thumbnails or podcast cover art
-  function extractThumbnail(item, feedCoverArt) {
-    // 1. Check if podcast episode/item explicitly provides a thumbnail
-    if (item.thumbnail && item.thumbnail !== '') return item.thumbnail;
-
-    // 2. Check for image enclosure (common in podcast audio feeds)
-    if (item.enclosure && item.enclosure.link && /\.(jpg|jpeg|png|webp|gif)/i.test(item.enclosure.link)) {
-      return item.enclosure.link;
-    }
-
-    // 3. Fallback to channel/podcast series artwork if available
-    if (feedCoverArt && feedCoverArt !== '') return feedCoverArt;
-
-    // 4. Extract first <img> tag from description/content
-    const htmlContent = item.content || item.description || '';
-    const imgMatch = htmlContent.match(/<img[^>]+src=["']([^"']+)["']/i);
-    if (imgMatch && imgMatch[1]) return imgMatch[1];
-
-    // 5. Default fallback
-    return DEFAULT_THUMBNAIL;
-  }
-
-  // Helper to construct YouTube thumbnails (Shorts & Long Form)
-  function getYouTubeThumbnail(item) {
-    if (item.thumbnail && item.thumbnail !== '') return item.thumbnail;
-
-    const videoIdMatch = item.link.match(/(?:v=|\/shorts\/|\/embed\/)([a-zA-Z0-9_-]{11})/);
-    if (videoIdMatch && videoIdMatch[1]) {
-      return `https://i.ytimg.com/vi/${videoIdMatch[1]}/hqdefault.jpg`;
-    }
-
-    return DEFAULT_THUMBNAIL;
-  }
-
-  // Helper to strip HTML tags for card descriptions
-  function cleanDescription(htmlStr) {
-    const tmp = document.createElement('div');
-    tmp.innerHTML = htmlStr || '';
-    const text = tmp.textContent || tmp.innerText || '';
-    return text.length > 120 ? text.substring(0, 117) + '...' : text;
-  }
-
-  async function fetchLiveFeed(rssUrl) {
-    try {
-      const response = await fetch(RSS_CONVERTER + encodeURIComponent(rssUrl));
-      if (!response.ok) return { feed: {}, items: [] };
-      const data = await response.json();
-      return data.status === 'ok' ? { feed: data.feed || {}, items: data.items || [] } : { feed: {}, items: [] };
-    } catch (err) {
-      console.warn('Feed fetch failed for:', rssUrl, err);
-      return { feed: {}, items: [] };
-    }
-  }
-
-  async function loadAllCarouselContent() {
-    const carouselTrack = document.getElementById('carouselTrack');
-
-    // Fetch Substack & YouTube live feeds concurrently
-    const [substackData, youtubeData] = await Promise.all([
-      fetchLiveFeed(SUBSTACK_FEED),
-      fetchLiveFeed(YOUTUBE_FEED)
-    ]);
-
-    // Format Substack items (Articles, Podcasts, Notes)
-    const formattedSubstack = substackData.items.map(item => {
-      const isPodcast = item.link.includes('/p/') && (
-        (item.enclosure && item.enclosure.type && item.enclosure.type.includes('audio')) ||
-        (item.categories && item.categories.includes('podcast'))
-      );
-
-      const podcastArt = substackData.feed ? (substackData.feed.image || substackData.feed.thumbnail) : null;
-      const thumbnail = extractThumbnail(item, isPodcast ? podcastArt : null);
-
-      return {
-        category: isPodcast ? 'PODCAST' : 'SUBSTACK',
-        title: item.title,
-        description: cleanDescription(item.description),
-        thumbnail: thumbnail,
-        url: item.link,
-        date: new Date(item.pubDate)
-      };
-    });
-
-    // Format YouTube items (Videos & Shorts from @BYTHERIM/videos)
-    const formattedYouTube = youtubeData.items.map(item => {
-      const isShort = item.link.includes('/shorts/');
-      return {
-        category: isShort ? 'YOUTUBE SHORT' : 'YOUTUBE VIDEO',
-        title: item.title,
-        description: cleanDescription(item.description),
-        thumbnail: getYouTubeThumbnail(item),
-        url: item.link,
-        date: new Date(item.pubDate)
-      };
-    });
-
-    // Internal uploads (e.g. BYTHERIM RP Sim Database)
-    const internalItems = [
-      {
-        category: 'SIMULATION',
-        title: 'BYTHERIM RP Universe Live Database',
-        description: 'Explore high school recruiting rankings, prospect sheets, and live sim updates.',
-        thumbnail: DEFAULT_THUMBNAIL,
-        url: './rp/',
-        date: new Date()
-      }
-    ];
-
-    // Combine all posts and sort chronologically (Newest First)
-    const allUploads = [...formattedSubstack, ...formattedYouTube, ...internalItems]
-      .sort((a, b) => b.date - a.date);
-
-    if (allUploads.length === 0) {
-      carouselTrack.innerHTML = `<p style="color: var(--text-muted); padding: 1rem;">No recent posts found.</p>`;
-      return;
-    }
-
-    // Render cards into the carousel
-    carouselTrack.innerHTML = allUploads.map(item => `
-      <a href="${item.url}" 
-         class="card slide" 
-         target="_blank" 
-         rel="noopener">
-        <div class="card-img-wrapper">
-          <img src="${item.thumbnail}" 
-               alt="${item.title}" 
-               loading="lazy" 
-               onerror="this.onerror=null; this.src='${DEFAULT_THUMBNAIL}';">
-        </div>
-        <div class="card-tag">${item.category}</div>
-        <h3>${item.title}</h3>
-        <p>${item.description}</p>
-        <div class="card-meta-date">${item.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
-      </a>
-    `).join('');
-  }
-
-  loadAllCarouselContent();
-
-  // Carousel Navigation Controls
-  const track = document.getElementById('carouselTrack');
-  const nextBtn = document.getElementById('nextBtn');
-  const prevBtn = document.getElementById('prevBtn');
-
-  if (track && nextBtn && prevBtn) {
-    nextBtn.addEventListener('click', () => {
-      track.scrollBy({ left: 320, behavior: 'smooth' });
-    });
-    prevBtn.addEventListener('click', () => {
-      track.scrollBy({ left: -320, behavior: 'smooth' });
-    });
-  }
-
-  // Mobile Menu Toggle
-  const navToggle = document.getElementById('navToggle');
-  const navLinks = document.getElementById('navLinks');
-
-  if (navToggle && navLinks) {
-    navToggle.addEventListener('click', () => {
-      navToggle.classList.toggle('active');
-      navLinks.classList.toggle('active');
-    });
-  }
-
-  // Live Card Search Filter
-  const searchInput = document.getElementById('cardSearch');
-
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      const query = e.target.value.toLowerCase().trim();
-      const allCards = document.querySelectorAll('.card, .media-card');
-
-      allCards.forEach(card => {
-        const text = card.textContent.toLowerCase();
-        card.style.display = text.includes(query) ? '' : 'none';
-      });
-    });
-  }
-  
-  // Force Twitter Widget Initialization
-  window.addEventListener('DOMContentLoaded', () => {
-    if (window.twttr && window.twttr.widgets) {
-      window.twttr.widgets.load();
-    }
+(function () {
+  'use strict';
+  const { esc, schoolLogo, initialsBadge } = BTR;
+  BTR.loadPosts().then(({ posts }) => {
+    const el = document.getElementById('latest');
+    el.innerHTML = posts.length
+      ? posts.slice(0, 3).map(BTR.postCard).join('')
+      : `<div class="empty-state" style="grid-column:1/-1">Posts couldn't be loaded right now. <a href="${BTR.CONFIG.social.substack.url}" target="_blank" rel="noopener">Read on Substack</a>.</div>`;
   });
+
+  BOARD.loadBoard().then(rows => {
+    const top = rows.filter(p => p.rank != null).slice(0, 10);
+    document.getElementById('boardTeaser').innerHTML = top.map(p => `
+      <li><a href="draft.html#${p.id}">
+        <span class="bt-rank">${p.rank}</span>
+        <img class="bt-logo" src="${esc(p.isPro ? initialsBadge('PRO') : schoolLogo(p.school))}" alt="" onerror="this.onerror=null;this.src='${initialsBadge(p.school || '?')}'">
+        <span style="min-width:0"><span class="bt-name">${esc(p.name)}</span><span class="bt-sub">${esc(p.school)} · ${esc(p.archetype || p.cls)}</span></span>
+        <span class="bt-pos">${esc(p.pos)}</span>
+      </a></li>`).join('');
+  }).catch(() => {
+    document.getElementById('boardTeaser').innerHTML = `<li class="empty-state">The board couldn't be loaded. <a href="draft.html">Open the big board</a>.</li>`;
+  });
+})();
 </script>
 </body>
 </html>

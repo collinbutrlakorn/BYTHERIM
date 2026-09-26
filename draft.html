@@ -1,733 +1,293 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
- <!-- Primary Meta Tags -->
-<title>BYTHERIM | Draft Central</title>
-<meta name="title" content="BYTHERIM | Draft Central">
-<meta name="description" content="In-depth scouting reports, prospect rankings, big boards, and film analysis for upcoming NBA Draft classes.">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2027 NBA Draft Big Board | BYTHERIM</title>
+  <meta name="description" content="BYTHERIM's 2027 NBA Draft big board — prospect rankings by tier, archetypes, ages, measurements and scouting reports.">
 
-<!-- Open Graph / Facebook / Discord / iMessage -->
-<meta property="og:type" content="website">
-<meta property="og:url" content="https://collinbutrlakorn.github.io/BYTHERIM/draft.html">
-<meta property="og:title" content="BYTHERIM | Draft Central">
-<meta property="og:description" content="In-depth scouting reports, prospect rankings, big boards, and film analysis for upcoming NBA Draft classes.">
-<meta property="og:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://collinbutrlakorn.github.io/BYTHERIM/draft.html">
+  <meta property="og:title" content="2027 NBA Draft Big Board | BYTHERIM">
+  <meta property="og:description" content="Prospect rankings by tier, archetypes, ages, measurements and scouting reports.">
+  <meta property="og:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="2027 NBA Draft Big Board | BYTHERIM">
+  <meta name="twitter:description" content="Prospect rankings by tier, archetypes, ages, measurements and scouting reports.">
+  <meta name="twitter:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
 
-<!-- X (Twitter) Card -->
-<meta property="twitter:card" content="summary_large_image">
-<meta property="twitter:url" content="https://collinbutrlakorn.github.io/BYTHERIM/draft.html">
-<meta property="twitter:title" content="BYTHERIM | Draft Central">
-<meta property="twitter:description" content="In-depth scouting reports, prospect rankings, big boards, and film analysis for upcoming NBA Draft classes.">
-<meta property="twitter:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
-
-  
-  <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png">
-
-  <!-- Stylesheets & Fonts -->
-  <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <!-- Loading Asap Condensed for all standard text weights -->
-  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400&display=swap" rel="stylesheet">
-  
-  <!-- PapaParse for CSV fetching -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-
-  <style>
-    /* Dark Theme & Platform Typography */
-    body {
-      background-color: #050507;
-      color: #e2e8f0;
-      font-family: 'Asap Condensed', sans-serif;
-      font-size: 1.1rem; 
-    }
-
-    /* Target all major headings with Anantason Condensed */
-    h1, h2, h3, h4, h5, h6, .brand-logo {
-      font-family: 'Anantason Condensed', 'Asap Condensed', sans-serif;
-    }
-
-    .draft-container {
-      max-width: 1200px;
-      margin: 2rem auto;
-      padding: 0 1rem;
-    }
-
-    .draft-header-card {
-      background: linear-gradient(180deg, #121218 0%, #0a0a0f 100%);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 16px;
-      padding: 1.75rem 2rem;
-      margin-bottom: 1.5rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 1.5rem;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
-    }
-
-    .draft-title h1 {
-      font-size: 2.4rem;
-      font-weight: 800;
-      letter-spacing: 0.03em;
-      text-transform: uppercase;
-      color: #ffffff;
-      margin: 0;
-    }
-
-    .draft-title p {
-      color: #8a8d9b;
-      font-size: 1rem;
-      margin-top: 4px;
-    }
-
-    .filter-controls {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .search-bar, .filter-select {
-      background: #000000;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      color: #ffffff;
-      padding: 0.7rem 1rem;
-      border-radius: 8px;
-      font-size: 1rem;
-      outline: none;
-      font-family: 'Asap Condensed', sans-serif;
-      transition: all 0.2s ease;
-    }
-
-    .search-bar:focus, .filter-select:focus {
-      border-color: #ffffff;
-      box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
-    }
-
-    /* Table Design */
-    .table-wrapper {
-      background: #0a0a0e;
-      border: 1px solid rgba(255, 255, 255, 0.07);
-      border-radius: 16px;
-      overflow-x: auto;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
-    }
-
-    .draft-table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: center; 
-    }
-
-    .draft-table th {
-      background: #111117;
-      color: #63677b;
-      font-size: 0.9rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      padding: 1rem 1.25rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .draft-table td {
-      padding: 1.1rem 1.25rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-      vertical-align: middle;
-      transition: background 0.2s ease, border 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .draft-table td.prospect-col {
-      text-align: left;
-    }
-
-    /* Make rows clickable for expansion */
-    .player-row {
-      cursor: pointer;
-    }
-
-    /* Dynamic Row Glow Hover Effect */
-    .draft-table tbody .player-row {
-      transition: all 0.2s ease;
-      position: relative;
-    }
-
-    .draft-table tbody .player-row:hover td {
-      background: var(--hover-bg, rgba(255, 255, 255, 0.03));
-      border-top: 1px solid var(--hover-glow, transparent);
-      border-bottom: 1px solid var(--hover-glow, transparent);
-    }
-    
-    .draft-table tbody .player-row:hover td:first-child {
-      border-left: 1px solid var(--hover-glow, transparent);
-      box-shadow: inset 15px 0 15px -15px var(--hover-glow, transparent);
-    }
-
-    .draft-table tbody .player-row:hover td:last-child {
-      border-right: 1px solid var(--hover-glow, transparent);
-      box-shadow: inset -15px 0 15px -15px var(--hover-glow, transparent);
-    }
-
-    /* Expanded Profile Detail Row Styles */
-    .detail-row td {
-      padding: 0 !important;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      background-color: #0d0d12;
-    }
-
-    .profile-card {
-      display: flex;
-      box-shadow: inset 0 10px 20px rgba(0,0,0,0.5);
-      padding: 2rem;
-      gap: 2rem;
-      align-items: flex-start;
-      border-top: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
-    .profile-image {
-      flex-shrink: 0;
-      width: 140px;
-      height: 140px;
-      background: #161622;
-      border-radius: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .profile-image img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      object-position: top;
-    }
-
-    .profile-content {
-      flex-grow: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-      text-align: left;
-    }
-
-    .scouting-report h3, .torvik-stats h3 {
-      color: #ffffff;
-      font-size: 1.4rem;
-      margin-top: 0;
-      margin-bottom: 0.5rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      padding-bottom: 0.5rem;
-    }
-
-    .scouting-report p {
-      font-size: 1.1rem;
-      color: #a1a5b8;
-      line-height: 1.6;
-      margin: 0;
-    }
-
-    .torvik-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(75px, 1fr));
-      gap: 0.75rem;
-    }
-
-    .stat-box {
-      background: #121218;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 8px;
-      padding: 0.6rem 0.4rem;
-      text-align: center;
-    }
-
-    .stat-label {
-      display: block;
-      font-size: 0.75rem;
-      color: #7d8296;
-      text-transform: uppercase;
-      margin-bottom: 2px;
-      font-weight: 600;
-    }
-
-    .stat-value {
-      display: block;
-      font-size: 1.2rem;
-      font-weight: 700;
-      color: #ffffff;
-    }
-
-    /* Specific Row Element Formatting */
-    .rank-tier-cell {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
-      min-width: 75px;
-    }
-
-    .pick-num {
-      font-size: 1.6rem;
-      font-weight: 800;
-      color: #ffffff;
-      line-height: 1;
-    }
-
-    .tier-badge {
-      display: inline-block;
-      padding: 3px 8px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      white-space: nowrap;
-    }
-
-    .player-cell {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-
-    .player-name {
-      font-size: 1.35rem;
-      font-weight: 900;
-      color: #ffffff;
-      letter-spacing: -0.01em;
-      line-height: 1.1;
-    }
-
-    .player-archetype {
-      font-size: 0.95rem;
-      color: #7d8296;
-      font-weight: 500;
-      margin-top: 3px;
-    }
-
-    .pos-badge {
-      display: inline-block;
-      padding: 4px 10px;
-      background: #161622;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 6px;
-      font-size: 0.95rem;
-      font-weight: 700;
-      color: #ffffff;
-    }
-
-    .school-cell {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-    }
-
-    .school-logo {
-      height: 32px;
-      width: auto;
-      max-width: 45px;
-      object-fit: contain;
-      filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.5));
-    }
-
-    .school-fallback-text {
-      font-size: 1rem;
-      font-weight: 600;
-      color: #d1d5db;
-    }
-
-    .boxscore-cell {
-      font-size: 1rem;
-      font-weight: 600;
-      color: #94a3b8;
-      white-space: nowrap;
-    }
-  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@400;500;600;700&family=Oswald:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="assets/site.js"></script>
+  <script src="assets/board.js"></script>
 </head>
 <body>
-<!-- Navigation Bar Header -->
-<header class="navbar">
-  <a href="./" class="brand-logo">
-    <img src="logo.png" alt="BYTHERIM Logo" class="logo-img">
-  </a>
+<script>BTR.mount('draft')</script>
 
-  <!-- Mobile Toggle Button -->
-  <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation">
-    <span class="bar"></span>
-    <span class="bar"></span>
-    <span class="bar"></span>
-  </button>
-
-  <nav class="nav-links" id="navLinks">
-    <a href="podcast.html">Podcast</a>
-    <a href="draft.html">Draft</a>
-    <a href="nba.html">NBA</a>
-    <a href="about.html">About</a>
-    <a href="./rp/" class="rp-btn">BYTHERIM RP <span class="badge">SIM</span></a>
-  </nav>
-</header>
-
-  <!-- Main Content -->
-  <div class="draft-container">
-    
-    <!-- Controls Header -->
-    <div class="draft-header-card">
-      <div class="draft-title">
-        <h1>NBA DRAFT BIG BOARD</h1>
-        <p>Interactive prospect evaluations & consensus rankings</p>
+<main class="container">
+  <header class="page-head">
+    <div class="page-head-row">
+      <div>
+        <span class="eyebrow">2027 NBA Draft</span>
+        <h1>Big Board</h1>
+        <p>BYTHERIM's rankings of the 2027 class, grouped by tier. Select a prospect to see his profile.</p>
       </div>
+      <div class="board-summary" id="boardSummary" aria-live="polite"></div>
+    </div>
+  </header>
 
-      <div class="filter-controls">
-        <input type="text" id="searchInput" class="search-bar" placeholder="Search player or team...">
-        <select id="posFilter" class="filter-select">
-          <option value="ALL">All Positions</option>
-          <option value="PG">PG</option>
-          <option value="SG">SG</option>
-          <option value="SF">SF</option>
-          <option value="PF">PF</option>
-          <option value="C">C</option>
-        </select>
+  <div class="board-toolbar" role="search">
+    <label class="sr-only" for="boardSearch">Search prospects</label>
+    <input id="boardSearch" class="board-search" type="search" placeholder="Search player or school" autocomplete="off">
+    <div class="chip-group" id="posChips" aria-label="Filter by position"></div>
+    <div class="chip-group" id="classChips" aria-label="Filter by class"></div>
+    <span class="board-count" id="boardCount"></span>
+  </div>
+
+  <div class="board-cols" aria-hidden="true">
+    <span class="c">#</span><span></span><span>Prospect</span>
+    <span class="c">Pos</span><span class="c">Class</span><span class="c col-size">HT / WT</span>
+    <span class="c" title="Age on draft night">Age</span><span>School</span>
+  </div>
+
+  <section id="board" aria-label="Ranked prospects">
+    <div class="skeleton" style="height:64px;margin-bottom:.4rem"></div>
+    <div class="skeleton" style="height:64px;margin-bottom:.4rem"></div>
+    <div class="skeleton" style="height:64px"></div>
+  </section>
+
+  <section id="radarWrap" aria-label="On the radar" hidden>
+    <div class="section-head" style="margin-top:2.5rem">
+      <div>
+        <h2>On the Radar</h2>
+        <p>Prospects outside the top 60 that BYTHERIM is still tracking, grouped by tier.</p>
       </div>
     </div>
+    <div id="radar" hidden></div>
+    <button class="btn btn-ghost radar-toggle" id="radarToggle" type="button" aria-expanded="false" aria-controls="radar"></button>
+  </section>
+</main>
 
-    <!-- Data Table -->
-    <div class="table-wrapper">
-      <table class="draft-table">
-        <thead>
-          <tr>
-            <th style="width: 90px;">Ranking</th>
-            <th>Prospect</th>
-            <th>Position</th>
-            <th>Class</th>
-            <th>Height / Weight</th>
-            <th>Draft Age</th>
-            <th>School / Team</th>
-            <th>Box Score</th>
-          </tr>
-        </thead>
-        <tbody id="draftTableBody">
-          <tr>
-            <td colspan="8" style="text-align: center; padding: 3rem; color: #63677b;">
-              Loading Big Board Data...
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+<script>
+(function () {
+  'use strict';
+  const { esc, icon, schoolLogo, initialsBadge } = BTR;
 
-  </div>
+  // Tier colours carried over from the original board.
+  const TIER_COLORS = { 1: '#f87171', 2: '#fb923c', 3: '#fbbf24', 4: '#facc15', 5: '#a3e635', 6: '#4ade80', 7: '#2dd4bf', 8: '#38bdf8', 9: '#818cf8', 10: '#60a5fa' };
+  const POSITIONS = ['PG', 'SG', 'SF', 'PF', 'C'];
+  const CLASSES = ['FR', 'SO', 'JR', 'SR', 'INTL'];
+  const CLASS_LABEL = { FR: 'Freshman', SO: 'Sophomore', JR: 'Junior', SR: 'Senior', INTL: 'International' };
 
-  <script>
-    let googleSheetCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTjSzV7c31_8uY69vD-UzxT_rqX_mqjOxECd0aFr-gien0cULby0kLa8iV3ISnuskTr7u2AevhwB7ZN/pub?output=csv';
-    
-    let draftData = [];
+  const state = { all: [], q: '', pos: 'ALL', cls: 'ALL', radarOpen: false, openId: null };
 
-    const tierStyles = {
-      1:  { bg: "rgba(239, 68, 68, 0.2)",   color: "#f87171", border: "rgba(239, 68, 68, 0.5)" },   
-      2:  { bg: "rgba(249, 115, 22, 0.2)",  color: "#fb923c", border: "rgba(249, 115, 22, 0.5)" },  
-      3:  { bg: "rgba(245, 158, 11, 0.2)",  color: "#fbbf24", border: "rgba(245, 158, 11, 0.5)" },  
-      4:  { bg: "rgba(234, 179, 8, 0.2)",   color: "#facc15", border: "rgba(234, 179, 8, 0.5)" },   
-      5:  { bg: "rgba(132, 204, 22, 0.2)",  color: "#a3e635", border: "rgba(132, 204, 22, 0.5)" },  
-      6:  { bg: "rgba(34, 197, 94, 0.2)",   color: "#4ade80", border: "rgba(34, 197, 94, 0.5)" },   
-      7:  { bg: "rgba(20, 184, 166, 0.2)",  color: "#2dd4bf", border: "rgba(20, 184, 166, 0.5)" },  
-      8:  { bg: "rgba(6, 182, 212, 0.2)",   color: "#38bdf8", border: "rgba(6, 182, 212, 0.5)" },   
-      9:  { bg: "rgba(99, 102, 241, 0.2)",  color: "#818cf8", border: "rgba(99, 102, 241, 0.5)" },  
-      10: { bg: "rgba(59, 130, 246, 0.2)",  color: "#60a5fa", border: "rgba(59, 130, 246, 0.5)" }   
-    };
+  const tierColor = t => TIER_COLORS[t] || 'var(--faint)';
+  const tierLabel = t => (t == null ? 'Unassigned' : `Tier ${t}`);
 
-    function getField(row, ...possibleKeys) {
-      if (!row) return '';
-      const keys = Object.keys(row);
-      for (const pKey of possibleKeys) {
-        if (row[pKey] !== undefined && row[pKey] !== null && String(row[pKey]).trim() !== '') {
-          return String(row[pKey]).trim();
-        }
-        const found = keys.find(k => k.trim().toLowerCase() === pKey.toLowerCase());
-        if (found && row[found] !== undefined && row[found] !== null && String(row[found]).trim() !== '') {
-          return String(row[found]).trim();
-        }
-      }
-      return '';
-    }
-
-    function getTierBadgeHTML(tierInput) {
-      if (!tierInput) return '';
-      const match = String(tierInput).match(/\d+/);
-      const tierNum = match ? parseInt(match[0]) : null;
-      const style = tierStyles[tierNum] || { bg: "rgba(255, 255, 255, 0.08)", color: "#d1d5db", border: "rgba(255, 255, 255, 0.15)" };
-      const displayText = tierInput.toLowerCase().includes('tier') ? tierInput : `Tier ${tierInput}`;
-      return `<span class="tier-badge" style="background: ${style.bg}; color: ${style.color}; border: 1px solid ${style.border};">${displayText}</span>`;
-    }
-
-    function getClassHTML(classInput) {
-      if (!classInput) return '-';
-      const val = String(classInput).trim().toLowerCase();
-      if (val.includes('5th') || val.includes('fifth') || val.includes('super')) return `<span style="color: #fbbf24; font-weight: 800; text-shadow: 0 0 8px rgba(251,191,36,0.3);">SR</span>`;
-      if (val === 'fr' || val.includes('freshman') || val.includes('freshmen')) return 'FR';
-      if (val === 'so' || val.includes('sophomore')) return 'SO';
-      if (val === 'jr' || val.includes('junior')) return 'JR';
-      if (val === 'sr' || val.includes('senior')) return 'SR';
-      if (val === 'int' || val.includes('intl') || val.includes('international')) return 'INT';
-      return classInput;
-    }
-
-    function getDraftAgeConfig(dobStr) {
-      if (!dobStr) return { text: '-', color: '#cbd5e1' };
-      const dob = new Date(dobStr);
-      if (isNaN(dob)) return { text: dobStr, color: '#cbd5e1' }; 
-      const draftDate = new Date('2027-06-24');
-      const ageInMs = draftDate - dob;
-      const ageInYears = ageInMs / (1000 * 60 * 60 * 24 * 365.25);
-      const minAge = 18.0;
-      const maxAge = 23.0;
-      const ratio = Math.max(0, Math.min(1, (ageInYears - minAge) / (maxAge - minAge)));
-      const hue = Math.round(120 * (1 - ratio));
-      return { text: ageInYears.toFixed(1), color: `hsl(${hue}, 85%, 55%)` };
-    }
-
-    function getSchoolLogoHTML(schoolName) {
-      if (!schoolName) return '<span class="school-fallback-text">-</span>';
-      const formattedFilename = schoolName.toLowerCase().trim().replace(/\s+/g, '-');
-      const logoPath = `schoollogos/${formattedFilename}.png`;
-      return `
-        <div class="school-cell">
-          <img src="${logoPath}" class="school-logo" alt="${schoolName}" 
-               onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
-          <span class="school-fallback-text" style="display: none;">${schoolName}</span>
-        </div>
-      `;
-    }
-
-    Papa.parse(googleSheetCSV, {
-      download: true,
-      header: true,
-      skipEmptyLines: true,
-      complete: function(results) {
-        draftData = results.data;
-        renderTable(draftData);
-      },
-      error: function() {
-        document.getElementById('draftTableBody').innerHTML = '<tr><td colspan="8" style="text-align: center; color: #ef4444;">Error fetching data. Check your Google Sheet CSV URL.</td></tr>';
-      }
-    });
-
-    function renderTable(data) {
-      const tbody = document.getElementById('draftTableBody');
-      tbody.innerHTML = '';
-
-      if (data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 2rem; color: #63677b;">No matching prospects found.</td></tr>';
-        return;
-      }
-
-      data.forEach((player, index) => {
-        // Base Data
-        const rank = getField(player, 'Ranking', 'Rank', 'Pick', '#');
-        const tier = getField(player, 'Tier', 'Tier Rating', 'Grade');
-        const name = getField(player, 'Prospect', 'Name', 'Player');
-        const archetype = getField(player, 'Archetype', 'Style');
-        const pos = getField(player, 'Position', 'Pos');
-        const height = getField(player, 'Height', 'Ht');
-        const weight = getField(player, 'Weight', 'Wt');
-        const school = getField(player, 'School/Team', 'School', 'Team', 'College');
-        const boxscore = getField(player, 'Box Score', 'BoxScore', 'Stats', 'Statline', 'PPG');
-        const dob = getField(player, 'DOB', 'Date of Birth', 'Birthdate', 'Birth');
-        const classVal = getField(player, 'Class', 'Year');
-        
-        // Expanded Profile Data
-        const espnImg = getField(player, 'ESPN Image URL', 'ESPN', 'Image', 'Headshot', 'Picture');
-        const scouting = getField(player, 'Scouting Report', 'Scouting', 'Notes', 'Report', 'Evaluation');
-        
-        // Torvik Stats Mapping
-        const pts = getField(player, 'PTS', 'Points') || '-';
-        const reb = getField(player, 'REB', 'Rebounds') || '-';
-        const ast = getField(player, 'AST', 'Assists') || '-';
-        const stl = getField(player, 'STL', 'Steals') || '-';
-        const blk = getField(player, 'BLK', 'Blocks') || '-';
-        const tov = getField(player, 'TOV', 'Turnovers') || '-';
-        const tsp = getField(player, 'TS%', 'True Shooting') || '-';
-        const efg = getField(player, 'eFG%', 'eFG') || '-';
-        const usg = getField(player, 'USG%', 'Usage') || '-';
-        const bpm = getField(player, 'BPM', 'Box Plus-Minus') || '-';
-        const obpm = getField(player, 'OBPM') || '-';
-        const dbpm = getField(player, 'DBPM') || '-';
-        const tPr = getField(player, '3Pr', '3P Rate') || '-';
-        const fTr = getField(player, 'FTr', 'FT Rate') || '-';
-        const twoP = getField(player, '2P%', '2P') || '-';
-        const threeP = getField(player, '3P%', '3P') || '-';
-        const ftP = getField(player, 'FT%', 'FT') || '-';
-
-        const draftAge = getDraftAgeConfig(dob);
-        const classHTML = getClassHTML(classVal);
-        const htWtDisplay = (height || weight) ? `${height || '-'} / ${weight || '-'}` : '-';
-
-        const tierMatch = String(tier).match(/\d+/);
-        const tierNum = tierMatch ? parseInt(tierMatch[0]) : null;
-        const hoverStyles = tierStyles[tierNum] || { bg: 'rgba(255,255,255,0.05)', color: '#d1d5db' };
-        
-        const rowHoverBg = hoverStyles.bg.replace('0.2', '0.15');
-        const rowHoverGlow = hoverStyles.color;
-
-        // --- MAIN ROW GENERATION ---
-        const mainTr = document.createElement('tr');
-        mainTr.className = 'player-row';
-        mainTr.style.setProperty('--hover-bg', rowHoverBg);
-        mainTr.style.setProperty('--hover-glow', rowHoverGlow);
-
-        mainTr.innerHTML = `
-          <td>
-            <div class="rank-tier-cell">
-              <span class="pick-num">${rank || '-'}</span>
-              ${getTierBadgeHTML(tier)}
-            </div>
-          </td>
-          <td class="prospect-col">
-            <div class="player-cell">
-              <span class="player-name">${name || 'Unknown Player'}</span>
-              <span class="player-archetype">${archetype || 'Prospect'}</span>
-            </div>
-          </td>
-          <td><span class="pos-badge">${pos || '-'}</span></td>
-          <td style="font-weight: 700;">${classHTML}</td>
-          <td style="color: #cbd5e1; font-weight: 500;">${htWtDisplay}</td>
-          <td style="color: ${draftAge.color}; font-weight: 800; font-size: 1.15rem; text-shadow: 0 0 10px rgba(0,0,0,0.5);">
-            ${draftAge.text}
-          </td>
-          <td>${getSchoolLogoHTML(school)}</td>
-          <td><span class="boxscore-cell">${boxscore || '-'}</span></td>
-        `;
-
-        // --- DETAIL ROW GENERATION ---
-        const detailTr = document.createElement('tr');
-        detailTr.id = `detail-${index}`;
-        detailTr.className = 'detail-row';
-        detailTr.style.display = 'none';
-
-        const imageHTML = espnImg 
-          ? `<img src="${espnImg}" alt="${name}">` 
-          : `<span style="color: #63677b; font-size: 0.85rem; font-weight: 600;">NO IMAGE</span>`;
-
-        detailTr.innerHTML = `
-          <td colspan="8">
-            <div class="profile-card">
-              <div class="profile-image">
-                ${imageHTML}
-              </div>
-              
-              <div class="profile-content">
-                <div class="scouting-report">
-                  <h3>Scouting Report</h3>
-                  <p>${scouting || 'No scouting report data found for this prospect.'}</p>
-                </div>
-                
-                <div class="torvik-stats">
-                  <h3>Advanced Stats & Box Breakdown (Torvik)</h3>
-                  <div class="torvik-grid">
-                    <div class="stat-box"><span class="stat-label">PTS</span><span class="stat-value">${pts}</span></div>
-                    <div class="stat-box"><span class="stat-label">REB</span><span class="stat-value">${reb}</span></div>
-                    <div class="stat-box"><span class="stat-label">AST</span><span class="stat-value">${ast}</span></div>
-                    <div class="stat-box"><span class="stat-label">STL</span><span class="stat-value">${stl}</span></div>
-                    <div class="stat-box"><span class="stat-label">BLK</span><span class="stat-value">${blk}</span></div>
-                    <div class="stat-box"><span class="stat-label">TOV</span><span class="stat-value">${tov}</span></div>
-                    <div class="stat-box"><span class="stat-label">TS%</span><span class="stat-value">${tsp}</span></div>
-                    <div class="stat-box"><span class="stat-label">eFG%</span><span class="stat-value">${efg}</span></div>
-                    <div class="stat-box"><span class="stat-label">USG%</span><span class="stat-value">${usg}</span></div>
-                    <div class="stat-box"><span class="stat-label">BPM</span><span class="stat-value">${bpm}</span></div>
-                    <div class="stat-box"><span class="stat-label">OBPM</span><span class="stat-value">${obpm}</span></div>
-                    <div class="stat-box"><span class="stat-label">DBPM</span><span class="stat-value">${dbpm}</span></div>
-                    <div class="stat-box"><span class="stat-label">3Pr</span><span class="stat-value">${tPr}</span></div>
-                    <div class="stat-box"><span class="stat-label">FTr</span><span class="stat-value">${fTr}</span></div>
-                    <div class="stat-box"><span class="stat-label">2P%</span><span class="stat-value">${twoP}</span></div>
-                    <div class="stat-box"><span class="stat-label">3P%</span><span class="stat-value">${threeP}</span></div>
-                    <div class="stat-box"><span class="stat-label">FT%</span><span class="stat-value">${ftP}</span></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </td>
-        `;
-
-        // --- TOGGLE LISTENER ---
-        mainTr.addEventListener('click', () => {
-          const isExpanded = detailTr.style.display === 'table-row';
-          document.querySelectorAll('.detail-row').forEach(row => row.style.display = 'none');
-          detailTr.style.display = isExpanded ? 'none' : 'table-row';
-        });
-
-        tbody.appendChild(mainTr);
-        tbody.appendChild(detailTr);
-      });
-    }
-
-    function filterData() {
-      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-      const posFilter = document.getElementById('posFilter').value;
-
-      const filtered = draftData.filter(player => {
-        const name = getField(player, 'Prospect', 'Name', 'Player').toLowerCase();
-        const school = getField(player, 'School/Team', 'School', 'Team').toLowerCase();
-        const pos = getField(player, 'Position', 'Pos');
-
-        const matchesSearch = name.includes(searchTerm) || school.includes(searchTerm);
-        const matchesPos = (posFilter === 'ALL') || (pos.toUpperCase() === posFilter.toUpperCase());
-
-        return matchesSearch && matchesPos;
-      });
-
-      renderTable(filtered);
-    }
-
-    document.getElementById('searchInput').addEventListener('input', filterData);
-    document.getElementById('posFilter').addEventListener('change', filterData);
-  </script>
-<!-- Global Footer -->
-<footer class="footer">
-  <div class="footer-container">
-    <div class="footer-brand">
-      <img src="logo.png" alt="BYTHERIM Logo" class="footer-logo">
-      <p class="footer-desc">In-depth draft analysis, film breakdowns, and NBA discourse.</p>
-    </div>
-    
-    <div class="footer-column">
-      <h4>Navigation</h4>
-      <a href="./">Home</a>
-      <a href="podcast.html">Podcast</a>
-      <a href="draft.html">Draft</a>
-      <a href="nba.html">NBA</a>
-      <a href="./rp/">BYTHERIM RP</a>
-    </div>
-
-    <div class="footer-column">
-      <h4>Platforms</h4>
-      <a href="https://youtube.com" target="_blank" rel="noopener">YouTube</a>
-      <a href="https://open.spotify.com" target="_blank" rel="noopener">Spotify</a>
-      <a href="https://x.com" target="_blank" rel="noopener">X / Twitter</a>
-      <a href="https://substack.com" target="_blank" rel="noopener">Substack</a>
-    </div>
-  </div>
-
-  <div class="footer-bottom">
-    <p>&copy; 2026 BYTHERIM. All rights reserved.</p>
-  </div>
-</footer>
-  <script>
-  const navToggle = document.getElementById('navToggle');
-  const navLinks = document.getElementById('navLinks');
-
-  if (navToggle && navLinks) {
-    navToggle.addEventListener('click', () => {
-      navToggle.classList.toggle('active');
-      navLinks.classList.toggle('active');
-    });
+  function logoFor(p) {
+    return p.isPro ? initialsBadge('PRO') : schoolLogo(p.school);
   }
-</script>
+  function photoFor(p) {
+    return p.image || initialsBadge(p.name);
+  }
 
+  // ------------------------------------------------------------ rows
+  function rowHTML(p) {
+    const hue = BOARD.ageHue(p.age);
+    const age = p.age != null ? p.age.toFixed(1) : '—';
+    const size = [p.height, p.weight].filter(Boolean).join(' / ') || '—';
+    const schoolSub = p.isPro ? 'Professional' : (p.conference || '');
+    const open = state.openId === p.id;
+    return `
+<article class="pr${open ? ' open' : ''}" id="p-${p.id}" style="--tier:${tierColor(p.tier)}">
+  <button class="pr-main" type="button" aria-expanded="${open}" aria-controls="d-${p.id}" data-id="${p.id}">
+    <span class="pr-rank${p.rank == null ? ' unranked' : ''}">${p.rank != null ? p.rank : 'NR'}</span>
+    <img class="pr-photo" src="${esc(photoFor(p))}" alt="" loading="lazy" onerror="this.onerror=null;this.src='${initialsBadge(p.name)}'">
+    <span class="pr-id">
+      <span class="pr-name">${esc(p.name)}</span>
+      <span class="pr-arch">${esc(p.archetype || 'Prospect')}</span>
+      <span class="pr-mobile-meta"><img src="${esc(logoFor(p))}" alt="" onerror="this.remove()">${esc(p.school)} · ${esc(p.pos)} · ${esc(p.cls)} · ${esc(p.height || '')}</span>
+    </span>
+    <span class="pr-cell"><span class="pr-pos">${esc(p.pos || '—')}</span></span>
+    <span class="pr-cell">${esc(p.cls || '—')}</span>
+    <span class="pr-cell pr-size">${esc(size)}</span>
+    <span class="pr-cell pr-age" style="--h:${hue == null ? 0 : hue}" title="Age on draft night">${age}</span>
+    <span class="pr-school">
+      <img src="${esc(logoFor(p))}" alt="" loading="lazy" onerror="this.onerror=null;this.src='${initialsBadge(p.school || '?')}'">
+      <span>${esc(p.school || '—')}${schoolSub ? `<small>${esc(schoolSub)}</small>` : ''}</span>
+    </span>
+  </button>
+  <div class="pr-detail" id="d-${p.id}"${open ? '' : ' hidden'}>${open ? detailHTML(p) : ''}</div>
+</article>`;
+  }
+
+  function detailHTML(p) {
+    const facts = [
+      ['Board rank', p.rank != null ? `#${p.rank}` : 'On the radar'],
+      ['Tier', p.tier != null ? p.tier : '—'],
+      ['Position', p.pos],
+      ['Class', CLASS_LABEL[p.cls] || p.cls],
+      ['Height', p.height],
+      ['Weight', p.weight ? `${p.weight} lbs` : ''],
+      ['Draft-night age', p.age != null ? p.age.toFixed(1) : ''],
+      ['Born', p.dob],
+      ['School', p.isPro ? 'Professional' : p.school],
+      ['Conference', p.conference]
+    ].filter(([, v]) => v !== '' && v != null);
+
+    const report = p.scouting
+      ? `<p class="pr-report">${esc(p.scouting)}</p>`
+      : `<p class="pr-note">Full scouting report coming soon.</p>`;
+
+    let stats;
+    if (p.hasStats) {
+      stats = `<div class="pr-stats">${BOARD.STAT_GROUPS.map(g => {
+        const cells = g.stats.filter(([k]) => p.stats[k] != null)
+          .map(([k, label]) => `<span class="stat"><b>${esc(p.stats[k])}</b><i>${label}</i></span>`).join('');
+        return cells ? `<div class="pr-statgroup"><span class="pr-statlabel">${g.title}</span>${cells}</div>` : '';
+      }).join('')}</div>`;
+    } else {
+      // No real numbers yet — say so once, rather than a grid of dashes.
+      stats = `<p class="pr-note" style="margin-top:1rem">${p.isPro ? 'Professional stats' : '2026-27 season stats'} will appear here once the season is underway.</p>`;
+    }
+
+    return `
+<img class="pr-bigphoto" src="${esc(photoFor(p))}" alt="${esc(p.name)}" loading="lazy" onerror="this.onerror=null;this.src='${initialsBadge(p.name)}'">
+<div>
+  <dl class="pr-facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
+  <h4>${esc(p.archetype || 'Scouting report')}</h4>
+  ${report}
+  ${stats}
+  <div class="pr-actions">
+    <button class="btn btn-ghost btn-sm" type="button" data-copy="${p.id}">Copy link</button>
+  </div>
+</div>`;
+  }
+
+  // Groups a list into tier sections, keeping board order within each.
+  function tieredHTML(list) {
+    let out = '', current;
+    list.forEach(p => {
+      if (p.tier !== current) {
+        current = p.tier;
+        const n = list.filter(x => x.tier === current).length;
+        out += `<div class="tier-head" style="--tier:${tierColor(current)}"><b>${tierLabel(current)}</b>${n} ${n === 1 ? 'prospect' : 'prospects'}</div>`;
+      }
+      out += rowHTML(p);
+    });
+    return out;
+  }
+
+  // ------------------------------------------------------------ filtering
+  function matches(p) {
+    if (state.pos !== 'ALL' && p.pos !== state.pos) return false;
+    if (state.cls !== 'ALL' && p.cls !== state.cls) return false;
+    if (state.q) {
+      const hay = `${p.name} ${p.school} ${p.archetype} ${p.conference}`.toLowerCase();
+      if (!hay.includes(state.q)) return false;
+    }
+    return true;
+  }
+
+  function render() {
+    const shown = state.all.filter(matches);
+    const ranked = shown.filter(p => p.rank != null);
+    const radar = shown.filter(p => p.rank == null);
+    const filtering = state.q || state.pos !== 'ALL' || state.cls !== 'ALL';
+
+    document.getElementById('board').innerHTML = ranked.length
+      ? tieredHTML(ranked)
+      : `<div class="board-empty">No ranked prospects match these filters.</div>`;
+
+    const wrap = document.getElementById('radarWrap');
+    const radarEl = document.getElementById('radar');
+    const toggle = document.getElementById('radarToggle');
+    wrap.hidden = radar.length === 0;
+    // While filtering, radar matches are shown directly so nothing is
+    // hidden behind a button.
+    const openRadar = state.radarOpen || (filtering && radar.length > 0);
+    radarEl.hidden = !openRadar;
+    radarEl.innerHTML = openRadar ? tieredHTML(radar) : '';
+    toggle.hidden = !!filtering;
+    toggle.textContent = state.radarOpen ? 'Hide prospects on the radar' : `Show ${radar.length} more prospects`;
+    toggle.setAttribute('aria-expanded', String(state.radarOpen));
+
+    const total = state.all.length;
+    document.getElementById('boardCount').textContent = filtering ? `${shown.length} of ${total} prospects` : '';
+  }
+
+  function chips(el, values, key, labels) {
+    el.innerHTML = ['ALL', ...values].map(v =>
+      `<button type="button" class="chip${state[key] === v ? ' active' : ''}" data-${key}="${v}">${v === 'ALL' ? 'All' : (labels ? labels[v] || v : v)}</button>`).join('');
+  }
+  function renderChips() {
+    chips(document.getElementById('posChips'), POSITIONS, 'pos');
+    chips(document.getElementById('classChips'), CLASSES, 'cls', { INTL: 'Intl' });
+  }
+
+  function renderSummary() {
+    const ranked = state.all.filter(p => p.rank != null);
+    const fr = ranked.filter(p => p.cls === 'FR').length;
+    const intl = ranked.filter(p => p.cls === 'INTL').length;
+    document.getElementById('boardSummary').innerHTML = `
+      <div><b>${ranked.length}</b><span>Ranked</span></div>
+      <div><b>${fr}</b><span>Freshmen</span></div>
+      <div><b>${intl}</b><span>International</span></div>`;
+  }
+
+  // ------------------------------------------------------------ interaction
+  function toggleProspect(id, scroll) {
+    state.openId = state.openId === id ? null : id;
+    const p = state.all.find(x => x.id === id);
+    if (p && p.rank == null) state.radarOpen = true;
+    render();
+    history.replaceState(null, '', state.openId ? `#${state.openId}` : location.pathname);
+    if (scroll && state.openId) {
+      const el = document.getElementById(`p-${state.openId}`);
+      if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+  }
+
+  document.addEventListener('click', e => {
+    const row = e.target.closest('.pr-main');
+    if (row) return toggleProspect(row.dataset.id, false);
+    const pos = e.target.closest('[data-pos]');
+    if (pos) { state.pos = pos.dataset.pos; renderChips(); return render(); }
+    const cls = e.target.closest('[data-cls]');
+    if (cls) { state.cls = cls.dataset.cls; renderChips(); return render(); }
+    if (e.target.closest('#radarToggle')) { state.radarOpen = !state.radarOpen; return render(); }
+    const copy = e.target.closest('[data-copy]');
+    if (copy) {
+      const url = `${location.origin}${location.pathname}#${copy.dataset.copy}`;
+      (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject())
+        .then(() => { copy.textContent = 'Link copied'; setTimeout(() => { copy.textContent = 'Copy link'; }, 1600); })
+        .catch(() => prompt('Copy this link:', url));
+    }
+  });
+
+  let t;
+  document.getElementById('boardSearch').addEventListener('input', e => {
+    clearTimeout(t);
+    t = setTimeout(() => { state.q = e.target.value.trim().toLowerCase(); render(); }, 120);
+  });
+
+  // ------------------------------------------------------------ load
+  BOARD.loadBoard().then(rows => {
+    state.all = rows;
+    renderChips();
+    renderSummary();
+    const hash = decodeURIComponent(location.hash.slice(1));
+    if (hash && rows.some(p => p.id === hash)) toggleProspect(hash, true);
+    else render();
+  }).catch(err => {
+    console.error(err);
+    document.getElementById('board').innerHTML =
+      `<div class="empty-state">The big board couldn't be loaded right now. Check that the board's Google Sheet is still published to the web, then refresh.</div>`;
+  });
+})();
+</script>
 </body>
 </html>
