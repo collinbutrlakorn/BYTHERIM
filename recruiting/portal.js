@@ -221,7 +221,7 @@ function openPortalPlayer(name) {
 
 function schoolChip(school, extra = '') {
   return `<span class="portal-school ${extra}">
-      <img src="${getSchoolLogoPath(school)}" class="school-logo" alt="" onerror="schoolLogoFallback(this, '${escAttr(school)}')">
+      <img src="${getSchoolLogoPath(school)}" class="school-logo" loading="lazy" alt="" onerror="schoolLogoFallback(this, '${escAttr(school)}')">
       <span>${portalEsc(school)}</span>
     </span>`;
 }
@@ -237,7 +237,7 @@ function portalRow(t) {
   return `<tr class="portal-row${recruit ? ' has-profile' : ''}" ${recruit ? `onclick="openPortalPlayer('${escAttr(t.name)}')"` : ''}>
     <td class="col-player">
       <div class="player-cell">
-        <img src="${avatar}" class="player-avatar-sm" alt="" onerror="this.src='${EMPTY_PFP}';">
+        <img src="${avatar}" class="player-avatar-sm" loading="lazy" decoding="async" alt="" onerror="this.src='${EMPTY_PFP}';">
         <div class="player-text">
           <span class="player-name">${portalEsc(t.name)}</span>
           <span class="player-sub">${portalEsc(meta)}${t.ppg != null && t.ppg !== '' ? ` · ${portalEsc(t.ppg)} PPG` : ''}</span>

@@ -37,6 +37,39 @@ PAGES.forEach(p => {
   ok(!html.includes('â€'), `${p}: no mojibake in the source`);
 });
 
+// ------------------------------------------------------------ launch: domain, share cards, icons
+{
+  const exists = f => fs.existsSync(path.join(ROOT, f));
+  ok(read('CNAME').trim() === 'bytherim.com', 'CNAME points GitHub Pages at bytherim.com');
+  const every = ['index', 'podcast', 'draft', 'nba', 'about'].map(p => p + '.html')
+    .concat(['rp/index.html', 'rp/guide.html', 'rp/ncaa.html', 'rp/draft.html', 'recruiting/index.html']);
+  const expectPath = { 'index.html': '/', 'rp/index.html': '/rp/', 'recruiting/index.html': '/recruiting/' };
+  every.forEach(f => {
+    const html = read(f);
+    const url = 'https://bytherim.com' + (expectPath[f] || '/' + f);
+    ok(html.includes(`<link rel="canonical" href="${url}">`) && html.includes(`<meta property="og:url" content="${url}">`), `${f}: canonical and share URL on bytherim.com`);
+    const img = (html.match(/<meta property="og:image" content="https:\/\/bytherim\.com\/([^"]+)"/) || [])[1];
+    ok(img && exists(img) && html.includes(`<meta name="twitter:image" content="https://bytherim.com/${img}">`), `${f}: share image exists (${img})`);
+    ok(/<meta name="description" content="[^"]{40,}">/.test(html), `${f}: has a real description`);
+    const base = f.includes('/') ? '../' : '';
+    ok(html.includes(`href="${base}site.webmanifest"`) && html.includes(`href="${base}assets/icons/apple-touch-icon.png"`) && html.includes('name="theme-color"'), `${f}: home-screen icon, manifest and theme colour`);
+    ok(!html.includes('github.io'), `${f}: no github.io links left`);
+    ok((html.match(/rel="icon"/g) || []).length === 1, `${f}: exactly one favicon`);
+  });
+  const manifest = JSON.parse(read('site.webmanifest'));
+  ok(manifest.start_url === '/' && manifest.icons.every(i => exists(i.src.slice(1))) && manifest.icons.some(i => i.purpose === 'maskable'), 'manifest: icons exist, including a maskable one');
+  ok(exists('favicon.ico') && exists('assets/logo-header.png'), 'favicon.ico and the light header logo exist');
+  const sitemap = read('sitemap.xml');
+  every.forEach(f => ok(sitemap.includes('<loc>https://bytherim.com' + (expectPath[f] || '/' + f) + '</loc>'), `sitemap lists ${f}`));
+  ok(/Sitemap: https:\/\/bytherim\.com\/sitemap\.xml/.test(read('robots.txt')), 'robots.txt points to the sitemap');
+  const nf = read('404.html');
+  ok(nf.includes("BTR.mount('', { base: '/' })") && nf.includes('href="/assets/site.css"') && !/(href|src)="(?!\/|https?:|#)[^"]/.test(nf), '404: every link is absolute, so it works at any broken address');
+  ok(/goatcounter: ''/.test(siteJs), 'visitor counting is off until a GoatCounter code is added');
+  const big = ['logo.png', 'favicon.png', 'assets/hero-home-banner.jpg', 'assets/hero-rp-banner.jpg', 'assets/hero-about-banner.jpg', 'assets/logo-header.png']
+    .filter(f => fs.statSync(path.join(ROOT, f)).size > 400 * 1024);
+  ok(big.length === 0, 'header logo, favicon and hero banners are each under 400 KB' + (big.length ? ': ' + big.join(', ') : ''));
+}
+
 // Placeholder / generic links that used to sit in the footers and buttons.
 const allSource = PAGES.map(p => read(p + '.html')).join('\n') + siteJs;
 [
@@ -331,7 +364,7 @@ function table(row) {
     ok(errors.length === 0, 'rp hub: boots with no script errors' + (errors.length ? ' ' + errors.join(' | ') : ''));
     const hrefs = sel => [...d.querySelectorAll(sel)].map(a => a.getAttribute('href'));
     ok(hrefs('.site-nav a:not(.nav-rp)').every(h => h.startsWith('../')), 'rp hub: header links step up a folder');
-    ok(d.querySelector('.brand').getAttribute('href') === '../' && d.querySelector('.brand img').getAttribute('src') === '../logo.png', 'rp hub: logo links home and loads');
+    ok(d.querySelector('.brand').getAttribute('href') === '../' && d.querySelector('.brand img').getAttribute('src') === '../assets/logo-header.png', 'rp hub: logo links home and loads');
     ok(d.querySelector('.nav-rp').classList.contains('active'), 'rp hub: the RP pill is marked current');
     ok(hrefs('.site-footer a').filter(h => !/^https?:/.test(h)).every(h => h.startsWith('../')), 'rp hub: footer links step up a folder');
     const mods = hrefs('.rp-module-link');
@@ -441,6 +474,27 @@ function table(row) {
     const { w, d } = await boot('about');
     const labels = [...d.querySelectorAll('main .social-row .social-btn')].map(a => a.textContent.trim());
     ok(labels.includes('Instagram') && labels.includes('TikTok'), 'about: Follow along includes Instagram and TikTok');
+    w.close();
+  }
+
+  {
+    const { w, d } = await boot('index');
+    const facade = d.querySelector('.video-frame .video-facade[data-yt*="videoseries?list="]');
+    ok(facade && !d.querySelector('.video-frame iframe'), 'home: YouTube player waits behind a play button (no 3.5 MB player on page load)');
+    facade.click();
+    const frame = d.querySelector('.video-frame iframe');
+    ok(frame && /autoplay=1/.test(frame.src) && /youtube-nocookie\.com\/embed\/videoseries/.test(frame.src), 'home: pressing play loads the playlist and starts it');
+    w.close();
+  }
+  {
+    const { w, d, errors } = await boot('rp/guide');
+    ok(errors.length === 0 && d.querySelector('.site-header') && d.querySelectorAll('.guide-steps li').length === 5, 'rp guide: boots with the shared header and the five season steps');
+    ok([...d.querySelectorAll('.site-footer a')].some(a => a.getAttribute('href') === '../rp/guide.html'), 'footer: links the RP guide');
+    w.close();
+  }
+  {
+    const { w, d, errors } = await boot('404');
+    ok(errors.length === 0 && d.querySelector('.brand').getAttribute('href') === '/' && d.querySelector('.brand img').getAttribute('src') === '/assets/logo-header.png', '404: header and logo resolve from the site root');
     w.close();
   }
 

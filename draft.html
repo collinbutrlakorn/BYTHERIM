@@ -5,18 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>2027 NBA Draft Big Board | BYTHERIM</title>
   <meta name="description" content="BYTHERIM's 2027 NBA Draft big board — prospect rankings by tier, archetypes, ages, measurements and scouting reports.">
-
+  <!-- share + icons -->
+  <link rel="canonical" href="https://bytherim.com/draft.html">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://collinbutrlakorn.github.io/BYTHERIM/draft.html">
+  <meta property="og:site_name" content="BYTHERIM">
+  <meta property="og:url" content="https://bytherim.com/draft.html">
   <meta property="og:title" content="2027 NBA Draft Big Board | BYTHERIM">
-  <meta property="og:description" content="Prospect rankings by tier, archetypes, ages, measurements and scouting reports.">
-  <meta property="og:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
+  <meta property="og:description" content="BYTHERIM&#x27;s 2027 NBA Draft big board — prospect rankings by tier, archetypes, ages, measurements and scouting reports.">
+  <meta property="og:image" content="https://bytherim.com/assets/share/draft.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="2027 NBA Draft Big Board | BYTHERIM">
-  <meta name="twitter:description" content="Prospect rankings by tier, archetypes, ages, measurements and scouting reports.">
-  <meta name="twitter:image" content="https://collinbutrlakorn.github.io/BYTHERIM/logo.png">
-
-  <link rel="icon" type="image/png" href="favicon.png">
+  <meta name="twitter:description" content="BYTHERIM&#x27;s 2027 NBA Draft big board — prospect rankings by tier, archetypes, ages, measurements and scouting reports.">
+  <meta name="twitter:image" content="https://bytherim.com/assets/share/draft.jpg">
+  <meta name="theme-color" content="#06070a">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+  <!-- /share + icons -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@400;500;600;700&family=Oswald:wght@400;500;600&display=swap" rel="stylesheet">
@@ -169,7 +176,7 @@
     <span class="pr-id">
       <span class="pr-name">${esc(p.name)}</span>
       <span class="pr-arch">${esc(p.archetype || 'Prospect')}</span>
-      <span class="pr-mobile-meta"><img src="${esc(logoFor(p))}" alt="" onerror="this.remove()">${esc([p.school, p.pos, p.cls, isPast() ? draftMeta(p) : p.height].filter(Boolean).join(' · '))}</span>
+      <span class="pr-mobile-meta"><img src="${esc(logoFor(p))}" alt="" loading="lazy" onerror="this.remove()">${esc([p.school, p.pos, p.cls, isPast() ? draftMeta(p) : p.height].filter(Boolean).join(' · '))}</span>
     </span>
     <span class="pr-cell"><span class="pr-pos">${esc(p.pos || '—')}</span></span>
     <span class="pr-cell">${esc(p.cls || '—')}</span>

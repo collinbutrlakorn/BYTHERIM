@@ -30,6 +30,11 @@
     // Leave empty to hide the "Support" block on the About page. Paste your
     // Ko-fi (or similar) page here and it appears automatically.
     supportUrl: '',
+    // Visitor counts (free, no cookies, no banner needed). Sign up at
+    // goatcounter.com, choose a site code such as "bytherim", and put that
+    // code here. Your dashboard is then https://<code>.goatcounter.com.
+    // Leave empty to turn counting off.
+    goatcounter: '',
     // Optional: links to specific X posts to pin on the NBA page, newest
     // first, e.g. 'https://x.com/collinbutr/status/1234567890'. When this
     // has posts, they're shown instead of the live timeline. Single posts
@@ -240,15 +245,15 @@
     const m = String(u).match(/substackcdn\.com\/image\/fetch\/[^/]*\/(https?%3A.*|https?:.*)$/);
     return m ? decodeURIComponent(m[1]) : u;
   }
-  const IMG_FALLBACK = `onerror="this.onerror=null;this.closest('.post-media').className='post-media placeholder';this.src='logo.png'"`;
+  const IMG_FALLBACK = `onerror="this.onerror=null;this.closest('.post-media').className='post-media placeholder';this.src='assets/logo-header.png'"`;
 
   function postCard(p) {
     p = Object.assign({}, p, { image: cleanImage(p.image) });
     const media = p.image
       ? (p.type === 'podcast'
-          ? `<div class="post-media square"><img class="blur" src="${esc(p.image)}" alt="" aria-hidden="true"><img class="art" src="${esc(p.image)}" alt="" loading="lazy" ${IMG_FALLBACK}></div>`
+          ? `<div class="post-media square"><img class="blur" src="${esc(p.image)}" alt="" aria-hidden="true" loading="lazy"><img class="art" src="${esc(p.image)}" alt="" loading="lazy" ${IMG_FALLBACK}></div>`
           : `<div class="post-media"><img src="${esc(p.image)}" alt="" loading="lazy" ${IMG_FALLBACK}></div>`)
-      : `<div class="post-media placeholder"><img src="logo.png" alt=""></div>`;
+      : `<div class="post-media placeholder"><img src="assets/logo-header.png" alt=""></div>`;
     const meta = [fmtDate(p.date), p.type === 'podcast' ? fmtDuration(p.duration) : ''].filter(Boolean);
     return `<a class="post-card" href="${esc(p.url)}" target="_blank" rel="noopener">
       ${media}
@@ -284,7 +289,7 @@
     return `
 <header class="site-header">
   <div class="site-header-inner">
-    <a href="${BASE || './'}" class="brand" aria-label="BYTHERIM home"><img src="${BASE}logo.png" alt="BYTHERIM" width="138" height="40"></a>
+    <a href="${BASE || './'}" class="brand" aria-label="BYTHERIM home"><img src="${BASE}assets/logo-header.png" alt="BYTHERIM" width="138" height="42"></a>
     <nav class="site-nav" id="siteNav" aria-label="Main">
       ${links}
       <a href="${BASE}rp/" class="nav-rp${active === 'rp' ? ' active" aria-current="page' : ''}">BYTHERIM RP</a>
@@ -304,7 +309,7 @@
 <footer class="site-footer">
   <div class="footer-inner">
     <div class="footer-brand">
-      <img src="${BASE}logo.png" alt="BYTHERIM" width="138" height="40">
+      <img src="${BASE}assets/logo-header.png" alt="BYTHERIM" width="138" height="42">
       <p>Draft analysis, film breakdowns and NBA conversation — plus a full college basketball simulation universe.</p>
       <div class="social-row">${socialButtons(['youtube', 'spotify', 'apple', 'x', 'instagram', 'tiktok', 'substack'])}</div>
     </div>
@@ -316,6 +321,7 @@
     <div class="footer-col">
       <h4>RP Universe</h4>
       <a href="${BASE}rp/">RP Hub</a>
+      <a href="${BASE}rp/guide.html">How the RP works</a>
       <a href="${BASE}rp/ncaa.html">NCAA Simulation</a>
       <a href="${BASE}recruiting/">Recruiting</a>
       <a href="${BASE}rp/draft.html">Draft RP</a>
@@ -490,10 +496,37 @@
       });
       document.querySelectorAll('[data-x-feed]').forEach(xFeed);
       document.querySelectorAll('[data-embed]').forEach(socialEmbed);
+      document.querySelectorAll('[data-yt]').forEach(videoFacade);
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addFooter);
     else addFooter();
     wireChrome();
+    countVisit();
+  }
+
+  // Swaps a YouTube placeholder for the real player on the first press.
+  function videoFacade(btn) {
+    btn.addEventListener('click', () => {
+      const src = btn.dataset.yt + (btn.dataset.yt.includes('?') ? '&' : '?') + 'autoplay=1';
+      const frame = document.createElement('iframe');
+      frame.src = src;
+      frame.title = 'BYTHERIM on YouTube';
+      frame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+      frame.allowFullscreen = true;
+      btn.replaceWith(frame);
+    }, { once: true });
+  }
+
+  // GoatCounter page views, only on the live site (never from a copy
+  // opened on your own computer).
+  function countVisit() {
+    const code = String(CONFIG.goatcounter || '').trim();
+    if (!code || location.protocol !== 'https:' || /^(localhost|127\.)/.test(location.hostname)) return;
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://gc.zgo.at/count.js';
+    s.dataset.goatcounter = `https://${encodeURIComponent(code)}.goatcounter.com/count`;
+    document.head.appendChild(s);
   }
 
   window.BTR = {

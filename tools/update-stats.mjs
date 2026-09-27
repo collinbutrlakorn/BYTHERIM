@@ -22,6 +22,10 @@
    corrected. If a name still doesn't match, add a "Stats Name" column to
    the sheet with the spelling Barttorvik uses.
 
+   A download that fails never erases anything: if Barttorvik or a
+   Basketball-Reference page can't be read, the numbers already in
+   data/stats.json are kept and the run log says so.
+
    Runs daily from .github/workflows/update-stats.yml. To run by hand
    (Node 18 or newer):   node tools/update-stats.mjs
    ============================================================ */
@@ -135,7 +139,12 @@ async function get(url) {
   if (url.includes('basketball-reference.com')) await politely('bbref', BBREF_DELAY_MS);
   const res = await fetch(url, { headers: { 'User-Agent': 'BYTHERIM big board (github.com/collinbutrlakorn/BYTHERIM)' } });
   if (!res.ok) throw new Error(`${url} returned HTTP ${res.status}`);
-  return res.text();
+  const text = await res.text();
+  // A bot check or error page arrives as HTML with a 200 status.
+  if (url.includes('barttorvik.com') && /^\s*</.test(text)) {
+    throw new Error(`${url} sent a web page instead of the CSV file (the site may be refusing this server)`);
+  }
+  return text;
 }
 
 // ------------------------------------------------------------ Basketball-Reference
@@ -341,6 +350,10 @@ async function loadProspects(url) {
 
 // ------------------------------------------------------------ seasons
 const out = { updated: new Date().toISOString(), source: 'barttorvik.com, basketball-reference.com', seasons: {}, pro: {} };
+// The file as it stands, so a failed download keeps what's already there.
+let previous = null;
+try { previous = JSON.parse(readFileSync(OUT, 'utf8')); } catch (e) { /* first run */ }
+const keptSeasons = [];
 const linked = new Map(); // Basketball-Reference page -> prospect ids
 const report = [];
 
@@ -376,13 +389,23 @@ for (const b of await listBoards()) {
 for (const [year, yearJobs] of [...jobs].sort((a, b) => a[0] - b[0])) {
   const label = seasonLabel(year);
   let rows;
+  const keepPrevious = why => {
+    const old = previous && previous.seasons && previous.seasons[label];
+    if (old && Object.keys(old).length) {
+      out.seasons[label] = old;
+      keptSeasons.push(label);
+      report.push(`${label}: ${why}; kept the ${Object.keys(old).length} stat lines already saved`);
+    } else {
+      report.push(`${label}: ${why}`);
+    }
+  };
   try { rows = parseCSV(await get(torvikUrl(year))); }
-  catch (e) { report.push(`${label}: could not download (${e.message})`); continue; }
+  catch (e) { keepPrevious(`could not download (${e.message})`); continue; }
 
   // Only rows with real box-score numbers count; before a season starts
   // Barttorvik lists players with the per-game columns still blank.
   rows = rows.filter(r => r.length > C.pts && String(r[C.year]) === String(year) && num(r[C.pts]) != null && num(r[C.gp]) > 0);
-  if (!rows.length) { report.push(`${label}: no games played yet`); continue; }
+  if (!rows.length) { keepPrevious('no games played yet'); continue; }
 
   const byName = new Map();
   rows.forEach(r => { const k = nameKey(r[C.name]); (byName.get(k) || byName.set(k, []).get(k)).push(r); });
@@ -406,20 +429,30 @@ for (const [year, yearJobs] of [...jobs].sort((a, b) => a[0] - b[0])) {
   if (!Object.keys(season).length) delete out.seasons[label];
 }
 
+const keepPro = ids => ids.forEach(id => {
+  const old = previous && previous.pro && previous.pro[id];
+  if (old) out.pro[id] = old;
+});
 for (const [url, ids] of linked) {
   try {
     const seasons = parseBbref(await get(url), url);
-    if (!seasons.length) { report.push(`Basketball-Reference: no stat lines on ${url}`); continue; }
+    if (!seasons.length) { report.push(`Basketball-Reference: no stat lines on ${url}`); keepPro(ids); continue; }
     ids.forEach(id => { out.pro[id] = { url, seasons }; });
-  } catch (e) { report.push(`Basketball-Reference: could not read ${url} (${e.message})`); }
+  } catch (e) { report.push(`Basketball-Reference: could not read ${url} (${e.message}); kept what was saved`); keepPro(ids); }
 }
 if (linked.size) report.push(`Basketball-Reference: stats for ${Object.keys(out.pro).length} linked players`);
 
 mkdirSync(dirname(OUT), { recursive: true });
 // Keep the file byte-identical when nothing changed, so the daily job
 // doesn't commit just because the timestamp moved.
-let previous = null;
-try { previous = JSON.parse(readFileSync(OUT, 'utf8')); } catch (e) { /* first run */ }
-if (previous && JSON.stringify([previous.seasons, previous.pro || {}]) === JSON.stringify([out.seasons, out.pro])) out.updated = previous.updated;
-writeFileSync(OUT, JSON.stringify(out, null, 1) + '\n');
+if (previous && JSON.stringify([previous.seasons, previous.pro || {}]) === JSON.stringify([out.seasons, out.pro])) {
+  console.log('No stat changes.');
+} else {
+  writeFileSync(OUT, JSON.stringify(out, null, 1) + '\n');
+}
 console.log(report.join('\n'));
+// Flag it in the Actions log (a yellow warning) when a whole season
+// couldn't be refreshed, so a blocked source doesn't go unnoticed.
+if (keptSeasons.length && process.env.GITHUB_ACTIONS) {
+  console.log(`::warning::Barttorvik could not be read for ${keptSeasons.join(', ')}; the saved numbers were kept.`);
+}

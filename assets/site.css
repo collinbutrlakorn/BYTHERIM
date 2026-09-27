@@ -958,3 +958,36 @@ h1, h2, h3, h4, .display {
 }
 
 .more-social-title { font-size: 1.05rem; text-transform: uppercase; margin-bottom: 0.7rem; }
+
+/* Cards that are whole links (404 page) */
+a.card { display: block; color: inherit; text-decoration: none; transition: border-color .15s ease, transform .15s ease; }
+a.card:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+
+/* ---- RP guide ---- */
+.guide-split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.guide-card { padding: 1.4rem; }
+.guide-card h3, .guide-steps h3 { text-transform: uppercase; font-size: 1.2rem; margin: 0.3rem 0 0.5rem; }
+.guide-card p, .guide-steps p, .guide-faq p { color: var(--muted); }
+.guide-card p + p { margin-top: 0.6rem; }
+.guide-card .num { font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.guide-card a, .guide-faq a { color: var(--accent); }
+.guide-steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.75rem; }
+.guide-steps li { display: flex; gap: 1rem; align-items: flex-start; padding: 1.1rem 1.25rem; }
+.guide-steps h3 { margin-top: 0; }
+.guide-n {
+  flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+  font-family: 'Oswald', sans-serif; font-weight: 600; background: var(--accent-soft); color: var(--accent);
+}
+.guide-faq { display: grid; gap: 0.6rem; }
+.guide-faq details { padding: 1rem 1.25rem; }
+.guide-faq summary { cursor: pointer; font-weight: 600; }
+.guide-faq details p { margin-top: 0.6rem; }
+@media (max-width: 760px) { .guide-split { grid-template-columns: 1fr; } }
+
+/* YouTube placeholder: an image and a play button until pressed */
+.video-facade { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; cursor: pointer; background: #000; color: #fff; font: inherit; }
+.video-facade img { width: 100%; height: 100%; object-fit: cover; opacity: .72; transition: opacity .2s ease; }
+.video-facade:hover img, .video-facade:focus-visible img { opacity: .9; }
+.play-btn { position: absolute; left: 50%; top: 50%; width: 76px; height: 54px; transform: translate(-50%, -50%); border-radius: 14px; background: #e62117; box-shadow: 0 6px 20px rgba(0,0,0,.45); }
+.play-btn::after { content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-35%, -50%); border-style: solid; border-width: 11px 0 11px 19px; border-color: transparent transparent transparent #fff; }
+.facade-label { position: absolute; left: 1rem; bottom: .85rem; font-family: 'Oswald', sans-serif; font-size: .95rem; letter-spacing: .06em; text-transform: uppercase; text-shadow: 0 2px 8px rgba(0,0,0,.7); }

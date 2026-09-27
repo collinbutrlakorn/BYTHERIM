@@ -159,5 +159,23 @@ execFileSync(process.execPath, ['--import', 'file://' + preload, path.join(ROOT,
   { env: { ...process.env, STATS_OUT: out, CRAWL_DELAY_MS: '0', BBREF_DELAY_MS: '0' }, encoding: 'utf8' });
 ok(fs.readFileSync(out, 'utf8') === before, 'unchanged stats leave the file byte-identical');
 
+// A day when Barttorvik answers with a bot-check page and Basketball-
+// Reference refuses the server: nothing already saved may be lost.
+const blocked = path.join(tmp, 'blocked.mjs');
+fs.writeFileSync(blocked, `
+const real = globalThis.fetch;
+globalThis.fetch = async url => {
+  url = String(url);
+  if (url.includes('barttorvik')) return { ok: true, status: 200, text: async () => '<!DOCTYPE html><title>Just a moment...</title>' };
+  if (url.includes('basketball-reference')) return { ok: false, status: 403, text: async () => '' };
+  return real(url);
+};`);
+const blockedLog = execFileSync(process.execPath, ['--import', 'file://' + preload, '--import', 'file://' + blocked, path.join(ROOT, 'tools', 'update-stats.mjs')],
+  { env: { ...process.env, STATS_OUT: out, CRAWL_DELAY_MS: '0', BBREF_DELAY_MS: '0' }, encoding: 'utf8' });
+const after = JSON.parse(fs.readFileSync(out, 'utf8'));
+ok(JSON.stringify(after.seasons) === JSON.stringify(stats.seasons), 'a blocked Barttorvik keeps every saved season instead of wiping them');
+ok(JSON.stringify(after.pro) === JSON.stringify(stats.pro), 'a refused Basketball-Reference page keeps the saved pro lines');
+ok(/sent a web page instead of the CSV/.test(blockedLog) && /kept the \d+ stat lines already saved/.test(blockedLog), 'the run log says what was kept and why');
+
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log('\nStats updater verified.');

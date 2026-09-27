@@ -1,0 +1,21 @@
+{
+  "name": "BYTHERIM",
+  "short_name": "BYTHERIM",
+  "description": "Unbiased basketball coverage: NBA draft analysis, film breakdowns, and the BYTHERIM RP college basketball universe.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#06070a",
+  "theme_color": "#06070a",
+  "icons": [
+    { "src": "/assets/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/assets/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Big Board", "url": "/draft.html" },
+    { "name": "NCAA Simulation", "url": "/rp/ncaa.html" },
+    { "name": "Recruiting", "url": "/recruiting/" },
+    { "name": "Draft RP", "url": "/rp/draft.html" }
+  ]
+}

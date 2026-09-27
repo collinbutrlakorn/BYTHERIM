@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /rp/tests/
+Disallow: /tools/
+
+Sitemap: https://bytherim.com/sitemap.xml
