@@ -507,7 +507,6 @@ window.SimEngine = {
     let sheetsReachable = true;
 
     try {
-      const recruitsUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTWvXoqFJkVFqt36wbBBfgFYUvPKhWCZIztoLIB9sjpc55AiFTdFpJZHMztVgJHyFyy0mtO_MYGD76N/pub?gid=0&single=true&output=csv";
       const rostersUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS_KgPla_wVF3w_s8PGVIreieVKkfOuVuFqt1K25i3gHNa_NpL6MDPST1qnIw12V61COFsSkf2C03Q-/pub?gid=0&single=true&output=csv";
 
       // Rosters and recruits are the critical data, so they're fetched on
@@ -515,13 +514,15 @@ window.SimEngine = {
       // simultaneous requests at the same published sheet can get one of
       // them throttled, and a throttled coaches request must never be able
       // to take the rosters down with it.
-      const [recruitsRes, rostersRes] = await Promise.all([
-        this.fetchWithRetry(recruitsUrl), this.fetchWithRetry(rostersUrl)
+      // The recruiting database has a tab per class plus "Others";
+      // RecruitSheet reads every tab (see recruit-sheet.js).
+      const [recruitLoad, rostersRes] = await Promise.all([
+        RecruitSheet.load(t => this.parseCSV(t), { yearKey: 'classyear', nameKey: 'name' }),
+        this.fetchWithRetry(rostersUrl)
       ]);
-
-      if (recruitsRes.ok) {
-        rawRecruits = this.parseCSV(await recruitsRes.text());
-      }
+      const recruitsOk = recruitLoad.rows.length > 0;
+      rawRecruits = recruitLoad.rows;
+      if (recruitLoad.failed.length) console.warn('Recruiting tabs that failed to load:', recruitLoad.failed.join(', '));
       if (rostersRes.ok) {
         const rawRosters = this.parseCSV(await rostersRes.text());
         // Retained in full: rows for future seasons are how the sheet
@@ -551,7 +552,7 @@ window.SimEngine = {
           console.log(`Skipped ${skippedFutureSeasons} roster rows belonging to a different season than ${this.state.year}-${(this.state.year + 1).toString().slice(2)}.`);
         }
       }
-      if (!recruitsRes.ok && !rostersRes.ok) sheetsReachable = false;
+      if (!recruitsOk && !rostersRes.ok) sheetsReachable = false;
     } catch (err) {
       console.error("Database Fetch Error:", err);
       sheetsReachable = false;
@@ -570,8 +571,13 @@ window.SimEngine = {
 
     this.state.recruits = rawRecruits
       .filter(r => this.rowHasPlayerName(r))
-      .map(r => this.normalizePlayerObj(r, true))
-      ;
+      .map(r => {
+        const o = this.normalizePlayerObj(r, true);
+        // "Others" tab: background for players already on rosters, never
+        // incoming recruits of their own.
+        if (r.__tab === 'Others') o.fromOthers = true;
+        return o;
+      });
     this.state.allRecruits = [...this.state.recruits];
     this.refreshRecruitPool();
     this.buildFullD1Universe(Object.values(realTeamsMap));
@@ -1134,7 +1140,18 @@ window.SimEngine = {
     // it wins on every field EXCEPT jersey number, which only the roster
     // sheet tracks — see mergeRecruitIntoPlayer.
     const stillPending = [];
-    this.state.recruits.forEach(rec => {
+    const othersRows = (this.state.allRecruits || []).filter(r => r.fromOthers);
+    this.state.recruits.filter(r => !r.fromOthers).concat(othersRows).forEach(rec => {
+      // "Others" rows only add background to a player the roster sheet
+      // already has, wherever he plays now. They never create a player.
+      if (rec.fromOthers) {
+        const nm = String(rec.name || '').trim().toLowerCase();
+        for (const t of this.state.teams) {
+          const hit = (t.roster || []).find(p => String(p.name || '').trim().toLowerCase() === nm);
+          if (hit) { this.mergeRecruitIntoPlayer(hit, rec); break; }
+        }
+        return;
+      }
       const arrived = !rec.recClassYear || rec.recClassYear <= this.state.year;
       if (!arrived) { stillPending.push(rec); return; }
       if (!rec.school || rec.school === 'Uncommitted' || rec.school === 'Free Agent') {
@@ -1193,8 +1210,11 @@ window.SimEngine = {
     const PROTECTED = new Set([
       'id', 'jersey', 'class', 'rating', 'gameLog', 'accolades', 'stats', 'statsFull',
       'statsConf', 'seasonHistory', 'isGenerated', 'isBench', 'isRecruit',
-      'expectedStats', 'school_logo'
+      'expectedStats', 'school_logo', 'fromOthers'
     ]);
+    // An "Others" row describes a player's past; where he plays now is the
+    // roster sheet's call.
+    if (recruit.fromOthers) ['school', 'conference', 'recClassYear'].forEach(k => PROTECTED.add(k));
     Object.keys(recruit).forEach(key => {
       if (PROTECTED.has(key)) return;
       const val = recruit[key];
@@ -6722,7 +6742,7 @@ window.SimEngine = {
     // prospects kept showing up in school the following season.
     const departed = this.state.departedNames || new Set();
 
-    this.state.recruits = all.filter(r =>
+    this.state.recruits = all.filter(r => !r.fromOthers &&
       (!r.recClassYear || r.recClassYear <= maxYear) &&
       !enrolledNames.has(r.name) &&
       !departed.has(r.name));

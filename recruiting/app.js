@@ -234,10 +234,7 @@ window.onload = () => {
   
   showLoadState('Loading recruiting database…');
 
-  Papa.parse(GOOGLE_SHEET_CSV_URL, {
-    download: true,
-    header: true,
-    skipEmptyLines: true,
+  const handlers = {
     // A failed or unpublished sheet used to leave the page silently blank,
     // which is indistinguishable from "there are no recruits".
     error: function(err) {
@@ -325,7 +322,21 @@ window.onload = () => {
           error.message + '. See the browser console for details.', true);
       }
     }
-  });
+  };
+
+  // Every tab of the recruiting database (a tab per class plus "Others"),
+  // read by the shared loader. Without it, fall back to the first tab.
+  if (window.RecruitSheet) {
+    RecruitSheet.load(text => Papa.parse(text, { header: true, skipEmptyLines: true }).data, { yearKey: 'classYear', nameKey: 'name' })
+      .then(res => {
+        if (res.failed.length) console.warn('Recruiting tabs that failed to load:', res.failed.join(', '));
+        if (!res.rows.length && res.failed.length === res.tabs.length) handlers.error(new Error('every tab failed'));
+        else handlers.complete({ data: res.rows });
+      })
+      .catch(handlers.error);
+  } else {
+    Papa.parse(GOOGLE_SHEET_CSV_URL, { download: true, header: true, skipEmptyLines: true, ...handlers });
+  }
 };
 
 // Filenames in /schoollogos don't always match a school's common name —
