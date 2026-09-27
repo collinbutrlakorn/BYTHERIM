@@ -322,6 +322,7 @@ const DraftRP = {
       collegeHistory: d.collegeHistory || (d.school ? [d.school] : []),
       stats: d.stats || { ppg: d.ppg, rpg: d.rpg, apg: d.apg },
       predraft: d.predraft || null,
+      bigGameStock: d.bigGameStock || 0, bigGames: d.bigGames || [],
       _fromDeclaration: true
     };
   },
@@ -922,9 +923,24 @@ const DraftRP = {
       <span class="pct-track"><i style="width:${Math.max(3, pct)}%"></i></span><span class="pct-num">${pct}<small>th</small></span></div>`;
   },
 
+  // Games against ranked teams and in the postseason, and what they did to
+  // his stock.
+  renderBigGames(p) {
+    const list = (p && p.bigGames) || [];
+    if (!list.length) return '';
+    const total = Number(p.bigGameStock) || 0;
+    return `<div class="big-games">
+      <div class="predraft-head"><h5 class="detail-stat-title">Big-game résumé</h5>
+        <span class="big-games-net ${total >= 0 ? 'up' : 'down'}">${total >= 0 ? '▲' : '▼'} ${Math.abs(total).toFixed(1)} on the board</span></div>
+      <ul class="big-games-list">${list.slice().reverse().map(g => `<li class="${g.delta >= 0 ? 'up' : 'down'}">
+        <span class="bg-arrow">${g.delta >= 0 ? '▲' : '▼'}</span><b>${g.label}</b><span>${g.line}${g.won ? ' · W' : ' · L'}</span></li>`).join('')}</ul>
+    </div>`;
+  },
+
   renderPredraft(p) {
+    const big = this.renderBigGames(p);
     const pd = this.pd(p);
-    if (!pd) return '';
+    if (!pd) return big;
     const m = pd.meas, t = pd.tests, pc = pd.pct || {};
     const S = typeof DraftCycle !== 'undefined' ? DraftCycle.ORG_STYLES : {};
     let html = `<div class="predraft">`;
@@ -958,7 +974,7 @@ const DraftRP = {
       html += `<h5 class="detail-stat-title">Team workouts${pd.workoutGrade ? ` <span class="grade-badge ${this.gradeClass(pd.workoutGrade)}">${pd.workoutGrade} avg</span>` : ''}</h5>
         <div class="visit-list">${pd.workouts.map(v => this.visitRow(v, S)).join('')}</div>`;
     }
-    return html + `</div>`;
+    return big + html + `</div>`;
   },
 
   visitRow(v, S) {

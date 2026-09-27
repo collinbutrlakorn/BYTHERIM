@@ -591,6 +591,17 @@
   @media (prefers-reduced-motion: reduce) {
     #draftBody tbody tr, .detail-row > td > * { animation: none !important; }
   }
+  /* Big-game résumé in a prospect's detail */
+  .big-games { border-top: 1px solid var(--border); margin-top: 0.6rem; padding-top: 0.2rem; }
+  .big-games-net { font-family: 'Oswald', sans-serif; font-size: 0.85rem; padding: 0.1rem 0.6rem; border-radius: 999px; border: 1px solid var(--border); }
+  .big-games-net.up { color: #3ddc84; border-color: rgba(61,220,132,0.45); }
+  .big-games-net.down { color: #e5484d; border-color: rgba(229,72,77,0.45); }
+  .big-games-list { list-style: none; margin: 0.4rem 0 0.6rem; padding: 0; display: grid; gap: 0.3rem; }
+  .big-games-list li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 0.5rem; align-items: baseline; font-size: 0.9rem; }
+  .big-games-list li span:last-child { color: var(--text-muted); font-size: 0.82rem; text-align: right; }
+  .big-games-list .bg-arrow { font-size: 0.72rem; }
+  .big-games-list li.up .bg-arrow { color: #3ddc84; }
+  .big-games-list li.down .bg-arrow { color: #e5484d; }
 </style>
 </head>
 <body>

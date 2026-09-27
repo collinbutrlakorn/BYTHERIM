@@ -32,6 +32,20 @@ tournaments, the Selection Sunday show and its Skip button, an NCAA
 Tournament played exactly from the announced bracket (1 v 16 … 8 v 9,
 regions, First Four), the offseason opening on its own, and the Back button.
 
+**live-games.js** — every game can be rebuilt as a play-by-play that
+reproduces its box score exactly (every make, miss, rebound, assist, steal,
+block, turnover, foul and free throw), on a forward-running clock, with
+overtime in some close games, scoring runs, lead changes, win probability,
+a player of the game and a headline — and the same game always plays out
+the same way.
+
+**big-games.js** — watching a game live plays the slate around it and
+holds back spoilers (the week's results, the champion) until the broadcast
+closes; conference tournament MOPs, regional MOPs, the Final Four MOP and
+All-Final Four team; and big games (ranked opponents, conference
+tournaments, March) moving draft stock both ways and reaching the board and
+the published universe.
+
 **draft-cycle.js** — the pre-draft cycle the Draft RP runs against a save:
 combine measurements and athletic testing in real ranges (guards quicker,
 bigs longer), personalities and grades, the lottery order, team workouts

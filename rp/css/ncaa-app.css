@@ -685,3 +685,73 @@ a.outline-btn { text-decoration: none; display: inline-flex; align-items: center
   .ncaa-app .team-stats-grid, .player-page-shell .team-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
   .ncaa-app .stat-box .stat-value { font-size: 1.5rem; }
 }
+
+/* ---------- Live games: watch buttons and game links ---------- */
+.watch-btn {
+  display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; white-space: nowrap;
+  background: var(--accent); color: var(--accent-contrast); border: 1px solid var(--accent); border-radius: var(--r-pill);
+  font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.82rem; padding: 0.35rem 0.85rem;
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+.watch-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px var(--accent-soft-strong); }
+.watch-btn.sm { font-size: 0.72rem; padding: 0.22rem 0.6rem; }
+.watch-list li .watch-btn { margin-left: auto; }
+.watch-list li .watch-tag + .watch-btn { margin-left: 0.4rem; }
+.game-link { cursor: pointer; background: none; border: 0; color: inherit; font: inherit; padding: 0; }
+.schedule-pill-result.game-link { display: inline-flex; align-items: baseline; gap: 0.3rem; border-radius: var(--r-sm); padding: 0.15rem 0.4rem; transition: background 0.15s ease; }
+.schedule-pill-result.game-link:hover { background: var(--accent-soft); }
+.game-link-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); margin-left: 0.35rem; opacity: 0; transition: opacity 0.15s ease; }
+.schedule-pill:hover .game-link-label, .game-row:hover .game-link-label { opacity: 1; }
+.game-link-inline { cursor: pointer; border-bottom: 1px dotted var(--text-muted); }
+.game-link-inline:hover { color: var(--accent); border-color: var(--accent); }
+.ncaa-app .game-row, .player-page-shell .game-row { cursor: pointer; }
+.ncaa-app .game-row:hover td, .player-page-shell .game-row:hover td { background: var(--accent-soft); }
+.nb-score.game-link { cursor: pointer; border-radius: 3px; padding: 0 2px; }
+.nb-score.game-link:hover { background: var(--accent); color: var(--accent-contrast); }
+.nb-game.watchable { position: relative; border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft-strong); }
+.nb-watch {
+  position: absolute; top: 50%; right: -9px; transform: translateY(-50%); z-index: 2;
+  width: 20px; height: 20px; border-radius: 50%; border: 0; cursor: pointer; padding: 0;
+  background: var(--accent); color: var(--accent-contrast); font-size: 0.55rem; line-height: 20px; text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4); animation: watchPulse 2.2s ease-in-out infinite;
+}
+.nb-right .nb-watch { right: auto; left: -9px; }
+@keyframes watchPulse { 0%, 100% { box-shadow: 0 0 0 0 var(--accent-soft-strong); } 50% { box-shadow: 0 0 0 5px transparent; } }
+.watch-strip { margin-bottom: 1rem; }
+.watch-chips { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.watch-chip {
+  display: inline-flex; align-items: center; gap: 0.45rem; cursor: pointer; font: inherit; color: var(--text-main);
+  background: var(--bg-color); border: 1px solid var(--border); border-radius: var(--r-pill); padding: 0.3rem 0.4rem 0.3rem 0.7rem;
+  font-size: 0.85rem; transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.watch-chip:hover { border-color: var(--accent); transform: translateY(-1px); }
+.wc-team { display: inline-flex; align-items: center; gap: 0.3rem; white-space: nowrap; }
+.wc-team small { color: var(--text-muted); font-family: 'Oswald', sans-serif; }
+.wc-vs { color: var(--text-muted); font-size: 0.75rem; }
+.wc-play { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-contrast); font-size: 0.6rem; }
+@media (prefers-reduced-motion: reduce) { .nb-watch { animation: none; } }
+
+/* Big games on the player page */
+.big-games-net { font-family: 'Oswald', sans-serif; font-size: 0.88rem; padding: 0.15rem 0.7rem; border-radius: var(--r-pill); border: 1px solid var(--border); white-space: nowrap; }
+.big-games-net.up { color: var(--win); border-color: color-mix(in srgb, var(--win) 45%, transparent); }
+.big-games-net.down { color: var(--loss); border-color: color-mix(in srgb, var(--loss) 45%, transparent); }
+.big-games-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.big-games-list li { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; gap: 0.6rem; align-items: baseline; padding: 0.4rem 0.2rem; border-bottom: 1px solid var(--border); }
+.big-games-list li:last-child { border-bottom: 0; }
+.big-games-list li span:last-child { color: var(--text-muted); font-size: 0.86rem; text-align: right; }
+.big-games-list .bg-arrow { font-size: 0.75rem; }
+.big-games-list li.up .bg-arrow { color: var(--win); }
+.big-games-list li.down .bg-arrow { color: var(--loss); }
+@media (max-width: 640px) { .big-games-list li { grid-template-columns: 18px minmax(0, 1fr); } .big-games-list li span:last-child { grid-column: 2; text-align: left; } }
+
+/* Tournament honors */
+.nb-mop { margin-top: 0.45rem; text-align: center; display: flex; flex-direction: column; gap: 0.05rem; }
+.nb-mop span { font-size: 0.62rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }
+.nb-mop b { font-family: 'Oswald', sans-serif; font-weight: 500; font-size: 0.95rem; }
+.nb-mop small { color: var(--text-muted); font-size: 0.72rem; }
+.honors-grid { margin-bottom: 0.4rem; }
+.honor-card { border-color: color-mix(in srgb, var(--gold) 45%, var(--border)); }
+.honor-list { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; gap: 0.35rem; }
+.honor-list li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; gap: 0.5rem; align-items: center; }
+.honor-list small { color: var(--text-muted); font-size: 0.8rem; }
+.honor-list li > span:last-child { font-family: 'Oswald', sans-serif; }

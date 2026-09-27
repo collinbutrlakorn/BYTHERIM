@@ -10,7 +10,7 @@ const JS = path.join(RP, 'js');
 
 const SCRIPTS = ['teams-master.js', 'roster-gen.js', 'schedule-core.js', 'game-core.js',
   'tournament-core.js', 'draft-core.js', 'coach-core.js', 'development-core.js',
-  'nba-core.js', 'draft-cycle.js', 'cutscene.js', 'engine.js', 'ui.js'];
+  'nba-core.js', 'draft-cycle.js', 'cutscene.js', 'live-core.js', 'gamecenter.js', 'engine.js', 'ui.js'];
 
 // opts.roster / opts.recruits / opts.coaches are CSV strings; omit one to
 // simulate that sheet being unavailable.

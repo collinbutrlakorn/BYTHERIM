@@ -313,6 +313,213 @@ function capTeamAssists(boxes, maxShare = 0.62) {
   return boxes;
 }
 
+// ------------------------------------------------------------
+// Possession-consistent box scores.
+//
+// The raw boxes above decide each player's SHARE of the action: who shoots,
+// who rebounds, who handles the ball. The team totals, though, have to
+// describe a game that could actually have been played, or a play-by-play
+// can't be built from them:
+//
+//   * both teams get the same number of possessions (a team that scores
+//     less misses more; it doesn't shoot less),
+//   * every rebound comes off a real miss, split between the shooting
+//     team's offensive boards and the other team's defensive boards,
+//   * steals come out of the other team's turnovers, blocks out of its
+//     missed twos, and every free-throw trip has someone who fouled.
+//
+// So the team lines are solved from possessions and the final score, then
+// handed back to the players in proportion to their raw lines.
+// ------------------------------------------------------------
+
+const REB_CREDIT = 0.98;       // share of missed shots credited to a player (the rest are team rebounds)
+const POINTS_PER_POSS = 1.045;  // league-average efficiency, sets how many possessions a game has
+const LAST_FT_MISS = 0.55;     // share of missed free throws that are the last of a trip
+
+function sumKey(boxes, k) { return boxes.reduce((n, b) => n + (b[k] || 0), 0); }
+
+// Integer shares of `total` in proportion to `weights` (largest remainder).
+function shareOut(total, weights) {
+  const n = weights.length;
+  const out = new Array(n).fill(0);
+  if (total <= 0 || n === 0) return out;
+  let w = weights.map(x => Math.max(0, x || 0));
+  let wsum = w.reduce((a, b) => a + b, 0);
+  if (wsum <= 0) { w = w.map(() => 1); wsum = n; }
+  const raw = w.map(x => (x / wsum) * total);
+  let given = 0;
+  raw.forEach((x, i) => { out[i] = Math.floor(x); given += out[i]; });
+  const order = raw.map((x, i) => [x - Math.floor(x), i]).sort((a, b) => b[0] - a[0]);
+  for (let k = 0; given < total; k = (k + 1) % n) { out[order[k][1]]++; given++; }
+  return out;
+}
+
+// Hands out `count` makes one at a time, each to a shooter chosen in
+// proportion to his remaining attempts times his touch.
+function dealMakes(count, attempts, pct, rnd) {
+  const made = attempts.map(() => 0);
+  for (let k = 0; k < count; k++) {
+    let total = 0;
+    const w = attempts.map((a, i) => { const x = Math.max(0, a - made[i]) * pct[i]; total += x; return x; });
+    if (total <= 0) break;
+    let r = rnd() * total, pick = 0;
+    for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) { pick = i; break; } }
+    made[pick]++;
+  }
+  return made;
+}
+
+// Moves any amount above each player's `cap` to teammates with room.
+function spill(values, caps, weights) {
+  let excess = 0;
+  values.forEach((v, i) => { if (v > caps[i]) { excess += v - caps[i]; values[i] = caps[i]; } });
+  let guard = 0;
+  while (excess > 0 && guard++ < 500) {
+    const room = values.map((v, i) => (caps[i] - v > 0 ? Math.max(0.01, weights[i] || 0) : 0));
+    const total = room.reduce((a, b) => a + b, 0);
+    if (total <= 0) break;
+    let r = Math.random() * total, pick = 0;
+    for (let i = 0; i < room.length; i++) { r -= room[i]; if (r <= 0) { pick = i; break; } }
+    values[pick]++; excess--;
+  }
+  return values;
+}
+
+// Solves one team's line: attempts from possessions, makes from the score.
+function solveTeamLine(raw, score, poss, orbRate, rnd) {
+  const tov = Math.max(3, Math.min(26, sumKey(raw, 'tov')));
+  const fta = sumKey(raw, 'fta');
+  let ftm = sumKey(raw, 'ftm');
+  const r2a = sumKey(raw, 'twoPa'), r3a = sumKey(raw, 'threePa');
+  const p2 = Math.min(0.68, Math.max(0.36, r2a ? sumKey(raw, 'twoPm') / r2a : 0.5));
+  const p3 = Math.min(0.48, Math.max(0.2, r3a ? sumKey(raw, 'threePm') / r3a : 0.33));
+  const par = Math.min(0.6, Math.max(0.12, (r2a + r3a) ? r3a / (r2a + r3a) : 0.37));
+  let oreb = 10, fga = 0, threePa = 0, twoPa = 0, threePm = 0, twoPm = 0;
+  for (let iter = 0; iter < 4; iter++) {
+    fga = Math.max(34, Math.round(poss + oreb - tov - 0.475 * fta));
+    threePa = Math.round(fga * par);
+    twoPa = fga - threePa;
+    const need = Math.max(0, score - ftm);
+    const expected = 2 * twoPa * p2 + 3 * threePa * p3;
+    const m = expected > 0 ? need / expected : 1;
+    threePm = Math.max(0, Math.min(threePa, Math.round(threePa * Math.min(0.62, p3 * m))));
+    // Points from twos must be even: trade a three or a free throw to fix parity.
+    if ((need - 3 * threePm) % 2 !== 0) {
+      if (threePm > 0 && (threePm < threePa ? rnd() < 0.5 : true)) threePm--;
+      else if (threePm < threePa) threePm++;
+      else if (ftm > 0) ftm--;
+      else if (ftm < fta) ftm++;
+    }
+    twoPm = (Math.max(0, score - ftm) - 3 * threePm) / 2;
+    // Keep makes within attempts, moving points between twos and threes.
+    while (twoPm > twoPa && threePm + 2 <= threePa) { threePm += 2; twoPm -= 3; }
+    while (twoPm < 0 && threePm >= 2) { threePm -= 2; twoPm += 3; }
+    if (twoPm > twoPa) twoPa = twoPm;               // extreme night: a few extra attempts
+    if (twoPm < 0) twoPm = 0;
+    const misses = (twoPa + threePa) - (twoPm + threePm);
+    const chances = misses + LAST_FT_MISS * (fta - ftm);
+    oreb = Math.round(orbRate * REB_CREDIT * chances);
+  }
+  fga = twoPa + threePa;
+  const misses = fga - (twoPm + threePm);
+  const chances = misses + LAST_FT_MISS * (fta - ftm);
+  const credited = Math.min(misses + (fta - ftm), Math.round(REB_CREDIT * chances));
+  oreb = Math.min(oreb, credited, misses);
+  return { fga, twoPa, threePa, twoPm, threePm, fta, ftm, tov, oreb, oppDreb: credited - oreb, twoMiss: twoPa - twoPm };
+}
+
+// Rebuilds a team's player boxes around its solved line.
+function dealTeamLine(raw, line, dreb, oppTov, oppTwoMiss, oppFta, rnd) {
+  const idx = raw.map((b, i) => i).filter(i => raw[i].min > 0);
+  const out = raw.map(b => ({ ...b }));
+  if (!idx.length) return out;
+  const pick = key => idx.map(i => raw[i][key] || 0);
+  const at = (arr, fn) => arr.forEach((v, k) => fn(idx[k], v));
+
+  const w2 = pick('twoPa').map((x, k) => x + raw[idx[k]].min * 0.02);
+  const w3 = pick('threePa');
+  const twoPa = shareOut(line.twoPa, w2);
+  const threePa = shareOut(line.threePa, w3.some(x => x > 0) ? w3 : pick('fga'));
+  // Touch: a player's raw shooting this game, pulled toward league norms.
+  const t2 = idx.map(i => (raw[i].twoPm + 0.5 * 4) / (raw[i].twoPa + 4));
+  const t3 = idx.map(i => (raw[i].threePm + 0.34 * 4) / (raw[i].threePa + 4));
+  const twoPm = dealMakes(line.twoPm, twoPa, t2, rnd);
+  const threePm = dealMakes(line.threePm, threePa, t3, rnd);
+  // Whatever makes couldn't be placed (every shooter full) go to anyone with room.
+  const fix = (made, att, total) => { let left = total - made.reduce((a, b) => a + b, 0); for (let k = 0; left > 0 && k < made.length * 4; k++) { const j = k % made.length; if (made[j] < att[j]) { made[j]++; left--; } } };
+  fix(twoPm, twoPa, line.twoPm); fix(threePm, threePa, line.threePm);
+
+  // Free throws: raw lines, with the team parity fix applied to the leader.
+  const ftm = pick('ftm'), fta = pick('fta');
+  let dFt = line.ftm - ftm.reduce((a, b) => a + b, 0);
+  for (let k = 0; dFt !== 0 && k < 200; k++) {
+    const j = Math.floor(rnd() * ftm.length);
+    if (dFt < 0 && ftm[j] > 0) { ftm[j]--; dFt++; }
+    else if (dFt > 0 && ftm[j] < fta[j]) { ftm[j]++; dFt--; }
+  }
+
+  const fgaEach = twoPa.map((x, k) => x + threePa[k]);
+  const fgmEach = twoPm.map((x, k) => x + threePm[k]);
+  const fgmTeam = fgmEach.reduce((a, b) => a + b, 0);
+  // Offensive boards can't exceed a player's own shots; defensive boards
+  // come off the other team's misses.
+  const orebEach = spill(shareOut(line.oreb, pick('oreb').map((x, k) => x + raw[idx[k]].reb * 0.15)), fgaEach.map(x => Math.max(0, x)), pick('reb'));
+  const drebEach = shareOut(dreb, pick('dreb').map((x, k) => x + 0.05));
+  const astTotal = Math.min(sumKey(raw, 'ast'), Math.floor(fgmTeam * 0.62));
+  const astEach = spill(shareOut(astTotal, pick('ast')), fgmEach.map(x => fgmTeam - x), pick('ast'));
+  const stlEach = shareOut(Math.min(sumKey(raw, 'stl'), oppTov), pick('stl'));
+  const blkEach = shareOut(Math.min(sumKey(raw, 'blk'), Math.max(0, oppTwoMiss)), pick('blk'));
+  // Every trip to the line needs a fouler; five fouls is the limit.
+  const pfNeed = Math.max(sumKey(raw, 'pf'), Math.ceil(oppFta / 2));
+  const pfEach = spill(shareOut(pfNeed, pick('pf').map((x, k) => x + raw[idx[k]].min * 0.05)), idx.map(() => 5), idx.map(i => raw[i].min));
+
+  const dealt = { twoPa, threePa, twoPm, threePm, ftm, oreb: orebEach, dreb: drebEach, ast: astEach, stl: stlEach, blk: blkEach, pf: pfEach };
+  Object.keys(dealt).forEach(key => at(dealt[key], (i, v) => { out[i][key] = v; }));
+  idx.forEach(i => {
+    const b = out[i];
+    b.fgm = b.twoPm + b.threePm; b.fga = b.twoPa + b.threePa;
+    b.reb = b.oreb + b.dreb;
+    b.pts = b.twoPm * 2 + b.threePm * 3 + b.ftm;
+  });
+  return out;
+}
+
+function buildConsistentBoxes(homeRaw, awayRaw, homeScore, awayScore, opts = {}) {
+  const rnd = opts.rng || Math.random;
+  // Shares first: the old caps keep any one player from swallowing a
+  // team's rebounds, assists or shots.
+  const prep = raw => {
+    let b = raw.map(x => ({ ...x }));
+    b = capIndividualShare(b, 'reb', 0.31);
+    b = resyncRebounds(b);
+    b = capIndividualShare(b, 'ast', 0.72);
+    b = capShotVolume(b, 0.315);
+    return b;
+  };
+  const H = prep(homeRaw), A = prep(awayRaw);
+  const poss = Math.max(56, Math.min(84, Math.round(((homeScore + awayScore) / 2) / POINTS_PER_POSS + (rnd() - 0.5) * 3)));
+  const orb = (off, def) => {
+    const o = sumKey(off, 'oreb'), d = sumKey(def, 'dreb');
+    return Math.min(0.42, Math.max(0.2, o + d > 0 ? o / (o + d) : 0.29));
+  };
+  const hl = solveTeamLine(H, homeScore, poss, orb(H, A), rnd);
+  const al = solveTeamLine(A, awayScore, poss, orb(A, H), rnd);
+  const homeBoxes = dealTeamLine(H, hl, al.oppDreb, al.tov, al.twoMiss, al.fta, rnd);
+  const awayBoxes = dealTeamLine(A, al, hl.oppDreb, hl.tov, hl.twoMiss, hl.fta, rnd);
+  // Put the per-player caps back where the deal pushed past them.
+  // Offensive boards that no longer fit a player's shots move to a teammate
+  // who shot more, so the team's offensive rebounds stay on its own misses.
+  const post = b => {
+    b = capShotVolume(b, 0.33).map(x => ({ ...x, fgm: x.twoPm + x.threePm, fga: x.twoPa + x.threePa }));
+    const played = b.map((x, i) => i).filter(i => b[i].min > 0);
+    const o = played.map(i => b[i].oreb || 0);
+    spill(o, played.map(i => b[i].fga), played.map(i => b[i].fga));
+    played.forEach((i, k) => { b[i].oreb = o[k]; });
+    return b.map(x => ({ ...x, reb: (x.oreb || 0) + (x.dreb || 0), pts: x.twoPm * 2 + x.threePm * 3 + x.ftm }));
+  };
+  return { homeBoxes: post(homeBoxes), awayBoxes: post(awayBoxes), possessions: poss };
+}
+
 // Simulates one game between two teams. Returns final scores and a
 // per-player box score for everyone who played, reconciled so each
 // team's total points exactly equals its final score.
@@ -373,20 +580,9 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
   const homeRaw = homeRoster.map(p => ({ player: p, box: generateRawPlayerBox(p, homeBoost) }));
   const awayRaw = awayRoster.map(p => ({ player: p, box: generateRawPlayerBox(p, awayBoost) }));
 
-  const finish = (raw, score) => {
-    let boxes = capTeamAssists(reconcileTeamScore(raw, score));
-    boxes = capIndividualShare(boxes, 'reb', 0.31);
-    boxes = resyncRebounds(boxes);
-    boxes = capOffensiveRebounds(boxes);
-    boxes = capIndividualShare(boxes, 'ast', 0.72);
-    // Shot volume. The real top-five attempt leaders sit between roughly
-    // 17 and 20 a night, and even on a lopsided roster one player rarely
-    // takes more than about a quarter of his team's shots.
-    boxes = capShotVolume(boxes, 0.315);
-    return boxes;
-  };
-  const homeBoxes = finish(homeRaw.map(x => x.box), homeScore);
-  const awayBoxes = finish(awayRaw.map(x => x.box), awayScore);
+  // Both teams' lines are built together: possessions, rebounds, steals
+  // and fouls all depend on what the other team did.
+  const { homeBoxes, awayBoxes } = buildConsistentBoxes(homeRaw.map(x => x.box), awayRaw.map(x => x.box), homeScore, awayScore);
 
   return {
     homeScore, awayScore,
@@ -395,7 +591,7 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
   };
 }
 
-const GameCore = { generateRawPlayerBox, reconcileTeamScore, capTeamAssists, capIndividualShare, capShotVolume, capOffensiveRebounds, simulateSingleGame, getZeroBox };
+const GameCore = { generateRawPlayerBox, reconcileTeamScore, capTeamAssists, capIndividualShare, capShotVolume, capOffensiveRebounds, buildConsistentBoxes, simulateSingleGame, getZeroBox };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = GameCore;
 else if (typeof window !== 'undefined') window.GameCore = GameCore;

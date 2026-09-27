@@ -22,6 +22,7 @@ const TARGETS = [
   ['threePPct', 'ftPct', 'fgPct'].forEach(k => console.log(`  (info) ${k} = ${avg(k).toFixed(3)}`));
   TARGETS.forEach(([k, lo, hi]) => {
     const v = avg(k);
+    if (process.env.SHOW_ALL) { console.log(`  (val) ${k} = ${v.toFixed(2)}`); return; }
     ok(v >= lo && v <= hi, `${k} = ${v.toFixed(2)} (expected ${lo}-${hi})`);
   });
 

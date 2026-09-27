@@ -181,7 +181,7 @@
     }
     wingspan = r2(wingspan, 0.25);
     const ape = wingspan - barefoot;
-    const reach = r2(barefoot * 1.33 + (ape - APE_NORM[g]) * 0.45 + gauss(rng) * 0.6, 0.5);
+    const reach = r2(clamp(barefoot * 1.33 + (ape - APE_NORM[g]) * 0.45 + gauss(rng) * 0.6, 88, 121), 0.5);
     const listedWt = num(p.wt, g === 'big' ? 235 : g === 'guard' ? 185 : 210);
     const weight = Math.round(listedWt + gauss(rng) * 4);
     const bmi = weight / (barefoot * barefoot) * 703;

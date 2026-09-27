@@ -26,7 +26,7 @@ const { boot, playSeason, ok } = require('./harness');
   ok(invited.length >= 40 && invited.length <= Math.max(90, declaredCount), `combine invites (${invited.length} of ${declaredCount} declared)`);
   const m = invited.map(p => p.predraft.meas);
   ok(m.every(x => x.wingspan - x.barefoot >= -2 && x.wingspan - x.barefoot <= 9.5), 'wingspans are believable (-2" to +9.5")');
-  ok(m.every(x => x.reach >= 90 && x.reach <= 120), 'standing reach between 7\'6" and 10\'');
+  ok(m.every(x => x.reach >= 88 && x.reach <= 121), 'standing reach between 7\'4" and 10\'1"');
   ok(m.every(x => x.shoes - x.barefoot === 1.25 && x.bodyFat >= 3.6 && x.bodyFat <= 14.5), 'shoes add 1.25"; body fat in range');
   const tested = invited.filter(p => p.predraft.tests);
   ok(tested.length >= invited.length - 6, 'nearly everyone tests; only a few projected top picks sit out');

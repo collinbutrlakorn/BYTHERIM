@@ -132,8 +132,12 @@ function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
   // draft it happened in — a player who withdrew starts fresh next year.
   const pd = player.predraft;
   const stock = pd && (!opts.draftYear || pd.year === opts.draftYear) ? num(pd.stock) : 0;
+  // Big games: performances against ranked teams and in March, measured
+  // against the player's own standard (see noteBigGame in the engine).
+  // Reset every season.
+  const bigGames = num(player.bigGameStock);
 
-  return { score: score + stock, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree, level, stock };
+  return { score: score + stock + bigGames, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree, level, stock, bigGames };
 }
 
 // Ranks a list of players. `winPctFor` maps a school name to that team's
