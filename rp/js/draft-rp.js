@@ -1237,7 +1237,9 @@ const DraftRP = {
   },
 
   renderPoolRows() {
-    let pool = [...this.state.prospects];
+    // Players already on My Big Board leave the pool so it stays short.
+    const onBoard = new Set(this.state.customOrder);
+    let pool = this.state.prospects.filter(e => !onBoard.has(e.player.id));
 
     if (this.state.poolPos !== 'ALL') {
       pool = pool.filter(e => (e.player.pos || '').toUpperCase() === this.state.poolPos);
@@ -1257,7 +1259,7 @@ const DraftRP = {
 
     if (pool.length === 0) {
       const span = 7 + this.statHeaders().length;
-      return `<tr><td colspan="${span}" class="empty-table-msg">No prospects match these filters.</td></tr>`;
+      return `<tr><td colspan="${span}" class="empty-table-msg">${onBoard.size && !q && this.state.poolPos === 'ALL' ? 'Every prospect is on your board.' : 'No prospects match these filters.'}</td></tr>`;
     }
 
     return pool.map(e => {

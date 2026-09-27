@@ -238,6 +238,9 @@ window.SimEngine = {
 
             this.state.teams = savedTeams;
             this.state.activePlayers = savedPlayers;
+            // Pending recruits aren't saved on their own; rebuild them from
+            // the saved class list or the Recruits tab comes back empty.
+            this.refreshRecruitPool();
             this.syncUI();
             this.logNews(`Loaded Season ${this.state.year} (${this.state.teams.length} teams, ${this.state.activePlayers.length} players).`);
             return;
@@ -1090,6 +1093,7 @@ window.SimEngine = {
       potential: parseFloat(getVal(['potential', 'pot', 'ceiling'], '')) || null,
       // National recruit ranking, used by the draft big board's pedigree term.
       rsci: parseFloat(getVal(['rsci', 'rank', 'nationalrank', 'ranking'], '')) || null,
+      stars: parseFloat(getVal(['stars', 'star'], '')) || null,
       // Schools this player has suited up for, oldest first. Transfers
       // aren't simulated yet, so this is normally just the current school —
       // but the field exists so a transfer only has to append to it.
@@ -7045,7 +7049,9 @@ window.SimEngine = {
       });
     }
 
-    recruits.sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
+    // Listed in recruiting-ranking order; the sim's ratings stay hidden.
+    const rk = r => (r.rsci > 0 ? r.rsci : 9999);
+    recruits.sort((a, b) => rk(a) - rk(b) || parseFloat(b.rating) - parseFloat(a.rating));
 
     if (recruits.length === 0) {
       body.innerHTML = `<tr><td colspan="6" class="empty-table-msg">No ${this.incomingClassLabel()} recruits match these filters.</td></tr>`;
@@ -7058,10 +7064,10 @@ window.SimEngine = {
       const committed = r.school && r.school !== 'Uncommitted' && r.school !== 'Free Agent';
       const team = committed ? this.state.teams.find(t => t.school === r.school) : null;
       return `<tr>
-        <td class="bold-sub-text">${i + 1}</td>
+        <td class="bold-sub-text">${r.rsci > 0 ? r.rsci : i + 1}</td>
         <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${r.name}</span></td>
         <td class="sub-text">${r.pos}</td>
-        <td class="bold-text">${Math.round(parseFloat(r.rating))}</td>
+        <td class="sub-text">${r.stars ? '★'.repeat(Math.min(5, Math.round(parseFloat(r.stars)) || 0)) : '—'}</td>
         <td class="sub-text-sm">${r.hs || r.hometown || '—'}</td>
         <td>${committed
           ? `<div class="team-cell-wrap"><img src="${this.getTeamLogo(r.school)}" class="xs-logo"><span>${r.school}</span>${team ? ` <span class="sub-text-sm">(${team.conference})</span>` : ''}</div>`
@@ -7165,7 +7171,12 @@ window.SimEngine = {
       finalFour, poll, allAmericans,
       awards: [['Final Four MOP', (() => { const h = s.postseasonHonors; const m = h && h.finalFour && h.finalFour.mop; return m ? s.activePlayers.find(p => p.id === m.id) : null; })()],
         ['Player of the Year', aw.npoy], ['Defensive Player of the Year', aw.dpoy], ['Freshman of the Year', aw.froy]]
-        .filter(x => x[1]).map(([label, p]) => ({ label, p: line(p) }))
+        .filter(x => x[1]).map(([label, p]) => ({ label, p: line(p) })),
+      positions: [['Bob Cousy Award · PG', aw.cousy], ['Jerry West Award · SG', aw.west], ['Julius Erving Award · SF', aw.erving],
+        ['Karl Malone Award · PF', aw.malone], ['Kareem Abdul-Jabbar Award · C', aw.abdulJabbar]]
+        .filter(x => x[1]).map(([label, p]) => ({ label, p: line(p) })),
+      secondTeam: [...s.activePlayers].sort((a, b) => b.awardScore - a.awardScore).slice(5, 10).map(line),
+      honors: s.postseasonHonors || null
     };
     return this._wrapUp;
   },
@@ -7218,6 +7229,28 @@ window.SimEngine = {
         <div class="section-head"><h3 class="section-title">First-team All-Americans</h3></div>
         <ul class="draft-watch wrap-list">${w.allAmericans.map(p => player(p)).join('')}</ul>
       </div>
+      ${w.positions && w.positions.length ? `<div class="card">
+        <div class="section-head"><h3 class="section-title">Best at each position</h3></div>
+        <ul class="draft-watch wrap-list">${w.positions.map(a => player(a.p, a.label)).join('')}</ul>
+      </div>` : ''}
+      ${w.secondTeam && w.secondTeam.length ? `<div class="card">
+        <div class="section-head"><h3 class="section-title">Second-team All-Americans</h3></div>
+        <ul class="draft-watch wrap-list">${w.secondTeam.map(p => player(p)).join('')}</ul>
+      </div>` : ''}
+      ${(() => {
+        const h = w.honors; if (!h) return '';
+        const ent = (e, label) => e ? `<li class="wrap-player" onclick="SimEngine.openPlayerModal('${this.jsArg(e.id)}')">
+          <img src="${this.getTeamLogo(e.school)}" class="xs-logo" alt="">
+          <span class="dw-name"><b>${this.esc(e.name)}</b><small>${label ? this.esc(label) + ' · ' : ''}${this.esc(e.school)}</small></span>
+          <span class="wrap-line">${this.esc(e.line || '')}</span></li>` : '';
+        const regions = Object.values(h.regions || {});
+        const ff = (h.finalFour && h.finalFour.team) || [];
+        if (!regions.length && !ff.length) return '';
+        return `<div class="card">
+          <div class="section-head"><h3 class="section-title">Tournament honors</h3></div>
+          <ul class="draft-watch wrap-list">${ff.map(e => ent(e, 'All-Final Four')).join('')}${regions.map(e => ent(e, `${e.region} Region MOP`)).join('')}</ul>
+        </div>`;
+      })()}
       <div class="card">
         <div class="section-head"><h3 class="section-title">Final Top 10</h3></div>
         <ol class="wrap-poll">${w.poll.map(t => `<li onclick="SimEngine.closeOffseason();SimEngine.goToTeamPage('${this.jsArg(t.school)}')"><span class="poll-rank">${t.rank}</span><img src="${this.getTeamLogo(t.school)}" class="poll-logo" alt=""><span class="poll-team">${this.esc(t.school)}</span><span class="poll-rec">${t.wins}-${t.losses}</span></li>`).join('')}</ol>

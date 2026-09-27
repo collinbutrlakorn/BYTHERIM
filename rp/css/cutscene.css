@@ -39,8 +39,16 @@ body.cs-open { overflow: hidden; }
 .cs-skip:hover { background: rgba(255,255,255,0.18); transform: translateY(-1px); }
 .cs-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255,255,255,0.08); z-index: 2; }
 .cs-progress span { display: block; height: 100%; width: 0; background: var(--cs-a); transition: width 0.6s ease; box-shadow: 0 0 12px var(--cs-a); }
-.cs-dots { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 2; }
-.cs-dots i { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,0.22); transition: background 0.3s ease, transform 0.3s ease; }
+.cs-nav { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; z-index: 3; }
+.cs-nav-btn { width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.08); color: #fff; font-size: 18px; line-height: 1; cursor: pointer; display: grid; place-items: center; transition: background 0.2s ease, opacity 0.2s ease; }
+.cs-nav-btn.cs-pause { font-size: 10px; letter-spacing: -1px; }
+.cs-nav-btn:hover:not(:disabled) { background: rgba(255,255,255,0.2); }
+.cs-nav-btn:disabled { opacity: 0.25; cursor: default; }
+.cs-nav-btn[hidden] { display: none; }
+.cs-dots { display: flex; gap: 6px; }
+.cs-dots i { width: 8px; height: 8px; border-radius: 50%; cursor: pointer; background: rgba(255,255,255,0.22); transition: background 0.3s ease, transform 0.3s ease; }
+.cs-dots i.cur { box-shadow: 0 0 0 2px rgba(255,255,255,0.35); }
+.cs-paused .cs-progress span { animation: none; opacity: 0.5; }
 .cs-dots i.on { background: var(--cs-a); transform: scale(1.25); }
 
 .cs-stage { position: relative; z-index: 1; width: min(1100px, 92vw); max-height: 86vh; overflow: auto; text-align: center; padding: 1rem 6px 2.5rem; scrollbar-width: none; }

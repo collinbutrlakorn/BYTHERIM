@@ -50,7 +50,12 @@
       el.innerHTML = `<div class="cs-bg"><span class="cs-orb a"></span><span class="cs-orb b"></span></div>
         <button class="cs-skip sel-skip" type="button">Skip &rsaquo;</button>
         <div class="cs-stage" aria-live="polite"></div>
-        <div class="cs-dots"></div>
+        <div class="cs-nav">
+          <button class="cs-nav-btn cs-prev" type="button" aria-label="Previous scene">&lsaquo;</button>
+          <div class="cs-dots"></div>
+          <button class="cs-nav-btn cs-pause" type="button" aria-label="Pause">&#10074;&#10074;</button>
+          <button class="cs-nav-btn cs-next" type="button" aria-label="Next scene">&rsaquo;</button>
+        </div>
         <div class="cs-progress"><span></span></div>`;
       document.body.appendChild(el);
       document.body.classList.add('cs-open');
@@ -58,8 +63,9 @@
       const stage = el.querySelector('.cs-stage');
       const bar = el.querySelector('.cs-progress span');
       const dots = el.querySelector('.cs-dots');
-      dots.innerHTML = scenes.map(() => '<i></i>').join('');
-      let i = 0;
+      dots.innerHTML = scenes.map((_, k) => `<i role="button" tabindex="-1" aria-label="Scene ${k + 1}" data-k="${k}"></i>`).join('');
+      let i = 0, paused = false;
+      const prevBtn = el.querySelector('.cs-prev'), nextBtn = el.querySelector('.cs-next'), pauseBtn = el.querySelector('.cs-pause');
 
       const actions = opts.actions && opts.actions.length ? opts.actions : [{ label: 'Continue', primary: true }];
       const finish = (how) => {
@@ -89,14 +95,31 @@
           if (first) setTimeout(() => first.focus(), 60);
         }
         bar.style.width = `${Math.round(((i + 1) / scenes.length) * 100)}%`;
-        dots.querySelectorAll('i').forEach((d, k) => d.classList.toggle('on', k <= i));
+        dots.querySelectorAll('i').forEach((d, k) => { d.classList.toggle('on', k <= i); d.classList.toggle('cur', k === i); });
+        prevBtn.disabled = i === 0; nextBtn.disabled = last; pauseBtn.hidden = last;
         this.countUp(stage);
-        clearTimeout(this._timer);
-        if (!last) {
-          const ms = reduce ? Math.min(1400, sc.ms || 2600) : (sc.ms || 2600);
-          this._timer = setTimeout(() => { i++; show(); }, ms);
-        }
+        schedule();
       };
+      // Scenes hold long enough to read; viewers can pause, go back or jump ahead.
+      const schedule = () => {
+        clearTimeout(this._timer);
+        if (paused || i >= scenes.length - 1) return;
+        const sc = scenes[i];
+        const ms = reduce ? Math.max(3000, sc.ms || 2600) : Math.max(4200, Math.round((sc.ms || 2600) * 1.7));
+        this._timer = setTimeout(() => { i++; show(); }, ms);
+      };
+      const go = (k) => { i = Math.max(0, Math.min(scenes.length - 1, k)); show(); };
+      const setPaused = (v) => {
+        paused = v;
+        pauseBtn.innerHTML = paused ? '&#9654;' : '&#10074;&#10074;';
+        pauseBtn.setAttribute('aria-label', paused ? 'Play' : 'Pause');
+        el.classList.toggle('cs-paused', paused);
+        schedule();
+      };
+      prevBtn.addEventListener('click', () => go(i - 1));
+      nextBtn.addEventListener('click', () => go(i + 1));
+      pauseBtn.addEventListener('click', () => setPaused(!paused));
+      dots.addEventListener('click', e => { const d = e.target.closest('i[data-k]'); if (d) go(+d.dataset.k); });
 
       el.querySelector('.cs-skip').addEventListener('click', () => {
         if (i < scenes.length - 1) { i = scenes.length - 1; show(); }
@@ -105,7 +128,9 @@
       this._key = (e) => {
         if (!document.body.contains(el)) return;
         if (e.key === 'Escape') { e.preventDefault(); if (i < scenes.length - 1) { i = scenes.length - 1; show(); } else finish('skipped'); }
-        else if ((e.key === 'ArrowRight' || e.key === ' ') && i < scenes.length - 1) { e.preventDefault(); i++; show(); }
+        else if (e.key === 'ArrowRight' && i < scenes.length - 1) { e.preventDefault(); go(i + 1); }
+        else if (e.key === 'ArrowLeft' && i > 0) { e.preventDefault(); go(i - 1); }
+        else if (e.key === ' ' && i < scenes.length - 1) { e.preventDefault(); setPaused(!paused); }
       };
       document.addEventListener('keydown', this._key);
       show();
