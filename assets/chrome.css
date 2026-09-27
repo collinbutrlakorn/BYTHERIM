@@ -200,3 +200,6 @@
   .site-header-inner { padding: 0 1rem; }
   .footer-inner { grid-template-columns: 1fr 1fr; padding-top: 2.2rem; }
 }
+
+/* RP pages: fiction notice under the copyright line */
+.footer-fiction { display: block; margin-top: 0.35rem; font-size: 0.8rem; }

@@ -1036,3 +1036,6 @@ a.card:hover { border-color: var(--border-strong); transform: translateY(-2px); 
   .about-grid { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
   .about-card { position: static; }
 }
+
+/* RP pages: fiction notice under the copyright line */
+.footer-fiction { display: block; margin-top: 0.35rem; font-size: 0.8rem; }

@@ -17,11 +17,18 @@ function generateRawPlayerBox(player, minutesMultiplier = 1) {
   // minutesMultiplier lets the caller redistribute minutes for a single
   // game — when a rotation player is unavailable, everyone else absorbs
   // his minutes rather than the team simply playing short.
-  const gameMin = Math.round((parseFloat(exp.mpg) || 0) * minutesMultiplier * (0.8 + Math.random() * 0.4));
-  if (gameMin <= 0) return getZeroBox();
+  // Deep-bench players don't get a couple of minutes every single night;
+  // they sit out some games entirely and play a little more when they do
+  // get in. The chance of appearing rises with the role, and the minutes
+  // when he plays are scaled up so his season average stays the same.
+  const expMin = (parseFloat(exp.mpg) || 0) * minutesMultiplier;
+  let appear = 1;
+  if (expMin < 7.5) appear = Math.max(0.15, Math.min(1, 0.22 + expMin / 9));
+  if (expMin <= 0 || Math.random() >= appear) return getZeroBox();
+  const gameMin = Math.max(1, Math.round((expMin / appear) * (0.8 + Math.random() * 0.4)));
 
   const variance = () => 0.5 + Math.random() * 1.0;
-  const scale = gameMin / Math.max(1, parseFloat(exp.mpg) || 1);
+  const scale = gameMin / Math.max(1, expMin);
 
   const ppgExp = parseFloat(exp.ppg) || 0;
   const ftaExp = parseFloat(exp.fta) || 0;
@@ -136,24 +143,42 @@ function reconcileTeamScore(rawBoxes, targetScore) {
   let total = boxes.reduce((s, b) => s + b.pts, 0);
   let residual = targetScore - total;
 
+  // Corrections change the result of a shot rather than inventing or
+  // deleting free-throw makes. The old version added or removed made free
+  // throws without their attempts, which quietly dragged every player's
+  // FT% down (and occasionally past 100% the other way).
   if (residual > 0 && boxes.length > 0) {
-    const topIdx = boxes.reduce((best, b, i) => b.pts > boxes[best].pts ? i : best, 0);
-    const b = boxes[topIdx];
-    b.ftm += residual; b.fta = Math.max(b.fta, b.ftm); b.pts += residual;
-    residual = 0;
+    // Each extra point goes to a player picked in proportion to how much
+    // he's already scoring, so the corrections follow the game's usage.
+    const pool = boxes.filter(b => b.min > 0);
+    const weight = b => b.pts + 1;
+    const pick = () => {
+      const total = pool.reduce((n, b) => n + weight(b), 0);
+      let r = Math.random() * total;
+      for (const b of pool) { r -= weight(b); if (r <= 0) return b; }
+      return pool[0] || boxes[0];
+    };
+    let guard = 0;
+    while (residual > 0 && guard++ < 200) {
+      const b = pick();
+      if (residual >= 2) { b.twoPm++; b.twoPa++; b.fgm++; b.fga++; b.pts += 2; residual -= 2; }         // one more bucket
+      else { b.ftm++; b.fta++; b.pts++; residual--; }                                                  // one more trip to the line
+    }
   }
 
-  while (residual < 0) {
-    const order = boxes.map((b, i) => i).sort((i, j) => boxes[j].pts - boxes[i].pts);
-    let movedAny = false;
-    for (const i of order) {
-      if (residual === 0) break;
-      const b = boxes[i];
-      if (b.ftm > 0) { b.ftm--; b.pts--; residual++; movedAny = true; }
-      else if (residual <= -2 && b.twoPm > 0) { b.twoPm--; b.fgm--; b.pts -= 2; residual += 2; movedAny = true; }
-      else if (residual <= -3 && b.threePm > 0) { b.threePm--; b.fgm--; b.pts -= 3; residual += 3; movedAny = true; }
-    }
-    if (!movedAny) break; // truly nothing left to remove anywhere — give up gracefully
+  // Taking points away is spread across the scorers the same way, one
+  // shot at a time, rather than always docking the top scorer first.
+  let tries = 0;
+  while (residual < 0 && tries++ < 400) {
+    const scorers = boxes.filter(b => b.pts > 0);
+    if (!scorers.length) break;
+    const total = scorers.reduce((n, b) => n + b.pts, 0);
+    let r = Math.random() * total, b = scorers[0];
+    for (const x of scorers) { r -= x.pts; if (r <= 0) { b = x; break; } }
+    if (residual <= -2 && b.twoPm > 0 && (b.ftm === 0 || Math.random() < 0.6)) { b.twoPm--; b.fgm--; b.pts -= 2; residual += 2; }  // a make rims out
+    else if (b.ftm > 0 && b.fta > 0) { b.ftm--; b.fta--; b.pts--; residual++; }                                               // one fewer trip to the line
+    else if (residual <= -3 && b.threePm > 0) { b.threePm--; b.fgm--; b.pts -= 3; residual += 3; }
+    else if (residual <= -2 && b.twoPm > 0) { b.twoPm--; b.fgm--; b.pts -= 2; residual += 2; }
   }
 
   return boxes;
@@ -182,7 +207,7 @@ function capIndividualShare(boxes, key, maxShare) {
   if (excess <= 0) return boxes;
   // Give the trimmed production to the teammates who were under the cap,
   // so the team total is preserved.
-  const room = boxes.filter(b => (b[key] || 0) < ceiling);
+  const room = boxes.filter(b => b.min > 0 && (b[key] || 0) < ceiling);
   const roomTotal = room.reduce((n, b) => n + (b[key] || 0), 0);
   if (roomTotal <= 0) return boxes;
   let carry = 0;
@@ -250,7 +275,8 @@ function capShotVolume(boxes, maxShare) {
     b.pts = b.twoPm * 2 + b.threePm * 3 + b.ftm;
 
     // Hand the removed shots to the teammates with the most room.
-    const room = boxes.filter(x => x !== b && (x.fga || 0) < ceiling)
+    // Only teammates who actually played can take the extra shots.
+    const room = boxes.filter(x => x !== b && x.min > 0 && (x.fga || 0) < ceiling)
       .sort((x, y) => (x.fga || 0) - (y.fga || 0));
     if (room.length === 0) return;
     let i = 0;

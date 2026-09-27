@@ -25,6 +25,7 @@ window.SimEngine = {
     ncaaDone: false,
     confTournaments: {},    // confName -> bracket result from TournamentCore
     ncaaTournament: null,   // bracket result from TournamentCore
+    ncaaSelection: null,    // the seeded field (Selection Sunday), plain school names
     ncaaFullBracket: null,  // pre-simulated bracket, revealed round by round
     ncaaRoundsRevealed: 0,
     draftDeclarations: [],  // players leaving for the draft, computed when the season ends
@@ -165,6 +166,7 @@ window.SimEngine = {
     this.state.confTournaments = {};
     this.state.ncaaTournament = null;
     this.state.ncaaFullBracket = null;
+    this.state.ncaaSelection = null;
     this.state.ncaaRoundsRevealed = 0;
     this.state.draftDeclarations = [];
     this.state.seasonHistory = [];
@@ -191,6 +193,7 @@ window.SimEngine = {
           this.state.ncaaDone = savedState.ncaaDone || false;
           this.state.confTournaments = savedState.confTournaments || {};
           this.state.ncaaTournament = savedState.ncaaTournament || null;
+          this.state.ncaaSelection = savedState.ncaaSelection || null;
           this.state.draftDeclarations = savedState.draftDeclarations || [];
           this.state.seasonHistory = savedState.seasonHistory || [];
           this.state.allRecruits = savedState.allRecruits || [];
@@ -261,9 +264,10 @@ window.SimEngine = {
       result: { homeScore: g.result.homeScore, awayScore: g.result.awayScore }
     });
     return {
-      champion: { school: bracket.champion.school },
-      playIn: bracket.playIn.map(slimGame),
-      rounds: bracket.rounds.map(round => round.map(slimGame))
+      champion: bracket.champion ? { school: bracket.champion.school } : null,
+      playIn: (bracket.playIn || []).map(slimGame),
+      rounds: (bracket.rounds || []).map(round => round.map(slimGame)),
+      seeds: bracket.seeds || null
     };
   },
 
@@ -290,6 +294,7 @@ window.SimEngine = {
           ncaaDone: this.state.ncaaDone,
           confTournaments: slimConfTournaments,
           ncaaTournament: this.serializeBracket(this.state.ncaaTournament),
+          ncaaSelection: this.state.ncaaSelection || null,
           draftDeclarations: this.state.draftDeclarations,
           seasonHistory: this.state.seasonHistory,
           allRecruits: this.state.allRecruits,
@@ -1727,6 +1732,7 @@ window.SimEngine = {
     this.state.confTournaments = {};
     this.state.ncaaTournament = null;
     this.state.ncaaFullBracket = null;
+    this.state.ncaaSelection = null;
     this.state.ncaaRoundsRevealed = 0;
     this.state.draftDeclarations = [];
     this.state.scheduleViewWeek = 1;
@@ -2061,6 +2067,18 @@ window.SimEngine = {
       : refRating;
   },
 
+  // A stable number in [-1, 1] per player (roughly bell-shaped), so a
+  // player's free-throw stroke is the same every time his expectations are
+  // rebuilt instead of being re-rolled each week.
+  shootingTouch(player) {
+    const key = String(player.id || player.name || '');
+    let h = 2166136261;
+    for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
+    const a = ((h >>> 0) % 10007) / 10007;
+    const b = ((Math.imul(h, 2654435761) >>> 0) % 10009) / 10009;
+    return a + b - 1;
+  },
+
   buildBaseStatExpectations(player, mpg, team) {
     if (mpg <= 0.5) return this.getZeroStats();
 
@@ -2158,6 +2176,9 @@ window.SimEngine = {
     // and rejected: rescaling those raw lines to the real team score
     // introduced a rounding bias that wrecked free-throw percentage.
     let ppg = Math.max(0.4, (2.2 + Math.max(4, r - 38) * 0.228) * scoringUsage);
+    // Genuine stars get a little extra: go-to scorers take the late-clock
+    // and late-game shots, which is what separates a 20-point season.
+    ppg += Math.max(0, r - 84) * 0.22 * Math.max(1, scoringUsage);
 
     // Interior finishers get a volume floor proportional to their minutes.
     // Lobs, dump-offs and put-backs happen regardless of how small a
@@ -2203,8 +2224,6 @@ window.SimEngine = {
     let obpm = bpm * (isBig ? 0.45 : 0.60);
     let dbpm = bpm - obpm;
 
-    let ftPct = Math.min(0.92, Math.max(0.48,
-      (isBig ? 0.705 : 0.825) * (player.playstyle ? player.playstyle.ftPct : 1)));
     let fta = Math.max(0.2, (ppg * (isBig ? 0.282 : 0.178))
       * (coach ? coach.freeThrows : 1)
       * (arch ? arch.ftr : 1));
@@ -2213,7 +2232,7 @@ window.SimEngine = {
     // far too many threes; genuine stretch bigs now come from the
     // playstyle multiplier applied just below, not from the baseline.
     const THREE_PAR = {
-      PG: 0.435, SG: 0.480, CG: 0.460, SF: 0.440, W: 0.440, 'G/F': 0.440, G: 0.450, F: 0.26,
+      PG: 0.455, SG: 0.500, CG: 0.475, SF: 0.475, W: 0.470, 'G/F': 0.465, G: 0.465, F: 0.28,
       PF: 0.22, C: 0.07, 'F/C': 0.12
     };
     let threePar = THREE_PAR[pos] !== undefined ? THREE_PAR[pos] : (isBig ? 0.18 : 0.50);
@@ -2226,8 +2245,30 @@ window.SimEngine = {
     if (coach) {
       threePar = Math.max(0.05, Math.min(0.88, threePar * coach.threePar));
     }
+    // Small forwards and wings shoot like perimeter players, even though
+    // they count as "big" for rebounding above.
+    const interiorShooter = ['PF', 'C', 'F/C'].includes(pos) || (isBig && !['SF', 'F', 'W', 'G/F'].includes(pos));
     let threePPct = Math.min(0.46, Math.max(0.20,
-      (isBig ? 0.315 : 0.358) * (player.playstyle ? player.playstyle.threePct : 1)));
+      (interiorShooter ? 0.315 : 0.358) * (player.playstyle ? player.playstyle.threePct : 1)));
+
+    // Free throws follow position and shooting touch. Guards who can shoot
+    // live above 80%, wings a little lower, power forwards around 70% and
+    // centres in the mid-60s, with real outliers either way. The old model
+    // split everyone into "big" (70.5%) or not (82.5%), counted small
+    // forwards as bigs, and ignored how well a player shoots otherwise.
+    const FT_BASE = { PG: 0.765, SG: 0.765, CG: 0.765, G: 0.765, 'G/F': 0.740, W: 0.730, SF: 0.715,
+      F: 0.700, PF: 0.690, 'F/C': 0.655, C: 0.630 };
+    let ftPct = FT_BASE[pos] !== undefined ? FT_BASE[pos] : (isBig ? 0.68 : 0.77);
+    const ps3 = player.playstyle ? (player.playstyle.threePct || 1) : 1;
+    const psFt = player.playstyle ? (player.playstyle.ftPct || 1) : 1;
+    ftPct += (ps3 - 1) * 0.30 + (psFt - 1) * 0.35;          // scouted touch
+    ftPct += (threePPct - 0.34) * 1.20;                      // good shooters make free throws
+    if (threePar >= 0.45) ftPct += 0.02;                     // volume shooters
+    ftPct += this.shootingTouch(player) * 0.045;             // each player's own stroke
+    // A real volume shooter who hits from deep is almost never a poor
+    // free-throw shooter: floor him around 80%.
+    if ((threePar >= 0.46 && threePPct >= 0.355) || threePPct >= 0.375) ftPct = Math.max(ftPct, 0.805 + (threePPct - 0.35) * 1.0 + Math.max(0, this.shootingTouch(player)) * 0.035);
+    ftPct = Math.min(0.93, Math.max(0.45, ftPct));
     let twoPPct = Math.min(0.72, Math.max(0.38, (isBig ? 0.568 : 0.478)));
     // Better perimeter players finish markedly better inside the arc —
     // an NBA-caliber guard sits near or above 48% on twos, where a flat
@@ -2587,7 +2628,10 @@ window.SimEngine = {
     
     const exp = player.expectedStats || {};
 
-    const calc = (logs) => {
+    const calc = (allLogs) => {
+       // A game only counts as played if he got on the floor. Did-not-play
+       // games stay in the log (they show as DNP) but not in GP or averages.
+       const logs = allLogs.filter(g => (g.min || 0) > 0);
        if (logs.length === 0) return this.getZeroStats();
        let s = { min:0, pts:0, reb:0, oreb:0, dreb:0, ast:0, stl:0, blk:0, tov:0, pf:0, fgm:0, fga:0, twoPm:0, twoPa:0, threePm:0, threePa:0, ftm:0, fta:0 };
        logs.forEach(g => { for(let k in s) s[k] += (g[k] || 0); });
@@ -2786,94 +2830,23 @@ window.SimEngine = {
       });
 
       bracket.champion.wonConfTourney = true;
+      // Seeds by standings, kept with the bracket for drawing it.
+      bracket.seeds = {};
+      confTeams.forEach((t, i) => { bracket.seeds[t.school] = i + 1; });
       this.state.confTournaments[confName] = bracket;
     });
 
     this.recalculateAllAverages();
     this.state.confChampsDone = true;
+    // Selection Sunday: the real field, seeded and placed in regions.
+    this.state.ncaaSelection = this.buildSelection(false);
     await this.saveStateToDB();
     this.syncUI();
-    this.logNews("Conference Championships complete. On to the NCAA Tournament.");
+    this.logNews("Conference Championships complete. The NCAA field is set.");
+    if (!(typeof window !== 'undefined' && window.__BTR_NO_CUTSCENES)) this.playSelectionShow();
   },
 
-  // Builds the NCAA field: conference tournament champions get automatic
-  // bids, the rest of the field is filled by at-large teams ranked by
-  // season resume (wins, then team strength) until we hit a target size.
-  buildNCAAField() {
-    const autoBids = Object.values(this.state.confTournaments).map(b => b.champion);
-    const autoBidSchools = new Set(autoBids.map(t => t.school));
 
-    const atLargePool = this.state.teams
-      .filter(t => !autoBidSchools.has(t.school))
-      .sort((a, b) => {
-        if (b.simData.wins !== a.simData.wins) return b.simData.wins - a.simData.wins;
-        return b.simData.teamOvr - a.simData.teamOvr;
-      });
-
-    const targetSize = Math.max(autoBids.length, Math.min(68, Math.round(this.state.teams.length * 0.19)));
-    const atLargeNeeded = Math.max(0, targetSize - autoBids.length);
-    const atLarge = atLargePool.slice(0, atLargeNeeded);
-
-    const field = [...autoBids, ...atLarge].sort((a, b) => {
-      if (b.simData.wins !== a.simData.wins) return b.simData.wins - a.simData.wins;
-      return b.simData.teamOvr - a.simData.teamOvr;
-    });
-    field.forEach((t, i) => t.ncaaSeed = i + 1);
-    return field;
-  },
-
-  // The tournament plays out one round per click rather than resolving in
-  // a single step, so the bracket can be followed as it unfolds.
-  async simulateNCAATournament() {
-    if (!this.state.ncaaTournament) {
-      const field = this.buildNCAAField();
-      const full = TournamentCore.simulateBracket(field, { homeCourtEdge: 0 });
-      // Simulate the whole bracket up front for internal consistency, then
-      // reveal it a round at a time.
-      this.state.ncaaFullBracket = full;
-      this.state.ncaaRoundsRevealed = 0;
-      this.state.ncaaTournament = { playIn: [], rounds: [], champion: full.champion };
-    }
-
-    const full = this.state.ncaaFullBracket;
-    const view = this.state.ncaaTournament;
-
-    // First Four is revealed alongside the opening round.
-    if (this.state.ncaaRoundsRevealed === 0 && full.playIn.length) {
-      view.playIn = full.playIn;
-      full.playIn.forEach(g => this.attachBracketGameLogs(g, 'ncaa'));
-    }
-
-    const nextRound = full.rounds[this.state.ncaaRoundsRevealed];
-    if (nextRound) {
-      view.rounds.push(nextRound);
-      nextRound.forEach(g => this.attachBracketGameLogs(g, 'ncaa'));
-      this.state.ncaaRoundsRevealed++;
-    }
-
-    const finished = this.state.ncaaRoundsRevealed >= full.rounds.length;
-    this.recalculateAllAverages();
-
-    if (!finished) {
-      const names = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8', 'Final Four', 'Championship'];
-      this.state.phase = `NCAA Tournament — ${names[this.state.ncaaRoundsRevealed] || 'Next Round'}`;
-      await this.saveStateToDB();
-      this.syncUI();
-      this.logNews(`${names[this.state.ncaaRoundsRevealed - 1] || 'Round'} complete.`);
-      return;
-    }
-
-    const bracket = view;
-    bracket.champion.wonNationalTitle = true;
-
-    this.state.ncaaDone = true;
-    this.state.simCompleted = true;
-    this.state.phase = `National Champion: ${bracket.champion.school}`;
-    this.state.draftDeclarations = this.computeDraftDeclarations();
-    await this.saveStateToDB();
-    this.syncUI();
-    this.logNews(`${bracket.champion.school} wins the National Championship!`);
-  },
 
   // ---------- Scripted draft picks & the NBA side of the draft ----------
 
@@ -3688,6 +3661,7 @@ window.SimEngine = {
     this.state.confTournaments = {};
     this.state.ncaaTournament = null;
     this.state.ncaaFullBracket = null;
+    this.state.ncaaSelection = null;
     this.state.ncaaRoundsRevealed = 0;
     this.state.draftDeclarations = [];
     this.state.seasonInitialized = false;
@@ -3743,9 +3717,8 @@ window.SimEngine = {
         btn.innerText = stage ? `Advance: ${stage.label}` : 'Begin Offseason';
         btn.disabled = false;
       } else if (this.state.confChampsDone) {
-        const names = ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8', 'Final Four', 'Championship'];
-        const nextName = names[this.state.ncaaRoundsRevealed || 0] || 'Next Round';
-        btn.innerText = this.state.ncaaTournament ? `Simulate ${nextName}` : `Simulate NCAA Tournament`;
+        const played = this.state.ncaaTournament ? this.state.ncaaTournament.rounds.length : 0;
+        btn.innerText = `Simulate ${played === 0 ? 'First Four & First Round' : (this.NCAA_ROUND_NAMES[played] || 'Next Round')}`;
         btn.disabled = false;
       } else if (this.state.regularSeasonDone) {
         btn.innerText = `Simulate Conference Championships`;
@@ -3963,6 +3936,13 @@ window.SimEngine = {
   },
 
   updateDashboard() {
+    const banner = document.getElementById('dashOffseasonBanner');
+    if (banner) {
+      banner.style.display = this.state.ncaaDone ? 'flex' : 'none';
+      const st = this.OFFSEASON_STAGES[this.state.offseasonStageIndex || 0];
+      const lbl = document.getElementById('dashOffseasonStage');
+      if (lbl) lbl.textContent = st ? `Next up: ${st.label}` : '';
+    }
     const dashTopTeams = document.getElementById('dashTopTeams');
     if (dashTopTeams) {
       const top25 = this.getCurrentTop25().slice(0, 25);
@@ -4042,210 +4022,10 @@ window.SimEngine = {
     }).join('');
   },
 
-  // Once the postseason starts, the live bracket is the most interesting
-  // thing on the dashboard, so it takes over the top of the tab.
-  updateDashboardBracket() {
-    const el = document.getElementById('dashBracket');
-    const wrap = document.getElementById('dashBracketSection');
-    if (!el || !wrap) return;
 
-    if (this.state.ncaaDone && this.state.ncaaTournament) {
-      wrap.style.display = 'block';
-      const bt = document.getElementById('dashBracketTitle'); if (bt) bt.innerText = 'NCAA TOURNAMENT';
-      el.innerHTML = this.renderBracketVisual(this.state.ncaaTournament, true);
-      return;
-    }
-    if (this.state.confChampsDone && !this.state.ncaaDone) {
-      wrap.style.display = 'block';
-      const bt = document.getElementById('dashBracketTitle'); if (bt) bt.innerText = 'SELECTION DAY — NCAA FIELD';
-      el.innerHTML = this.renderSelectionField();
-      return;
-    }
-    if (this.state.regularSeasonDone && Object.keys(this.state.confTournaments).length > 0) {
-      wrap.style.display = 'block';
-      const bt = document.getElementById('dashBracketTitle'); if (bt) bt.innerText = 'CONFERENCE TOURNAMENTS';
-      const first = Object.entries(this.state.confTournaments)
-        .sort((a, b) => (this.isHighMajor(b[0]) ? 1 : 0) - (this.isHighMajor(a[0]) ? 1 : 0))[0];
-      el.innerHTML = first ? this.renderBracketVisual(first[1], false, first[0]) : '';
-      return;
-    }
-    wrap.style.display = 'none';
-  },
 
-  // Projected NCAA field, shown on Selection Day between the conference
-  // tournaments and the NCAA tournament itself.
-  // Builds the NCAA field as a real four-region bracket. Teams are seeded
-  // 1-68 overall, then distributed across the East, South, West and
-  // Midwest so the top four overall seeds are the 1-seeds in different
-  // regions, the next four are the 2-seeds, and so on — the same snake
-  // the selection committee uses. The last at-large teams drop into the
-  // First Four.
-  buildSeededBracket() {
-    const field = this.buildNCAAField();
-    const REGIONS = ['East', 'South', 'West', 'Midwest'];
-    const autoBids = new Set(Object.values(this.state.confTournaments).map(b => b.champion.school));
 
-    // A 68-team field fills 64 bracket slots: 60 teams are placed
-    // directly and the last 8 pair off in the First Four for the
-    // remaining 4 slots. Those slots are rendered as the matchup itself
-    // rather than a single team, which is how a real bracket shows them
-    // before the play-in games are decided.
-    const SLOTS = 64;
-    const playInGames = Math.max(0, Math.min(4, field.length - SLOTS));
-    const directCount = SLOTS - playInGames;
-    const direct = field.slice(0, directCount);
-    const playInPool = field.slice(directCount);
 
-    const playIn = [];
-    for (let i = 0; i < playInGames; i++) {
-      const a = playInPool[i * 2];
-      const b = playInPool[i * 2 + 1];
-      if (!a || !b) break;
-      playIn.push({
-        teamA: a, teamB: b, seed: 16,
-        autoA: autoBids.has(a.school), autoB: autoBids.has(b.school)
-      });
-    }
-
-    // Build the 64 bracket slots: direct entrants first, then one
-    // First Four placeholder per region on the 16 line.
-    const slots = direct.map(team => ({ type: 'team', team, autoBid: autoBids.has(team.school) }));
-    playIn.forEach(g => slots.push({ type: 'playin', game: g }));
-
-    const regions = {};
-    REGIONS.forEach(r => { regions[r] = []; });
-
-    // Snake the seed lines across regions so the best teams on each line
-    // land in different regions, as the committee does.
-    slots.forEach((slot, i) => {
-      const seedLine = Math.floor(i / 4);
-      const posInLine = i % 4;
-      const regionIdx = seedLine % 2 === 0 ? posInLine : (3 - posInLine);
-      regions[REGIONS[regionIdx]].push({ ...slot, seed: seedLine + 1 });
-    });
-
-    return { regions, REGIONS, playIn, fieldSize: field.length };
-  },
-
-  // Seed-order pairings within a region: 1v16, 8v9, 5v12, 4v13, 6v11,
-  // 3v14, 7v10, 2v15 — the standard first-round arrangement.
-  REGION_PAIR_ORDER: [[1, 16], [8, 9], [5, 12], [4, 13], [6, 11], [3, 14], [7, 10], [2, 15]],
-
-  renderSelectionField() {
-    const { regions, REGIONS, playIn, fieldSize } = this.buildSeededBracket();
-
-    const teamChip = (entry) => {
-      if (!entry) return `<div class="seed-row empty"><span class="seed-num">—</span><span class="seed-name">TBD</span></div>`;
-      if (entry.type === 'playin') {
-        const g = entry.game;
-        return `<div class="seed-row playin-slot" title="First Four winner">
-          <span class="seed-num">${entry.seed}</span>
-          <span class="seed-name">${g.teamA.school} / ${g.teamB.school}</span>
-        </div>`;
-      }
-      const safe = entry.team.school.replace(/'/g, "\\'");
-      return `<div class="seed-row ${entry.autoBid ? 'auto-bid' : ''}" onclick="SimEngine.goToTeamPage('${safe}')" title="${entry.team.school}${entry.autoBid ? ' — automatic bid' : ' — at-large'}">
-        <span class="seed-num">${entry.seed}</span>
-        <img src="${this.getTeamLogo(entry.team.school)}" class="xs-logo">
-        <span class="seed-name">${entry.team.school}</span>
-      </div>`;
-    };
-
-    const regionPanel = (name) => {
-      const bySeed = {};
-      (regions[name] || []).forEach(e => {
-        if (!bySeed[e.seed]) bySeed[e.seed] = e;
-      });
-      const games = this.REGION_PAIR_ORDER.map(([a, b]) => `
-        <div class="seed-matchup">
-          ${teamChip(bySeed[a])}
-          ${teamChip(bySeed[b])}
-        </div>`).join('');
-      return `<div class="bracket-region">
-        <h5 class="region-title">${name}</h5>
-        ${games}
-      </div>`;
-    };
-
-    const firstFour = playIn.length ? `
-      <div class="first-four">
-        <h5 class="region-title">First Four</h5>
-        <div class="first-four-games">
-          ${playIn.map(g => `
-            <div class="seed-matchup">
-              <div class="seed-row ${g.autoA ? 'auto-bid' : ''}" onclick="SimEngine.goToTeamPage('${g.teamA.school.replace(/'/g, "\\'")}')">
-                <span class="seed-num">${g.seed}</span>
-                <img src="${this.getTeamLogo(g.teamA.school)}" class="xs-logo">
-                <span class="seed-name">${g.teamA.school}</span>
-              </div>
-              <div class="seed-row ${g.autoB ? 'auto-bid' : ''}" onclick="SimEngine.goToTeamPage('${g.teamB.school.replace(/'/g, "\\'")}')">
-                <span class="seed-num">${g.seed}</span>
-                <img src="${this.getTeamLogo(g.teamB.school)}" class="xs-logo">
-                <span class="seed-name">${g.teamB.school}</span>
-              </div>
-            </div>`).join('')}
-        </div>
-      </div>` : '';
-
-    // Four-corner layout: the two left regions feed one semifinal and the
-    // two right regions the other, meeting at the Final Four in the middle.
-    return `
-      <p class="sub-text mb-1">${fieldSize} teams are in. Gold-marked teams earned automatic bids by winning their conference tournament; the rest are at-large selections.</p>
-      <div class="ncaa-bracket-grid">
-        ${regionPanel(REGIONS[0])}
-        ${regionPanel(REGIONS[1])}
-        <div class="final-four-hub">
-          <div class="ff-label">Final Four</div>
-          <div class="ff-trophy">🏆</div>
-          <div class="ff-sub">National Championship</div>
-        </div>
-        ${regionPanel(REGIONS[2])}
-        ${regionPanel(REGIONS[3])}
-      </div>
-      ${firstFour}`;
-  },
-
-  // Draws a real bracket: one column per round, matchups stacked inside,
-  // with the winner of each game highlighted.
-  renderBracketVisual(bracket, isNcaa, confName) {
-    if (!bracket || !bracket.rounds || bracket.rounds.length === 0) return '<p class="sub-text">No bracket yet.</p>';
-
-    const roundNames = isNcaa
-      ? ['Round of 64', 'Round of 32', 'Sweet 16', 'Elite 8', 'Final Four', 'Championship']
-      : ['Round 1', 'Quarterfinals', 'Semifinals', 'Final'];
-    const offset = isNcaa ? 0 : Math.max(0, roundNames.length - bracket.rounds.length);
-
-    const gameEl = (g) => {
-      const aWon = g.winner === g.teamA;
-      const teamRow = (team, score, won) => `
-        <div class="bracket-team ${won ? 'winner' : ''}" onclick="SimEngine.goToTeamPage('${team.school.replace(/'/g, "\\'")}')">
-          <img src="${this.getTeamLogo(team.school)}" class="xs-logo">
-          <span class="bracket-team-name">${team.school}</span>
-          <span class="bracket-team-score">${score}</span>
-        </div>`;
-      return `<div class="bracket-game-card">
-        ${teamRow(g.teamA, g.result.homeScore, aWon)}
-        ${teamRow(g.teamB, g.result.awayScore, !aWon)}
-      </div>`;
-    };
-
-    let html = '';
-    if (confName) html += `<h5 class="bracket-conf-title">${this.getConferenceLogoImg(confName, 'conf-logo-sm')} ${confName}</h5>`;
-    if (bracket.playIn && bracket.playIn.length) {
-      html += `<div class="bracket-round">
-        <div class="bracket-round-title">${isNcaa ? 'First Four' : 'Play-In'}</div>
-        ${bracket.playIn.map(gameEl).join('')}
-      </div>`;
-    }
-    html += bracket.rounds.map((round, i) => `
-      <div class="bracket-round">
-        <div class="bracket-round-title">${roundNames[i + offset] || `Round ${i + 1}`}</div>
-        ${round.map(gameEl).join('')}
-      </div>`).join('');
-
-    return `<div class="bracket-scroll"><div class="bracket-columns">${html}</div></div>
-      <div class="bracket-champion">🏆 ${bracket.champion.school}</div>`;
-  },
 
   populateDashList(elementId, statKey) {
     const el = document.getElementById(elementId);
@@ -4343,7 +4123,7 @@ window.SimEngine = {
       const safeSchool = t.school.replace(/'/g, "\\'");
       html += `<tr ${hidden}>
         <td class="rank-cell">#${idx + 1}</td>
-        <td><div class="team-cell-wrap clickable-school" onclick="SimEngine.setTeamPageSelection('${safeSchool}')">
+        <td><div class="team-cell-wrap clickable-school" onclick="SimEngine.goToTeamPage('${safeSchool}')">
           <img src="${this.getTeamLogo(t.school)}" class="sm-logo"><span class="team-name-cell">${t.school}</span></div></td>
         <td class="sub-text">${t.conference || 'NCAA'}</td>
         <td class="sub-text">${(t.simData.teamOvr || 0).toFixed(1)}</td>
@@ -4960,6 +4740,11 @@ window.SimEngine = {
         const result = g.teamScore !== undefined
           ? `<span class="${g.won ? 'win-text' : 'loss-text'}">${g.won ? 'W' : 'L'}</span> ${g.teamScore}-${g.oppScore}`
           : '—';
+        if (!(g.min > 0)) {
+          glRows += `<tr class="dnp-row"><td class="sub-text-sm">${matchup}</td><td class="sub-text-sm">${result}</td>
+            <td colspan="11" class="sub-text-sm">Did not play</td></tr>`;
+          return;
+        }
         glRows += `<tr>
           <td class="sub-text-sm">${matchup}</td>
           <td class="sub-text-sm">${result}</td>
@@ -5155,47 +4940,640 @@ window.SimEngine = {
     this.updateScheduleTab();
   },
 
+
+  // ============================================================
+  // NCAA selection, bracketology and the tournament bracket
+  //
+  // One selection routine serves the whole year. During the season it
+  // runs on projected automatic bids (each conference's current leader)
+  // to produce live bracketology; after the conference tournaments it
+  // runs on the real champions and becomes the actual bracket, which is
+  // what the NCAA Tournament is played from — so the bracket you see on
+  // Selection Sunday is exactly the bracket that gets played.
+  // ============================================================
+
+  REGIONS: ['East', 'South', 'West', 'Midwest'],
+
+  // Seed-order pairings within a region: 1v16, 8v9, 5v12, 4v13, 6v11,
+  // 3v14, 7v10, 2v15 — the standard first-round arrangement.
+  REGION_PAIR_ORDER: [[1, 16], [8, 9], [5, 12], [4, 13], [6, 11], [3, 14], [7, 10], [2, 15]],
+
+  NCAA_ROUND_NAMES: ['First Round', 'Second Round', 'Sweet 16', 'Elite Eight', 'Final Four', 'National Championship'],
+
+  // A team's résumé for selection and seeding: how much it has won, how
+  // strong it is, and the quality of the league it won in.
+  resumeScore(t) {
+    const sd = t.simData || {};
+    const w = sd.wins || 0, l = sd.losses || 0;
+    const gp = w + l;
+    const winPct = gp ? w / gp : 0.5;
+    const league = this.isHighMajor(t.conference) ? 4 : 0;
+    const sos = t.sosRank ? (180 - Math.min(360, t.sosRank)) / 60 : 0;
+    return (w - l) * 0.9 + winPct * 10 + ((sd.teamOvr || 70) - 72) * 0.9 + league + sos;
+  },
+
+  // Conference tournament champions once they're decided; until then,
+  // each conference's current leader stands in as its projected bid.
+  autoBidTeams(projected) {
+    if (!projected && Object.keys(this.state.confTournaments || {}).length) {
+      return Object.values(this.state.confTournaments)
+        .map(b => this.state.teams.find(t => t.school === (b.champion && b.champion.school)))
+        .filter(Boolean);
+    }
+    const byConf = {};
+    this.state.teams.forEach(t => { (byConf[t.conference || 'Independent'] = byConf[t.conference || 'Independent'] || []).push(t); });
+    return Object.values(byConf).filter(list => list.length >= 2).map(list => [...list].sort((a, b) =>
+      (b.simData.confWins - b.simData.confLosses) - (a.simData.confWins - a.simData.confLosses)
+      || b.simData.wins - a.simData.wins
+      || this.resumeScore(b) - this.resumeScore(a))[0]);
+  },
+
+  // Picks and seeds the field. Returns plain data (school names), so it
+  // can be saved with the league and redrawn at any time.
+  buildSelection(projected = false) {
+    const autoTeams = this.autoBidTeams(projected);
+    const auto = new Set(autoTeams.map(t => t.school));
+    const byResume = (a, b) => this.resumeScore(b) - this.resumeScore(a);
+    const pool = this.state.teams.filter(t => !auto.has(t.school)).sort(byResume);
+    const target = Math.max(autoTeams.length, Math.min(68, Math.round(this.state.teams.length * 0.19)));
+    const atLargeCount = Math.max(0, target - autoTeams.length);
+    const atLarge = pool.slice(0, atLargeCount);
+    const field = [...autoTeams, ...atLarge].sort(byResume);
+    const rank = {};
+    field.forEach((t, i) => { rank[t.school] = i; });
+
+    // First Four: the last four at-large teams play for two spots, and the
+    // four lowest-rated automatic qualifiers play for two more.
+    const playInGames = Math.max(0, Math.min(4, field.length - 64));
+    const atLargeGames = Math.ceil(playInGames / 2), autoGames = playInGames - atLargeGames;
+    const lastIn = atLargeGames ? atLarge.slice(-atLargeGames * 2) : [];
+    const lowAuto = autoGames ? autoTeams.slice().sort(byResume).slice(-autoGames * 2) : [];
+    const inPlayIn = new Set();
+    const firstFour = [];
+    const pairUp = (list, kind) => {
+      for (let i = 0; i + 1 < list.length && firstFour.length < playInGames; i += 2) {
+        const a = list[i], b = list[i + 1];
+        inPlayIn.add(a.school); inPlayIn.add(b.school);
+        firstFour.push({ id: `ff${firstFour.length + 1}`, kind, teams: [a.school, b.school],
+          rank: Math.min(rank[a.school], rank[b.school]) });
+      }
+    };
+    pairUp(lastIn.slice().sort(byResume), 'at-large');
+    pairUp(lowAuto, 'automatic');
+
+    // 64 bracket lines: direct entrants plus one line per First Four game,
+    // in résumé order, dealt onto seed lines four at a time and snaked
+    // across the regions the way the committee does it.
+    const lines = field.filter(t => !inPlayIn.has(t.school))
+      .map(t => ({ school: t.school, auto: auto.has(t.school), rank: rank[t.school] }))
+      .concat(firstFour.map(g => ({ playin: g.id, teams: g.teams, rank: g.rank + 0.5 })))
+      .sort((a, b) => a.rank - b.rank)
+      .slice(0, 64);
+    const regions = {};
+    this.REGIONS.forEach(r => { regions[r] = []; });
+    lines.forEach((line, i) => {
+      const seedLine = Math.floor(i / 4);
+      const pos = i % 4;
+      const regionIdx = seedLine % 2 === 0 ? pos : 3 - pos;
+      const region = this.REGIONS[regionIdx];
+      const entry = { ...line, seed: seedLine + 1, region };
+      delete entry.rank;
+      regions[region].push(entry);
+      if (entry.playin) firstFour.find(g => g.id === entry.playin).seed = entry.seed;
+      if (entry.playin) firstFour.find(g => g.id === entry.playin).region = region;
+    });
+
+    const autoBids = {};
+    autoTeams.forEach(t => { autoBids[t.conference || 'Independent'] = t.school; });
+    const bids = {};
+    field.forEach(t => { const c = t.conference || 'Independent'; bids[c] = (bids[c] || 0) + 1; });
+
+    return {
+      projected, year: this.state.year, week: this.state.week,
+      regions, order: [...this.REGIONS],
+      firstFour: firstFour.map(({ rank: _r, ...g }) => g),
+      autoBids, bids,
+      fieldSize: field.length,
+      seedList: field.map(t => t.school),
+      lastFourIn: atLarge.slice(-4).map(t => t.school),
+      firstFourOut: pool.slice(atLargeCount, atLargeCount + 4).map(t => t.school),
+      nextFourOut: pool.slice(atLargeCount + 4, atLargeCount + 8).map(t => t.school)
+    };
+  },
+
+  // Seeds (1-16) and regions by school for a selection, for drawing.
+  selectionSeeds(sel) {
+    const map = {};
+    if (!sel) return map;
+    Object.values(sel.regions).forEach(list => list.forEach(e => {
+      if (e.school) map[e.school] = { seed: e.seed, region: e.region, auto: e.auto };
+      else (e.teams || []).forEach(s => { map[s] = { seed: e.seed, region: e.region, playin: true }; });
+    }));
+    return map;
+  },
+
+  // Kept for code that asks for the field as team objects.
+  buildNCAAField() {
+    const sel = this.state.ncaaSelection || this.buildSelection(false);
+    return sel.seedList.map(s => this.state.teams.find(t => t.school === s)).filter(Boolean);
+  },
+
+  // ---------- Playing the tournament ----------
+
+  // One round per click: First Four with the opening round, then each
+  // round is drawn from the previous round's winners.
+  async simulateNCAATournament() {
+    if (!this.state.ncaaSelection || this.state.ncaaSelection.projected) {
+      this.state.ncaaSelection = this.buildSelection(false);
+    }
+    const sel = this.state.ncaaSelection;
+    const bySchool = s => this.state.teams.find(t => t.school === (s && s.school ? s.school : s));
+    const play = (a, b) => {
+      const result = GameCore.simulateSingleGame(a, b, { homeCourtEdge: 0 });
+      const game = { teamA: a, teamB: b, result, winner: result.homeScore > result.awayScore ? a : b };
+      this.attachBracketGameLogs(game, 'ncaa');
+      return game;
+    };
+    const pairs = teams => {
+      const round = [];
+      for (let i = 0; i + 1 < teams.length; i += 2) round.push(play(teams[i], teams[i + 1]));
+      return round;
+    };
+
+    if (!this.state.ncaaTournament) {
+      const seeds = this.selectionSeeds(sel);
+      this.state.teams.forEach(t => { t.ncaaSeed = seeds[t.school] ? seeds[t.school].seed : null; });
+      const view = { playIn: [], rounds: [], champion: null };
+      const ffWinner = {};
+      sel.firstFour.forEach(g => {
+        const game = play(bySchool(g.teams[0]), bySchool(g.teams[1]));
+        game.seed = g.seed; game.region = g.region;
+        view.playIn.push(game);
+        ffWinner[g.id] = game.winner;
+      });
+      const entrants = [];
+      sel.order.forEach(region => {
+        const bySeed = {};
+        sel.regions[region].forEach(e => { bySeed[e.seed] = e; });
+        this.REGION_PAIR_ORDER.forEach(pair => pair.forEach(seed => {
+          const e = bySeed[seed];
+          entrants.push(e ? (e.playin ? ffWinner[e.playin] : bySchool(e.school)) : null);
+        }));
+      });
+      view.rounds.push(pairs(entrants.filter(Boolean)));
+      this.state.ncaaTournament = view;
+    } else if (!this.state.ncaaTournament.champion) {
+      const view = this.state.ncaaTournament;
+      const last = view.rounds[view.rounds.length - 1];
+      view.rounds.push(pairs(last.map(g => bySchool(g.winner))));
+    }
+
+    const view = this.state.ncaaTournament;
+    const lastRound = view.rounds[view.rounds.length - 1];
+    const finished = lastRound.length === 1 && view.rounds.length > 1;
+    this.recalculateAllAverages();
+
+    if (!finished) {
+      const next = this.NCAA_ROUND_NAMES[view.rounds.length] || 'Next Round';
+      this.state.phase = `NCAA Tournament — ${next}`;
+      await this.saveStateToDB();
+      this.syncUI();
+      this.logNews(`${this.NCAA_ROUND_NAMES[view.rounds.length - 1] || 'Round'} complete.`);
+      return;
+    }
+
+    view.champion = bySchool(lastRound[0].winner);
+    view.champion.wonNationalTitle = true;
+
+    this.state.ncaaDone = true;
+    this.state.simCompleted = true;
+    this.state.phase = `National Champion: ${view.champion.school}`;
+    this.state.draftDeclarations = this.computeDraftDeclarations();
+    await this.saveStateToDB();
+    this.syncUI();
+    this.logNews(`${view.champion.school} wins the National Championship!`);
+    // The season's over: the offseason screen takes over straight away,
+    // starting with the champion.
+    this.openOffseason('champion');
+  },
+
+  // ---------- Drawing brackets ----------
+
+  esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); },
+  jsArg(s) { return String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'"); },
+
+  // One line of a bracket: seed, team, score. `state` is 'win', 'loss'
+  // or '' for a game not played yet; a missing team draws an empty line.
+  // Broadcast-style short names ("S. Florida", "Tenn. St.") for the tight
+  // NCAA bracket columns. The full name stays in the tooltip, and wider
+  // layouts (conference brackets, the First Four strip) show it in full.
+  SHORT_SCHOOL: {
+    'Texas A&M-Corpus Christi': 'A&M-CC', 'Mississippi Valley State': 'MVSU', 'Fairleigh Dickinson': 'FDU',
+    'Queens of Charlotte': 'Queens', 'Stephen F. Austin': 'SFA', 'Florida Gulf Coast': 'FGCU', 'Florida Atlantic': 'FAU',
+    'George Washington': 'G. Washington', 'Loyola Marymount': 'LMU', 'Purdue Fort Wayne': 'Purdue FW',
+    'North Carolina A&T': 'NC A&T', 'Arkansas-Pine Bluff': 'UAPB', 'Southeast Missouri': 'SE Missouri',
+    'Southeastern Louisiana': 'SE Louisiana', 'Charleston Southern': 'Charleston So.', 'Cal State Northridge': 'CSUN',
+    'Cal State Fullerton': 'CS Fullerton', 'Central Connecticut': 'C. Conn. St.', 'Illinois Chicago': 'UIC',
+    'SIU Edwardsville': 'SIUE', 'UC Santa Barbara': 'UCSB', 'Middle Tennessee': 'Middle Tenn.', 'Houston Christian': 'Houston Chr.',
+    'Abilene Christian': 'Abilene Chr.', 'Mount St. Mary\'s': 'Mt. St. Mary\'s', 'Prairie View A&M': 'Prairie View',
+    'Bethune-Cookman': 'B-Cookman', 'Sam Houston State': 'Sam Houston', 'Austin Peay State': 'Austin Peay',
+    'Nebraska Omaha': 'Omaha', 'Incarnate Word': 'Incarnate Wd.', 'LSU New Orleans': 'New Orleans', 'Loyola Maryland': 'Loyola MD',
+    'Loyola Chicago': 'Loyola Chi.', 'Connecticut': 'UConn', 'Jacksonville State': 'Jax State', 'Northwestern State': 'NW State',
+    'Georgia Southern': 'Ga. Southern', 'Louisiana-Monroe': 'UL Monroe', 'Appalachian State': 'App State', 'New Mexico State': 'NM State',
+    'Youngstown State': 'Youngstown', 'Pennsylvania': 'Penn', 'Mississippi State': 'Miss. State', 'Washington State': 'Wash. State', 'Virginia Commonwealth': 'VCU', 'Brigham Young': 'BYU'
+  },
+  shortSchool(name) {
+    if (!name) return '';
+    if (this.SHORT_SCHOOL[name]) return this.SHORT_SCHOOL[name];
+    if (name.length <= 11) return name;
+    let n = name.replace(/ State$/, ' St.').replace(/^Saint /, 'St. ')
+      .replace(/^North(ern)? /, 'N. ').replace(/^South(ern)? /, 'S. ').replace(/^East(ern)? /, 'E. ')
+      .replace(/^West(ern)? /, 'W. ').replace(/^Central /, 'C. ');
+    if (n.length > 12) n = n.replace(/^California /, 'Cal ').replace(/^Mississippi /, 'Miss. ').replace(/^Tennessee /, 'Tenn. ')
+      .replace(/^Louisiana /, 'La. ').replace(/^Washington /, 'Wash. ').replace(/^Oklahoma /, 'Okla. ').replace(/Carolina$/, 'Car.');
+    return n;
+  },
+  bracketName(school) {
+    const full = this.esc(school), short = this.shortSchool(school);
+    return short === school ? full : `<span class="nb-full">${full}</span><span class="nb-short">${this.esc(short)}</span>`;
+  },
+
+  bracketTeamRow(school, seed, score, state, opts = {}) {
+    if (!school) return `<div class="nb-team empty"><span class="nb-seed">${seed || ''}</span><span class="nb-name">&nbsp;</span></div>`;
+    const click = opts.noLink ? '' : ` onclick="SimEngine.goToTeamPage('${this.jsArg(school)}')"`;
+    return `<div class="nb-team ${state || ''}${opts.auto ? ' auto' : ''}"${click} title="${this.esc(school)}">
+      <span class="nb-seed">${seed || ''}</span>
+      ${opts.logo === false ? '' : `<img src="${this.getTeamLogo(school)}" class="nb-logo" alt="" loading="lazy">`}
+      <span class="nb-name">${opts.label ? this.esc(opts.label) : this.bracketName(school)}</span>
+      ${score != null ? `<span class="nb-score">${score}</span>` : ''}
+    </div>`;
+  },
+
+  bracketGameBox(slotA, slotB, game, seeds, extraClass = '') {
+    const name = x => (x && x.school) ? x.school : (typeof x === 'string' ? x : null);
+    const a = game ? game.teamA.school : name(slotA);
+    const b = game ? game.teamB.school : name(slotB);
+    const aWon = game ? game.winner.school === a : null;
+    const seedOf = s => (s && seeds[s] ? seeds[s].seed : '');
+    const row = (school, slot, score, won) => {
+      if (!game && slot && slot.label) return this.bracketTeamRow(school || slot.label, slot.seed, null, '', { label: slot.label, noLink: !school, logo: !!school });
+      return this.bracketTeamRow(school, school ? seedOf(school) : (slot && slot.seed), score, game ? (won ? 'win' : 'loss') : '', { auto: school && seeds[school] && seeds[school].auto });
+    };
+    return `<div class="nb-game ${extraClass}">
+      ${row(a, slotA, game ? game.result.homeScore : null, aWon)}
+      ${row(b, slotB, game ? game.result.awayScore : null, game ? !aWon : null)}
+    </div>`;
+  },
+
+  // The NCAA bracket drawn the way it's printed: two regions down each
+  // side feeding inward, the Final Four and title game in the middle.
+  // Works for a projection (no games yet), Selection Sunday, and every
+  // round of the tournament as it's played.
+  renderNcaaBracket(sel, view, opts = {}) {
+    if (!sel) return '<p class="sub-text">No bracket yet.</p>';
+    const seeds = this.selectionSeeds(sel);
+    const rounds = (view && view.rounds) || [];
+    const ffGames = {};
+    ((view && view.playIn) || []).forEach((g, i) => { if (sel.firstFour[i]) ffGames[sel.firstFour[i].id] = g; });
+
+    // Opening-round slots per region, in bracket order.
+    const slotFor = e => {
+      if (!e) return null;
+      if (e.playin) {
+        const g = ffGames[e.playin];
+        if (g) return { school: g.winner.school, seed: e.seed };
+        const ff = sel.firstFour.find(x => x.id === e.playin);
+        return { seed: e.seed, label: ff ? `${ff.teams[0]} / ${ff.teams[1]}` : 'First Four' };
+      }
+      return { school: e.school, seed: e.seed };
+    };
+    const r64Slots = [];
+    sel.order.forEach(region => {
+      const bySeed = {};
+      sel.regions[region].forEach(e => { bySeed[e.seed] = e; });
+      this.REGION_PAIR_ORDER.forEach(([a, b]) => { r64Slots.push(slotFor(bySeed[a]), slotFor(bySeed[b])); });
+    });
+
+    // Game g of round r: the played game if there is one, otherwise the
+    // two teams who will meet there (known once the feeder games are done).
+    const gameAt = (r, i) => (rounds[r] && rounds[r][i]) || null;
+    const slotsAt = (r, i) => {
+      if (r === 0) return [r64Slots[i * 2], r64Slots[i * 2 + 1]];
+      const f1 = gameAt(r - 1, i * 2), f2 = gameAt(r - 1, i * 2 + 1);
+      return [f1 ? { school: f1.winner.school } : null, f2 ? { school: f2.winner.school } : null];
+    };
+    const box = (r, i, cls = '') => {
+      const [sa, sb] = slotsAt(r, i);
+      return this.bracketGameBox(sa, sb, gameAt(r, i), seeds, cls);
+    };
+
+    // A side: the four regional rounds for two stacked regions, then that
+    // side's Final Four game.
+    const side = (regionIdxs, dir) => {
+      const ffIdx = dir === 'left' ? 0 : 1;
+      const ffGame = (() => { const [sa, sb] = slotsAt(4, ffIdx); return this.bracketGameBox(sa, sb, gameAt(4, ffIdx), seeds, 'nb-ff'); })();
+      const cols = [0, 1, 2, 3].map(r => {
+        const perRegion = 8 >> r;                   // games per region in this round
+        if (r === 3) {
+          // Elite Eight: one game per region, paired across the two regions.
+          return `<div class="nb-col"><div class="nb-pair">${regionIdxs.map(ri => box(3, ri)).join('')}</div></div>`;
+        }
+        const blocks = regionIdxs.map(ri => {
+          const games = [];
+          for (let g = 0; g < perRegion; g++) games.push(box(r, ri * perRegion + g));
+          const pairsHtml = [];
+          for (let p = 0; p < games.length; p += 2) pairsHtml.push(`<div class="nb-pair">${games[p]}${games[p + 1]}</div>`);
+          const label = r === 0 ? `<div class="nb-region-label">${sel.order[ri]}</div>` : '';
+          return `<div class="nb-region">${label}${pairsHtml.join('')}</div>`;
+        }).join('');
+        return `<div class="nb-col">${blocks}</div>`;
+      });
+      cols.push(`<div class="nb-col nb-col-ff"><div class="nb-col-label">Final Four</div><div class="nb-single">${ffGame}</div></div>`);
+      return `<div class="nb-side nb-${dir}">${cols.join('')}</div>`;
+    };
+
+    const [ca, cb] = slotsAt(5, 0);
+    const title = gameAt(5, 0);
+    const champ = view && view.champion ? view.champion.school : (title ? title.winner.school : null);
+    const center = `<div class="nb-center">
+      <div class="nb-final">
+        <div class="nb-final-label">National Championship</div>
+        ${this.bracketGameBox(ca, cb, title, seeds, 'nb-title')}
+        <div class="nb-champion">
+          <div class="nb-champion-label">Champion</div>
+          <div class="nb-champion-box">${champ ? `<img src="${this.getTeamLogo(champ)}" class="nb-champ-logo" alt=""><span>${this.esc(champ)}</span>` : ''}</div>
+        </div>
+      </div>
+    </div>`;
+
+    const firstFour = sel.firstFour.length ? `<div class="nb-first-four">
+      <div class="nb-ff-title">First Four</div>
+      <div class="nb-ff-games">${sel.firstFour.map((g, i) => {
+        const played = view && view.playIn && view.playIn[i];
+        return `<div class="nb-ff-item"><span class="nb-ff-meta">${g.region || ''} · ${g.seed || ''} seed</span>
+          ${this.bracketGameBox({ school: g.teams[0], seed: g.seed }, { school: g.teams[1], seed: g.seed }, played, seeds)}</div>`;
+      }).join('')}</div>
+    </div>` : '';
+
+    return `<div class="nb-scroll nb-wide"><div class="nb-bracket nb-ncaa">
+        ${side([0, 1], 'left')}
+        ${center}
+        ${side([2, 3], 'right')}
+      </div></div>
+      ${opts.hideFirstFour ? '' : firstFour}`;
+  },
+
+  // Conference tournament as a real bracket: seeds, byes for the top
+  // seeds, and lines joining each game to the next.
+  renderConfBracket(bracket, confName) {
+    if (!bracket || !bracket.rounds || !bracket.rounds.length) return '<p class="sub-text">No bracket yet.</p>';
+    const seeds = {};
+    const seedMap = bracket.seeds || {};
+    Object.keys(seedMap).forEach(s => { seeds[s] = { seed: seedMap[s] }; });
+    const names = ['First Round', 'Quarterfinals', 'Semifinals', 'Championship'];
+    const cols = [];
+    const first = bracket.rounds[0] || [];
+    // Play-in games feed the opening round; teams with a bye skip them.
+    if (bracket.playIn && bracket.playIn.length) {
+      const slots = [];
+      first.forEach(g => [g.teamA, g.teamB].forEach(t => {
+        const pi = bracket.playIn.find(p => p.winner.school === t.school);
+        slots.push(pi ? this.bracketGameBox(null, null, pi, seeds)
+          : `<div class="nb-game nb-bye">${this.bracketTeamRow(t.school, seeds[t.school] && seeds[t.school].seed, null, '', {})}<div class="nb-team nb-bye-line"><span class="nb-seed"></span><span class="nb-name">Bye</span></div></div>`);
+      }));
+      const pairsHtml = [];
+      for (let i = 0; i < slots.length; i += 2) pairsHtml.push(`<div class="nb-pair">${slots[i]}${slots[i + 1] || ''}</div>`);
+      cols.push({ title: 'Opening Round', html: pairsHtml.join('') });
+    }
+    bracket.rounds.forEach((round, r) => {
+      const games = round.map(g => this.bracketGameBox(null, null, g, seeds));
+      let html;
+      if (games.length === 1) html = `<div class="nb-single">${games[0]}</div>`;
+      else {
+        const pairsHtml = [];
+        for (let i = 0; i < games.length; i += 2) pairsHtml.push(`<div class="nb-pair">${games[i]}${games[i + 1] || ''}</div>`);
+        html = pairsHtml.join('');
+      }
+      const fromEnd = bracket.rounds.length - 1 - r;
+      cols.push({ title: fromEnd < 3 ? names[3 - fromEnd] : `Round ${r + 1}`, html });
+    });
+    const champ = bracket.champion && bracket.champion.school;
+    return `<div class="conf-bracket">
+      ${confName ? `<h5 class="bracket-conf-title">${this.getConferenceLogoImg(confName, 'conf-logo-sm')} ${this.esc(confName)} Tournament</h5>` : ''}
+      <div class="nb-scroll"><div class="nb-bracket nb-conf">
+        <div class="nb-side nb-left">${cols.map(c => `<div class="nb-col"><div class="nb-col-title">${c.title}</div><div class="nb-col-body">${c.html}</div></div>`).join('')}</div>
+        ${champ ? `<div class="nb-conf-champ"><div class="nb-champion-label">Champion</div><div class="nb-champion-box"><img src="${this.getTeamLogo(champ)}" class="nb-champ-logo" alt=""><span>${this.esc(champ)}</span></div></div>` : ''}
+      </div></div>
+    </div>`;
+  },
+
+  // Kept as the single entry point older code calls.
+  renderBracketVisual(bracket, isNcaa, confName) {
+    if (isNcaa) return this.renderNcaaBracket(this.state.ncaaSelection, bracket);
+    return this.renderConfBracket(bracket, confName);
+  },
+
+  // ---------- Bracketology ----------
+
+  renderSeedList(sel) {
+    const seeds = this.selectionSeeds(sel);
+    const lines = {};
+    Object.values(sel.regions).forEach(list => list.forEach(e => { (lines[e.seed] = lines[e.seed] || []).push(e); }));
+    const chip = e => {
+      if (e.playin) {
+        const g = sel.firstFour.find(x => x.id === e.playin);
+        return `<span class="bl-team bl-playin" title="First Four">${g.teams.map(s => this.esc(s)).join(' / ')}</span>`;
+      }
+      return `<span class="bl-team${e.auto ? ' bl-auto' : ''}" onclick="SimEngine.goToTeamPage('${this.jsArg(e.school)}')" title="${this.esc(e.school)} — ${e.region}${e.auto ? ', automatic bid' : ''}">
+        <img src="${this.getTeamLogo(e.school)}" class="xs-logo" alt="" loading="lazy">${this.esc(e.school)}</span>`;
+    };
+    const rows = Object.keys(lines).map(Number).sort((a, b) => a - b).map(seed => `
+      <div class="bl-row"><span class="bl-seed">${seed}</span><div class="bl-teams">${lines[seed].map(chip).join('')}</div></div>`).join('');
+    const bubble = (title, list, cls) => `<div class="bl-bubble ${cls}"><h5>${title}</h5>${list.length ? list.map(s => `<span class="bl-team" onclick="SimEngine.goToTeamPage('${this.jsArg(s)}')"><img src="${this.getTeamLogo(s)}" class="xs-logo" alt="" loading="lazy">${this.esc(s)}</span>`).join('') : '<span class="sub-text">—</span>'}</div>`;
+    void seeds;
+    return `<div class="bl-grid">
+      <div class="bl-lines">${rows}</div>
+      <div class="bl-side">
+        ${bubble('Last Four In', sel.lastFourIn, 'in')}
+        ${bubble('First Four Out', sel.firstFourOut, 'out')}
+        ${bubble('Next Four Out', sel.nextFourOut, 'out')}
+      </div>
+    </div>`;
+  },
+
+  // Each conference's (projected) automatic bid and how many teams it
+  // has in the field — the standings picture that decides the bracket.
+  renderConferencePicture(sel) {
+    const rows = Object.keys(sel.autoBids).sort((a, b) => (sel.bids[b] || 0) - (sel.bids[a] || 0) || a.localeCompare(b)).map(conf => {
+      const s = sel.autoBids[conf];
+      const t = this.state.teams.find(x => x.school === s);
+      return `<tr>
+        <td><span class="conf-cell">${this.getConferenceLogoImg(conf, 'conf-logo-sm')} ${this.esc(conf)}</span></td>
+        <td><div class="team-cell-wrap clickable-school" onclick="SimEngine.goToTeamPage('${this.jsArg(s)}')"><img src="${this.getTeamLogo(s)}" class="xs-logo" alt=""><span>${this.esc(s)}</span></div></td>
+        <td class="sub-text">${t ? `${t.simData.wins}-${t.simData.losses} (${t.simData.confWins}-${t.simData.confLosses})` : ''}</td>
+        <td class="bold-text">${sel.bids[conf] || 1}</td>
+      </tr>`;
+    }).join('');
+    return `<div class="table-scroll"><table class="data-table">
+      <thead><tr><th>Conference</th><th>${sel.projected ? 'Projected auto bid' : 'Automatic bid'}</th><th>Record (Conf)</th><th>Bids</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+  },
+
   updatePostseasonTab() {
     const container = document.getElementById('postseasonContainer');
     if (!container) return;
-
-    if (!this.state.regularSeasonDone) {
-      container.innerHTML = `<p class="empty-table-msg">Complete the regular season to unlock Conference Championships and the NCAA Tournament.</p>`;
+    if (!this.state.teams.length) {
+      container.innerHTML = `<p class="empty-table-msg">Start a save to see bracketology.</p>`;
       return;
     }
 
     let html = '';
+    const actual = this.state.confChampsDone && this.state.ncaaSelection && !this.state.ncaaSelection.projected;
 
-    // The national bracket is the headline event, so it sits at the top
-    // as soon as it exists.
     if (this.state.ncaaTournament) {
-      html += `<h4 class="award-section-title">NCAA Tournament</h4>`;
-      html += this.renderBracketVisual(this.state.ncaaTournament, true);
-    } else if (this.state.confChampsDone) {
-      html += `<h4 class="award-section-title">Selection Day</h4>`;
-      html += this.renderSelectionField();
+      html += `<div class="flex-between wrap-gap mb-1"><h4 class="award-section-title">NCAA Tournament</h4>
+        <button class="sim-btn sim-btn-secondary btn-sm" onclick="SimEngine.playSelectionShow()">Replay Selection Sunday</button></div>`;
+      html += this.renderNcaaBracket(this.state.ncaaSelection, this.state.ncaaTournament);
+    } else if (actual) {
+      const sel = this.state.ncaaSelection;
+      html += `<div class="flex-between wrap-gap mb-1"><div><h4 class="award-section-title">Selection Sunday</h4>
+        <p class="sub-text">The field of ${sel.fieldSize} is set. Gold marks an automatic bid.</p></div>
+        <button class="sim-btn btn-sm" onclick="SimEngine.playSelectionShow()">Watch the Selection Show</button></div>`;
+      html += this.renderNcaaBracket(sel, null);
+      html += `<h4 class="award-section-title mt-2">Seed List</h4>${this.renderSeedList(sel)}`;
+    } else {
+      // Live bracketology: re-run after every week of games.
+      const sel = this.buildSelection(true);
+      const when = this.state.week === 0 ? 'Preseason projection' : this.state.regularSeasonDone
+        ? 'Final projection before the conference tournaments' : `Projected through Week ${this.state.week}`;
+      html += `<div class="bracketology-head">
+        <div><p class="sub-text">${when}. Updates after every week. Conference leaders hold the projected automatic bids; everyone else is ranked on record, strength and schedule.</p></div>
+      </div>`;
+      html += `<h4 class="award-section-title mt-1">Projected Seed List</h4>${this.renderSeedList(sel)}`;
+      html += `<h4 class="award-section-title mt-2">Projected Bracket</h4>${this.renderNcaaBracket(sel, null, { hideFirstFour: false })}`;
+      html += `<h4 class="award-section-title mt-2">Conference Picture</h4>${this.renderConferencePicture(sel)}`;
     }
 
-    const entries = Object.entries(this.state.confTournaments);
-    if (entries.length === 0) {
-      html += `<h4 class="award-section-title mt-2">Conference Championships</h4><p class="sub-text">Not yet simulated.</p>`;
-    } else {
-      // High majors first, then everyone else alphabetically.
+    const entries = Object.entries(this.state.confTournaments || {});
+    if (entries.length) {
       entries.sort((a, b) => {
         const ha = this.isHighMajor(a[0]) ? 0 : 1;
         const hb = this.isHighMajor(b[0]) ? 0 : 1;
-        if (ha !== hb) return ha - hb;
-        return a[0].localeCompare(b[0]);
+        return ha - hb || a[0].localeCompare(b[0]);
       });
-      html += `<h4 class="award-section-title mt-2">Conference Championships</h4>`;
+      html += `<h4 class="award-section-title mt-2">Conference Tournaments</h4>`;
       entries.forEach(([confName, bracket]) => {
-        html += `<div class="conf-bracket-block ${this.isHighMajor(confName) ? 'high-major' : ''}">
-          ${this.renderBracketVisual(bracket, false, confName)}
-        </div>`;
+        html += `<div class="conf-bracket-block ${this.isHighMajor(confName) ? 'high-major' : ''}">${this.renderConfBracket(bracket, confName)}</div>`;
       });
+    } else if (actual || this.state.regularSeasonDone) {
+      html += `<h4 class="award-section-title mt-2">Conference Tournaments</h4><p class="sub-text">Not yet played.</p>`;
     }
 
     container.innerHTML = html;
+  },
+
+  // Dashboard: whichever bracket is the story right now.
+  updateDashboardBracket() {
+    const el = document.getElementById('dashBracket');
+    const wrap = document.getElementById('dashBracketSection');
+    if (!el || !wrap) return;
+    const title = t => { const bt = document.getElementById('dashBracketTitle'); if (bt) bt.innerText = t; };
+
+    if (this.state.ncaaTournament) {
+      wrap.style.display = 'block';
+      title(this.state.ncaaDone ? 'NCAA TOURNAMENT' : 'NCAA TOURNAMENT — LIVE');
+      el.innerHTML = this.renderNcaaBracket(this.state.ncaaSelection, this.state.ncaaTournament, { hideFirstFour: true });
+      return;
+    }
+    if (this.state.confChampsDone && this.state.ncaaSelection) {
+      wrap.style.display = 'block';
+      title('SELECTION SUNDAY — THE FIELD OF 68');
+      el.innerHTML = this.renderNcaaBracket(this.state.ncaaSelection, null, { hideFirstFour: true });
+      return;
+    }
+    if (this.state.regularSeasonDone && Object.keys(this.state.confTournaments).length > 0) {
+      wrap.style.display = 'block';
+      title('CONFERENCE TOURNAMENTS');
+      const first = Object.entries(this.state.confTournaments)
+        .sort((a, b) => (this.isHighMajor(b[0]) ? 1 : 0) - (this.isHighMajor(a[0]) ? 1 : 0))[0];
+      el.innerHTML = first ? this.renderConfBracket(first[1], first[0]) : '';
+      return;
+    }
+    wrap.style.display = 'none';
+  },
+
+  // ---------- Selection Sunday show ----------
+
+  // A short animated reveal of the field: the automatic bids, the four
+  // No. 1 seeds, each region, and the bubble. Skip jumps straight to the
+  // bracket.
+  playSelectionShow() {
+    if (typeof document === 'undefined' || !this.state.ncaaSelection) return;
+    const sel = this.state.ncaaSelection;
+    this.closeSelectionShow();
+    const reduce = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const el = document.createElement('div');
+    el.className = 'sel-show';
+    el.id = 'selectionShow';
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', 'Selection Sunday');
+    el.innerHTML = `<div class="sel-bg"></div>
+      <button class="sel-skip" type="button" onclick="SimEngine.finishSelectionShow()">Skip &rsaquo;</button>
+      <div class="sel-stage" id="selStage"></div>
+      <div class="sel-progress"><span id="selProgress"></span></div>`;
+    document.body.appendChild(el);
+    document.body.classList.add('sel-show-open');
+
+    const logo = s => `<img src="${this.getTeamLogo(s)}" alt="" class="sel-logo">`;
+    const yearLabel = `${this.state.year}-${String(this.state.year + 1).slice(2)}`;
+    const autos = Object.entries(sel.autoBids);
+    const ones = sel.order.map(r => sel.regions[r].find(e => e.seed === 1)).filter(Boolean);
+    const scenes = [
+      { ms: 2600, html: `<div class="sel-title-card"><div class="sel-kicker">${yearLabel} NCAA Tournament</div>
+          <h1 class="sel-title">Selection<br>Sunday</h1><div class="sel-sub">The field of ${sel.fieldSize} is revealed</div></div>` },
+      { ms: 3400, html: `<div class="sel-scene"><h2 class="sel-h">Automatic bids</h2>
+          <div class="sel-autos">${autos.map(([c, s], i) => `<div class="sel-auto" style="--d:${i * 45}ms">${logo(s)}<span>${this.esc(s)}</span><small>${this.esc(c)}</small></div>`).join('')}</div></div>` },
+      { ms: 3600, html: `<div class="sel-scene"><h2 class="sel-h">The No. 1 seeds</h2>
+          <div class="sel-ones">${ones.map((e, i) => `<div class="sel-one" style="--d:${i * 520}ms"><div class="sel-one-region">${e.region}</div>
+            ${e.school ? logo(e.school) : ''}<div class="sel-one-name">${this.esc(e.school || '')}</div></div>`).join('')}</div></div>` },
+      ...sel.order.map(region => ({ ms: 3900, html: `<div class="sel-scene"><h2 class="sel-h">${region} Region</h2>
+          <div class="sel-region">${[...sel.regions[region]].sort((a, b) => a.seed - b.seed).map((e, i) => {
+            const name = e.school || (sel.firstFour.find(g => g.id === e.playin) || { teams: ['', ''] }).teams.join(' / ');
+            return `<div class="sel-line" style="--d:${i * 110}ms"><span class="sel-seed">${e.seed}</span>${e.school ? logo(e.school) : '<span class="sel-logo sel-ff">FF</span>'}<span class="sel-name">${this.esc(name)}</span></div>`;
+          }).join('')}</div></div>` })),
+      { ms: 3400, html: `<div class="sel-scene"><h2 class="sel-h">On the bubble</h2>
+          <div class="sel-bubble"><div><h3>Last four in</h3>${sel.lastFourIn.map((s, i) => `<div class="sel-line in" style="--d:${i * 160}ms">${logo(s)}<span class="sel-name">${this.esc(s)}</span></div>`).join('')}</div>
+          <div><h3>First four out</h3>${sel.firstFourOut.map((s, i) => `<div class="sel-line out" style="--d:${(i + 4) * 160}ms">${logo(s)}<span class="sel-name">${this.esc(s)}</span></div>`).join('')}</div></div></div>` },
+      { ms: 0, html: `<div class="sel-title-card"><h1 class="sel-title sel-small">The bracket is set</h1>
+          <button class="sim-btn" type="button" onclick="SimEngine.finishSelectionShow()">View the bracket</button></div>` }
+    ];
+
+    const stage = el.querySelector('#selStage');
+    const bar = el.querySelector('#selProgress');
+    let i = 0;
+    const show = () => {
+      if (!document.getElementById('selectionShow')) return;
+      stage.innerHTML = scenes[i].html;
+      stage.firstElementChild && stage.firstElementChild.classList.add('in');
+      bar.style.width = `${Math.round(((i + 1) / scenes.length) * 100)}%`;
+      const ms = reduce ? Math.min(1200, scenes[i].ms) : scenes[i].ms;
+      if (i < scenes.length - 1) this._selTimer = setTimeout(() => { i++; show(); }, ms);
+    };
+    show();
+  },
+
+  closeSelectionShow() {
+    clearTimeout(this._selTimer);
+    const el = typeof document !== 'undefined' && document.getElementById('selectionShow');
+    if (el) el.remove();
+    if (typeof document !== 'undefined') document.body.classList.remove('sel-show-open');
+  },
+
+  // Skip or finish: close the show and land on the bracket.
+  finishSelectionShow() {
+    this.closeSelectionShow();
+    if (window.UIController && typeof UIController.activateTab === 'function') UIController.activateTab('postseasonTab');
+    this.updatePostseasonTab();
   },
 
   // --- Navigation history ---
@@ -5207,9 +5585,17 @@ window.SimEngine = {
   navStack: [],
 
   pushNav(entry) {
+    // The dashboard is where every session starts, so it's always the
+    // bottom of the stack: the very first click can already go back.
+    if (this.navStack.length === 0 && !(entry.type === 'tab' && entry.key === 'dashTab')) {
+      this.navStack.push({ type: 'tab', key: 'dashTab', label: 'Dashboard', scroll: 0 });
+    }
     const top = this.navStack[this.navStack.length - 1];
     // Don't stack the same view twice in a row.
-    if (top && top.type === entry.type && top.key === entry.key) return;
+    if (top && top.type === entry.type && top.key === entry.key && top.view === entry.view) return;
+    // Remember where you were on the page you're leaving, so Back returns
+    // you to the same spot rather than the top.
+    if (top && typeof window !== 'undefined') top.scroll = window.scrollY || 0;
     this.navStack.push(entry);
     if (this.navStack.length > 40) this.navStack.shift();
     this.updateBackButton();
@@ -5226,7 +5612,7 @@ window.SimEngine = {
       const prev = this.navStack[this.navStack.length - 2];
       btn.title = `Back to ${prev.label}`;
       const labelEl = document.getElementById('navBackLabel');
-      if (labelEl) labelEl.innerText = prev.label;
+      if (labelEl) labelEl.textContent = prev.label;
     }
   },
 
@@ -5236,6 +5622,10 @@ window.SimEngine = {
     const prev = this.navStack[this.navStack.length - 1];
     this.restoreNav(prev);
     this.updateBackButton();
+    const y = prev.scroll || 0;
+    if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') {
+      try { setTimeout(() => window.scrollTo(0, y), 0); } catch (e) { /* not available in every host */ }
+    }
   },
 
   restoreNav(entry) {
@@ -5247,9 +5637,16 @@ window.SimEngine = {
     this.closePlayerPage();
     if (entry.type === 'team') {
       this.state.teamPageSelection = entry.key;
-      this.state.teamPageView = entry.view || 'team';
+      this.state.teamPageView = entry.key ? (entry.view || 'team') : 'index';
       this.updateTeamTab();
       this.activateTabSilently('teamTab');
+    } else if (entry.type === 'history') {
+      this.state.historySeasonView = entry.year || null;
+      this.activateTabSilently('historyTab');
+      if (entry.team) this.showHistoricalTeam(entry.team, entry.year, true);
+      else this.updateHistoryTab();
+    } else if (entry.type === 'offseason') {
+      this.openOffseason(entry.key, true);
     } else if (entry.type === 'tab') {
       this.activateTabSilently(entry.key);
     }
@@ -5271,6 +5668,8 @@ window.SimEngine = {
     this.state.teamPageSelection = school;
     this.state.teamPageView = school ? 'team' : 'index';
     this.updateTeamTab();
+    this.pushNav(school ? { type: 'team', key: school, view: 'team', label: school }
+      : { type: 'team', key: '', view: 'index', label: 'All Teams' });
   },
 
   setTeamPageView(view) {
@@ -5286,6 +5685,7 @@ window.SimEngine = {
     this.state.teamPageSelection = '';
     this.state.teamPageView = 'index';
     this.updateTeamTab();
+    this.pushNav({ type: 'team', key: '', view: 'index', label: 'All Teams' });
   },
 
   updateTeamTab() {
@@ -5678,7 +6078,7 @@ window.SimEngine = {
 
     body.innerHTML = rows.map(r => '<tr>' + cols.map(([id]) => {
       if (id === 'school') {
-        return `<td><div class="team-cell-wrap clickable-school" onclick="SimEngine.setTeamPageSelection('${r.school.replace(/'/g, "\\'")}')">
+        return `<td><div class="team-cell-wrap clickable-school" onclick="SimEngine.goToTeamPage('${r.school.replace(/'/g, "\\'")}')">
           <img src="${this.getTeamLogo(r.school)}" class="xs-logo"><span class="team-name-cell">${r.school}</span></div></td>`;
       }
       if (id === 'conference') return `<td class="sub-text-sm">${r.conference}</td>`;
@@ -6251,6 +6651,20 @@ window.SimEngine = {
       decls = [...decls].sort((x, y) => (x.boardRank || 999) - (y.boardRank || 999));
     }
 
+    // Withdrawals are the news of this stage, so they lead; the full list
+    // of players staying in the draft follows.
+    if (returning.length > 0) {
+      html += `<h5 class="award-table-title withdrew-title">Withdrew — Returning to School (${returning.length})</h5>
+        <div class="table-scroll mb-1-5"><table class="data-table withdrew-table">
+          <thead><tr><th>Player</th><th>School</th><th>Pos</th><th>Big Board</th></tr></thead><tbody>
+          ${returning.map(r => `<tr>
+            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(r.id).replace(/'/g, "\\'")}')">${r.name}</span></td>
+            <td class="sub-text">${r.school}</td>
+            <td class="sub-text">${r.pos}</td>
+            <td class="sub-text-sm">${r.boardRank <= 200 ? '#' + r.boardRank : 'Unranked'}</td>
+          </tr>`).join('')}
+        </tbody></table></div>`;
+    }
     if (decls.length === 0) {
       html += `<p class="empty-table-msg">No players have declared yet.</p>`;
     } else {
@@ -6270,18 +6684,6 @@ window.SimEngine = {
         </tbody></table></div>`;
     }
 
-    if (returning.length > 0) {
-      html += `<h5 class="award-table-title">Withdrew — Returning to School (${returning.length})</h5>
-        <div class="table-scroll"><table class="data-table">
-          <thead><tr><th>Player</th><th>School</th><th>Pos</th><th>Big Board</th></tr></thead><tbody>
-          ${returning.map(r => `<tr>
-            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(r.id).replace(/'/g, "\\'")}')">${r.name}</span></td>
-            <td class="sub-text">${r.school}</td>
-            <td class="sub-text">${r.pos}</td>
-            <td class="sub-text-sm">${r.boardRank <= 200 ? '#' + r.boardRank : 'Unranked'}</td>
-          </tr>`).join('')}
-        </tbody></table></div>`;
-    }
     return html;
   },
 
@@ -6521,6 +6923,8 @@ window.SimEngine = {
   setHistorySeason(year) {
     this.state.historySeasonView = year === '' ? null : parseInt(year, 10);
     this.updateHistoryTab();
+    const y = this.state.historySeasonView;
+    if (y) this.pushNav({ type: 'history', key: 'season-' + y, year: y, label: `${y}-${String(y + 1).slice(2)} season` });
   },
 
   updateHistoryTab() {
@@ -6554,7 +6958,8 @@ window.SimEngine = {
   // page always shows the current roster, so clicking a 2028-29 team from
   // the history tab needs its own view built from the archive rather than
   // from today's data.
-  showHistoricalTeam(school, year) {
+  showHistoricalTeam(school, year, fromBack = false) {
+    if (!fromBack) this.pushNav({ type: 'history', key: `team-${school}-${year}`, year, team: school, label: `${school} ${year}-${String(year + 1).slice(2)}` });
     const team = this.state.teams.find(t => t.school === school);
     const container = document.getElementById('historyContainer');
     if (!container) return;

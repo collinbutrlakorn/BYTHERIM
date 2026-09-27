@@ -121,7 +121,7 @@ window.UIController = {
         // Record the tab in the shared navigation history so the single
         // Back control can return here.
         if (window.SimEngine && !SimEngine._suppressNav && typeof SimEngine.pushNav === 'function') {
-          SimEngine.pushNav({ type: 'tab', key: targetTabId, label: btn.innerText.trim() || 'previous view' });
+          SimEngine.pushNav({ type: 'tab', key: targetTabId, label: (btn.innerText || btn.textContent || '').trim() || 'previous view' });
         }
 
         // Trigger updates if engine is ready

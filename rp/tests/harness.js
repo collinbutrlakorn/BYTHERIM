@@ -24,6 +24,7 @@ function boot(opts = {}) {
   const ctx = dom.getInternalVMContext();
 
   w.confirm = () => true;
+  w.__BTR_NO_CUTSCENES = true;   // Selection Sunday animation is for people, not tests
   w.alert = () => {};
   const store = {};
   Object.defineProperty(w, 'localStorage', {

@@ -304,6 +304,9 @@
 </header>`;
   }
 
+  // Shown under every RP page: the RP universe's people are invented.
+  const RP_FICTION = 'BYTHERIM RP players and recruits are fictional. Any resemblance to real people is coincidental.';
+
   function footerHTML() {
     return `
 <footer class="site-footer">
@@ -331,7 +334,7 @@
       ${['youtube', 'spotify', 'apple', 'x', 'instagram', 'tiktok', 'substack'].map(k => `<a href="${CONFIG.social[k].url}" target="_blank" rel="noopener">${CONFIG.social[k].label}</a>`).join('')}
     </div>
   </div>
-  <div class="footer-bottom">&copy; ${new Date().getFullYear()} BYTHERIM · Created by <a href="${BASE}about.html">Collin Butrlakorn</a></div>
+  <div class="footer-bottom">&copy; ${new Date().getFullYear()} BYTHERIM · Created by <a href="${BASE}about.html">Collin Butrlakorn</a>${/\/(rp|recruiting)\//.test(location.pathname) ? `<span class="footer-fiction">${RP_FICTION}</span>` : ''}</div>
 </footer>`;
   }
 

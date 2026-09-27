@@ -128,11 +128,12 @@
     <div class="home-screen-card">
       <img src="ncaarplogo.png" alt="BYTHERIM NCAA RP" class="home-screen-logo">
       <h1 class="home-screen-title">NCAA RP Simulation</h1>
-      <p class="panel-desc mb-1-5">Every Division I program, real recruits and rosters where you've built them, a full season from November tip-off to the National Championship.</p>
+      <p class="panel-desc mb-1-5">Every Division I program, the RP's recruits and rosters, and a full season from November tip-off to the National Championship.</p>
       <button class="sim-btn w-100 mb-1" id="newSaveBtn" onclick="SimEngine.startNewGame()">New Save</button>
       <button class="sim-btn sim-btn-secondary w-100" id="loadSaveBtn" onclick="SimEngine.continueGame()" disabled>Load Existing Save</button>
       <p id="noSaveMessage" class="sub-text-sm mt-1" style="display:none;">No existing save found — start a New Save to begin.</p>
       <p class="sub-text-sm mt-1"><a class="text-link" href="./guide.html">New here? How the RP works &rarr;</a></p>
+      <p class="sub-text-sm mt-1 home-fiction">All RP players and recruits are fictional. Any resemblance to real people is coincidental.</p>
     </div>
   </div>
 
@@ -155,7 +156,6 @@
             <button class="quick-link" data-tab="statsTab">Player Stats</button>
             <button class="quick-link" data-tab="postseasonTab">Bracketology</button>
             <button class="quick-link" data-tab="draftBoardTab">Big Board</button>
-            <button class="quick-link" data-tab="offseasonTab">Offseason</button>
           </div>
         </div>
 
@@ -216,7 +216,6 @@
           <div class="mega-menu-dropdown" data-menu-panel="archive">
             <button class="tab-btn" data-tab="recruitsTab">Incoming Recruits</button>
             <button class="tab-btn" data-tab="draftBoardTab">Big Board</button>
-            <button class="tab-btn" data-tab="offseasonTab">Offseason</button>
             <button class="tab-btn" data-tab="historyTab">Historical Seasons</button>
             <button class="tab-btn" data-tab="recordsTab">Record Book</button>
           </div>
@@ -238,6 +237,13 @@
       </div>
 
       <div id="dashTab" class="tab-content active">
+        <div id="dashOffseasonBanner" class="dash-offseason-banner" style="display:none;">
+          <div>
+            <strong>The offseason is underway</strong>
+            <span class="sub-text" id="dashOffseasonStage"></span>
+          </div>
+          <button class="sim-btn btn-sm" onclick="SimEngine.openOffseason()">Open Offseason</button>
+        </div>
         <div id="dashBracketSection" style="display:none;" class="mb-2">
           <h3 class="mb-1" id="dashBracketTitle">BRACKET</h3>
           <div id="dashBracket"></div>

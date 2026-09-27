@@ -19,12 +19,18 @@ instantly, so run it after any large edit.
 
 **league-stats.js** — simulates a regular season and checks team averages
 (points, rebounds, assists, steals, blocks, turnovers, fouls, shot volume)
-against real NCAA Division I ranges. Catches tuning changes that push the
-simulation somewhere unrealistic.
+against real NCAA Division I ranges, free-throw shooting by position, and
+that games played only counts games a player got on the floor. Catches
+tuning changes that push the simulation somewhere unrealistic.
 
 **season-cycle.js** — plays three full seasons with offseasons. Catches
 problems that only appear in later years: rosters draining or overflowing,
 declared players re-enrolling, offseason stages stalling, rating drift.
+
+**postseason.js** — live bracketology during the season, seeded conference
+tournaments, the Selection Sunday show and its Skip button, an NCAA
+Tournament played exactly from the announced bracket (1 v 16 … 8 v 9,
+regions, First Four), the offseason opening on its own, and the Back button.
 
 **draft-and-save.js** — checks the NBA lottery produces real-world odds,
 the mock draft is well formed (60 unique picks, better prospects going
