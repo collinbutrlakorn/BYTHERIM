@@ -755,3 +755,88 @@ a.outline-btn { text-decoration: none; display: inline-flex; align-items: center
 .honor-list li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; gap: 0.5rem; align-items: center; }
 .honor-list small { color: var(--text-muted); font-size: 0.8rem; }
 .honor-list li > span:last-child { font-family: 'Oswald', sans-serif; }
+
+/* Teams index: square logo tiles */
+.conf-team-grid:has(.team-tile) { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 0.6rem; }
+.team-index-card.team-tile { position: relative; flex-direction: column; justify-content: center; gap: 0.45rem; aspect-ratio: 1 / 1; padding: 0.7rem 0.5rem; text-align: center; border-radius: var(--r-md, 12px); }
+.team-tile-logo { width: 54px; height: 54px; object-fit: contain; transition: transform 0.2s ease; }
+.team-tile:hover .team-tile-logo { transform: scale(1.08); }
+.team-tile .team-index-name { max-width: 100%; font-size: 0.86rem; line-height: 1.15; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.team-tile-rec { font-size: 0.72rem; color: var(--text-muted); font-variant-numeric: tabular-nums; margin-top: -0.25rem; }
+.team-tile-rank { position: absolute; top: 6px; left: 8px; font-family: 'Oswald', sans-serif; font-size: 0.72rem; color: var(--accent); }
+@media (max-width: 600px) { .conf-team-grid:has(.team-tile) { grid-template-columns: repeat(3, minmax(0, 1fr)); } .team-tile-logo { width: 44px; height: 44px; } }
+
+/* Schedule: each game as a small two-line scoreboard */
+.schedule-pill-list:has(.sb-card) { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.7rem; }
+.schedule-pill.sb-card { display: flex; flex-direction: column; align-items: stretch; gap: 0.35rem; padding: 0.75rem 0.9rem 0.6rem; border-radius: var(--r-md, 12px); transition: border-color 0.15s ease, transform 0.15s ease; }
+.sb-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.sb-row { display: flex; align-items: center; gap: 0.6rem; min-width: 0; font-size: 1rem; }
+.sb-logo { width: 26px; height: 26px; object-fit: contain; flex-shrink: 0; }
+.sb-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sb-score { font-family: 'Oswald', sans-serif; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.sb-row.loss { color: var(--text-muted); }
+.sb-row.loss .sb-score { font-weight: 500; }
+.sb-row.win .sb-score { color: var(--text-main); }
+.sb-row.win .sb-name { font-weight: 700; }
+.sb-foot { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-top: 0.25rem; padding-top: 0.45rem; border-top: 1px solid var(--border); font-size: 0.74rem; min-height: 1.9rem; }
+.sb-status { color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.sb-link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
+.sb-link:hover { text-decoration: underline; }
+.sb-foot .watch-btn { padding: 0.25rem 0.65rem; font-size: 0.72rem; }
+
+/* Top performances: five cards across instead of long rows */
+.dash-perf .perf-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.7rem; }
+.dash-perf .perf-row { position: relative; flex-direction: column; align-items: flex-start; gap: 0.55rem; padding: 0.95rem 1rem 0.85rem; flex-wrap: nowrap; }
+.dash-perf .perf-row > .sm-logo { width: 38px; height: 38px; object-fit: contain; }
+.dash-perf .perf-info { margin-right: 0; }
+.dash-perf .perf-name { font-size: 1.05rem; }
+.dash-perf .perf-meta { line-height: 1.35; }
+.dash-perf .perf-statline { order: 0; width: 100%; margin: auto 0 0; justify-content: space-between; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+.dash-perf .perf-stat b { font-size: 1.45rem; }
+.dash-perf .perf-score { position: absolute; top: 0.8rem; right: 0.9rem; margin: 0; font-size: 1.15rem; }
+.dash-perf .perf-score::before { content: 'GmSc'; display: block; font-size: 0.55rem; letter-spacing: 0.08em; color: var(--text-muted); text-align: right; font-weight: 500; }
+
+/* Awards: winner centred and sized to the card */
+.ncaa-app .award-card { display: flex; flex-direction: column; text-align: center; }
+.ncaa-app .award-card .award-heading { flex: 0 0 auto; }
+.ncaa-app .award-card .award-sub { margin-bottom: 0.4rem; }
+.ncaa-app .award-card .award-winner, .ncaa-app .award-card-horizontal .award-winner { flex: 1 1 auto; flex-direction: column; justify-content: center; align-items: center; gap: 0.55rem; margin: 0.5rem 0 0.2rem; }
+.ncaa-app .award-card .award-logo { width: 72px; height: 72px; }
+.ncaa-app .award-card .award-winner-info { align-items: center; text-align: center; overflow: visible; }
+.ncaa-app .award-card .award-winner-name { font-size: 1.25rem; }
+.ncaa-app .award-card .award-winner-stats { font-size: 0.86rem; }
+.ncaa-app .award-card .honor-list { text-align: left; }
+/* Conference honors: four teams as a 2x2 */
+.all-american-container.conf-teams-2x2 { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 1rem; }
+@media (max-width: 800px) { .all-american-container.conf-teams-2x2 { grid-template-columns: 1fr; } }
+/* Conference tournament MOPs as cards */
+.mop-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.7rem; margin-bottom: 1rem; }
+.mop-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-md, 12px); padding: 0.75rem 0.9rem; cursor: pointer; transition: border-color 0.15s ease, transform 0.15s ease; }
+.mop-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.mop-conf { display: flex; align-items: center; gap: 0.4rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 0.5rem; }
+.mop-conf img { width: 22px; height: 16px; object-fit: contain; }
+.mop-body { display: flex; align-items: center; gap: 0.7rem; }
+.mop-logo { width: 40px; height: 40px; object-fit: contain; flex-shrink: 0; }
+.mop-info { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.mop-info b { font-size: 1rem; }
+.mop-info small { color: var(--text-muted); font-size: 0.76rem; }
+.mop-info span { color: var(--accent); font-size: 0.76rem; font-weight: 600; }
+
+/* Incoming recruits, styled after the Recruiting page */
+
+#recruitsTab .data-table th, #recruitsTab .data-table td { padding: 0.55rem 0.8rem; white-space: nowrap; }
+.rec-row { cursor: pointer; }
+.rec-row:hover td { background: var(--card-hover); }
+.rec-rank { font-family: 'Oswald', sans-serif; font-size: 1.25rem; font-weight: 700; width: 3.2rem; text-align: center; }
+.rec-player { display: flex; align-items: center; gap: 0.7rem; }
+.rec-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: var(--bg-color); border: 1px solid var(--border); flex-shrink: 0; }
+.rec-player div { display: flex; flex-direction: column; line-height: 1.2; }
+.rec-player b { font-size: 1rem; }
+.rec-player small { color: var(--text-muted); font-size: 0.76rem; }
+.rec-pos { display: inline-block; min-width: 2.2rem; text-align: center; padding: 0.1rem 0.45rem; border-radius: 999px; border: 1px solid var(--accent); color: var(--accent); font-size: 0.72rem; font-weight: 700; }
+.rec-htwt, .rec-hs { color: var(--text-muted); font-size: 0.88rem; }
+.rec-stars { color: #f4b63f; letter-spacing: 1px; font-size: 0.9rem; }
+.rec-stars i { font-style: normal; color: var(--border); }
+.rec-commit { display: flex; align-items: center; gap: 0.45rem; }
+.rec-open { color: var(--text-muted); font-size: 0.82rem; font-style: italic; }
+@media (max-width: 800px) { .rec-htwt, .rec-hs, #recruitsTab th:nth-child(4), #recruitsTab th:nth-child(5) { display: none; } }
