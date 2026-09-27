@@ -120,6 +120,21 @@
     <p>Essays and podcast breakdowns from the BYTHERIM Substack, plus weekly power rankings.</p>
   </header>
 
+  <section class="card rankings-card" aria-labelledby="prTitle">
+    <div class="rankings-head">
+      <div>
+        <h2 id="prTitle">Power Rankings</h2>
+        <p class="sub">Arrows show movement since the last edition.</p>
+      </div>
+      <div class="chip-group" id="confChips">
+        <button type="button" class="chip active" data-conf="league">League</button>
+        <button type="button" class="chip" data-conf="West">West</button>
+        <button type="button" class="chip" data-conf="East">East</button>
+      </div>
+    </div>
+    <ol class="pr-grid" id="rankings"><li><div class="skeleton" style="height:320px"></div></li></ol>
+  </section>
+
   <div class="nba-layout">
     <section aria-label="Posts">
       <div class="chip-group" id="typeChips" style="margin-bottom:1rem">
@@ -141,16 +156,6 @@
         <a class="btn btn-primary" href="https://collindunks.substack.com/subscribe" target="_blank" rel="noopener">Subscribe on Substack</a>
       </div>
 
-      <div class="card side-card">
-        <h2>Power Rankings</h2>
-        <p class="sub">Arrows show movement since the last edition.</p>
-        <div class="chip-group" id="confChips" style="margin-bottom:.6rem">
-          <button type="button" class="chip active" data-conf="league">League</button>
-          <button type="button" class="chip" data-conf="West">West</button>
-          <button type="button" class="chip" data-conf="East">East</button>
-        </div>
-        <ol class="pr-list" id="rankings"><li><div class="skeleton" style="height:420px"></div></li></ol>
-      </div>
     </aside>
   </div>
 </main>
@@ -192,6 +197,9 @@
     const el = document.getElementById('rankings');
     let list = teams;
     if (view !== 'league') list = teams.filter(t => t.conf === view).sort((a, b) => (a.confRank || 99) - (b.confRank || 99));
+    // Three columns read top to bottom: 1-10 / 11-20 / 21-30 for the
+    // league, 1-5 / 6-10 / 11-15 for a conference.
+    el.style.setProperty('--rows', Math.max(1, Math.ceil(list.length / 3)));
     el.innerHTML = list.map(t => `
       <li class="pr-item">
         <span class="pr-rank">${esc(view === 'league' ? t.rank : (t.confRank || ''))}</span>

@@ -271,6 +271,8 @@ function table(row) {
     d.querySelector('#typeChips [data-type="article"]').click();
     ok(d.querySelectorAll('#feed .post-card').length === 1, 'nba: Articles chip filters the feed');
     ok(d.querySelectorAll('#rankings .pr-item').length === 3, 'nba: power rankings rendered');
+    ok(d.getElementById('rankings').classList.contains('pr-grid') && d.getElementById('rankings').style.getPropertyValue('--rows') === '1' && !d.querySelector('aside #rankings'),
+      'nba: power rankings sit across the top in three columns (rows = teams / 3)');
     ok(d.querySelector('#rankings .pr-move.up') && d.querySelector('#rankings .pr-move.down'), 'nba: movement arrows from the Stock column');
     d.querySelector('#confChips [data-conf="West"]').click();
     const west = [...d.querySelectorAll('#rankings .pr-team')].map(e => e.textContent);
@@ -362,6 +364,7 @@ function table(row) {
     row = d.getElementById('p-test-wing');
     const facts = row.querySelector('.pr-facts').textContent;
     ok(facts.includes('7\'0"') && facts.includes('Paul George') && facts.includes('#3'), 'draft: wingspan, comparison and previous rank in the facts');
+    ok(row.querySelector('.fact-wide .comp-chip') && row.querySelector('.fact-wide .comp-chip').textContent === 'Paul George', 'draft: the comparison is a chip on its own full-width row');
     ok(row.querySelectorAll('.pr-list.plus li').length === 2 && row.querySelectorAll('.pr-list.minus li').length === 1, 'draft: strengths and weaknesses listed');
     ok(row.querySelector('a[href="https://youtube.com/watch?v=abc"]').textContent.includes('Watch film'), 'draft: film link shown');
 

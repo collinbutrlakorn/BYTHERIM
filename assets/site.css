@@ -992,8 +992,47 @@ a.card:hover { border-color: var(--border-strong); transform: translateY(-2px); 
 .play-btn::after { content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-35%, -50%); border-style: solid; border-width: 11px 0 11px 19px; border-color: transparent transparent transparent #fff; }
 .facade-label { position: absolute; left: 1rem; bottom: .85rem; font-family: 'Oswald', sans-serif; font-size: .95rem; letter-spacing: .06em; text-transform: uppercase; text-shadow: 0 2px 8px rgba(0,0,0,.7); }
 
-/* About: the person behind BYTHERIM */
-.founder { padding: 1.6rem 1.75rem; }
-.founder h2 { font-size: 1.9rem; text-transform: uppercase; margin: 0.35rem 0 0.6rem; }
-.founder p { color: var(--muted); max-width: 720px; margin-bottom: 1rem; }
+/* Footer credit link */
 .footer-bottom a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+
+/* Draft profile: NBA comparisons as chips on their own row */
+.pr-facts .fact-wide { grid-column: 1 / -1; }
+.comp-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.3rem; }
+.comp-chip {
+  display: inline-flex; align-items: center; padding: 0.28rem 0.7rem; border-radius: var(--r-pill);
+  border: 1px solid var(--border-strong); background: var(--hover); font-weight: 600; font-size: 0.9rem; white-space: nowrap;
+}
+
+/* NBA page: power rankings across the top, three columns read downward */
+.rankings-card { padding: 1.3rem 1.4rem 1rem; margin-bottom: 1.8rem; }
+.rankings-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 0.8rem 1.5rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+.rankings-head h2 { font-size: 1.35rem; text-transform: uppercase; }
+.rankings-head .sub { color: var(--muted); font-size: 0.88rem; margin-top: 0.15rem; }
+.pr-grid {
+  list-style: none; display: grid; grid-auto-flow: column;
+  grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(var(--rows, 10), auto);
+  column-gap: 2rem;
+}
+.pr-grid > li:not(.pr-item) { grid-column: 1 / -1; grid-row: 1 / -1; }
+@media (max-width: 760px) {
+  .pr-grid { grid-auto-flow: row; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; }
+}
+
+/* About: the story, told in the first person */
+.about-story { max-width: 68ch; }
+.about-story h2 { font-size: 1.9rem; text-transform: uppercase; margin: 0.35rem 0 1rem; }
+.about-story p { font-size: 1.1rem; line-height: 1.7; color: var(--text); margin-bottom: 1.05rem; }
+.about-story p + p { color: color-mix(in srgb, var(--text) 88%, var(--muted)); }
+.about-sign { font-family: 'Oswald', sans-serif; font-size: 1.25rem !important; letter-spacing: 0.04em; color: var(--accent) !important; }
+.social-row-center { justify-content: center; }
+.about-grid { display: grid; grid-template-columns: minmax(0, 780px) 300px; justify-content: space-between; gap: 3rem; align-items: start; }
+.about-grid .about-story { max-width: none; }
+.about-card { padding: 1.4rem 1.5rem; position: sticky; top: 90px; }
+.about-card h3 { font-size: 1.4rem; text-transform: uppercase; margin: 0.3rem 0 0.8rem; }
+.about-facts { list-style: none; display: grid; gap: 0.55rem; margin-bottom: 1.1rem; }
+.about-facts li { color: var(--muted); padding-left: 1rem; position: relative; }
+.about-facts li::before { content: ''; position: absolute; left: 0; top: 0.62em; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+@media (max-width: 900px) {
+  .about-grid { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+  .about-card { position: static; }
+}

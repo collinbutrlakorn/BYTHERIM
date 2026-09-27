@@ -278,7 +278,7 @@
     return `
 <img class="pr-bigphoto" src="${esc(photoFor(p))}" alt="${esc(p.name)}" loading="lazy" onerror="this.onerror=null;this.src='${initialsBadge(p.name)}'">
 <div>
-  <dl class="pr-facts">${facts.map(([k, v, html]) => `<div><dt>${k}</dt><dd>${html || esc(v)}</dd></div>`).join('')}</dl>
+  <dl class="pr-facts">${facts.map(([k, v, html, wide]) => `<div${wide ? ' class="fact-wide"' : ''}><dt>${k}</dt><dd>${html || esc(v)}</dd></div>`).join('')}</dl>
   <h4>${esc(p.archetype || 'Scouting report')}</h4>
   ${report}
   ${lists}
@@ -288,6 +288,15 @@
     <button class="btn btn-ghost btn-sm" type="button" data-copy="${p.id}">Copy link</button>
   </div>
 </div>`;
+  }
+
+  // The sheet lists one to three comparisons separated by "|" (or "/",
+  // ";" or ","). Each becomes its own chip on a full-width row.
+  function compFact(comp) {
+    const names = String(comp || '').split(/\s*[|\/;,]\s*/).map(s => s.trim()).filter(Boolean);
+    if (!names.length) return ['NBA comparison', ''];
+    const html = `<span class="comp-chips">${names.map(n => `<span class="comp-chip">${esc(n)}</span>`).join('')}</span>`;
+    return [names.length > 1 ? 'NBA comparisons' : 'NBA comparison', names.join(', '), html, 'wide'];
   }
 
   function detailFacts(p) {
@@ -305,7 +314,7 @@
       ['School', p.isPro ? 'Professional' : p.school],
       ['Conference', p.conference],
       ['Previous rank', state.hasPrev && p.prevRank != null ? `#${p.prevRank}` : ''],
-      ['NBA comparison', p.comp]
+      compFact(p.comp)
     ].filter(([, v]) => v !== '' && v != null);
 
     const report = p.scouting
