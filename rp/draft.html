@@ -110,6 +110,7 @@
 <!-- Shared BYTHERIM header and footer (assets/chrome.css + site.js), then the RP's own styles. -->
 <link rel="stylesheet" href="../assets/chrome.css">
 <link rel="stylesheet" href="css/ncaa-styles.css">
+<link rel="stylesheet" href="css/cutscene.css">
 <script src="../assets/site.js"></script>
 
 <style>
@@ -437,10 +438,10 @@
   .reach-tag.steal { background: rgba(61,220,132,0.18); color: var(--win); }
   .reach-tag.reach { background: rgba(229,72,77,0.18); color: var(--loss); }
 
-  /* Where the draft stands: season -> declarations -> draft night */
+  /* Where the draft stands: season -> declarations -> ... -> draft night */
   .draft-stages {
-    list-style: none; margin: 0 0 1.25rem; padding: 0;
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;
+    list-style: none; margin: 0 0 1rem; padding: 0;
+    display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.45rem;
   }
   .draft-stages:empty { display: none; }
   .draft-stages li {
@@ -463,10 +464,132 @@
   .draft-stages li.current { border-color: var(--accent); background: var(--accent-soft); }
   .draft-stages li.current .stage-dot { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
 
+  .draft-stages li.next { border-style: dashed; border-color: var(--accent); }
+  .draft-stages li { transition: border-color 0.3s ease, background 0.3s ease; }
+  .draft-stages li.current .stage-dot { animation: rpPop 0.6s ease both; }
+
+  /* Next step in the cycle */
+  .cycle-bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+    background: linear-gradient(100deg, var(--accent-soft-strong), var(--accent-soft) 45%, var(--card-bg));
+    border: 1px solid var(--accent); border-radius: var(--r-lg); padding: 1rem 1.25rem; margin-bottom: 1.25rem;
+    box-shadow: var(--shadow-soft);
+  }
+  .cycle-bar.muted { background: var(--card-bg); border-color: var(--border); }
+  .cycle-bar-text { display: flex; flex-direction: column; gap: 0.1rem; min-width: 0; flex: 1 1 380px; }
+  .cycle-kicker { font-family: 'Oswald', sans-serif; font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent); }
+  .cycle-bar-text b { font-family: 'Oswald', sans-serif; font-size: 1.35rem; text-transform: uppercase; letter-spacing: 0.02em; }
+  .cycle-bar-text span:last-child { color: var(--text-muted); }
+  .cycle-go { font-size: 1rem; padding: 0.75rem 1.5rem; white-space: nowrap; }
+  .cycle-go:not(:disabled) { animation: cyclePulse 2.4s ease-in-out infinite; }
+  @keyframes cyclePulse { 0%, 100% { box-shadow: 0 0 0 0 var(--accent-soft-strong); } 50% { box-shadow: 0 0 0 10px transparent; } }
+
+  .draft-header-actions .cutscene-toggle { font-size: 0.78rem; }
+  .text-btn { background: none; border: none; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; padding: 0; }
+
+  /* Grades, personalities, stock */
+  .grade-badge { display: inline-grid; place-items: center; min-width: 30px; padding: 0.1rem 0.4rem; border-radius: 8px; font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 0.85rem; border: 1px solid transparent; }
+  .grade-badge.sm { min-width: 24px; font-size: 0.7rem; padding: 0 0.3rem; margin-left: 0.25rem; vertical-align: 1px; }
+  .grade-badge.g-a { background: rgba(61,220,132,0.16); color: var(--win); border-color: rgba(61,220,132,0.45); }
+  .grade-badge.g-b { background: var(--accent-soft); color: var(--text-main); border-color: var(--border); }
+  .grade-badge.g-c { background: rgba(212,175,55,0.14); color: var(--gold); border-color: rgba(212,175,55,0.4); }
+  .grade-badge.g-d { background: rgba(229,72,77,0.16); color: var(--loss); border-color: rgba(229,72,77,0.45); }
+  .grade-badge.g-none { color: var(--text-muted); border-color: var(--border); }
+  .pers-chip { display: inline-block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border-radius: var(--r-pill); padding: 0.1rem 0.55rem; border: 1px solid var(--border); color: var(--text-muted); margin-left: 0.35rem; cursor: help; }
+  .pers-chip.pers-brash { color: #ff9f43; border-color: rgba(255,159,67,0.5); }
+  .pers-chip.pers-competitor { color: var(--win); border-color: rgba(61,220,132,0.45); }
+  .pers-chip.pers-reserved { color: #a78bfa; border-color: rgba(167,139,250,0.5); }
+  .pers-chip.pers-coachable { color: #38bdf8; border-color: rgba(56,189,248,0.5); }
+  .stock-tag { display: block; font-family: 'Asap Condensed', sans-serif; font-size: 0.66rem; font-weight: 700; line-height: 1; margin-top: 2px; }
+  .stock-tag.up { color: var(--win); } .stock-tag.down { color: var(--loss); }
+  .liked-tag { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--win); border: 1px solid rgba(61,220,132,0.45); border-radius: var(--r-pill); padding: 0 0.4rem; margin-left: 0.3rem; vertical-align: 1px; }
+  .style-chip { display: inline-block; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); background: var(--accent-soft); border-radius: var(--r-pill); padding: 0.05rem 0.5rem; margin-left: 0.4rem; }
+
+  /* Pre-draft block in a prospect's detail */
+  .predraft { border-top: 1px solid var(--border); margin-top: 0.6rem; padding-top: 0.2rem; }
+  .predraft-head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+  .predraft-head .detail-stat-title { margin-right: 0.25rem; }
+  .meas-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 0.45rem; margin: 0.4rem 0 0.8rem; }
+  .meas-chips span { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.45rem 0.6rem; font-size: 0.72rem; color: var(--text-muted); display: flex; flex-direction: column; }
+  .meas-chips b { font-family: 'Oswald', sans-serif; font-size: 1.05rem; color: var(--text-main); }
+  .predraft-cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 1.25rem; }
+  .pct-row { display: grid; grid-template-columns: 118px 64px 1fr 40px; align-items: center; gap: 0.5rem; font-size: 0.82rem; padding: 0.18rem 0; }
+  .pct-label { color: var(--text-muted); }
+  .pct-value { font-weight: 700; text-align: right; }
+  .pct-track { height: 8px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+  .pct-track i { display: block; height: 100%; background: var(--accent); border-radius: 999px; animation: pctGrow 0.8s cubic-bezier(.2,.8,.2,1) both; transform-origin: left; }
+  .pct-row.hot .pct-track i { background: var(--win); } .pct-row.cold .pct-track i { background: var(--loss); }
+  .pct-num { font-family: 'Oswald', sans-serif; font-weight: 600; text-align: right; }
+  .pct-num small { font-size: 0.6rem; color: var(--text-muted); margin-left: 1px; }
+  @keyframes pctGrow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  .predraft-notes { margin: 0; padding-left: 1.1rem; color: var(--text-muted); font-size: 0.86rem; display: grid; gap: 0.3rem; }
+  .visit-list { display: grid; gap: 0.4rem; }
+  .visit-row { display: flex; align-items: flex-start; gap: 0.6rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.5rem 0.65rem; transition: border-color 0.15s ease, transform 0.15s ease; }
+  .visit-row[onclick] { cursor: pointer; }
+  .visit-row[onclick]:hover { border-color: var(--accent); transform: translateX(2px); }
+  .visit-row.declined { opacity: 0.7; border-style: dashed; }
+  .visit-main { flex: 1; min-width: 0; }
+  .visit-main p { margin: 0.15rem 0 0; font-size: 0.84rem; color: var(--text-muted); }
+  .visit-row .rank-cell { min-width: 28px; font-family: 'Oswald', sans-serif; color: var(--accent); font-weight: 700; }
+
+  /* Combine view */
+  .combine-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.6rem; margin-bottom: 1rem; }
+  .combine-tile { text-align: left; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-md); padding: 0.75rem 0.9rem; cursor: pointer; color: var(--text-main); font: inherit; display: flex; flex-direction: column; gap: 0.1rem; transition: transform 0.15s ease, border-color 0.15s ease; }
+  .combine-tile:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .combine-tile span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+  .combine-tile b { font-family: 'Oswald', sans-serif; font-size: 1.6rem; color: var(--accent); line-height: 1.1; }
+  .combine-tile small { color: var(--text-muted); }
+  .combine-table td.hot { color: var(--win); font-weight: 700; background: rgba(61,220,132,0.07); }
+  .combine-table td.cold { color: var(--loss); background: rgba(229,72,77,0.06); }
+  .draft-table th.sortable { cursor: pointer; user-select: none; }
+  .draft-table th.sortable:hover, .draft-table th.sorted { color: var(--accent); }
+
+  /* Workouts view */
+  .workout-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 0.85rem; }
+  .workout-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 0.85rem; box-shadow: var(--shadow-soft); }
+  .workout-card header { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; cursor: pointer; }
+  .workout-card header > div { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .workout-card header b { font-family: 'Oswald', sans-serif; font-size: 1.05rem; }
+  .workout-card .rank-cell { font-family: 'Oswald', sans-serif; font-size: 1.3rem; color: var(--accent); font-weight: 700; min-width: 30px; text-align: center; }
+  .workout-card .visit-row { background: var(--bg-color); }
+  .team-workout-head { display: flex; gap: 1rem; align-items: center; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 1rem 1.2rem; margin-bottom: 0.9rem; }
+  .team-workout-head b { font-family: 'Oswald', sans-serif; font-size: 1.4rem; text-transform: uppercase; }
+  .team-workout-head p { margin: 0.2rem 0 0; color: var(--text-muted); }
+  .nba-logo-lg { width: 64px; height: 64px; object-fit: contain; }
+
+  /* Deadline: players who went back to school */
+  .returning-card { background: var(--card-bg); border: 1px solid var(--border); border-left: 4px solid var(--gold); border-radius: var(--r-lg); padding: 0.85rem 1.1rem; margin-bottom: 1.1rem; }
+  .returning-card summary { cursor: pointer; display: flex; gap: 0.75rem; align-items: baseline; flex-wrap: wrap; }
+  .returning-card summary b { font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.03em; }
+  .returning-card summary span { color: var(--text-muted); font-size: 0.88rem; }
+  .returning-list { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.7rem; }
+  .returning-item { background: var(--bg-color); border: 1px solid var(--border); border-radius: var(--r-pill); padding: 0.2rem 0.7rem; font-size: 0.82rem; color: var(--text-muted); }
+  .returning-item b { color: var(--text-main); }
+
+  .draft-view-btn { transition: all 0.2s ease; }
+  .draft-view-btn:active { transform: scale(0.97); }
+
+  @media (max-width: 1100px) {
+    .draft-stages { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(150px, 1fr); overflow-x: auto; padding-bottom: 4px; }
+  }
   @media (max-width: 720px) {
-    .draft-stages { grid-template-columns: 1fr; }
+    .predraft-cols { grid-template-columns: 1fr; }
+    .pct-row { grid-template-columns: 96px 56px 1fr 36px; }
+    .workout-grid { grid-template-columns: 1fr; }
+    .cycle-go { width: 100%; }
     .draft-title h1 { font-size: 1.55rem; }
     .draft-brand-logo { width: 56px; height: 56px; }
+  }
+  /* Motion: rows ease in, the detail panel opens, cards lift. */
+  #draftBody.rows-in tbody tr:nth-child(-n+40) { animation: rpRow 0.35s ease both; }
+  #draftBody.rows-in tbody tr:nth-child(2n) { animation-delay: 20ms; } #draftBody.rows-in tbody tr:nth-child(3n) { animation-delay: 45ms; }
+  #draftBody.rows-in tbody tr:nth-child(n+12) { animation-delay: 70ms; }
+  @keyframes rpRow { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+  .detail-row > td > * { animation: rpRise 0.4s cubic-bezier(.2,.8,.2,1) both; }
+  .draft-stages li { transition: transform 0.15s ease, border-color 0.2s ease; }
+  .draft-stages li.done:hover { transform: translateY(-1px); }
+  @media (prefers-reduced-motion: reduce) {
+    #draftBody tbody tr, .detail-row > td > * { animation: none !important; }
   }
 </style>
 </head>
@@ -486,11 +609,14 @@
     </div>
     <div class="draft-header-actions">
       <div id="draftSource"></div>
+      <button class="sim-btn sim-btn-secondary btn-sm cutscene-toggle" type="button" data-cutscene-toggle onclick="Cutscene.setEnabled(!Cutscene.enabled())">Cutscenes: On</button>
       <a href="./ncaa.html" class="sim-btn sim-btn-secondary btn-sm">NCAA RP</a>
     </div>
   </div>
 
   <ol class="draft-stages" id="draftStages" aria-label="Where the draft stands"></ol>
+
+  <div id="draftCycleBar"></div>
 
   <div class="draft-view-nav">
     <button class="draft-view-btn active" data-view="master" onclick="DraftRP.setView('master')">Big Board</button>
@@ -510,6 +636,8 @@
 <script src="js/db.js"></script>
 <script src="js/draft-core.js"></script>
 <script src="js/nba-core.js"></script>
+<script src="js/draft-cycle.js"></script>
+<script src="js/cutscene.js"></script>
 <script src="js/draft-rp.js"></script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {

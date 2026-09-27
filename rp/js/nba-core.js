@@ -129,9 +129,15 @@ function fitBonus(team, prospect) {
 // Produces the mock draft: 60 picks, best-available weighted by fit.
 // `fixed` optionally pins board entries to overall picks ({ 3: entry }),
 // which is how picks scripted in the roster sheet land exactly.
-function buildMockDraft(board, league, rng = Math.random, fixed = {}) {
+// opts.lottery  — an already-drawn lottery ({ order, lotteryWinners }), so
+//                 draft night uses the order revealed on lottery night
+// opts.interest  — { teamId: { playerId: bonus } } from team workouts: a
+//                 prospect who crushed a team's workout is higher on
+//                 their list than on the consensus board
+function buildMockDraft(board, league, rng = Math.random, fixed = {}, opts = {}) {
   const r = rngPick(rng);
-  const lottery = runLottery(league, r);
+  const lottery = opts.lottery || runLottery(league, r);
+  const interest = opts.interest || {};
   const pinned = new Set(Object.values(fixed || {}));
   const available = board.filter(e => !pinned.has(e));
   const picks = [];
@@ -145,10 +151,11 @@ function buildMockDraft(board, league, rng = Math.random, fixed = {}) {
     if (available.length === 0) return;
     // Teams consider a shortlist rather than only the top name, which is
     // what lets need and a little randomness move players a few spots.
-    const shortlist = available.slice(0, Math.min(6, available.length));
+    const shortlist = available.slice(0, Math.min(opts.interest ? 8 : 6, available.length));
     let best = null, bestScore = -Infinity;
     shortlist.forEach(entry => {
-      const score = entry.score + fitBonus(team, entry.player) + (r() - 0.5) * 2.5;
+      const liked = (interest[team.id] || {})[entry.player.id] || 0;
+      const score = entry.score + fitBonus(team, entry.player) + liked + (r() - 0.5) * 2.5;
       if (score > bestScore) { bestScore = score; best = entry; }
     });
     const idx = available.indexOf(best);

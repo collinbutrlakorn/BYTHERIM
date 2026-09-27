@@ -10,7 +10,7 @@ const JS = path.join(RP, 'js');
 
 const SCRIPTS = ['teams-master.js', 'roster-gen.js', 'schedule-core.js', 'game-core.js',
   'tournament-core.js', 'draft-core.js', 'coach-core.js', 'development-core.js',
-  'nba-core.js', 'engine.js', 'ui.js'];
+  'nba-core.js', 'draft-cycle.js', 'cutscene.js', 'engine.js', 'ui.js'];
 
 // opts.roster / opts.recruits / opts.coaches are CSV strings; omit one to
 // simulate that sheet being unavailable.
@@ -24,7 +24,8 @@ function boot(opts = {}) {
   const ctx = dom.getInternalVMContext();
 
   w.confirm = () => true;
-  w.__BTR_NO_CUTSCENES = true;   // Selection Sunday animation is for people, not tests
+  w.__BTR_NO_CUTSCENES = true;   // cutscenes are for people, not tests
+  w.__BTR_AUTO_DRAFT = true;     // no Draft RP tab to hand off to: run the draft cycle in place
   w.alert = () => {};
   const store = {};
   Object.defineProperty(w, 'localStorage', {

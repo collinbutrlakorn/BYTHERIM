@@ -42,6 +42,7 @@ window.SimEngine = {
     offseasonStage: 'champion',
     offseasonStageIndex: 0,
     combineResults: [],
+    draftCycle: null,       // where the Draft RP's cycle stands (see draft-cycle.js)
     lastDevelopment: [],
     departedArchive: [],
     recordsScope: null,
@@ -82,17 +83,6 @@ window.SimEngine = {
     await this.setupHomeScreen();
   },
 
-  // Shows the home screen and enables/disables "Load Existing" depending
-  // on whether a save actually exists — the sim no longer auto-loads or
-  // auto-generates on page load, so there's always a clean way back to a
-  // true fresh start via "New Save".
-  async setupHomeScreen() {
-    const hasSave = await this.checkForExistingSave();
-    const loadBtn = document.getElementById('loadSaveBtn');
-    const noSaveMsg = document.getElementById('noSaveMessage');
-    if (loadBtn) loadBtn.disabled = !hasSave;
-    if (noSaveMsg) noSaveMsg.style.display = hasSave ? 'none' : 'block';
-  },
 
   async checkForExistingSave() {
     try {
@@ -129,6 +119,7 @@ window.SimEngine = {
     this.resetStateToDefaults();
     this.enterSimUI();
     await this.fetchData();
+    this.playSeasonIntro();
   },
 
   async continueGame() {
@@ -139,6 +130,9 @@ window.SimEngine = {
     }
     this.enterSimUI();
     await this.loadSavedGame();
+    // Mid-offseason (for instance, back from draft night in the Draft RP):
+    // pick up right where the offseason left off.
+    if (this.state.ncaaDone) this.openOffseason();
   },
 
   enterSimUI() {
@@ -203,12 +197,21 @@ window.SimEngine = {
           this.state.lastTransfers = savedState.lastTransfers || [];
           this.state.lastDeclarations = savedState.lastDeclarations || [];
           this.state.offseasonStageIndex = savedState.offseasonStageIndex || 0;
+          // Saves from before the draft moved to the Draft RP had seven
+          // offseason steps; map them onto today's four.
+          if (savedState.ncaaDone && savedState.offseasonSteps !== 4) {
+            const old = this.state.offseasonStageIndex;
+            this.state.offseasonStageIndex = old === 0 ? 0 : old <= 4 ? 1 : old === 5 ? 2 : 3;
+          }
+          this.state.portalYear = savedState.portalYear || null;
+          this.state.lastWeekSummary = savedState.lastWeekSummary || null;
           this.state.draftResults = savedState.draftResults || [];
           this.state.draftLottery = savedState.draftLottery || null;
           this.state.draftHistory = savedState.draftHistory || [];
           this.state.nbaLeagues = savedState.nbaLeagues || {};
           this.state.transferHistory = savedState.transferHistory || [];
           this.state.combineResults = savedState.combineResults || [];
+          this.state.draftCycle = savedState.draftCycle || null;
           this.state.lastDeclarationsYear = savedState.lastDeclarationsYear || null;
           this.state.returningPlayers = savedState.returningPlayers || [];
           this.state.scheduleViewWeek = savedState.scheduleViewWeek || 1;
@@ -273,6 +276,8 @@ window.SimEngine = {
 
   async saveStateToDB() {
     if (typeof db === 'undefined' || !db.leagueState) return;
+    // During the offseason the Draft RP may have written to this save.
+    if (this.state.ncaaDone) await this.syncDraftFromDB();
     try {
       const slimConfTournaments = {};
       Object.entries(this.state.confTournaments).forEach(([confName, bracket]) => {
@@ -304,12 +309,16 @@ window.SimEngine = {
           lastTransfers: this.state.lastTransfers,
           lastDeclarations: this.state.lastDeclarations,
           offseasonStageIndex: this.state.offseasonStageIndex,
+          offseasonSteps: 4,
+          portalYear: this.state.portalYear || null,
+          lastWeekSummary: this.state.lastWeekSummary || null,
           draftResults: this.state.draftResults,
           draftLottery: this.state.draftLottery,
           draftHistory: this.state.draftHistory,
           nbaLeagues: this.state.nbaLeagues,
           transferHistory: this.state.transferHistory,
           combineResults: this.state.combineResults,
+          draftCycle: this.state.draftCycle || null,
           lastDeclarationsYear: this.state.lastDeclarationsYear,
           returningPlayers: this.state.returningPlayers,
           scheduleViewWeek: this.state.scheduleViewWeek
@@ -1012,6 +1021,14 @@ window.SimEngine = {
       class: classStanding,
       ht: getVal(['height', 'ht'], "6'4"),
       wt: getVal(['weight', 'wt'], "190"),
+      // Measurements and the scouting report from the recruiting database
+      // feed the draft combine (see draft-cycle.js).
+      wingspan: getVal(['wingspan', 'wing'], '') || null,
+      scout: (() => {
+        const cut = v => String(v || '').trim().slice(0, 240);
+        const sc = { scouting: cut(getVal(['scouting', 'scoutingreport', 'report'], '')), strengths: cut(getVal(['strengths'], '')), weaknesses: cut(getVal(['weaknesses'], '')) };
+        return sc.scouting || sc.strengths || sc.weaknesses ? sc : null;
+      })(),
       // The roster sheet's FROM column holds either a hometown or a transfer
       // note ("T - Ohio"); only the former is a hometown.
       hometown: (() => {
@@ -1380,6 +1397,8 @@ window.SimEngine = {
     });
 
     const sorted = [...this.state.teams].sort((a, b) => b.apScore - a.apScore);
+    // Last week's rank (the preseason poll before week 1), for the arrows.
+    this.state.teams.forEach(t => { t.prevApRank = this.state.week > 1 ? (t.apRank || null) : (t.preseasonRank && t.preseasonRank <= 25 ? t.preseasonRank : null); });
     sorted.forEach((t, i) => { t.apRank = i < 25 ? i + 1 : null; });
     this.state.apPollTop25 = sorted.slice(0, 25);
   },
@@ -1435,7 +1454,7 @@ window.SimEngine = {
     // previously pinned into fixed draft ranges because the board couldn't
     // see their pre-college production; now that the recruiting sheet's
     // full stat tiers are read, the model gets there on its own.
-    return DraftCore.buildBigBoard(this.state.activePlayers, winPctFor, limit);
+    return DraftCore.buildBigBoard(this.state.activePlayers, winPctFor, limit, { draftYear: this.upcomingDraftYear() });
   },
 
   // A published Google Sheet occasionally returns a transient error or a
@@ -2361,6 +2380,8 @@ window.SimEngine = {
     const lab = document.getElementById('simSpinnerLabel');
     if (lab && label) lab.innerText = label;
     el.classList.add('active');
+    const btn = document.getElementById('simWeekBtn');
+    if (btn) btn.classList.add('busy');
     this._spinnerShownAt = Date.now();
   },
 
@@ -2370,6 +2391,8 @@ window.SimEngine = {
     const elapsed = Date.now() - (this._spinnerShownAt || 0);
     if (elapsed < 650) await new Promise(r => setTimeout(r, 650 - elapsed));
     el.classList.remove('active');
+    const btn = document.getElementById('simWeekBtn');
+    if (btn) btn.classList.remove('busy');
   },
 
   async simulateWeek() {
@@ -2414,6 +2437,8 @@ window.SimEngine = {
     // lineups are responsive without churning constantly.
     if (this.state.week > 2 && this.state.week % 3 === 0) this.reevaluateRotations();
     const gamesThisWeek = this.state.schedule.filter(g => g.week === this.state.week && !g.played);
+    const rankBefore = {};
+    this.state.teams.forEach(t => { const r = this.state.week > 1 ? t.apRank : (t.preseasonRank && t.preseasonRank <= 25 ? t.preseasonRank : null); if (r) rankBefore[t.school] = r; });
 
     gamesThisWeek.forEach(g => {
       const home = this.findTeam(g.home);
@@ -2431,8 +2456,11 @@ window.SimEngine = {
     } else {
       if (this.state.week === this.state.nonConfEnd) this.state.phase = 'Conference Play';
       this.state.scheduleViewWeek = this.state.week;
+      this.state.lastWeekSummary = this.summarizeWeek(gamesThisWeek, rankBefore);
       this.syncUI();
       this.logNews(`Week ${this.state.week} simulation complete (${gamesThisWeek.length} games).`);
+      const ws = this.state.lastWeekSummary;
+      this.toast(`Week ${this.state.week} is in the books`, ws.headline ? `${ws.upsets} ranked team${ws.upsets === 1 ? '' : 's'} lost · ${ws.headline}` : `${ws.games} games played`);
     }
   },
 
@@ -2843,7 +2871,7 @@ window.SimEngine = {
     await this.saveStateToDB();
     this.syncUI();
     this.logNews("Conference Championships complete. The NCAA field is set.");
-    if (!(typeof window !== 'undefined' && window.__BTR_NO_CUTSCENES)) this.playSelectionShow();
+    if (typeof Cutscene !== 'undefined' && Cutscene.enabled()) this.playSelectionShow();
   },
 
 
@@ -3365,52 +3393,15 @@ window.SimEngine = {
   // Early entrants can withdraw and return to school. Seniors and players
   // out of eligibility are locked in. The withdrawal odds stand in for a
   // combine result until the Draft RP page exists to supply a real one.
-  resolveDraftWithdrawals() {
-    const board = this.computeDraftBigBoard(200);
-    const boardRank = {};
-    board.forEach((e, i) => { boardRank[e.player.id] = i + 1; });
-
-    const returning = [];
-    this.state.draftDeclarations = (this.state.draftDeclarations || []).filter(d => {
-      if (d.mandatory) return true;                 // eligibility exhausted, no choice
-      if (d.scripted) return true;                  // the sheet has him drafted this year
-      const rank = boardRank[d.id] || 999;
-      // Projected first-rounders almost always stay in; fringe prospects
-      // usually go back to school.
-      // A projected top-25 pick is gone, without exception — this is the
-      // single hardest rule on the board, and the withdrawal roll was
-      // previously able to send a national player of the year back to
-      // school.
-      if (rank <= 25) return true;
-      // Blue-chip recruits who produced never withdraw.
-      const src = this.state.activePlayers.find(x => x.id === d.id);
-      const rsci = src ? parseFloat(src.rsci) : NaN;
-      const ppg = src && src.stats ? parseFloat(src.stats.ppg) : 0;
-      if (!isNaN(rsci) && rsci <= 20 && ppg >= 15) return true;
-      const stayChance = rank <= 40 ? 0.92 : rank <= 60 ? 0.62 : 0.22;
-      if (Math.random() < stayChance) return true;
-      returning.push({ ...d, boardRank: rank });
-      return false;
-    });
-
-    this.state.returningPlayers = returning;
-    return returning;
-  },
-
-  // The offseason runs as a sequence of stages rather than one atomic
-  // step, mirroring the real calendar: the season is wrapped up, players
-  // declare, the pre-draft process plays out, withdrawals come back, the
-  // draft happens, the portal opens, and only then are rosters finalised.
-  // Each call to runOffseason advances one stage, so the sim button walks
-  // through them week by week.
+  // The offseason, in four steps. The whole NBA draft cycle — combine,
+  // lottery, workouts, the withdrawal deadline and draft night — happens
+  // in the Draft RP, and the NCAA RP waits at the "NBA Draft" step until
+  // draft night is over. Only then do the portal and roster moves run.
   OFFSEASON_STAGES: [
-    { key: 'summary',      label: 'Season Summary' },
-    { key: 'declarations', label: 'Draft Declarations' },
-    { key: 'predraft',     label: 'Combine & Workouts' },
-    { key: 'returners',    label: 'Withdrawals' },
-    { key: 'draft',        label: 'NBA Draft' },
-    { key: 'portal',       label: 'Transfer Portal' },
-    { key: 'rosters',      label: 'Final Rosters' }
+    { key: 'summary', label: 'Season Wrap-Up' },
+    { key: 'draft',   label: 'NBA Draft' },
+    { key: 'portal',  label: 'Transfer Portal' },
+    { key: 'rosters', label: 'Final Rosters' }
   ],
 
   async runOffseason() {
@@ -3427,16 +3418,40 @@ window.SimEngine = {
     const stage = this.OFFSEASON_STAGES[idx];
     if (!stage) return;
 
-    await this.runOffseasonStage(stage.key);
+    // Draft night belongs to the Draft RP. Pick up anything it has done,
+    // and wait here until the draft has been held.
+    if (stage.key === 'draft') {
+      await this.syncDraftFromDB();
+      if (!this.isDraftComplete()) {
+        if (typeof window !== 'undefined' && window.__BTR_AUTO_DRAFT) this.runDraftCycleHere();
+        else {
+          this.openOffseason('draft');
+          this.syncUI();
+          return;
+        }
+      }
+    }
 
+    await this.runOffseasonStage(stage.key);
+    let ran = stage.key;
     this.state.offseasonStageIndex = idx + 1;
-    // Anything short of the last stage just advances the calendar; the
-    // final stage rolls the season over.
+
+    // Coming back from draft night, one click opens the portal: the draft
+    // has already been seen in full in the Draft RP.
+    const after = this.OFFSEASON_STAGES[this.state.offseasonStageIndex];
+    if (stage.key === 'draft' && after && after.key === 'portal') {
+      await this.runOffseasonStage('portal');
+      ran = 'portal';
+      this.state.offseasonStageIndex += 1;
+    }
+
     if (this.state.offseasonStageIndex < this.OFFSEASON_STAGES.length) {
       this.state.phase = `Offseason — ${this.OFFSEASON_STAGES[this.state.offseasonStageIndex].label}`;
-      this.openOffseason(this.stageToView(stage.key));
+      const view = this.stageToView(ran);
+      this.openOffseason(view);
       this.syncUI();
       await this.saveStateToDB();
+      this.playOffseasonScene(ran);
       return;
     }
 
@@ -3444,121 +3459,150 @@ window.SimEngine = {
   },
 
   stageToView(key) {
-    if (key === 'predraft') return 'predraft';
-    if (key === 'draft') return 'draft';
-    if (key === 'declarations' || key === 'returners') return 'declarations';
+    if (key === 'summary' || key === 'draft') return 'draft';
     if (key === 'portal' || key === 'rosters') return 'transfers';
     return 'champion';
+  },
+
+  // The header's main button: simulate, or once the season is over,
+  // open the offseason (whose own Continue button moves it along).
+  async simButtonAction() {
+    if (this.state.ncaaDone) { this.openOffseason(); return; }
+    await this.simulateWeek();
   },
 
   async runOffseasonStage(key) {
     switch (key) {
       case 'summary':
         this.archiveCompletedSeason();
-        break;
-      case 'declarations':
-        // Snapshot the class NOW. This used to happen only at the very end
-        // of the offseason, so the declarations screen always displayed the
-        // previous year's group and never updated past the first draft.
         this.snapshotDeclarations();
-        break;
-      case 'predraft':
-        this.runPreDraftProcess();
-        break;
-      case 'returners':
-        this.resolveDraftWithdrawals();
+        this.ensureDraftCycle();
         break;
       case 'draft':
-        this.state.draftResults = this.computeDraftResults();
+        // Draft night already happened in the Draft RP; keep the final
+        // declared class (after withdrawals) for the record.
+        this.snapshotDeclarations();
         break;
       case 'portal':
-        this.state.pendingTransfers = true;
+        this.runTransferPortal();
         break;
       case 'rosters':
         break;
     }
   },
 
-  // Combine and workouts: measurements and interviews shift a prospect's
-  // stock before the draft, which is what makes withdrawal decisions
-  // meaningful rather than purely statistical.
-  runPreDraftProcess() {
-    const board = this.computeDraftBigBoard(200);
-    const results = [];
-    board.forEach((entry, i) => {
-      const p = entry.player;
-      // Movement is bigger further down the board — a consensus top pick
-      // has little to prove, a fringe prospect everything.
-      const volatility = i < 10 ? 1.5 : i < 30 ? 3.5 : 6;
-      const swing = (Math.random() + Math.random() - 1) * volatility;
-      p.combineSwing = swing;
-      if (Math.abs(swing) >= 2) {
-        results.push({
-          id: p.id, name: p.name, school: p.school,
-          direction: swing > 0 ? 'rose' : 'fell',
-          amount: Math.abs(Math.round(swing))
-        });
-      }
-    });
-    this.state.combineResults = results.slice(0, 40);
+  // ---------- The draft cycle (run by the Draft RP) ----------
+
+  // Created when the class declares, at the end of the NCAA Tournament.
+  ensureDraftCycle() {
+    const year = this.upcomingDraftYear();
+    if (!this.state.draftCycle || this.state.draftCycle.year !== year) {
+      this.state.draftCycle = { year, stage: 'declared', rev: 1, updatedAt: Date.now() };
+    }
+    return this.state.draftCycle;
   },
 
-  // The draft itself: the lottery and standings from this draft year's
-  // NBA season set the order, teams take the best available weighted to
-  // need, and any pick scripted in the roster sheet goes exactly where the
-  // sheet says. Results are saved to the player (so it follows him into
-  // the record books) and to the universe's draft history.
-  computeDraftResults() {
+  isDraftComplete() {
+    const year = this.upcomingDraftYear();
+    const c = this.state.draftCycle;
+    if (c && c.year === year && c.stage === 'complete') return true;
+    // Saves from before the draft moved to the Draft RP.
+    return !c && (this.state.draftHistory || []).some(d => d.year === year);
+  },
+
+  // The Draft RP writes to the same save. Before the NCAA RP writes (or
+  // when it regains focus), anything newer there is brought in so neither
+  // page overwrites the other's work.
+  async syncDraftFromDB() {
+    if (typeof db === 'undefined' || !db.leagueState) return false;
+    let saved;
+    try { saved = await db.leagueState.get(1); } catch (e) { return false; }
+    if (!saved || !saved.draftCycle || saved.currentYear !== this.state.year) return false;
+    // Only this season's cycle, and only when the save is ahead of us.
+    if (saved.draftCycle.year !== this.upcomingDraftYear()) return false;
+    const mine = this.state.draftCycle;
+    if (mine && mine.year === saved.draftCycle.year && (saved.draftCycle.rev || 0) <= (mine.rev || 0)) return false;
+
+    ['draftCycle', 'draftDeclarations', 'returningPlayers', 'combineResults', 'draftResults',
+     'draftLottery', 'draftHistory', 'nbaLeagues', 'lastDeclarations', 'lastDeclarationsYear'].forEach(k => {
+      if (saved[k] !== undefined) this.state[k] = saved[k];
+    });
+    try {
+      const fromDb = await db.players.toArray();
+      const byId = {};
+      fromDb.forEach(p => { byId[p.id] = p; });
+      this.state.activePlayers.forEach(p => {
+        const d = byId[p.id];
+        if (!d) return;
+        if (d.predraft) p.predraft = d.predraft;
+        if (d.draft) p.draft = d.draft;
+      });
+    } catch (e) { /* players unreadable — the league record still synced */ }
+    return true;
+  },
+
+  // The context the shared DraftCycle logic runs against.
+  draftContext(rng) {
     const draftYear = this.upcomingDraftYear();
-    const declared = this.state.draftDeclarations || [];
-    const declaredIds = new Set(declared.map(d => d.id));
-    const board = this.computeDraftBigBoard(400).filter(e => declaredIds.has(e.player.id));
+    const byId = {};
+    this.state.activePlayers.forEach(p => { byId[p.id] = p; });
+    const winPct = school => {
+      const t = this.state.teams.find(x => x.school === school);
+      const h = t && (t.history || []).find(x => x.year === this.state.year);
+      const w = h ? h.wins : t && t.simData ? t.simData.wins : 0;
+      const l = h ? h.losses : t && t.simData ? t.simData.losses : 0;
+      return w + l > 0 ? w / (w + l) : 0.5;
+    };
+    const board = limit => DraftCore.buildBigBoard(this.state.activePlayers, winPct, limit, { draftYear });
+    return {
+      draftYear, byId, rng: rng || Math.random,
+      league: this.getNbaLeague(draftYear),
+      declarations: this.state.draftDeclarations || [],
+      cycle: this.ensureDraftCycle(),
+      scriptedFor: p => this.scriptedDraftFor(p),
+      fullBoard: limit => board(limit),
+      fullBoardRank: () => { const r = {}; board(400).forEach((e, i) => { r[e.player.id] = i + 1; }); return r; },
+      board: () => {
+        const ids = new Set((this.state.draftDeclarations || []).map(d => d.id));
+        return board(600).filter(e => ids.has(e.player.id));
+      }
+    };
+  },
 
-    // Scripted slots: overall pick -> board entry.
-    const fixed = {};
-    board.forEach(e => {
-      const spec = this.scriptedDraftFor(e.player);
-      if (spec && spec.year === draftYear && !fixed[spec.overall]) fixed[spec.overall] = e;
-    });
-
-    const league = this.getNbaLeague(draftYear);
-    let picks, lottery = null;
-    if (league && typeof NBACore !== 'undefined') {
-      const draft = NBACore.buildMockDraft(board, league, Math.random, fixed);
-      lottery = draft.lottery;
-      picks = draft.picks.map(pk => ({
-        entry: board.find(e => e.player.id === pk.player.id), pick: pk.pick, round: pk.round,
-        team: { id: pk.team.id, name: pk.team.name, logo: pk.team.logo }, boardRank: pk.boardRank
-      }));
-    } else {
-      // NBA data unavailable: board order, no teams.
-      picks = board.slice(0, 60).map((e, i) => ({ entry: e, pick: i + 1, round: i < 30 ? 1 : 2, team: null, boardRank: i + 1 }));
+  // Applies one DraftCycle step's result to the in-memory state.
+  applyDraftStep(res) {
+    if (!res) return;
+    const byId = {};
+    this.state.activePlayers.forEach(p => { byId[p.id] = p; });
+    Object.entries(res.players || {}).forEach(([id, pd]) => { if (byId[id]) byId[id].predraft = pd; });
+    Object.entries(res.draftFor || {}).forEach(([id, d]) => { if (byId[id]) byId[id].draft = d; });
+    Object.assign(this.state, res.state || {});
+    if (res.draftEntry) {
+      this.state.draftHistory = (this.state.draftHistory || []).filter(d => d.year !== res.draftEntry.year).concat([res.draftEntry]);
     }
+    this.state.draftCycle = res.cycle;
+  },
 
-    const results = picks.map(pk => {
-      const p = pk.entry.player;
-      const spec = this.scriptedDraftFor(p);
-      const result = {
-        pick: pk.pick, round: pk.round, year: draftYear,
-        id: p.id, name: p.name, school: p.school, pos: p.pos, ht: p.ht,
-        class: this.normalizeClassStanding(p.class) || p.class,
-        ppg: p.stats ? p.stats.ppg : '0.0',
-        rpg: p.stats ? p.stats.rpg : '0.0',
-        apg: p.stats ? p.stats.apg : '0.0',
-        team: pk.team, boardRank: pk.boardRank,
-        scripted: !!(spec && spec.year === draftYear && spec.overall === pk.pick)
-      };
-      p.draft = { year: draftYear, pick: pk.pick, round: pk.round, team: pk.team ? { id: pk.team.id, name: pk.team.name, logo: pk.team.logo } : null, teamId: pk.team ? pk.team.id : null };
-      return result;
-    });
+  // Runs the whole cycle without the Draft RP — used by the automated
+  // checks, which have no second page to hand off to.
+  runDraftCycleHere() {
+    let guard = 0;
+    while (!this.isDraftComplete() && guard++ < 10) {
+      if (typeof DraftCycle === 'undefined') break;
+      this.applyDraftStep(DraftCycle.advance(this.draftContext()));
+    }
+  },
 
-    this.state.draftLottery = lottery ? {
-      year: draftYear,
-      winners: lottery.lotteryWinners.map(t => ({ id: t.id, name: t.name, logo: t.logo, wins: t.wins, losses: t.losses }))
-    } : null;
-    this.state.draftHistory = (this.state.draftHistory || []).filter(d => d.year !== draftYear)
-      .concat([{ year: draftYear, picks: results, lottery: this.state.draftLottery }]);
-    return results;
+  // Legacy entry points some tools still call.
+  resolveDraftWithdrawals() {
+    const res = DraftCycle.resolveDeadline(this.draftContext());
+    this.state.draftDeclarations = res.staying;
+    this.state.returningPlayers = res.returning;
+    return res.returning;
+  },
+  computeDraftResults() {
+    this.runDraftCycleHere();
+    return this.state.draftResults || [];
   },
 
   // Captures the declaring class with complete stat lines. Declared
@@ -3593,8 +3637,12 @@ window.SimEngine = {
     }
   },
 
-  async completeOffseason() {
-    this.state.offseasonStageIndex = 0;
+  // The transfer portal: scripted moves from the roster sheet first, then
+  // the simulated portal. Runs as its own offseason step (after draft
+  // night, so no declared player can transfer).
+  runTransferPortal() {
+    if (this.state.portalYear === this.state.year) return;
+    this.state.portalYear = this.state.year;
 
     // Scripted transfers first: if the roster sheet lists a player at a
     // different school next season, that move is authored, not random.
@@ -3616,6 +3664,11 @@ window.SimEngine = {
     this.state.transferHistory = (this.state.transferHistory || []).concat(
       this.state.lastTransfers.map(t => ({ ...t, season: intoSeason, scheduled: t.reason === 'Scheduled transfer' })));
     if (this.state.transferHistory.length > 4000) this.state.transferHistory = this.state.transferHistory.slice(-4000);
+  },
+
+  async completeOffseason() {
+    this.state.offseasonStageIndex = 0;
+    this.runTransferPortal();
 
     const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
     // Kept for the offseason screen — state.draftDeclarations is cleared
@@ -3677,7 +3730,7 @@ window.SimEngine = {
     this.runPlayerDevelopment();
 
     this.initSeasonData();
-    this.openOffseason('champion');
+    this.closeOffseason();
     this.logNews(`Advanced to ${this.state.year} Offseason. Graduated seniors cleared; incoming recruits added.`);
     
     const sbEl = document.getElementById('statsBody');
@@ -3687,6 +3740,8 @@ window.SimEngine = {
     
     this.syncUI();
     await this.saveStateToDB();
+    if (window.UIController && UIController.activateTab) this.activateTabSilently('dashTab');
+    this.playSeasonIntro({ fromOffseason: true });
   },
 
   syncUI() {
@@ -3694,14 +3749,8 @@ window.SimEngine = {
     if (yrElem) yrElem.innerText = `${this.state.year}-${(this.state.year + 1).toString().slice(2)}`;
 
     const phaseElem = document.getElementById('currentPhaseDisplay');
-    if (phaseElem) {
-      if (this.state.ncaaDone) phaseElem.innerText = this.state.phase;
-      else if (this.state.confChampsDone) phaseElem.innerText = 'NCAA Tournament';
-      else if (this.state.regularSeasonDone) phaseElem.innerText = 'Conference Championships';
-      else if (this.state.week === 0) phaseElem.innerText = 'Preseason';
-      else if (this.state.week > this.state.nonConfEnd) phaseElem.innerText = `Conference — Week ${this.state.week}`;
-      else phaseElem.innerText = `Non-Conference — Week ${this.state.week}`;
-    }
+    if (phaseElem) phaseElem.innerText = this.phaseText();
+    this.renderSeasonTrack();
 
     // Mirror phase/year into the always-visible toolbar.
     const tbPhase = document.getElementById('toolbarPhase');
@@ -3712,9 +3761,7 @@ window.SimEngine = {
     const btn = document.getElementById('simWeekBtn');
     if (btn) {
       if (this.state.ncaaDone) {
-        const idx = this.state.offseasonStageIndex || 0;
-        const stage = this.OFFSEASON_STAGES[idx];
-        btn.innerText = stage ? `Advance: ${stage.label}` : 'Begin Offseason';
+        btn.innerText = 'Open the Offseason';
         btn.disabled = false;
       } else if (this.state.confChampsDone) {
         const played = this.state.ncaaTournament ? this.state.ncaaTournament.rounds.length : 0;
@@ -3935,55 +3982,11 @@ window.SimEngine = {
       .slice(0, 25);
   },
 
-  updateDashboard() {
-    const banner = document.getElementById('dashOffseasonBanner');
-    if (banner) {
-      banner.style.display = this.state.ncaaDone ? 'flex' : 'none';
-      const st = this.OFFSEASON_STAGES[this.state.offseasonStageIndex || 0];
-      const lbl = document.getElementById('dashOffseasonStage');
-      if (lbl) lbl.textContent = st ? `Next up: ${st.label}` : '';
-    }
-    const dashTopTeams = document.getElementById('dashTopTeams');
-    if (dashTopTeams) {
-      const top25 = this.getCurrentTop25().slice(0, 25);
-      const isPreseason = this.state.week === 0;
-      if (top25.length === 0) {
-        dashTopTeams.innerHTML = `<p class="sub-text">Start a save to generate rankings.</p>`;
-      } else {
-        dashTopTeams.innerHTML = `
-          <div class="ap-bubble-grid">
-            ${top25.map((t, i) => {
-              const safe = t.school.replace(/'/g, "\\'");
-              const rec = isPreseason ? '' : `<span class="ap-bubble-record">${t.simData.wins}-${t.simData.losses}</span>`;
-              return `<button class="ap-bubble" onclick="SimEngine.goToTeamPage('${safe}')" title="${t.school}">
-                <span class="ap-bubble-rank">${i + 1}</span>
-                <img src="${this.getTeamLogo(t.school)}" class="ap-bubble-logo" alt="${t.school}">
-                <span class="ap-bubble-name">${t.school}</span>
-                ${rec}
-              </button>`;
-            }).join('')}
-          </div>`;
-      }
-    }
-
-    const labelEl = document.getElementById('dashPollLabel');
-    if (labelEl) labelEl.innerText = this.state.week === 0 ? 'PRESEASON TOP 25' : 'AP TOP 25';
-
-    if (this.state.week > 0) {
-      this.populateDashList('dashPts', 'ppg');
-      this.populateDashList('dashReb', 'rpg');
-      this.populateDashList('dashAst', 'apg');
-      this.populateDashList('dashStl', 'stl');
-      this.populateDashList('dashBlk', 'blk');
-    }
-
-    this.updateTopPerformances();
-    this.updateDashboardBracket();
-  },
 
   // Jumps straight to a team's page under the Team tab.
   goToTeamPage(school) {
     this.closePlayerPage();
+    this._countedTeam = null;
     this.state.teamPageSelection = school;
     this.state.teamPageView = 'team';
     this.updateTeamTab();
@@ -4650,6 +4653,7 @@ window.SimEngine = {
 
     body.innerHTML = this.renderPlayerPage(player);
     overlay.style.display = 'block';
+    if (typeof Cutscene !== 'undefined' && !this.reducedMotion()) Cutscene.countUp(body);
     document.body.classList.add('player-page-open');
     if (typeof window.scrollTo === 'function') {
       try { window.scrollTo(0, 0); } catch (e) { /* not available in every host */ }
@@ -4726,7 +4730,7 @@ window.SimEngine = {
 
     const careerBlock = seasons.length === 0
       ? `<p class="sub-text">No games played yet this season.</p>`
-      : `<h3 class="uppercase-title mt-2">Box Score</h3>${this.playerStatTable(seasons, 'box')}
+      : `<h3 class="uppercase-title">Box Score</h3>${this.playerStatTable(seasons, 'box')}
          <h3 class="uppercase-title mt-2">Advanced</h3>${this.playerStatTable(seasons, 'adv')}
          <h3 class="uppercase-title mt-2">Per 40 Minutes</h3>${this.playerStatTable(seasons, 'p40')}`;
 
@@ -4758,26 +4762,42 @@ window.SimEngine = {
       glRows = `<tr><td colspan="13" class="empty-table-msg">No games played yet.</td></tr>`;
     }
 
+    // Where he stands with NBA teams, linking into the Draft RP.
+    let draftCard = '';
+    if (player.draft) {
+      const tm = player.draft.team ? (player.draft.team.name || player.draft.team) : '';
+      draftCard = `<a class="pp-draft card" href="./draft.html?player=${encodeURIComponent(player.id)}">
+        <span class="draft-gate-kicker">${player.draft.year} NBA Draft</span>
+        <b>Pick ${player.draft.pick}${tm ? ' · ' + this.esc(tm) : ''}</b>
+        <span class="pp-draft-go">Draft RP &nearr;</span></a>`;
+    } else if (this.state.teams.length && this.state.activePlayers.includes(player)) {
+      const rank = this.boardRankOf(player.id);
+      if (rank) draftCard = `<a class="pp-draft card" href="./draft.html?player=${encodeURIComponent(player.id)}">
+        <span class="draft-gate-kicker">${this.upcomingDraftYear()} big board</span>
+        <b>No. ${rank} prospect</b>
+        <span class="pp-draft-go">Scouting report on the Draft RP &nearr;</span></a>`;
+    }
+    const chip = (label, value) => value ? `<span class="pp-chip"><small>${label}</small>${value}</span>` : '';
+    const tile = (label, value) => st.gp ? `<div class="pp-tile"><span>${label}</span><b data-count="${String(value).startsWith('.') ? '' : value}">${value}</b></div>`
+      : `<div class="pp-tile"><span>${label}</span><b class="pp-tile-empty">&ndash;</b></div>`;
+
     return `
-      <div class="player-page-head">
-        <img src="${this.getTeamLogo(player.school)}" class="player-page-logo">
+      <div class="pp-top"><button class="nav-back-btn" onclick="SimEngine.closePlayerPage()">&larr; Back</button></div>
+      <div class="pp-hero">
+        <img src="${this.getTeamLogo(player.school)}" class="team-hero-mark" alt="" aria-hidden="true">
+        <img src="${this.getTeamLogo(player.school)}" class="player-page-logo" alt="">
         <div class="player-page-ident">
-          <h1 class="player-page-name">${player.jersey ? '#' + player.jersey + ' ' : ''}${player.name}</h1>
-          <div class="player-bio-block">
-            ${bioRow('Position', posNames[player.pos] || player.pos)}
-            ${bioRow('Class', classNames[player.class] || player.class)}
-            ${bioRow('Height', player.ht)}
-            ${bioRow('Weight', player.wt ? player.wt + ' lb' : '')}
-            ${bioRow('School', collegeLinks)}
-            ${bioRow('NBA Draft', player.draft ? `${player.draft.year} · Pick ${player.draft.pick}${player.draft.team ? ' · ' + (player.draft.team.name || player.draft.team) : ''}` : '')}
-            ${bioRow('Hometown', player.hometown && player.hometown !== 'N/A' ? player.hometown : '')}
-            ${bioRow('High School', player.hs)}
-            ${bioRow('RSCI Rank', player.rsci
-              ? '#' + Math.round(player.rsci) + (player.recClassYear ? ' (' + player.recClassYear + ')' : '')
-              : 'Unranked')}
+          <div class="pp-kicker">${posNames[player.pos] || player.pos} &middot; ${classNames[player.class] || player.class || ''} &middot; ${collegeLinks}</div>
+          <h1 class="player-page-name">${player.jersey ? '<span class="pp-num">#' + player.jersey + '</span> ' : ''}${player.name}</h1>
+          <div class="pp-chips">
+            ${chip('Height', player.ht)}
+            ${chip('Weight', player.wt ? player.wt + ' lb' : '')}
+            ${chip('Hometown', player.hometown && player.hometown !== 'N/A' ? player.hometown : '')}
+            ${chip('High school', player.hs)}
+            ${chip('RSCI', player.rsci ? '#' + Math.round(player.rsci) + (player.recClassYear ? ' (' + player.recClassYear + ')' : '') : 'Unranked')}
           </div>
         </div>
-        <button class="sim-btn sim-btn-secondary" onclick="SimEngine.closePlayerPage()">Close</button>
+        <button class="outline-btn btn-sm pp-team-btn" onclick="SimEngine.goToTeamFromPlayer('${this.jsArg(player.school || '')}')">Team page</button>
       </div>
 
       ${(preseason.length || postseason.length) ? `<div class="player-accolade-block">
@@ -4785,24 +4805,38 @@ window.SimEngine = {
         ${postseason.length ? `<div><span class="accolade-tag postseason">Honors</span> ${postseason.join(' • ')}</div>` : ''}
       </div>` : ''}
 
-      <div class="team-stats-grid mt-1">
-        <div class="stat-box"><span class="stat-label">PPG</span><span class="stat-value">${st.ppg}</span></div>
-        <div class="stat-box"><span class="stat-label">RPG</span><span class="stat-value">${st.rpg}</span></div>
-        <div class="stat-box"><span class="stat-label">APG</span><span class="stat-value">${st.apg}</span></div>
-        <div class="stat-box"><span class="stat-label">FG%</span><span class="stat-value">${st.fgPct}</span></div>
+      <div class="pp-row">
+        <div class="pp-tiles">
+          ${tile('PPG', st.ppg)}${tile('RPG', st.rpg)}${tile('APG', st.apg)}${tile('FG%', st.fgPct)}${tile('3P%', st.threePPct || '—')}
+        </div>
+        ${draftCard}
       </div>
 
-      ${careerBlock}
+      <div class="card pp-section">${careerBlock}</div>
 
-      <h3 class="uppercase-title mt-2">Game Log <span class="sub-text-sm">(${this.state.year}-${(this.state.year + 1).toString().slice(2)})</span></h3>
-      <div class="table-scroll"><table class="data-table">
-        <thead><tr>
-          <th>Opponent</th><th>Result</th><th>MIN</th><th class="highlight-col">PTS</th>
-          <th>OREB</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th>
-          <th>FGM-A</th><th>3PM-A</th><th>FTM-A</th>
-        </tr></thead>
-        <tbody>${glRows}</tbody>
-      </table></div>`;
+      <div class="card pp-section">
+        <h3 class="uppercase-title">Game Log <span class="sub-text-sm">(${this.state.year}-${(this.state.year + 1).toString().slice(2)})</span></h3>
+        <div class="table-scroll"><table class="data-table">
+          <thead><tr>
+            <th>Opponent</th><th>Result</th><th>MIN</th><th class="highlight-col">PTS</th>
+            <th>OREB</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th>
+            <th>FGM-A</th><th>3PM-A</th><th>FTM-A</th>
+          </tr></thead>
+          <tbody>${glRows}</tbody>
+        </table></div>
+      </div>`;
+  },
+
+  // A player's place on the current big board (top 60), cached per week.
+  boardRankOf(id) {
+    const s = this.state;
+    const key = `${s.year}|${s.week}|${s.phase}`;
+    if (!this._boardRanks || this._boardRanks.key !== key) {
+      const ranks = {};
+      try { this.computeDraftBigBoard(60).forEach((e, i) => { ranks[e.player.id] = i + 1; }); } catch (e) { /* board unavailable */ }
+      this._boardRanks = { key, ranks };
+    }
+    return this._boardRanks.ranks[id] || null;
   },
 
   closePlayerModal() {
@@ -5149,12 +5183,15 @@ window.SimEngine = {
     this.state.simCompleted = true;
     this.state.phase = `National Champion: ${view.champion.school}`;
     this.state.draftDeclarations = this.computeDraftDeclarations();
+    this.state.draftCycle = null;
+    this.ensureDraftCycle();
     await this.saveStateToDB();
     this.syncUI();
     this.logNews(`${view.champion.school} wins the National Championship!`);
     // The season's over: the offseason screen takes over straight away,
-    // starting with the champion.
+    // starting with the champion, and the season-wrap scene plays over it.
     this.openOffseason('champion');
+    this.playSeasonWrap();
   },
 
   // ---------- Drawing brackets ----------
@@ -5508,65 +5545,37 @@ window.SimEngine = {
   // No. 1 seeds, each region, and the bubble. Skip jumps straight to the
   // bracket.
   playSelectionShow() {
-    if (typeof document === 'undefined' || !this.state.ncaaSelection) return;
+    if (typeof document === 'undefined' || !this.state.ncaaSelection || typeof Cutscene === 'undefined') return;
     const sel = this.state.ncaaSelection;
-    this.closeSelectionShow();
-    const reduce = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const el = document.createElement('div');
-    el.className = 'sel-show';
-    el.id = 'selectionShow';
-    el.setAttribute('role', 'dialog');
-    el.setAttribute('aria-label', 'Selection Sunday');
-    el.innerHTML = `<div class="sel-bg"></div>
-      <button class="sel-skip" type="button" onclick="SimEngine.finishSelectionShow()">Skip &rsaquo;</button>
-      <div class="sel-stage" id="selStage"></div>
-      <div class="sel-progress"><span id="selProgress"></span></div>`;
-    document.body.appendChild(el);
-    document.body.classList.add('sel-show-open');
-
-    const logo = s => `<img src="${this.getTeamLogo(s)}" alt="" class="sel-logo">`;
+    const C = Cutscene;
+    const logo = s => `<img src="${this.getTeamLogo(s)}" alt="" class="cs-logo">`;
     const yearLabel = `${this.state.year}-${String(this.state.year + 1).slice(2)}`;
     const autos = Object.entries(sel.autoBids);
     const ones = sel.order.map(r => sel.regions[r].find(e => e.seed === 1)).filter(Boolean);
     const scenes = [
-      { ms: 2600, html: `<div class="sel-title-card"><div class="sel-kicker">${yearLabel} NCAA Tournament</div>
-          <h1 class="sel-title">Selection<br>Sunday</h1><div class="sel-sub">The field of ${sel.fieldSize} is revealed</div></div>` },
-      { ms: 3400, html: `<div class="sel-scene"><h2 class="sel-h">Automatic bids</h2>
-          <div class="sel-autos">${autos.map(([c, s], i) => `<div class="sel-auto" style="--d:${i * 45}ms">${logo(s)}<span>${this.esc(s)}</span><small>${this.esc(c)}</small></div>`).join('')}</div></div>` },
-      { ms: 3600, html: `<div class="sel-scene"><h2 class="sel-h">The No. 1 seeds</h2>
-          <div class="sel-ones">${ones.map((e, i) => `<div class="sel-one" style="--d:${i * 520}ms"><div class="sel-one-region">${e.region}</div>
-            ${e.school ? logo(e.school) : ''}<div class="sel-one-name">${this.esc(e.school || '')}</div></div>`).join('')}</div></div>` },
-      ...sel.order.map(region => ({ ms: 3900, html: `<div class="sel-scene"><h2 class="sel-h">${region} Region</h2>
-          <div class="sel-region">${[...sel.regions[region]].sort((a, b) => a.seed - b.seed).map((e, i) => {
+      { ms: 2600, html: C.titleCard(`${yearLabel} NCAA Tournament`, 'Selection<br>Sunday', `The field of ${sel.fieldSize} is revealed`) },
+      { ms: 3400, html: C.heading('Automatic bids', `${autos.length} conference champions punch their tickets.`) +
+          `<div class="sel-autos">${autos.map(([c, s], i) => `<div class="sel-auto cs-item" style="--d:${i * 45}ms">${logo(s)}<span>${this.esc(s)}</span><small>${this.esc(c)}</small></div>`).join('')}</div>` },
+      { ms: 3600, html: C.heading('The No. 1 seeds') +
+          `<div class="cs-cards">${ones.map((e, i) => `<div class="cs-card cs-item" style="--d:${200 + i * 520}ms"><div class="cs-card-kicker">${e.region}</div>
+            ${e.school ? `<img src="${this.getTeamLogo(e.school)}" alt="" class="cs-logo">` : ''}<div class="cs-card-name">${this.esc(e.school || '')}</div></div>`).join('')}</div>` },
+      ...sel.order.map(region => ({ ms: 3900, html: C.heading(`${region} Region`) +
+          `<div class="sel-region">${[...sel.regions[region]].sort((a, b) => a.seed - b.seed).map((e, i) => {
             const name = e.school || (sel.firstFour.find(g => g.id === e.playin) || { teams: ['', ''] }).teams.join(' / ');
-            return `<div class="sel-line" style="--d:${i * 110}ms"><span class="sel-seed">${e.seed}</span>${e.school ? logo(e.school) : '<span class="sel-logo sel-ff">FF</span>'}<span class="sel-name">${this.esc(name)}</span></div>`;
-          }).join('')}</div></div>` })),
-      { ms: 3400, html: `<div class="sel-scene"><h2 class="sel-h">On the bubble</h2>
-          <div class="sel-bubble"><div><h3>Last four in</h3>${sel.lastFourIn.map((s, i) => `<div class="sel-line in" style="--d:${i * 160}ms">${logo(s)}<span class="sel-name">${this.esc(s)}</span></div>`).join('')}</div>
-          <div><h3>First four out</h3>${sel.firstFourOut.map((s, i) => `<div class="sel-line out" style="--d:${(i + 4) * 160}ms">${logo(s)}<span class="sel-name">${this.esc(s)}</span></div>`).join('')}</div></div></div>` },
-      { ms: 0, html: `<div class="sel-title-card"><h1 class="sel-title sel-small">The bracket is set</h1>
-          <button class="sim-btn" type="button" onclick="SimEngine.finishSelectionShow()">View the bracket</button></div>` }
+            return `<div class="cs-row cs-item" style="--d:${i * 110}ms"><span class="cs-rank">${e.seed}</span>${e.school ? logo(e.school) : '<span class="sel-ff">FF</span>'}<span class="cs-name">${this.esc(name)}</span></div>`;
+          }).join('')}</div>` })),
+      { ms: 3400, html: C.heading('On the bubble') +
+          `<div class="cs-bubble"><div><h3>Last four in</h3>${sel.lastFourIn.map((s, i) => `<div class="cs-row good cs-item" style="--d:${i * 160}ms">${logo(s)}<span class="cs-name">${this.esc(s)}</span></div>`).join('')}</div>
+          <div><h3>First four out</h3>${sel.firstFourOut.map((s, i) => `<div class="cs-row bad cs-item" style="--d:${(i + 4) * 160}ms">${logo(s)}<span class="cs-name">${this.esc(s)}</span></div>`).join('')}</div></div>` },
+      { ms: 0, html: C.titleCard('', '<span class="small">The bracket is set</span>') }
     ];
-
-    const stage = el.querySelector('#selStage');
-    const bar = el.querySelector('#selProgress');
-    let i = 0;
-    const show = () => {
-      if (!document.getElementById('selectionShow')) return;
-      stage.innerHTML = scenes[i].html;
-      stage.firstElementChild && stage.firstElementChild.classList.add('in');
-      bar.style.width = `${Math.round(((i + 1) / scenes.length) * 100)}%`;
-      const ms = reduce ? Math.min(1200, scenes[i].ms) : scenes[i].ms;
-      if (i < scenes.length - 1) this._selTimer = setTimeout(() => { i++; show(); }, ms);
-    };
-    show();
+    C.play({ id: 'selectionShow', label: 'Selection Sunday', scenes,
+      actions: [{ label: 'View the bracket', primary: true, run: () => this.finishSelectionShow() }],
+      onClose: how => { if (how === 'skipped') this.finishSelectionShow(); } });
   },
 
   closeSelectionShow() {
-    clearTimeout(this._selTimer);
-    const el = typeof document !== 'undefined' && document.getElementById('selectionShow');
-    if (el) el.remove();
-    if (typeof document !== 'undefined') document.body.classList.remove('sel-show-open');
+    if (typeof Cutscene !== 'undefined') Cutscene.close(true);
   },
 
   // Skip or finish: close the show and land on the bracket.
@@ -5665,6 +5674,7 @@ window.SimEngine = {
   // --- Team Page ---
 
   setTeamPageSelection(school) {
+    this._countedTeam = null;
     this.state.teamPageSelection = school;
     this.state.teamPageView = school ? 'team' : 'index';
     this.updateTeamTab();
@@ -5708,7 +5718,15 @@ window.SimEngine = {
 
     if (this.state.teamPageView === 'history') container.innerHTML = this.renderTeamHistoryView(team);
     else if (this.state.teamPageView === 'gamelog') container.innerHTML = this.renderTeamGameLog(team);
-    else container.innerHTML = this.renderTeamDetail(team);
+    else {
+      container.innerHTML = this.renderTeamDetail(team);
+      // The page animates in (and numbers roll up) when a team is opened,
+      // not every time it refreshes or re-sorts.
+      const fresh = this._countedTeam !== team.school;
+      container.classList.toggle('fresh', fresh);
+      if (fresh && typeof Cutscene !== 'undefined' && !this.reducedMotion()) Cutscene.countUp(container);
+      this._countedTeam = team.school;
+    }
   },
 
   // Landing view: every school grouped under its conference, with the
@@ -5721,7 +5739,7 @@ window.SimEngine = {
       byConf[c].push(t);
     });
 
-    let html = `<p class="sub-text mb-1-5">Select a school to open its team page.</p>`;
+    let html = `<div class="section-head page-head"><div><h2 class="section-title">Teams</h2><p class="section-sub">All ${this.state.teams.length} Division I programs by conference. Pick a school for its roster, stats and schedule.</p></div></div>`;
     Object.keys(byConf).sort().forEach(conf => {
       const teams = byConf[conf].sort((a, b) => a.school.localeCompare(b.school));
       html += `<div class="conf-section">
@@ -5778,22 +5796,29 @@ window.SimEngine = {
     const statCell = (label, value, rankKey) => `
       <div class="team-stat-cell">
         <span class="team-stat-label">${label}</span>
-        <span class="team-stat-value">${value}</span>
+        <span class="team-stat-value"${/^-?\d/.test(String(value)) ? ` data-count="${value}"` : ''}>${value}</span>
         <span class="team-stat-rank">${rk[rankKey] ? this.ordinal(rk[rankKey]) : '—'}</span>
       </div>`;
 
+    const pollRank = this.pollRankOf(team);
     let html = `
-      <button class="outline-btn mb-1" onclick="SimEngine.backToTeamIndex()">&larr; All Teams</button>
-      <div class="team-header">
-        <img src="${this.getTeamLogo(team.school)}" class="team-logo">
+      <div class="team-header team-hero">
+        <img src="${this.getTeamLogo(team.school)}" class="team-hero-mark" alt="" aria-hidden="true">
+        <img src="${this.getTeamLogo(team.school)}" class="team-logo" alt="">
         <div class="team-title-block">
-          <div class="modal-team-title-wrap">
-            <h2 class="modal-team-name">${team.school}</h2>${apTag}
-          </div>
           <span class="modal-team-year">
             ${this.getConferenceLogoImg(team.conference, 'conf-logo-sm')} ${team.conference}
             &bull; ${this.state.year}-${(this.state.year + 1).toString().slice(2)}
           </span>
+          <div class="modal-team-title-wrap">
+            <h2 class="modal-team-name">${team.school}</h2>${apTag || (pollRank ? `<span class="ap-rank-tag">No. ${pollRank}</span>` : '')}
+          </div>
+          <span class="team-hero-meta">${team.simData.wins}-${team.simData.losses} &middot; ${team.simData.confWins}-${team.simData.confLosses} conference</span>
+        </div>
+        <div class="team-hero-actions">
+          <button class="outline-btn btn-sm" onclick="SimEngine.setTeamPageView('gamelog')">Game log</button>
+          <button class="outline-btn btn-sm" onclick="SimEngine.setTeamPageView('history')">History</button>
+          <button class="outline-btn btn-sm" onclick="SimEngine.backToTeamIndex()">All teams</button>
         </div>
       </div>
 
@@ -5815,9 +5840,8 @@ window.SimEngine = {
 
       <div class="season-result-banner mb-1-5">${this.getSeasonResultText(team)}</div>
 
-      <div class="flex-between wrap-gap mb-1">
+      ${st.gp ? `      <div class="flex-between wrap-gap mb-1">
         <h3 class="uppercase-title">Team Statistics</h3>
-        <button class="outline-btn btn-sm" onclick="SimEngine.setTeamPageView('gamelog')">View Game Log &rarr;</button>
       </div>
       <p class="sub-text-sm mb-1">Small number under each stat is this team's national rank.</p>
       <div class="team-stat-cell-grid mb-1-5">
@@ -5855,11 +5879,12 @@ window.SimEngine = {
         ${statCell('3PAr', st.threePar, 'threePar')}
         ${statCell('FTr', st.ftr, 'ftr')}
       </div>
+    ` : `<div class="card empty-card"><h3 class="uppercase-title">Team Statistics</h3><p class="sub-text">Team and national-rank numbers fill in after the first week of games.</p></div>`}
     `;
 
     html += this.renderTeamPlayerTable(team, 'box');
     html += this.renderTeamPlayerTable(team, 'adv');
-    html += `<button class="outline-btn mt-1" onclick="SimEngine.setTeamPageView('history')">Team History &rarr;</button>`;
+
     return html;
   },
 
@@ -6250,6 +6275,7 @@ window.SimEngine = {
       hometown: p.hometown, hs: p.hs, jersey: p.jersey, rsci: p.rsci || null,
       rating: p.rating, collegeHistory: p.collegeHistory || [p.school],
       stats: this.slimStats(p.stats), draft: p.draft || null,
+      predraft: p.predraft && p.predraft.year === this.upcomingDraftYear() ? p.predraft : null,
       // The sheet's Draft column, so the Draft RP's mock agrees with draft night.
       scriptedDraft: this.scriptedDraftFor(p) || null
     };
@@ -6283,7 +6309,8 @@ window.SimEngine = {
     // Where the upcoming draft stands.
     const thisDraft = (this.state.draftHistory || []).find(d => d.year === draftYear);
     const declared = this.state.draftDeclarations || [];
-    const stage = thisDraft ? 'complete' : declared.length ? 'declared' : 'live';
+    const cycle = this.state.draftCycle && this.state.draftCycle.year === draftYear ? this.state.draftCycle : null;
+    const stage = !this.state.ncaaDone ? 'live' : cycle ? cycle.stage : thisDraft ? 'complete' : declared.length ? 'declared' : 'live';
     const snapshotById = {};
     (this.state.lastDeclarations || []).forEach(d => { snapshotById[d.id] = d; });
     let pool;
@@ -6298,7 +6325,7 @@ window.SimEngine = {
       });
       pool = board.map(p => this.slimPlayer(p));
     } else {
-      const source = stage === 'declared' ? declared : (this.state.lastDeclarations || declared);
+      const source = stage === 'complete' && (this.state.lastDeclarations || []).length ? this.state.lastDeclarations : declared;
       pool = source.map(d => this.slimPlayer(byId[d.id] || snapshotById[d.id] || d)).filter(Boolean);
     }
 
@@ -6341,7 +6368,12 @@ window.SimEngine = {
         results: thisDraft ? thisDraft.picks : [],
         lottery: thisDraft ? thisDraft.lottery : null,
         league: this.getNbaLeague(draftYear),
-        history: (this.state.draftHistory || []).map(d => ({ year: d.year, picks: d.picks, lottery: d.lottery }))
+        // Where the pre-draft process stands, for the Draft RP's combine,
+        // lottery and workout views.
+        cycle: cycle ? { year: cycle.year, stage: cycle.stage, lottery: cycle.lottery || null, interest: cycle.interest || null,
+          combine: cycle.combine || null, workouts: cycle.workouts || null, deadline: cycle.deadline || null } : null,
+        returning: cycle && ['deadline', 'complete'].includes(cycle.stage) ? (this.state.returningPlayers || []) : [],
+        history: (this.state.draftHistory || []).map(d => ({ year: d.year, picks: d.picks, lottery: d.lottery, board: d.board || null }))
       },
       transfers: (this.state.transferHistory || []).map(t => ({
         name: t.name, pos: t.pos, class: t.class, rating: t.rating, ppg: t.ppg,
@@ -6535,224 +6567,100 @@ window.SimEngine = {
 
   // --- Offseason takeover ---
 
-  // The offseason is its own full-screen experience rather than a tab:
-  // it opens over the sim the way the home screen does, walks through
-  // champion / declarations / transfers, and is dismissed explicitly.
-  openOffseason(stage) {
-    this.state.offseasonStage = stage || this.state.offseasonStage || 'champion';
-    const overlay = document.getElementById('offseasonOverlay');
-    if (!overlay) return;
-    overlay.style.display = 'block';
-    document.body.classList.add('offseason-open');
-    this.renderOffseasonOverlay();
-  },
 
-  closeOffseason() {
-    const overlay = document.getElementById('offseasonOverlay');
-    if (overlay) overlay.style.display = 'none';
-    document.body.classList.remove('offseason-open');
-  },
 
-  setOffseasonStage(stage) {
-    this.state.offseasonStage = stage;
-    this.renderOffseasonOverlay();
-  },
 
-  renderOffseasonOverlay() {
-    const el = document.getElementById('offseasonBody');
-    if (!el) return;
 
-    document.querySelectorAll('.offseason-stage-btn').forEach(b => {
-      b.classList.toggle('active', b.getAttribute('data-stage') === this.state.offseasonStage);
-    });
-
-    const yearEl = document.getElementById('offseasonYear');
-    if (yearEl) {
-      const y = this.state.seasonHistory.length
-        ? this.state.seasonHistory[this.state.seasonHistory.length - 1].year
-        : this.state.year;
-      yearEl.innerText = `${y}-${(y + 1).toString().slice(2)} Offseason`;
-    }
-
-    // The action button names whatever comes next, rather than always
-    // reading "Continue to Next Season".
-    const actionBtn = document.getElementById('offseasonAdvanceBtn');
-    if (actionBtn) {
-      const idx = this.state.offseasonStageIndex || 0;
-      const next = this.OFFSEASON_STAGES[idx];
-      actionBtn.innerText = next ? `Continue: ${next.label}` : 'Continue to Next Season';
-    }
-
-    const stage = this.state.offseasonStage || 'champion';
-    if (stage === 'draft') el.innerHTML = this.renderOffseasonDraft();
-    else if (stage === 'predraft') el.innerHTML = this.renderOffseasonCombine();
-    else if (stage === 'declarations') el.innerHTML = this.renderOffseasonDeclarations();
-    else if (stage === 'transfers') el.innerHTML = this.renderOffseasonTransfers();
-    else el.innerHTML = this.renderOffseasonChampion();
+  // What the season-end screens show: built once from the finished season
+  // (awards, All-Americans, Final Four, final poll) and kept for the rest
+  // of the offseason, even as players leave for the draft.
+  wrapUpData() {
+    const s = this.state;
+    const t = s.ncaaTournament;
+    if (!s.ncaaDone || !t || !t.champion) return null;
+    if (this._wrapUp && this._wrapUp.year === s.year && this._wrapUp.champ === t.champion.school) return this._wrapUp;
+    const line = p => p ? { id: p.id, name: p.name, school: p.school, pos: p.pos, class: p.class,
+      ppg: p.stats.ppg, rpg: p.stats.rpg, apg: p.stats.apg } : null;
+    let aw = {};
+    try { aw = this.computeNationalAwards(); } catch (e) { aw = {}; }
+    const final = t.rounds[t.rounds.length - 1] && t.rounds[t.rounds.length - 1][0];
+    const champ = t.champion.school;
+    const runner = final ? (final.winner.school === final.teamA.school ? final.teamB.school : final.teamA.school) : null;
+    const score = final && final.result ? `${Math.max(final.result.homeScore, final.result.awayScore)}-${Math.min(final.result.homeScore, final.result.awayScore)}` : '';
+    const seeds = s.ncaaSelection ? this.selectionSeeds(s.ncaaSelection) : {};
+    const semis = t.rounds[4] || [];
+    const finalFour = semis.flatMap(g => [g.teamA.school, g.teamB.school]).map(sc => ({
+      school: sc, seed: (seeds[sc] || {}).seed || null, region: (seeds[sc] || {}).region || '',
+      result: sc === champ ? 'Champion' : sc === runner ? 'Runner-up' : 'Final Four'
+    }));
+    const allAmericans = [...s.activePlayers].sort((a, b) => b.awardScore - a.awardScore).slice(0, 5).map(line);
+    const poll = [...s.teams].filter(x => x.apRank).sort((x, y) => x.apRank - y.apRank).slice(0, 10)
+      .map(x => ({ rank: x.apRank, school: x.school, wins: x.simData.wins, losses: x.simData.losses }));
+    const team = this.findTeam(champ);
+    this._wrapUp = {
+      year: s.year, champ, runner, score,
+      record: team ? `${team.simData.wins}-${team.simData.losses}` : '',
+      conference: team ? team.conference : '', seed: (seeds[champ] || {}).seed || null,
+      finalFour, poll, allAmericans,
+      awards: [['Player of the Year', aw.npoy], ['Defensive Player of the Year', aw.dpoy], ['Freshman of the Year', aw.froy]]
+        .filter(x => x[1]).map(([label, p]) => ({ label, p: line(p) }))
+    };
+    return this._wrapUp;
   },
 
   renderOffseasonChampion() {
-    let champSchool = null, champYear = this.state.year;
-    if (this.state.ncaaTournament && this.state.ncaaTournament.champion) {
-      champSchool = this.state.ncaaTournament.champion.school;
-    } else if ((this.state.seasonHistory || []).length > 0) {
-      const last = this.state.seasonHistory[this.state.seasonHistory.length - 1];
-      champSchool = last.champion;
-      champYear = last.year;
+    const s = this.state;
+    const w = this.wrapUpData();
+    if (!w) {
+      // Outside a live offseason, fall back to the last archived season.
+      const last = (s.seasonHistory || []).slice(-1)[0];
+      if (!last || !last.champion) return `<p class="empty-table-msg">Finish the NCAA Tournament to begin the offseason.</p>`;
+      return `<div class="card wrap-champ"><img src="${this.getTeamLogo(last.champion)}" class="wrap-champ-logo" alt="">
+        <div><div class="wrap-kicker">${last.year}-${String(last.year + 1).slice(2)} National Champions</div>
+        <div class="wrap-champ-name">${this.esc(last.champion)}</div>
+        ${last.runnerUp ? `<div class="wrap-champ-meta">Beat ${this.esc(last.runnerUp)} in the title game</div>` : ''}</div></div>`;
     }
-    if (!champSchool) return `<p class="empty-table-msg">Finish the NCAA Tournament to begin the offseason.</p>`;
-
-    const t = this.state.teams.find(x => x.school === champSchool);
-    const hist = t && (t.history || []).find(h => h.year === champYear);
-    const record = hist ? `${hist.wins}-${hist.losses}` : (t && t.simData ? `${t.simData.wins}-${t.simData.losses}` : '');
-    const histEntry = (this.state.seasonHistory || []).find(h => h.year === champYear);
-
-    let html = `<div class="champion-spotlight">
-      <img src="${this.getTeamLogo(champSchool)}" class="champion-logo">
-      <div>
-        <div class="champion-label">${champYear}-${(champYear + 1).toString().slice(2)} National Champions</div>
-        <div class="champion-name">${champSchool}</div>
-        <div class="champion-record">${record}${t && t.conference ? ' · ' + t.conference : ''}</div>
+    const label = `${w.year}-${String(w.year + 1).slice(2)}`;
+    const player = (p, extra = '') => p ? `<li class="wrap-player" onclick="SimEngine.openPlayerModal('${this.jsArg(p.id)}')">
+        <img src="${this.getTeamLogo(p.school)}" class="xs-logo" alt="">
+        <span class="dw-name"><b>${this.esc(p.name)}</b><small>${extra ? extra + ' · ' : ''}${p.pos} · ${p.class} · ${this.esc(p.school)}</small></span>
+        <span class="wrap-line">${p.ppg}<small>ppg</small> ${p.rpg}<small>rpg</small> ${p.apg}<small>apg</small></span></li>` : '';
+    const declared = (s.draftDeclarations || []).length;
+    const idx = s.offseasonStageIndex || 0;
+    return `<div class="wrap-grid">
+      <div class="card wrap-champ">
+        <img src="${this.getTeamLogo(w.champ)}" class="wrap-champ-logo" alt="">
+        <div class="wrap-champ-text">
+          <div class="wrap-kicker">${label} National Champions</div>
+          <div class="wrap-champ-name clickable-school" onclick="SimEngine.closeOffseason();SimEngine.goToTeamPage('${this.jsArg(w.champ)}')">${this.esc(w.champ)}</div>
+          <div class="wrap-champ-meta">${w.record}${w.conference ? ' · ' + this.esc(w.conference) : ''}${w.seed ? ` · ${w.seed} seed` : ''}</div>
+          ${w.runner ? `<div class="wrap-title-game"><span>Title game</span><b>${w.score}</b> over ${this.esc(w.runner)}</div>` : ''}
+        </div>
+      </div>
+      <div class="card wrap-next">
+        <div class="draft-gate-kicker">Up next · ${this.upcomingDraftYear()} NBA Draft</div>
+        <b class="wrap-next-count" data-count="${declared}">${declared}</b>
+        <p>players have declared. The combine, lottery, workouts and draft night happen in the Draft RP.</p>
+        ${idx === 0 ? `<button class="sim-btn" onclick="SimEngine.advanceFromOffseason()">Continue to the draft</button>` : `<a class="sim-btn" href="./draft.html">Open the Draft RP &rarr;</a>`}
+      </div>
+      <div class="card wrap-ff">
+        <div class="section-head"><h3 class="section-title">The Final Four</h3></div>
+        <div class="wrap-ff-grid">${w.finalFour.map((t, i) => `<div class="wrap-ff-team ${t.result === 'Champion' ? 'champ' : ''}" style="--d:${i * 80}ms" onclick="SimEngine.closeOffseason();SimEngine.goToTeamPage('${this.jsArg(t.school)}')">
+          <img src="${this.getTeamLogo(t.school)}" alt=""><b>${this.esc(t.school)}</b><small>${t.seed ? t.seed + ' seed · ' : ''}${t.region}</small><span>${t.result}</span></div>`).join('')}</div>
+      </div>
+      <div class="card">
+        <div class="section-head"><h3 class="section-title">National awards</h3></div>
+        <ul class="draft-watch wrap-list">${w.awards.map(a => player(a.p, a.label)).join('')}</ul>
+      </div>
+      <div class="card">
+        <div class="section-head"><h3 class="section-title">First-team All-Americans</h3></div>
+        <ul class="draft-watch wrap-list">${w.allAmericans.map(p => player(p)).join('')}</ul>
+      </div>
+      <div class="card">
+        <div class="section-head"><h3 class="section-title">Final Top 10</h3></div>
+        <ol class="wrap-poll">${w.poll.map(t => `<li onclick="SimEngine.closeOffseason();SimEngine.goToTeamPage('${this.jsArg(t.school)}')"><span class="poll-rank">${t.rank}</span><img src="${this.getTeamLogo(t.school)}" class="poll-logo" alt=""><span class="poll-team">${this.esc(t.school)}</span><span class="poll-rec">${t.wins}-${t.losses}</span></li>`).join('')}</ol>
       </div>
     </div>`;
-
-    if (histEntry) {
-      html += `<div class="offseason-recap">
-        ${histEntry.runnerUp ? `<p class="sub-text">Defeated <strong>${histEntry.runnerUp}</strong> in the championship game.</p>` : ''}
-        ${histEntry.finalFour && histEntry.finalFour.length ? `<p class="sub-text">Final Four: ${histEntry.finalFour.join(', ')}</p>` : ''}
-        ${histEntry.npoy ? `<p class="sub-text">National Player of the Year: <strong>${histEntry.npoy.name}</strong> (${histEntry.npoy.school})</p>` : ''}
-        ${histEntry.dpoy ? `<p class="sub-text">Defensive Player of the Year: <strong>${histEntry.dpoy.name}</strong> (${histEntry.dpoy.school})</p>` : ''}
-      </div>`;
-    }
-    return html;
-  },
-
-  renderOffseasonDeclarations() {
-    // Prefer the snapshot taken during the offseason; fall back to the live
-    // list when the offseason screen is opened before advancing.
-    let decls = (this.state.lastDeclarations && this.state.lastDeclarations.length)
-      ? this.state.lastDeclarations
-      : (this.state.draftDeclarations || []);
-    const returning = this.state.returningPlayers || [];
-
-    let html = `<p class="sub-text mb-1">Seniors and players out of eligibility enter automatically. Early entrants can withdraw and return to school — combine results from the Draft RP page will drive that decision once it's available.</p>`;
-
-    html += `<div class="filters-container mb-1">
-      <select class="filter-select" onchange="SimEngine.setDeclarationSort(this.value)">
-        <option value="board" ${this.state.declarationSort === 'board' ? 'selected' : ''}>Sort by Draft Board</option>
-        <option value="school" ${this.state.declarationSort === 'school' ? 'selected' : ''}>Group by School</option>
-      </select>
-    </div>`;
-
-    if (this.state.declarationSort === 'school') {
-      decls = [...decls].sort((x, y) =>
-        x.school === y.school ? (x.boardRank || 999) - (y.boardRank || 999) : x.school.localeCompare(y.school));
-    } else {
-      decls = [...decls].sort((x, y) => (x.boardRank || 999) - (y.boardRank || 999));
-    }
-
-    // Withdrawals are the news of this stage, so they lead; the full list
-    // of players staying in the draft follows.
-    if (returning.length > 0) {
-      html += `<h5 class="award-table-title withdrew-title">Withdrew — Returning to School (${returning.length})</h5>
-        <div class="table-scroll mb-1-5"><table class="data-table withdrew-table">
-          <thead><tr><th>Player</th><th>School</th><th>Pos</th><th>Big Board</th></tr></thead><tbody>
-          ${returning.map(r => `<tr>
-            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(r.id).replace(/'/g, "\\'")}')">${r.name}</span></td>
-            <td class="sub-text">${r.school}</td>
-            <td class="sub-text">${r.pos}</td>
-            <td class="sub-text-sm">${r.boardRank <= 200 ? '#' + r.boardRank : 'Unranked'}</td>
-          </tr>`).join('')}
-        </tbody></table></div>`;
-    }
-    if (decls.length === 0) {
-      html += `<p class="empty-table-msg">No players have declared yet.</p>`;
-    } else {
-      html += `<h5 class="award-table-title">Declared (${decls.length})</h5>
-        <div class="table-scroll mb-1-5"><table class="data-table">
-          <thead><tr><th>#</th><th>Player</th><th>School</th><th>Pos</th><th>Cl</th><th>PPG</th><th>Board</th><th>Status</th></tr></thead><tbody>
-          ${decls.map((d, i) => `<tr>
-            <td class="bold-sub-text">${i + 1}</td>
-            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(d.id).replace(/'/g, "\\'")}')">${d.name}</span></td>
-            <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(d.school)}" class="xs-logo"><span>${d.school}</span></div></td>
-            <td class="sub-text">${d.pos}</td>
-            <td class="sub-text">${d.class}</td>
-            <td class="bold-text">${d.ppg}</td>
-            <td class="sub-text-sm">${d.boardRank && d.boardRank <= 200 ? '#' + d.boardRank : '—'}</td>
-          <td class="sub-text-sm">${d.mandatory ? 'Auto entry' : 'Early entry'}</td>
-          </tr>`).join('')}
-        </tbody></table></div>`;
-    }
-
-    return html;
-  },
-
-  renderOffseasonCombine() {
-    const combine = this.state.combineResults || [];
-    if (combine.length === 0) {
-      return `<p class="empty-table-msg">The combine hasn't been held yet.</p>`;
-    }
-    const risers = combine.filter(c => c.direction === 'rose');
-    const fallers = combine.filter(c => c.direction === 'fell');
-    const col = (title, list, cls) => `
-      <div class="season-section">
-        <h5 class="award-table-title">${title}</h5>
-        <div class="table-scroll"><table class="data-table">
-          <thead><tr><th>Player</th><th>School</th><th>Move</th></tr></thead><tbody>
-          ${list.slice(0, 12).map(c => `<tr>
-            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(c.id).replace(/'/g, "\\'")}')">${c.name}</span></td>
-            <td class="sub-text">${c.school}</td>
-            <td class="${cls}">${c.direction === 'rose' ? '▲' : '▼'} ${c.amount}</td>
-          </tr>`).join('') || '<tr><td colspan="3" class="empty-table-msg">None</td></tr>'}
-        </tbody></table></div>
-      </div>`;
-    return `<p class="sub-text mb-1">Measurements, scrimmages and interviews. Prospects further down the board move most — a consensus top pick has little to prove.</p>
-      <div class="season-split">${col('Helped Themselves', risers, 'win-text')}${col('Hurt Themselves', fallers, 'loss-text')}</div>`;
-  },
-
-  renderOffseasonDraft() {
-    const picks = this.state.draftResults || [];
-    const combine = this.state.combineResults || [];
-    let html = '';
-    let combineHTML = '';
-
-    if (combine.length) {
-      combineHTML = `<h5 class="award-table-title mt-2">Combine &amp; Workout Risers and Fallers</h5>
-        <div class="table-scroll mb-1-5"><table class="data-table">
-          <thead><tr><th>Player</th><th>School</th><th>Movement</th></tr></thead><tbody>
-          ${combine.slice(0, 15).map(c => `<tr>
-            <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(c.id).replace(/'/g, "\\'")}')">${c.name}</span></td>
-            <td class="sub-text">${c.school}</td>
-            <td class="${c.direction === 'rose' ? 'win-text' : 'loss-text'}">${c.direction === 'rose' ? '▲' : '▼'} ${c.amount} spots</td>
-          </tr>`).join('')}
-        </tbody></table></div>`;
-    }
-
-    if (picks.length === 0) {
-      return `<p class="empty-table-msg">The draft hasn't been held yet. <a href="./draft.html">See the projected mock draft on the Draft RP &rarr;</a></p>` + combineHTML;
-    }
-
-    const nbaLogo = t => `../nbalogos/${encodeURIComponent(t.logo)}.png`;
-    const lottery = this.state.draftLottery;
-    const draftYear = picks[0].year || this.state.year + 1;
-    html += `<div class="draft-results-head">
-        <h5 class="award-table-title">${draftYear} NBA Draft</h5>
-        <a class="text-link" href="./draft.html">Full draft on the Draft RP &rarr;</a>
-      </div>
-      ${lottery && lottery.winners ? `<p class="sub-text mb-1">Lottery: ${lottery.winners.map((t, i) => `<b>${i + 1}.</b> ${t.name}`).join(' · ')}</p>` : ''}
-      <div class="table-scroll"><table class="data-table">
-        <thead><tr><th>Pick</th><th>Team</th><th>Player</th><th>School</th><th>Pos</th><th>PPG</th></tr></thead><tbody>
-        ${picks.map(d => `<tr>
-          <td class="rank-cell">${d.pick}</td>
-          <td>${d.team ? `<div class="team-cell-wrap"><img src="${nbaLogo(d.team)}" class="xs-logo" alt="" onerror="this.remove()"><span>${d.team.name}</span></div>` : '<span class="sub-text">—</span>'}</td>
-          <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(d.id).replace(/'/g, "\\'")}')">${d.name}</span></td>
-          <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(d.school)}" class="xs-logo"><span>${d.school}</span></div></td>
-          <td class="sub-text">${d.pos}</td>
-          <td class="bold-text">${d.ppg}</td>
-        </tr>`).join('')}
-      </tbody></table></div>`;
-    // Draft night first; the combine movement that led to it follows.
-    return html + combineHTML;
   },
 
   renderOffseasonTransfers() {
@@ -6786,6 +6694,552 @@ window.SimEngine = {
     }
     el.innerHTML = `<p class="sub-text mb-1">The offseason opens as a full-screen experience.</p>
       <button class="sim-btn" onclick="SimEngine.openOffseason('champion')">Open Offseason</button>`;
+  },
+
+  // ============================================================
+  // App shell: title screen, season track, dashboard, offseason,
+  // cutscenes and toasts.
+  // ============================================================
+
+  // The title screen puts an existing save first.
+  async setupHomeScreen() {
+    const hasSave = await this.checkForExistingSave();
+    const home = document.getElementById('homeScreen');
+    const loadBtn = document.getElementById('loadSaveBtn');
+    const newBtn = document.getElementById('newSaveBtn');
+    const noSaveMsg = document.getElementById('noSaveMessage');
+    const meta = document.getElementById('homeSaveMeta');
+    if (home) home.classList.toggle('has-save', hasSave);
+    if (loadBtn) loadBtn.disabled = !hasSave;
+    if (newBtn) newBtn.textContent = hasSave ? 'Start a new save' : 'Start a New Save';
+    if (noSaveMsg) noSaveMsg.style.display = hasSave ? 'none' : 'block';
+    if (meta && hasSave) {
+      try {
+        const s = await db.leagueState.get(1);
+        const label = `${s.currentYear}-${String((s.currentYear || 2028) + 1).slice(2)}`;
+        const where = s.ncaaDone ? (s.currentPhase || 'Offseason') : s.confChampsDone ? 'NCAA Tournament'
+          : s.regularSeasonDone ? 'Conference tournaments' : s.currentWeek ? `Week ${s.currentWeek}` : 'Preseason';
+        const seasons = (s.seasonHistory || []).length;
+        meta.textContent = `${label} · ${where}${seasons ? ` · ${seasons} season${seasons === 1 ? '' : 's'} played` : ''}`;
+      } catch (e) { meta.textContent = 'Saved in this browser'; }
+    }
+  },
+
+  // ---------- Season track ----------
+
+  SEASON_STEPS: [
+    { key: 'pre', label: 'Preseason' },
+    { key: 'nonconf', label: 'Non-Conference' },
+    { key: 'conf', label: 'Conference Play' },
+    { key: 'confT', label: 'Conf. Tournaments' },
+    { key: 'ncaa', label: 'NCAA Tournament' },
+    { key: 'off', label: 'Offseason' }
+  ],
+
+  seasonStepKey() {
+    const s = this.state;
+    if (s.ncaaDone) return 'off';
+    if (s.confChampsDone) return 'ncaa';
+    if (s.regularSeasonDone) return 'confT';
+    if (s.week === 0) return 'pre';
+    return s.week > s.nonConfEnd ? 'conf' : 'nonconf';
+  },
+
+  phaseText() {
+    const s = this.state;
+    const k = this.seasonStepKey();
+    if (k === 'off') return s.phase && /Offseason/.test(s.phase) ? s.phase.replace('Offseason — ', 'Offseason · ') : 'Offseason';
+    if (k === 'ncaa') {
+      const played = s.ncaaTournament ? s.ncaaTournament.rounds.length : 0;
+      return played === 0 ? 'Selection Sunday' : `NCAA Tournament · ${this.NCAA_ROUND_NAMES[played - 1] || ''} done`;
+    }
+    if (k === 'confT') return 'Conference tournaments';
+    if (k === 'pre') return 'Preseason';
+    const total = s.confEnd || 15;
+    return `${k === 'conf' ? 'Conference play' : 'Non-conference'} · Week ${s.week} of ${total}`;
+  },
+
+  seasonProgress() {
+    const s = this.state;
+    const total = (s.confEnd || 15) + 1 + 6;   // weeks, conference tournaments, six NCAA rounds
+    if (s.ncaaDone) return 1;
+    let done = s.week || 0;
+    if (s.regularSeasonDone) done = s.confEnd || done;
+    if (s.confChampsDone) done += 1 + (s.ncaaTournament ? s.ncaaTournament.rounds.length : 0);
+    return Math.max(0, Math.min(1, done / total));
+  },
+
+  renderSeasonTrack() {
+    const el = document.getElementById('seasonTrack');
+    const s = this.state;
+    const at = this.SEASON_STEPS.findIndex(x => x.key === this.seasonStepKey());
+    if (el) {
+      const sub = {
+        pre: s.week === 0 && !s.ncaaDone ? `${s.teams.length} teams` : 'Rosters set',
+        nonconf: s.nonConfEnd ? `Weeks 1–${s.nonConfEnd}` : 'Early season',
+        conf: s.confEnd ? `Weeks ${s.nonConfEnd + 1}–${s.confEnd}` : 'League play',
+        confT: s.confChampsDone ? `${Object.keys(s.confTournaments || {}).length} champions` : 'Automatic bids',
+        ncaa: s.ncaaDone && s.ncaaTournament && s.ncaaTournament.champion ? `${s.ncaaTournament.champion.school} won it` : 'Field of 68',
+        off: s.ncaaDone ? (this.OFFSEASON_STAGES[s.offseasonStageIndex || 0] || { label: 'Rosters' }).label : 'Draft & portal'
+      };
+      el.innerHTML = this.SEASON_STEPS.map((st, i) => `
+        <li class="${i < at ? 'done' : i === at ? 'current' : ''}" ${st.key === 'off' && s.ncaaDone ? 'onclick="SimEngine.openOffseason()" role="button" tabindex="0"' : ''}>
+          <span class="stage-dot">${i < at ? '✓' : i + 1}</span>
+          <span><b>${st.label}</b><small>${sub[st.key]}</small></span>
+        </li>`).join('');
+    }
+    const bar = document.getElementById('seasonProgress');
+    if (bar) bar.style.width = `${Math.round(this.seasonProgress() * 100)}%`;
+  },
+
+  // ---------- Toasts ----------
+
+  toast(title, sub, ms = 4200) {
+    if (typeof document === 'undefined') return;
+    let wrap = document.querySelector('.rp-toast-wrap');
+    if (!wrap) { wrap = document.createElement('div'); wrap.className = 'rp-toast-wrap'; document.body.appendChild(wrap); }
+    const t = document.createElement('div');
+    t.className = 'rp-toast';
+    t.setAttribute('role', 'status');
+    t.innerHTML = `<div><b>${title}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
+    wrap.appendChild(t);
+    while (wrap.children.length > 2) wrap.firstChild.remove();
+    setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 400); }, ms);
+  },
+
+  // What happened this week, in a sentence: ranked teams that lost.
+  summarizeWeek(games, rankBefore) {
+    const upsets = [];
+    games.forEach(g => {
+      if (!g.played || !g.result) return;
+      const homeWon = g.result.homeScore > g.result.awayScore;
+      const winner = homeWon ? g.home : g.away, loser = homeWon ? g.away : g.home;
+      const lr = rankBefore[loser], wr = rankBefore[winner];
+      if (lr && (!wr || wr > lr)) upsets.push({ winner, loser, lr, wr, score: `${Math.max(g.result.homeScore, g.result.awayScore)}-${Math.min(g.result.homeScore, g.result.awayScore)}` });
+    });
+    upsets.sort((a, b) => a.lr - b.lr);
+    const top = upsets[0];
+    return {
+      week: this.state.week, games: games.length, upsets: upsets.length,
+      headline: top ? `${top.wr ? 'No. ' + top.wr + ' ' : ''}${top.winner} beat No. ${top.lr} ${top.loser}, ${top.score}` : null
+    };
+  },
+
+  // ---------- Dashboard ----------
+
+  updateDashboard() {
+    const s = this.state;
+    const banner = document.getElementById('dashOffseasonBanner');
+    if (banner) {
+      banner.style.display = s.ncaaDone ? 'flex' : 'none';
+      const st = this.OFFSEASON_STAGES[s.offseasonStageIndex || 0];
+      const lbl = document.getElementById('dashOffseasonStage');
+      if (lbl) lbl.textContent = st ? `Next up: ${st.label}` : '';
+    }
+    const dashTopTeams = document.getElementById('dashTopTeams');
+    if (dashTopTeams) {
+      const top25 = this.getCurrentTop25().slice(0, 25);
+      const isPreseason = s.week === 0;
+      if (top25.length === 0) {
+        dashTopTeams.innerHTML = `<p class="sub-text">Start a save to generate rankings.</p>`;
+      } else {
+        const row = (t, i) => {
+          const rank = i + 1;
+          const prev = t.prevApRank;
+          const move = isPreseason ? '' : !prev ? '<span class="poll-move new">NEW</span>'
+            : prev > rank ? `<span class="poll-move up">▲${prev - rank}</span>` : prev < rank ? `<span class="poll-move down">▼${rank - prev}</span>` : '<span class="poll-move same">—</span>';
+          const rec = isPreseason ? (t.conference || '') : `${t.simData.wins}-${t.simData.losses}`;
+          return `<li class="poll-row" onclick="SimEngine.goToTeamPage('${this.jsArg(t.school)}')" style="--d:${i * 22}ms">
+            <span class="poll-rank">${rank}</span>
+            <img src="${this.getTeamLogo(t.school)}" class="poll-logo" alt="">
+            <span class="poll-team">${this.esc(t.school)}</span>
+            <span class="poll-rec">${rec}</span>${move}
+          </li>`;
+        };
+        dashTopTeams.innerHTML = `<ol class="poll-list">${top25.map(row).join('')}</ol>`;
+      }
+    }
+    const labelEl = document.getElementById('dashPollLabel');
+    if (labelEl) labelEl.innerText = s.week === 0 ? 'Preseason Top 25' : 'AP Top 25';
+    const pollSub = document.getElementById('dashPollSub');
+    if (pollSub) pollSub.textContent = s.week === 0 ? 'Projected from rosters and recruiting' : (s.lastWeekSummary && s.lastWeekSummary.upsets
+      ? `After week ${s.week} · ${s.lastWeekSummary.upsets} ranked team${s.lastWeekSummary.upsets === 1 ? '' : 's'} lost` : `After week ${s.week}`);
+
+    if (s.week > 0) {
+      this.populateDashList('dashPts', 'ppg');
+      this.populateDashList('dashReb', 'rpg');
+      this.populateDashList('dashAst', 'apg');
+      this.populateDashList('dashStl', 'stl');
+      this.populateDashList('dashBlk', 'blk');
+    } else {
+      ['dashPts', 'dashReb', 'dashAst', 'dashStl', 'dashBlk'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '<p class="sub-text-sm">After week 1.</p>';
+      });
+    }
+    const perfSub = document.getElementById('dashPerfSub');
+    if (perfSub) perfSub.textContent = s.week ? `Week ${s.week}, by game score` : 'By game score, once games are played';
+
+    this.renderDashWatch();
+    this.renderDashDraft();
+    this.updateTopPerformances();
+    this.updateDashboardBracket();
+  },
+
+  // The week ahead: the best ranked matchups, or in March, who's left.
+  renderDashWatch() {
+    const el = document.getElementById('dashWatch');
+    if (!el) return;
+    const s = this.state;
+    const title = document.getElementById('dashWatchTitle');
+    const sub = document.getElementById('dashWatchSub');
+    const team = (school) => `<span class="watch-team" onclick="event.stopPropagation();SimEngine.goToTeamPage('${this.jsArg(school)}')">
+      <img src="${this.getTeamLogo(school)}" alt="" class="xs-logo">${this.rankTag(school)}${this.esc(school)}</span>`;
+
+    if (!s.regularSeasonDone && s.teams.length) {
+      const next = s.week + 1;
+      const games = (s.schedule || []).filter(g => g.week === next && !g.played)
+        .map(g => {
+          const a = this.findTeam(g.home), b = this.findTeam(g.away);
+          const ra = this.pollRankOf(a) || 40, rb = this.pollRankOf(b) || 40;
+          return { g, weight: Math.min(ra, rb) + Math.max(ra, rb) * 0.6, ranked: ra < 40 || rb < 40 };
+        })
+        .filter(x => x.ranked).sort((a, b) => a.weight - b.weight).slice(0, 5);
+      if (title) title.textContent = 'Games to Watch';
+      if (sub) sub.textContent = `Week ${next}`;
+      el.innerHTML = games.length ? `<ul class="watch-list">${games.map(({ g }) => `<li>${team(g.away)}<span class="watch-at">at</span>${team(g.home)}${g.isConf ? '<span class="watch-tag">Conf</span>' : ''}</li>`).join('')}</ul>`
+        : '<p class="sub-text-sm">No ranked teams play next week.</p>';
+      return;
+    }
+    if (s.confChampsDone && !s.ncaaDone && s.ncaaTournament) {
+      const t = s.ncaaTournament;
+      const last = t.rounds.length ? t.rounds[t.rounds.length - 1] : null;
+      const alive = last ? last.map(g => g.winner.school) : [];
+      const seeds = s.ncaaSelection ? this.selectionSeeds(s.ncaaSelection) : {};
+      const list = alive.sort((a, b) => ((seeds[a] || {}).seed || 99) - ((seeds[b] || {}).seed || 99)).slice(0, 8);
+      if (title) title.textContent = 'Still Dancing';
+      if (sub) sub.textContent = alive.length ? `${alive.length} teams left` : 'The field is set';
+      el.innerHTML = list.length ? `<ul class="watch-list alive">${list.map(sc => `<li>${team(sc)}<span class="watch-tag">${(seeds[sc] || {}).seed ? (seeds[sc].seed + ' seed') : ''}</span></li>`).join('')}</ul>`
+        : '<p class="sub-text-sm">Selection Sunday has set the field. The First Four tips off next.</p>';
+      return;
+    }
+    if (title) title.textContent = s.ncaaDone ? 'Champions' : 'Conference Tournaments';
+    if (sub) sub.textContent = s.ncaaDone ? `${s.year}-${String(s.year + 1).slice(2)}` : 'Automatic bids on the line';
+    if (s.ncaaDone && s.ncaaTournament && s.ncaaTournament.champion) {
+      const c = s.ncaaTournament.champion.school;
+      el.innerHTML = `<div class="watch-champ" onclick="SimEngine.goToTeamPage('${this.jsArg(c)}')"><img src="${this.getTeamLogo(c)}" alt=""><div><b>${this.esc(c)}</b><span>National Champions</span></div></div>`;
+    } else {
+      const leaders = (this.autoBidTeams(true) || []).sort((a, b) => this.resumeScore(b) - this.resumeScore(a)).slice(0, 6);
+      el.innerHTML = leaders.length ? `<ul class="watch-list">${leaders.map(t => `<li>${team(t.school)}<span class="watch-tag">${this.esc(t.conference)} No. 1 seed</span></li>`).join('')}</ul>` : '';
+    }
+  },
+
+  reducedMotion() {
+    return typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  },
+
+  // A team's place in the current poll: the AP Top 25 once games are
+  // played, the preseason Top 25 before that.
+  pollRankOf(t) {
+    if (!t) return null;
+    if (this.state.week > 0) return t.apRank || null;
+    return t.preseasonRank && t.preseasonRank <= 25 ? t.preseasonRank : null;
+  },
+  rankTag(school) {
+    const r = this.pollRankOf(this.findTeam(school));
+    return r ? `<span class="rank-tag">${r}</span>` : '';
+  },
+
+  // The Draft RP's big board, previewed.
+  renderDashDraft() {
+    const el = document.getElementById('dashDraft');
+    if (!el) return;
+    const s = this.state;
+    const sub = document.getElementById('dashDraftSub');
+    const cyc = s.draftCycle && s.draftCycle.year === this.upcomingDraftYear() ? s.draftCycle : null;
+    if (sub) sub.textContent = s.ncaaDone && cyc && cyc.stage !== 'complete' ? `${this.upcomingDraftYear()} draft cycle: ${(DraftCycle.nextStage(cyc.stage) || {}).label || 'draft night'} next`
+      : `Top of the ${this.upcomingDraftYear()} big board`;
+    const board = s.teams.length ? this.computeDraftBigBoard(5) : [];
+    el.innerHTML = board.length ? `<ol class="draft-watch">${board.map((e, i) => {
+      const p = e.player, st = p.stats || {};
+      return `<li onclick="SimEngine.openPlayerModal('${this.jsArg(p.id)}')">
+        <span class="dw-rank">${i + 1}</span>
+        <img src="${this.getTeamLogo(p.school)}" alt="" class="xs-logo">
+        <span class="dw-name"><b>${this.esc(p.name)}</b><small>${p.pos} · ${p.class} · ${this.esc(p.school)}</small></span>
+        <span class="dw-stat">${s.week > 0 && st.gp ? `${st.ppg}<small>ppg</small>` : ''}</span>
+      </li>`;
+    }).join('')}</ol>` : '<p class="sub-text-sm">The board fills in once the season starts.</p>';
+  },
+
+  // ---------- Offseason ----------
+
+  // The offseason is its own full-screen experience: a track of four
+  // steps with one Continue button, and the draft step hands off to the
+  // Draft RP.
+  openOffseason(stage) {
+    this.state.offseasonStage = stage || this.defaultOffseasonView();
+    const overlay = document.getElementById('offseasonOverlay');
+    if (!overlay) return;
+    overlay.style.display = 'block';
+    document.body.classList.add('offseason-open');
+    this.renderOffseasonOverlay();
+    this.watchForDraft(true);
+  },
+
+  closeOffseason() {
+    const overlay = document.getElementById('offseasonOverlay');
+    if (overlay) overlay.style.display = 'none';
+    document.body.classList.remove('offseason-open');
+    this.watchForDraft(false);
+  },
+
+  setOffseasonStage(stage) {
+    this.state.offseasonStage = stage;
+    this.renderOffseasonOverlay();
+  },
+
+  defaultOffseasonView() {
+    const idx = this.state.offseasonStageIndex || 0;
+    return ['champion', 'draft', 'transfers', 'transfers'][idx] || 'champion';
+  },
+
+  OFFSEASON_VIEWS: [
+    { key: 'champion', label: 'Season Wrap-Up', stage: 0 },
+    { key: 'draft', label: 'NBA Draft', stage: 1 },
+    { key: 'transfers', label: 'Transfer Portal', stage: 2 },
+    { key: 'rosters', label: 'Final Rosters', stage: 3 }
+  ],
+
+  renderOffseasonOverlay() {
+    const el = document.getElementById('offseasonBody');
+    if (!el) return;
+    const s = this.state;
+    const idx = s.offseasonStageIndex || 0;
+    const view = s.offseasonStage || 'champion';
+
+    const yearEl = document.getElementById('offseasonYear');
+    if (yearEl) {
+      const y = s.ncaaDone ? s.year : ((s.seasonHistory || []).slice(-1)[0] || { year: s.year }).year;
+      yearEl.innerText = `${y}-${(y + 1).toString().slice(2)} · ${idx < this.OFFSEASON_STAGES.length ? 'Step ' + Math.min(idx + 1, 4) + ' of 4' : 'Complete'}`;
+    }
+
+    const track = document.getElementById('offseasonTrack');
+    if (track) {
+      const done = k => k < idx;
+      const subs = [
+        s.ncaaTournament && s.ncaaTournament.champion ? `${s.ncaaTournament.champion.school} champions` : 'Champions & awards',
+        this.isDraftComplete() ? `${(s.draftResults || []).length} picks made` : 'In the Draft RP',
+        (s.lastTransfers || []).length && idx >= 3 ? `${s.lastTransfers.length} moves` : 'Players on the move',
+        'New season'
+      ];
+      track.innerHTML = this.OFFSEASON_VIEWS.map((v, i) => `
+        <li class="${done(i) ? 'done' : i === idx ? 'current' : ''} ${view === v.key || (v.key === 'rosters' && view === 'transfers' && idx >= 3) ? 'viewing' : ''}"
+            ${done(i) || i === idx ? `onclick="SimEngine.setOffseasonStage('${v.key === 'rosters' ? 'transfers' : v.key}')" role="button" tabindex="0"` : ''}>
+          <span class="stage-dot">${done(i) ? '✓' : i + 1}</span>
+          <span><b>${v.label}</b><small>${subs[i]}</small></span>
+        </li>`).join('');
+    }
+
+    // The action button names whatever comes next.
+    const actionBtn = document.getElementById('offseasonAdvanceBtn');
+    if (actionBtn) {
+      const next = this.OFFSEASON_STAGES[idx];
+      const waiting = next && next.key === 'draft' && !this.isDraftComplete() && idx === 1;
+      actionBtn.disabled = !!waiting;
+      actionBtn.classList.toggle('waiting', !!waiting);
+      actionBtn.innerText = waiting ? 'Waiting on draft night' : !next ? 'Start the new season'
+        : idx === 0 ? 'Continue to the NBA Draft'
+        : next.key === 'draft' ? 'Continue to the Transfer Portal'
+        : next.key === 'portal' ? 'Open the Transfer Portal'
+        : 'Set rosters & start next season';
+    }
+
+    const body = view === 'draft' ? this.renderOffseasonDraft()
+      : view === 'transfers' ? this.renderOffseasonTransfers()
+      : this.renderOffseasonChampion();
+    el.innerHTML = `<div class="rp-rise">${body}</div>`;
+  },
+
+  // The overlay's Continue button.
+  async advanceFromOffseason() {
+    const btn = document.getElementById('offseasonAdvanceBtn');
+    if (btn && btn.disabled) return;
+    if (btn) btn.disabled = true;
+    try { await this.runOffseason(); }
+    finally { if (btn) btn.disabled = false; this.renderOffseasonOverlay(); }
+  },
+
+  renderOffseasonDraft() {
+    const s = this.state;
+    const year = this.upcomingDraftYear();
+    const cyc = s.draftCycle && s.draftCycle.year === year ? s.draftCycle : null;
+    const complete = this.isDraftComplete();
+    const idx = s.offseasonStageIndex || 0;
+
+    if (!complete) {
+      const at = cyc ? DraftCycle.stageIndex(cyc.stage) : 0;
+      const steps = DraftCycle.STAGES.map((st, i) => `<li class="${i <= at ? 'done' : i === at + 1 ? 'next' : ''}"><span class="stage-dot">${i <= at ? '✓' : i + 1}</span><b>${st.label}</b></li>`).join('');
+      const declared = (s.draftDeclarations || []).slice().sort((a, b) => (a.boardRank || 999) - (b.boardRank || 999)).slice(0, 10);
+      return `<div class="draft-gate">
+        <div class="draft-gate-main card">
+          <div class="draft-gate-kicker">${year} NBA Draft</div>
+          <h2>The draft happens in the Draft RP</h2>
+          <p>Declarations are in. The combine, the lottery, team workouts, the withdrawal deadline and draft night all play out in the Draft RP — with measurements, athletic testing and workout reports for every prospect.</p>
+          <ol class="gate-steps">${steps}</ol>
+          <a class="sim-btn sim-main" href="./draft.html">Open the Draft RP &rarr;</a>
+          <p class="sub-text-sm">${idx === 0 ? 'You can go now, or finish the season wrap-up first.' : 'The NCAA RP carries on to the transfer portal once draft night is over. Come back here after the last pick.'}</p>
+        </div>
+        <div class="card">
+          <div class="section-head"><div><h3 class="section-title">Top declared prospects</h3><p class="section-sub">${(s.draftDeclarations || []).length} players in the ${year} class</p></div></div>
+          <ol class="draft-watch">${declared.map((d, i) => `<li onclick="SimEngine.openPlayerModal('${this.jsArg(d.id)}')">
+            <span class="dw-rank">${i + 1}</span><img src="${this.getTeamLogo(d.school)}" class="xs-logo" alt="">
+            <span class="dw-name"><b>${this.esc(d.name)}</b><small>${d.pos} · ${d.class} · ${this.esc(d.school)}</small></span>
+            <span class="dw-stat">${d.ppg}<small>ppg</small></span></li>`).join('')}</ol>
+        </div>
+      </div>`;
+    }
+
+    const picks = s.draftResults && s.draftResults.length ? s.draftResults : ((s.draftHistory || []).find(d => d.year === year) || {}).picks || [];
+    const nbaLogo = t => `../nbalogos/${encodeURIComponent(t.logo)}.png`;
+    const bySchool = {};
+    picks.forEach(p => { bySchool[p.school] = (bySchool[p.school] || 0) + 1; });
+    const topSchools = Object.entries(bySchool).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const first = picks[0];
+    const back = s.returningPlayers || [];
+    return `<div class="draft-recap">
+      ${first ? `<div class="card draft-first">
+        <div class="draft-gate-kicker">No. 1 pick · ${year} NBA Draft</div>
+        <div class="draft-first-row">${first.team ? `<img src="${nbaLogo(first.team)}" alt="" onerror="this.remove()">` : ''}
+          <div><b class="clickable-player" onclick="SimEngine.openPlayerModal('${this.jsArg(first.id)}')">${this.esc(first.name)}</b><span>${first.pos} · ${this.esc(first.school)}${first.team ? ' → ' + first.team.name : ''}</span></div></div>
+        <a class="text-link" href="./draft.html?view=mock">Every pick, the combine and workouts on the Draft RP &rarr;</a>
+      </div>` : ''}
+      <div class="draft-recap-grid">
+        <div class="card"><div class="section-head"><h3 class="section-title">First round</h3></div>
+          <div class="table-scroll"><table class="data-table compact">
+            <thead><tr><th>Pick</th><th>Team</th><th>Player</th><th>School</th></tr></thead><tbody>
+            ${picks.filter(p => p.round === 1).map(d => `<tr>
+              <td class="rank-cell">${d.pick}</td>
+              <td>${d.team ? `<div class="team-cell-wrap"><img src="${nbaLogo(d.team)}" class="xs-logo" alt="" onerror="this.remove()"><span>${d.team.name}</span></div>` : '—'}</td>
+              <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${this.jsArg(d.id)}')">${this.esc(d.name)}</span></td>
+              <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(d.school)}" class="xs-logo" alt=""><span>${this.esc(d.school)}</span></div></td>
+            </tr>`).join('')}</tbody></table></div></div>
+        <div class="draft-recap-side">
+          <div class="card"><div class="section-head"><h3 class="section-title">Most picks</h3></div>
+            <ul class="count-list">${topSchools.map(([sc, n]) => `<li onclick="SimEngine.goToTeamPage('${this.jsArg(sc)}');SimEngine.closeOffseason()"><img src="${this.getTeamLogo(sc)}" class="xs-logo" alt=""><span>${this.esc(sc)}</span><b>${n}</b></li>`).join('')}</ul></div>
+          <div class="card"><div class="section-head"><h3 class="section-title">Back to school</h3><p class="section-sub">${back.length} withdrew at the deadline</p></div>
+            <ul class="count-list">${back.slice().sort((a, b) => (a.boardRank || 999) - (b.boardRank || 999)).slice(0, 8).map(r => `<li onclick="SimEngine.openPlayerModal('${this.jsArg(r.id)}')"><img src="${this.getTeamLogo(r.school)}" class="xs-logo" alt=""><span>${this.esc(r.name)}</span><small>${this.esc(r.school)}</small></li>`).join('') || '<li><span class="sub-text-sm">Nobody withdrew.</span></li>'}</ul></div>
+        </div>
+      </div>
+    </div>`;
+  },
+
+  // While the draft step is waiting, returning to this tab picks up
+  // whatever happened in the Draft RP.
+  watchForDraft(on) {
+    if (typeof document === 'undefined' || typeof window === 'undefined') return;
+    if (!this._draftWatcher) {
+      this._draftWatcher = async () => {
+        if (document.visibilityState === 'hidden' || !this.state.ncaaDone) return;
+        const was = this.isDraftComplete();
+        const changed = await this.syncDraftFromDB();
+        if (!changed) return;
+        this.renderOffseasonOverlay();
+        this.syncUI();
+        if (!was && this.isDraftComplete()) this.toast('Draft night is over', 'Continue to the transfer portal whenever you are ready.');
+      };
+    }
+    document.removeEventListener('visibilitychange', this._draftWatcher);
+    window.removeEventListener('focus', this._draftWatcher);
+    if (on) {
+      document.addEventListener('visibilitychange', this._draftWatcher);
+      window.addEventListener('focus', this._draftWatcher);
+    }
+  },
+
+  // ---------- Cutscenes ----------
+
+  playSeasonIntro(opts = {}) {
+    if (typeof Cutscene === 'undefined' || !Cutscene.enabled() || !this.state.teams.length) return;
+    const C = Cutscene;
+    const s = this.state;
+    const label = `${s.year}-${String(s.year + 1).slice(2)}`;
+    const top = this.getCurrentTop25().slice(0, 5);
+    const pa = s.preseasonAwards || {};
+    const stars = (pa.allAmericans || []).slice(0, 5);
+    const fresh = s.activePlayers.filter(p => p.class === 'FR').sort((a, b) => (parseFloat(a.rsci) || 999) - (parseFloat(b.rsci) || 999) || b.rating - a.rating).slice(0, 5);
+    const logo = sc => `<img src="${this.getTeamLogo(sc)}" alt="" class="cs-logo">`;
+    const scenes = [];
+    if (opts.fromOffseason) {
+      const moves = (s.lastTransfers || []).slice().sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 5);
+      scenes.push({ ms: 2600, html: C.titleCard('Offseason complete', 'Rosters<br>Are Set', `Seniors graduated. Freshmen arrived. ${moves.length ? (s.lastTransfers || []).length + ' players transferred.' : ''}`) });
+      if (moves.length) scenes.push({ ms: 4000, html: C.heading('Biggest moves') + `<div class="cs-list">${moves.map((t, i) => `<div class="cs-row cs-item" style="--d:${i * 170}ms">${logo(t.from)}<span class="cs-arrow">&rarr;</span>${logo(t.to)}<span class="cs-name">${this.esc(t.name)}</span><span class="cs-meta">${t.pos} · ${this.esc(t.from)} to ${this.esc(t.to)}</span></div>`).join('')}</div>` });
+    }
+    scenes.push({ ms: 2800, html: C.titleCard('BYTHERIM NCAA RP', `${label}<br>Season`, `${s.teams.length} teams. One champion.`) });
+    if (top.length) scenes.push({ ms: 4200, html: C.heading('Preseason Top 5') + `<div class="cs-cards">${top.map((t, i) => `<div class="cs-card cs-item" style="--d:${200 + i * 300}ms"><div class="cs-card-kicker">No. ${i + 1}</div><img src="${this.getTeamLogo(t.school)}" alt="" class="cs-logo"><div class="cs-card-name">${this.esc(t.school)}</div><div class="cs-card-meta">${this.esc(t.conference)}</div></div>`).join('')}</div>` });
+    if (stars.length) scenes.push({ ms: 4000, html: C.heading('Players to watch', pa.poy ? `${this.esc(pa.poy.name)} opens the year as the favorite for Player of the Year.` : '') +
+      `<div class="cs-list">${stars.map((p, i) => `<div class="cs-row cs-item" style="--d:${i * 150}ms">${logo(p.school)}<span class="cs-name">${this.esc(p.name)}</span><span class="cs-meta">${p.pos} · ${p.class} · ${this.esc(p.school)}</span></div>`).join('')}</div>` });
+    if (fresh.length) scenes.push({ ms: 3800, html: C.heading('Freshmen to watch') +
+      `<div class="cs-list">${fresh.map((p, i) => `<div class="cs-row cs-item" style="--d:${i * 150}ms">${logo(p.school)}<span class="cs-name">${this.esc(p.name)}</span><span class="cs-meta">${p.pos} · ${this.esc(p.school)}${p.rsci ? ' · No. ' + p.rsci + ' recruit' : ''}</span></div>`).join('')}</div>` });
+    scenes.push({ ms: 0, html: C.titleCard('', '<span class="small">Tip-off</span>', 'Simulate a week at a time, or follow every team from the dashboard.') });
+    C.play({ id: 'seasonIntro', label: `${label} season`, scenes, actions: [{ label: "Let's play", primary: true }] });
+  },
+
+  playSeasonWrap() {
+    if (typeof Cutscene === 'undefined' || !Cutscene.enabled()) return;
+    const s = this.state;
+    const t = s.ncaaTournament;
+    if (!t || !t.champion) return;
+    const C = Cutscene;
+    const champ = t.champion.school;
+    const team = this.findTeam(champ);
+    const final = t.rounds[t.rounds.length - 1] && t.rounds[t.rounds.length - 1][0];
+    const runner = final ? (final.winner.school === final.teamA.school ? final.teamB.school : final.teamA.school) : null;
+    const score = final && final.result ? `${Math.max(final.result.homeScore, final.result.awayScore)}-${Math.min(final.result.homeScore, final.result.awayScore)}` : '';
+    const ff = t.rounds[4] ? t.rounds[4].flatMap(g => [g.teamA.school, g.teamB.school]) : [];
+    const seeds = s.ncaaSelection ? this.selectionSeeds(s.ncaaSelection) : {};
+    let npoy = null;
+    try { npoy = this.computeNationalAwards().npoy; } catch (e) { npoy = null; }
+    const label = `${s.year}-${String(s.year + 1).slice(2)}`;
+    const scenes = [
+      { ms: 4200, html: C.confetti(70) + `<img src="${this.getTeamLogo(champ)}" alt="" class="cs-logo big">` + C.titleCard(`${label} National Champions`, this.esc(champ), team ? `${team.simData.wins}-${team.simData.losses}${(seeds[champ] || {}).seed ? ` · ${seeds[champ].seed} seed` : ''}` : '') },
+      runner ? { ms: 3200, html: C.heading('The title game') + `<div class="cs-stats"><div class="cs-stat"><b>${score}</b><span>${this.esc(champ)} over ${this.esc(runner)}</span></div></div>` } : null,
+      ff.length ? { ms: 3600, html: C.heading('The Final Four') + `<div class="cs-cards">${ff.map((sc, i) => `<div class="cs-card cs-item" style="--d:${150 + i * 220}ms"><img src="${this.getTeamLogo(sc)}" alt="" class="cs-logo"><div class="cs-card-name">${this.esc(sc)}</div><div class="cs-card-meta">${(seeds[sc] || {}).seed ? seeds[sc].seed + ' seed' : ''}</div></div>`).join('')}</div>` } : null,
+      npoy ? { ms: 3600, html: C.heading('Player of the Year') + `<div class="cs-card" style="max-width:360px;margin:0 auto"><img src="${this.getTeamLogo(npoy.school)}" alt="" class="cs-logo"><div class="cs-card-name">${this.esc(npoy.name)}</div><div class="cs-card-meta">${this.esc(npoy.school)} · ${npoy.stats.ppg} ppg · ${npoy.stats.rpg} rpg · ${npoy.stats.apg} apg</div></div>` } : null,
+      { ms: 0, html: C.titleCard('', '<span class="small">The offseason begins</span>', `${(s.draftDeclarations || []).length} players have declared for the ${this.upcomingDraftYear()} NBA Draft.`) }
+    ];
+    C.play({ id: 'seasonWrap', theme: 'gold', label: 'National Champions', scenes, actions: [{ label: 'Enter the offseason', primary: true }] });
+  },
+
+  // A short scene for each offseason step as it happens.
+  playOffseasonScene(key) {
+    if (typeof Cutscene === 'undefined' || !Cutscene.enabled()) return;
+    const C = Cutscene;
+    const s = this.state;
+    const logo = sc => `<img src="${this.getTeamLogo(sc)}" alt="" class="cs-logo">`;
+    const yr = this.upcomingDraftYear();
+    if (key === 'summary') {
+      const d = (s.draftDeclarations || []).slice().sort((a, b) => (a.boardRank || 999) - (b.boardRank || 999));
+      C.play({ id: 'declarationsShow', theme: 'draft', label: 'Draft declarations', scenes: [
+        { ms: 2600, html: C.titleCard(`${yr} NBA Draft`, 'Declared', `<span data-count="${d.length}">0</span> players are entering the draft.`) },
+        { ms: 4200, html: C.heading('The headliners') + `<div class="cs-list">${d.slice(0, 6).map((x, i) => `<div class="cs-row cs-item" style="--d:${i * 160}ms"><span class="cs-rank">${i + 1}</span>${logo(x.school)}<span class="cs-name">${this.esc(x.name)}</span><span class="cs-meta">${x.pos} · ${x.class} · ${this.esc(x.school)}</span></div>`).join('')}</div>` },
+        { ms: 0, html: C.titleCard('', '<span class="small">On to the Draft RP</span>', 'The combine, lottery, workouts and draft night happen there. The NCAA RP waits for the last pick.') }
+      ], actions: [{ label: 'Open the Draft RP', primary: true, run: () => { location.href = './draft.html'; } }, { label: 'Stay here' }] });
+    } else if (key === 'draft') {
+      const picks = s.draftResults || [];
+      if (!picks.length) return;
+      const nba = t => t ? `<img src="../nbalogos/${encodeURIComponent(t.logo)}.png" alt="" class="cs-logo" onerror="this.remove()">` : '';
+      C.play({ id: 'draftRecapShow', theme: 'draft', label: 'Draft recap', scenes: [
+        { ms: 3200, html: `<div class="cs-kicker">${yr} NBA Draft · No. 1 pick</div><div class="cs-pick"><div class="cs-pick-name">${this.esc(picks[0].name)}</div><div class="cs-pick-team">${nba(picks[0].team)}${picks[0].team ? picks[0].team.name : ''}</div><div class="cs-pick-meta">${this.esc(picks[0].school)}</div></div>` },
+        { ms: 0, html: C.titleCard('', '<span class="small">Next: the transfer portal</span>') }
+      ], actions: [{ label: 'Continue', primary: true }] });
+    } else if (key === 'portal') {
+      const moves = (s.lastTransfers || []).slice().sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      C.play({ id: 'portalShow', label: 'Transfer portal', scenes: [
+        { ms: 2600, html: C.titleCard('Offseason', 'The Portal<br>Is Open', `<span data-count="${moves.length}">0</span> players are on the move.`) },
+        moves.length ? { ms: 4600, html: C.heading('Biggest names') + `<div class="cs-list">${moves.slice(0, 6).map((t, i) => `<div class="cs-row cs-item" style="--d:${i * 170}ms">${logo(t.from)}<span class="cs-arrow">&rarr;</span>${logo(t.to)}<span class="cs-name">${this.esc(t.name)}</span><span class="cs-meta">${t.pos} · ${t.ppg} ppg · ${this.esc(t.reason || '')}</span></div>`).join('')}</div>` } : null,
+        { ms: 0, html: C.titleCard('', '<span class="small">Every move is in</span>') }
+      ], actions: [{ label: 'See every transfer', primary: true }] });
+    }
   },
 
   // --- Record books ---

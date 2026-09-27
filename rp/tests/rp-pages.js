@@ -80,7 +80,8 @@ function bootRecruiting(universe) {
     if (errors.length) console.log('   errors:', errors);
     ok(/Official universe · 2029-30 season · projected 2030 class/.test(d.getElementById('draftStatus').textContent), 'draft rp: status names the official universe and projected class');
     const stages = [...d.querySelectorAll('#draftStages li')];
-    ok(stages.length === 3 && stages[0].classList.contains('current'), 'draft rp: stage track shows the season as current');
+    ok(stages.length === 7 && stages[0].classList.contains('current'), 'draft rp: stage track (season → combine → lottery → workouts → deadline → draft night) shows the season as current');
+    ok(d.getElementById('draftCycleBar').textContent.trim() === '', 'draft rp: nothing to run from the official universe mid-season');
     ok(d.querySelector('.draft-view-btn[data-view="mock"]').textContent === 'Mock Draft', 'draft rp: third tab is the mock draft before draft night');
     ok(d.querySelectorAll('#draftBody tr.prospect-row').length === 30, 'draft rp: big board shows the top 30');
     ok(/Preseason top 30/.test(d.getElementById('draftBody').textContent), 'draft rp: preseason board explains it is ranked on talent until games are played');
@@ -103,6 +104,12 @@ function bootRecruiting(universe) {
     ok(past.length === 60 && /Alberto Rodriguez/.test(past[0].textContent), 'draft rp: the 2029 draft shows its actual picks');
     ok(past[0].querySelector('img.nba-logo-sm') && /Miami Heat/.test(past[0].textContent), 'draft rp: each pick shows its NBA team and logo');
     ok(/2029 NBA Draft/.test(d.querySelector('.draft-section-title').textContent), 'draft rp: results heading names the draft');
+    w.DraftRP.setView('master');
+    const pastBoard = [...d.querySelectorAll('#draftBody tbody tr')];
+    ok(/2029 Final Big Board/.test(d.querySelector('.draft-section-title').textContent) && pastBoard.length >= 30,
+      `draft rp: past big boards are kept by year (${pastBoard.length} rows)`);
+    w.DraftRP.setHistoryYear(2030);
+    ok(/2030 Big Board/.test(d.querySelector('.draft-section-title').textContent), 'draft rp: back to this year\'s board');
     ok(errors.length === 0, 'draft rp: no script errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
     w.close();
   }
@@ -115,7 +122,9 @@ function bootRecruiting(universe) {
     u.season = { ...u.season, year: 2028, label: '2028-29', week: 0 };
     const { w, d } = await bootDraft(u);
     ok(/2029 NBA Draft complete · 60 picks/.test(d.getElementById('draftStatus').textContent), 'draft rp: complete stage status');
-    ok(d.querySelectorAll('#draftStages li.done').length === 2 && d.querySelectorAll('#draftStages li')[2].classList.contains('current'), 'draft rp: draft night is the current stage');
+    ok(d.querySelectorAll('#draftStages li.done').length === 6 && d.querySelectorAll('#draftStages li')[6].classList.contains('current'), 'draft rp: draft night is the current stage');
+    w.DraftRP.setView('master');
+    ok(/2029 Final Big Board/.test(d.getElementById('draftBody').textContent), 'draft rp: the board after draft night is the final board');
     ok(d.querySelector('.draft-view-btn[data-view="mock"]').textContent === 'Draft Results', 'draft rp: the tab becomes Draft Results');
     w.DraftRP.setView('mock');
     ok(d.querySelectorAll('#draftBody tr.prospect-row').length === 60, 'draft rp: results list every pick');

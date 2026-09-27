@@ -1,0 +1,687 @@
+/* ============================================================
+   NCAA RP — app layout (v9).
+
+   Built on the same pattern as the Draft RP and Recruiting pages: a
+   header card with the one action that moves things on, a track that
+   shows where the season stands, a single row of tabs, and content in
+   cards. Colours all come from the shared tokens in ncaa-styles.css.
+   ============================================================ */
+
+/* ---------- Page frame ---------- */
+.sim-layout.ncaa-app {
+  max-width: 1400px;
+  margin: 1.5rem auto 3.5rem;
+  padding: 0 1.25rem;
+  display: block;
+}
+.ncaa-app .panel-card { all: unset; }
+
+/* ---------- Header card ---------- */
+.app-header-card {
+  position: relative;
+  background: linear-gradient(115deg, var(--accent-soft) 0%, transparent 38%), var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem 1.25rem;
+  box-shadow: var(--shadow-soft);
+  animation: rpRise 0.5s cubic-bezier(.2,.8,.2,1) both;
+}
+.app-brand { display: flex; align-items: center; gap: 1rem; min-width: 0; }
+.app-logo { width: 72px; height: 72px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 6px 16px var(--accent-soft-strong)); }
+.app-title h1 {
+  font-family: 'Oswald', sans-serif; font-size: 2.1rem; font-weight: 700; letter-spacing: 0.03em;
+  text-transform: uppercase; color: var(--accent); margin: 0; line-height: 1.05;
+}
+.app-title p { color: var(--text-muted); font-size: 0.98rem; margin-top: 3px; }
+.app-title p span { color: var(--text-main); font-weight: 600; }
+.app-actions { display: flex; align-items: center; gap: 0.6rem; margin-left: auto; flex-wrap: wrap; }
+
+.sim-btn.sim-main {
+  padding: 0.85rem 1.7rem; font-size: 1.1rem; letter-spacing: 0.05em;
+  box-shadow: 0 8px 24px var(--accent-soft-strong);
+}
+.sim-btn.sim-main:hover:not(:disabled) { box-shadow: 0 12px 30px var(--accent-soft-strong); }
+.sim-btn.sim-main:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
+
+.season-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: transparent; border-radius: 0 0 var(--r-lg) var(--r-lg); overflow: hidden; }
+.season-progress span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent-dark), var(--accent)); transition: width 0.9s cubic-bezier(.2,.8,.2,1); box-shadow: 0 0 10px var(--accent); }
+
+/* The "…" menu */
+.app-menu-wrap { position: relative; }
+.icon-btn {
+  width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  background: transparent; border: 1px solid var(--border); color: var(--text-main); transition: border-color 0.2s ease, background 0.2s ease;
+}
+.icon-btn svg { fill: currentColor; }
+.icon-btn:hover, .icon-btn[aria-expanded="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.app-menu {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; width: 290px;
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: var(--shadow-lift);
+  padding: 0.5rem; display: none; transform-origin: top right;
+}
+.app-menu.open { display: block; animation: menuIn 0.18s ease both; }
+@keyframes menuIn { from { opacity: 0; transform: scale(0.96) translateY(-4px); } to { opacity: 1; transform: none; } }
+.app-menu-group { padding: 0.35rem 0.25rem; }
+.app-menu-group + .app-menu-group { border-top: 1px solid var(--border); }
+.app-menu-label { display: block; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); padding: 0.2rem 0.5rem; }
+.app-menu button, .app-menu a {
+  display: block; width: 100%; text-align: left; background: none; border: 0; color: var(--text-main); font: inherit;
+  padding: 0.45rem 0.5rem; border-radius: var(--r-sm); cursor: pointer; text-decoration: none;
+}
+.app-menu button:hover, .app-menu a:hover { background: var(--accent-soft); color: var(--accent); }
+.app-menu-note { font-size: 0.78rem; color: var(--text-muted); padding: 0.2rem 0.5rem; line-height: 1.35; }
+.app-menu-note code { font-size: 0.74rem; }
+
+/* ---------- Season track ---------- */
+.season-track {
+  list-style: none; margin: 0 0 1rem; padding: 0;
+  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0.45rem;
+}
+.season-track li {
+  display: flex; align-items: center; gap: 0.6rem;
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: 0.6rem 0.75rem; color: var(--text-muted); min-width: 0;
+  transition: border-color 0.3s ease, background 0.3s ease, transform 0.2s ease;
+}
+.season-track li[role="button"] { cursor: pointer; }
+.season-track li[role="button"]:hover { transform: translateY(-1px); border-color: var(--accent); }
+.season-track li b {
+  display: block; font-family: 'Oswald', sans-serif; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.04em; font-size: 0.86rem; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.season-track li small { display: block; font-size: 0.76rem; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.season-track li > span:last-child { min-width: 0; }
+.season-track .stage-dot {
+  flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center; font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 0.8rem;
+  border: 1px solid var(--border); color: var(--text-muted);
+}
+.season-track li.done .stage-dot { background: var(--accent-soft-strong); border-color: transparent; color: var(--accent); }
+.season-track li.current { border-color: var(--accent); background: var(--accent-soft); }
+.season-track li.current .stage-dot { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); animation: rpPop 0.6s ease both; }
+.season-track li.viewing { box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* ---------- Tabs ---------- */
+.app-tabs {
+  position: sticky; top: 64px; z-index: 40;
+  margin: 0 -1.25rem 0.5rem; padding: 0.55rem 1.25rem;
+  background: color-mix(in srgb, var(--bg-color) 88%, transparent);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid transparent;
+}
+.app-tabs-inner { display: flex; gap: 0.4rem; align-items: center; overflow-x: auto; scrollbar-width: none; }
+.app-tabs-inner::-webkit-scrollbar { display: none; }
+.app-tabs .tab-btn {
+  flex-shrink: 0; background: transparent; border: 1px solid var(--border); border-radius: var(--r-pill);
+  color: var(--text-muted); font-family: 'Oswald', sans-serif; font-size: 0.88rem; text-transform: uppercase;
+  letter-spacing: 0.04em; padding: 0.45rem 1rem; cursor: pointer; text-decoration: none; white-space: nowrap;
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease, transform 0.12s ease;
+}
+.app-tabs .tab-btn:hover { color: var(--text-main); border-color: var(--accent); }
+.app-tabs .tab-btn:active { transform: scale(0.97); }
+.app-tabs .tab-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); font-weight: 700; }
+.app-tabs .tab-sep { flex-shrink: 0; width: 1px; height: 22px; background: var(--border); margin: 0 0.2rem; }
+.app-tabs .tab-link { color: #F0566F; border-color: rgba(240, 86, 111, 0.45); }
+.app-tabs .tab-link:hover { background: rgba(240, 86, 111, 0.12); border-color: #F0566F; color: #F0566F; }
+:root[data-theme="light"] .app-tabs .tab-link { color: #C0283F; border-color: rgba(192, 40, 63, 0.4); }
+
+.app-backbar { min-height: 0; display: flex; align-items: center; margin-bottom: 0.5rem; }
+.app-backbar .nav-back-btn {
+  background: var(--card-bg); border: 1px solid var(--border); color: var(--text-main); border-radius: var(--r-pill);
+  padding: 0.35rem 0.9rem; font: inherit; font-size: 0.88rem; cursor: pointer; animation: rpRise 0.3s ease both;
+}
+.app-backbar .nav-back-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ---------- Content ---------- */
+.ncaa-app .tab-content { display: none; }
+.ncaa-app .tab-content.active { display: block; animation: rpRise 0.35s cubic-bezier(.2,.8,.2,1) both; }
+
+.card {
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 1.1rem 1.25rem; box-shadow: var(--shadow-soft); min-width: 0;
+}
+.section-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 0.75rem 1rem; flex-wrap: wrap; margin-bottom: 0.85rem; }
+.section-head > div:first-child { min-width: 0; }
+.section-title {
+  font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.03em;
+  color: var(--accent); font-size: 1.2rem; margin: 0; line-height: 1.15;
+}
+h3.section-title { font-size: 1.02rem; }
+.section-sub { color: var(--text-muted); font-size: 0.88rem; margin-top: 2px; }
+.page-head { margin: 0.25rem 0 1rem; }
+.page-head .section-title { font-size: 1.65rem; }
+.page-head .filters-container { margin: 0; }
+
+/* Every data table in the sim sits in a card, the way the Draft RP and
+   Recruiting pages frame theirs. */
+.ncaa-app .table-scroll, .offseason-overlay .table-scroll {
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-soft); overflow-x: auto;
+}
+.ncaa-app .table-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-soft); overflow: hidden; }
+.ncaa-app .table-card .table-scroll, .ncaa-app .card .table-scroll, .offseason-overlay .card .table-scroll {
+  border: 0; border-radius: 0; box-shadow: none; background: transparent;
+}
+.ncaa-app .data-table th, .offseason-overlay .data-table th {
+  background: var(--bg-color); color: var(--text-muted); font-size: 0.72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border);
+}
+.ncaa-app .card .data-table th { background: transparent; }
+.ncaa-app .data-table tbody tr { transition: background 0.15s ease; }
+.ncaa-app .data-table tbody tr:hover { background: var(--card-hover); }
+.data-table.compact td, .data-table.compact th { padding: 0.45rem 0.6rem; }
+
+/* ---------- Dashboard ---------- */
+.dash-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.dash-side { display: grid; gap: 1rem; align-content: start; min-width: 0; }
+.dash-leaders, .dash-perf { grid-column: 1 / -1; }
+.mb-2 { margin-bottom: 1rem; }
+
+.poll-list {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(13, auto); grid-auto-flow: column;
+  column-gap: 1.1rem;
+}
+.poll-row {
+  display: grid; grid-template-columns: 26px 26px minmax(0, 1fr) auto 38px; align-items: center; gap: 0.55rem;
+  padding: 0.38rem 0.45rem; border-radius: var(--r-sm); cursor: pointer; border-bottom: 1px solid var(--border);
+  animation: rpRise 0.4s cubic-bezier(.2,.8,.2,1) both; animation-delay: var(--d, 0ms);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.poll-row:hover { background: var(--card-hover); transform: translateX(2px); }
+.poll-rank { font-family: 'Oswald', sans-serif; font-weight: 700; color: var(--accent); text-align: right; }
+.poll-logo { width: 24px; height: 24px; object-fit: contain; }
+.poll-team { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.poll-rec { color: var(--text-muted); font-size: 0.86rem; white-space: nowrap; }
+.poll-move { font-size: 0.72rem; font-weight: 700; text-align: right; }
+.poll-move.up { color: var(--win); } .poll-move.down { color: var(--loss); } .poll-move.same { color: var(--text-muted); }
+.poll-move.new { color: var(--gold); letter-spacing: 0.04em; }
+
+.watch-list, .draft-watch, .count-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.watch-list li {
+  display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding: 0.5rem 0.6rem;
+  background: var(--bg-color); border: 1px solid var(--border); border-radius: var(--r-sm); animation: rpRise 0.4s ease both;
+}
+.watch-team { display: inline-flex; align-items: center; gap: 0.35rem; font-weight: 700; cursor: pointer; }
+.watch-team:hover { color: var(--accent); }
+.watch-at { color: var(--text-muted); font-size: 0.8rem; }
+.watch-tag { margin-left: auto; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); border: 1px solid var(--border); border-radius: var(--r-pill); padding: 0.05rem 0.5rem; }
+.rank-tag { font-family: 'Oswald', sans-serif; font-size: 0.76rem; color: var(--gold); margin-right: 1px; }
+.watch-champ { display: flex; align-items: center; gap: 1rem; cursor: pointer; }
+.watch-champ img { width: 64px; height: 64px; object-fit: contain; }
+.watch-champ b { display: block; font-family: 'Oswald', sans-serif; font-size: 1.4rem; text-transform: uppercase; }
+.watch-champ span { color: var(--gold); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.8rem; }
+
+.draft-watch li, .count-list li {
+  display: grid; grid-template-columns: 22px 20px minmax(0, 1fr) auto; align-items: center; gap: 0.55rem;
+  padding: 0.45rem 0.5rem; border-radius: var(--r-sm); cursor: pointer; transition: background 0.15s ease;
+}
+.count-list li { grid-template-columns: 20px minmax(0, 1fr) auto; }
+.draft-watch li:hover, .count-list li:hover { background: var(--card-hover); }
+.dw-rank { font-family: 'Oswald', sans-serif; font-weight: 700; color: #F0566F; text-align: right; }
+.dw-name { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.dw-name b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dw-name small, .count-list small { color: var(--text-muted); font-size: 0.76rem; }
+.dw-stat { font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 1.05rem; }
+.dw-stat small { font-family: 'Asap Condensed', sans-serif; font-weight: 500; font-size: 0.7rem; color: var(--text-muted); margin-left: 2px; }
+.count-list b { font-family: 'Oswald', sans-serif; color: var(--accent); }
+
+.dash-leaders .dashboard-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.75rem; }
+.dash-leaders .dash-box { background: var(--bg-color); border: 1px solid var(--border); border-radius: var(--r-md); padding: 0.8rem 0.85rem; box-shadow: none; }
+.dash-leaders .dash-box h4 { font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.4rem; }
+.dash-perf .perf-list { display: grid; gap: 0.45rem; }
+.dash-perf .perf-row { background: var(--bg-color); animation: rpRise 0.4s ease both; }
+.dash-perf .perf-row:nth-child(2) { animation-delay: 60ms; } .dash-perf .perf-row:nth-child(3) { animation-delay: 120ms; }
+.dash-perf .perf-row:nth-child(4) { animation-delay: 180ms; } .dash-perf .perf-row:nth-child(5) { animation-delay: 240ms; }
+
+.dash-offseason-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+  background: linear-gradient(100deg, rgba(212,175,55,0.16), var(--card-bg) 60%); border: 1px solid rgba(212,175,55,0.5);
+  border-radius: var(--r-lg); padding: 0.9rem 1.2rem; margin-bottom: 1rem;
+}
+.dash-offseason-banner strong { font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.03em; margin-right: 0.6rem; }
+
+/* ---------- Team pages, awards, standings: card treatment ---------- */
+.ncaa-app .team-header {
+  background: linear-gradient(115deg, var(--accent-soft), transparent 55%), var(--card-bg);
+  border: 1px solid var(--border); border-radius: var(--r-lg); padding: 1.1rem 1.3rem; margin-bottom: 1rem; box-shadow: var(--shadow-soft);
+}
+.ncaa-app .team-header .team-logo { width: 84px; height: 84px; }
+.ncaa-app .team-stats-grid { gap: 0.75rem; }
+.ncaa-app .stat-box { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: none; padding: 0.85rem; }
+.ncaa-app .team-stat-cell { background: var(--card-bg); border-radius: var(--r-md); }
+.ncaa-app .season-result-banner { border-radius: var(--r-md); }
+.ncaa-app .coach-card { border-radius: var(--r-lg); }
+.ncaa-app .team-index-card { border-radius: var(--r-md); transition: transform 0.15s ease, border-color 0.15s ease; }
+.ncaa-app .team-index-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+.ncaa-app .conf-section { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 1rem 1.1rem; margin-bottom: 1rem; box-shadow: var(--shadow-soft); }
+.ncaa-app .conf-section-header { margin-bottom: 0.6rem; }
+.ncaa-app .award-section-title {
+  font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent);
+  font-size: 1.05rem; margin: 1.6rem 0 0.7rem;
+}
+.ncaa-app .award-section-title:first-of-type { margin-top: 0.4rem; }
+.ncaa-app .awards-grid > *, .ncaa-app .all-american-container > * { border-radius: var(--r-lg); }
+.ncaa-app .filter-select, .offseason-overlay .filter-select { border-radius: var(--r-pill); }
+
+/* ---------- Offseason ---------- */
+.offseason-overlay {
+  position: fixed; inset: 0; z-index: 300; overflow-y: auto; background: var(--bg-color);
+  animation: csFade 0.3s ease both;
+}
+.offseason-overlay { padding: 0; }
+.offseason-shell { max-width: 1400px; margin: 1.5rem auto 3rem; padding: 0 1.25rem; }
+.offseason-overlay .offseason-panel { background: none; border: 0; padding: 0; border-radius: 0; }
+.offseason-head .app-title h1 { color: var(--gold); }
+.offseason-head { background: linear-gradient(115deg, rgba(212,175,55,0.14), transparent 45%), var(--card-bg); }
+.offseason-track { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.offseason-track li.current { border-color: var(--gold); background: rgba(212,175,55,0.1); }
+.offseason-track li.current .stage-dot { background: var(--gold); border-color: var(--gold); color: #1a1405; }
+.offseason-track li.done .stage-dot { background: rgba(212,175,55,0.25); color: var(--gold); }
+.offseason-track li.viewing { box-shadow: inset 0 0 0 1px var(--gold); }
+#offseasonAdvanceBtn.waiting { background: transparent; color: var(--text-muted); border-color: var(--border); box-shadow: none; }
+.offseason-panel { min-height: 40vh; }
+.offseason-panel .champion-spotlight {
+  background: radial-gradient(120% 140% at 0% 0%, rgba(212,175,55,0.2), transparent 60%), var(--card-bg);
+  border: 1px solid rgba(212,175,55,0.5); border-radius: var(--r-lg); padding: 1.5rem; box-shadow: var(--shadow-soft);
+}
+.offseason-panel .offseason-recap { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 1rem 1.25rem; margin-top: 1rem; }
+
+.draft-gate { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.draft-gate-main {
+  background: radial-gradient(130% 120% at 0% 0%, rgba(240, 86, 111, 0.18), transparent 55%), var(--card-bg);
+  border-color: rgba(240, 86, 111, 0.55); padding: 1.6rem 1.7rem;
+}
+.draft-gate-main h2 { font-family: 'Oswald', sans-serif; text-transform: uppercase; font-size: 1.9rem; line-height: 1.05; margin: 0.25rem 0 0.6rem; }
+.draft-gate-main > p { color: var(--text-muted); max-width: 640px; }
+.draft-gate-main .sim-btn { margin: 1.1rem 0 0.5rem; background: #F0566F; border-color: #F0566F; color: #1a0509; box-shadow: 0 10px 28px rgba(240, 86, 111, 0.35); }
+.draft-gate-main .sim-btn:hover { background: #C0283F; border-color: #C0283F; color: #fff; }
+.draft-gate-kicker { font-family: 'Oswald', sans-serif; font-size: 0.78rem; letter-spacing: 0.2em; text-transform: uppercase; color: #F0566F; }
+.gate-steps { list-style: none; margin: 1.1rem 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.gate-steps li { display: flex; align-items: center; gap: 0.4rem; border: 1px solid var(--border); border-radius: var(--r-pill); padding: 0.25rem 0.7rem 0.25rem 0.3rem; font-size: 0.82rem; color: var(--text-muted); }
+.gate-steps .stage-dot { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font-size: 0.7rem; font-weight: 700; border: 1px solid var(--border); }
+.gate-steps li.done { color: var(--text-main); border-color: rgba(240, 86, 111, 0.4); }
+.gate-steps li.done .stage-dot { background: rgba(240, 86, 111, 0.25); border-color: transparent; color: #F0566F; }
+.gate-steps li.next { border-style: dashed; border-color: #F0566F; color: var(--text-main); }
+
+.draft-recap { display: grid; gap: 1rem; }
+.draft-first { background: radial-gradient(120% 140% at 0% 0%, rgba(240, 86, 111, 0.16), transparent 60%), var(--card-bg); }
+.draft-first-row { display: flex; align-items: center; gap: 1rem; margin: 0.5rem 0 0.7rem; }
+.draft-first-row img { width: 70px; height: 70px; object-fit: contain; }
+.draft-first-row b { display: block; font-family: 'Oswald', sans-serif; font-size: 1.8rem; text-transform: uppercase; line-height: 1.05; }
+.draft-first-row span { color: var(--text-muted); }
+.draft-recap-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.draft-recap-side { display: grid; gap: 1rem; }
+
+/* ---------- Title screen ---------- */
+.home-screen {
+  position: relative; min-height: calc(100vh - 64px); display: grid; place-items: center;
+  overflow: hidden; padding: 3rem 1.25rem 4rem; isolation: isolate;
+}
+.home-art {
+  position: absolute; inset: 0; z-index: -1;
+  background:
+    var(--home-art, none) center / cover no-repeat,
+    radial-gradient(90% 70% at 50% 0%, #12305a 0%, transparent 70%),
+    radial-gradient(60% 50% at 85% 100%, rgba(106, 61, 240, 0.18) 0%, transparent 70%),
+    #05070c;
+}
+.home-art::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(5,7,12,0.1) 0%, rgba(5,7,12,0.55) 70%, var(--bg-color) 100%);
+}
+:root[data-theme="light"] .home-art { background: var(--home-art, none) center / cover no-repeat, radial-gradient(90% 70% at 50% 0%, #cfe6fb 0%, transparent 70%), #f4f7fb; }
+:root[data-theme="light"] .home-art::after { background: linear-gradient(180deg, transparent 50%, var(--bg-color) 100%); }
+/* A half court, drawn in lines, drifting slowly behind the title. */
+.home-court {
+  position: absolute; left: 50%; top: 52%; width: min(1100px, 150vw); aspect-ratio: 94 / 50;
+  transform: translate(-50%, -50%) perspective(900px) rotateX(58deg); opacity: 0.22;
+  border: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); border-radius: 6px;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 11.5%, color-mix(in srgb, var(--accent) 70%, transparent) 11.6%, color-mix(in srgb, var(--accent) 70%, transparent) 11.9%, transparent 12%),
+    linear-gradient(90deg, transparent calc(50% - 1px), color-mix(in srgb, var(--accent) 70%, transparent) calc(50% - 1px), color-mix(in srgb, var(--accent) 70%, transparent) calc(50% + 1px), transparent calc(50% + 1px));
+  animation: courtDrift 18s ease-in-out infinite alternate;
+}
+@keyframes courtDrift { from { transform: translate(-50%, -50%) perspective(900px) rotateX(58deg) rotateZ(-2deg) scale(1); } to { transform: translate(-50%, -48%) perspective(900px) rotateX(56deg) rotateZ(2deg) scale(1.06); } }
+.home-inner { width: min(560px, 100%); text-align: center; position: relative; }
+.home-inner > * { animation: rpRise 0.6s cubic-bezier(.2,.8,.2,1) both; }
+.home-inner > *:nth-child(2) { animation-delay: 80ms; } .home-inner > *:nth-child(3) { animation-delay: 140ms; }
+.home-inner > *:nth-child(4) { animation-delay: 200ms; } .home-inner > *:nth-child(5) { animation-delay: 280ms; }
+.home-inner > *:nth-child(n+6) { animation-delay: 360ms; }
+.home-logo { width: 116px; height: 116px; object-fit: contain; filter: drop-shadow(0 12px 30px rgba(79, 174, 245, 0.45)); animation: homeFloat 5s ease-in-out infinite, rpRise 0.6s both !important; }
+@keyframes homeFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+.home-kicker { font-family: 'Oswald', sans-serif; letter-spacing: 0.32em; text-transform: uppercase; color: var(--accent); font-size: 0.9rem; margin-top: 0.8rem; }
+.home-title {
+  font-family: 'Oswald', sans-serif; font-weight: 700; text-transform: uppercase; line-height: 0.95;
+  font-size: clamp(3.4rem, 11vw, 5.6rem); letter-spacing: 0.02em; margin: 0.2rem 0 0.6rem;
+  background: linear-gradient(180deg, var(--text-main) 35%, var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.home-desc { color: var(--text-muted); font-size: 1.05rem; line-height: 1.5; max-width: 480px; margin: 0 auto 1.6rem; }
+.home-actions { display: grid; gap: 0.7rem; justify-items: center; }
+.home-continue {
+  width: 100%; display: none; flex-direction: column; align-items: center; gap: 0.15rem; cursor: pointer;
+  background: var(--accent); color: var(--accent-contrast); border: 1px solid var(--accent); border-radius: var(--r-lg);
+  padding: 1rem 1.4rem; font: inherit; box-shadow: 0 14px 36px var(--accent-soft-strong);
+  transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+.home-continue:hover { transform: translateY(-2px); box-shadow: 0 18px 44px var(--accent-soft-strong); }
+.home-continue-label { font-family: 'Oswald', sans-serif; font-size: 1.45rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+.home-continue-meta { font-size: 0.9rem; opacity: 0.85; }
+.home-screen.has-save .home-continue { display: flex; }
+.home-new {
+  cursor: pointer; font: inherit; font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.05em;
+  width: 100%; background: var(--accent); color: var(--accent-contrast); border: 1px solid var(--accent); border-radius: var(--r-lg);
+  padding: 1rem 1.4rem; font-size: 1.35rem; font-weight: 700; box-shadow: 0 14px 36px var(--accent-soft-strong); transition: transform 0.15s ease;
+}
+.home-new:hover { transform: translateY(-2px); }
+/* With a save, starting over is the quiet option. */
+.home-screen.has-save .home-new {
+  width: auto; background: transparent; color: var(--text-muted); border-color: var(--border); box-shadow: none;
+  font-size: 0.9rem; padding: 0.45rem 1.1rem; border-radius: var(--r-pill);
+}
+.home-screen.has-save .home-new:hover { color: var(--text-main); border-color: var(--accent); transform: none; }
+.home-note { color: var(--text-muted); font-size: 0.88rem; margin-top: 0.6rem; }
+.home-links { display: flex; justify-content: center; gap: 1.4rem; margin-top: 1.8rem; flex-wrap: wrap; }
+.home-links a { color: var(--text-muted); text-decoration: none; font-size: 0.92rem; border-bottom: 1px solid transparent; transition: color 0.15s ease, border-color 0.15s ease; }
+.home-links a:hover { color: var(--accent); border-color: var(--accent); }
+.home-fiction { color: var(--text-muted); opacity: 0.75; font-size: 0.76rem; margin-top: 1.2rem; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+  .season-track { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(150px, 1fr); overflow-x: auto; padding-bottom: 4px; scrollbar-width: thin; }
+  .dash-leaders .dashboard-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .dash-grid, .draft-gate, .draft-recap-grid { grid-template-columns: 1fr; }
+  .poll-list { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-flow: row; }
+}
+@media (max-width: 640px) {
+  .sim-layout.ncaa-app, .offseason-shell { padding: 0 0.75rem; margin-top: 0.75rem; }
+  .app-header-card { padding: 1rem; }
+  .app-logo { width: 52px; height: 52px; }
+  .app-title h1 { font-size: 1.6rem; }
+  .app-actions { width: 100%; }
+  .app-actions .sim-main { flex: 1; }
+  .app-tabs { margin: 0 -0.75rem 0.5rem; padding: 0.5rem 0.75rem; }
+  .dash-leaders .dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .page-head .section-title { font-size: 1.35rem; }
+  .card { padding: 0.9rem; }
+  .offseason-track { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(150px, 1fr); overflow-x: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-header-card, .ncaa-app .tab-content.active, .poll-row, .watch-list li, .home-inner > *, .home-logo, .home-court, .dash-perf .perf-row { animation: none !important; }
+}
+
+/* ---------- Refinements ---------- */
+.app-backbar .toolbar-meta, .app-backbar [hidden] { display: none !important; }
+.app-backbar:not(:has(.nav-back-btn:not([style*="none"]))) { margin-bottom: 0; }
+
+/* Section headings inside rendered views take the accent, as they do in
+   the Draft RP. */
+.ncaa-app .tab-content h3:not(.section-title):not(.award-section-title),
+.ncaa-app .uppercase-title {
+  font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.03em; color: var(--accent); font-size: 1.1rem;
+}
+
+/* Award cards: heading on top, winner underneath, no dead space. */
+.ncaa-app .award-card { border-radius: var(--r-lg); padding: 1.1rem 1.2rem; box-shadow: var(--shadow-soft); transition: transform 0.15s ease, border-color 0.15s ease; }
+.ncaa-app .award-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+.ncaa-app .award-card-horizontal { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0.9rem; }
+.ncaa-app .award-card-horizontal .award-heading { flex: 0 0 auto; }
+.ncaa-app .award-card-horizontal .award-winner { margin-left: 0; flex: 0 0 auto; }
+.ncaa-app .award-sub { margin-bottom: 0; }
+.ncaa-app .award-logo { width: 52px; height: 52px; object-fit: contain; }
+.ncaa-app .awards-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0.9rem; }
+
+/* The title-screen court sits lower and quieter behind the text. */
+.home-court { top: 64%; opacity: 0.16; }
+/* The open "…" menu has to sit above the sticky tabs. */
+.app-header-card:has(.app-menu.open) { z-index: 45; }
+
+@media (max-width: 640px) {
+  /* Leaders scroll sideways instead of squeezing five columns. */
+  .dash-leaders .dashboard-grid { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 82%; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; }
+  .dash-leaders .dash-box { scroll-snap-align: start; }
+  .dash-perf .perf-row { flex-wrap: wrap; row-gap: 0.4rem; }
+  .dash-perf .perf-statline { order: 3; width: 100%; justify-content: flex-start; }
+  .dash-perf .perf-score { margin-left: auto; }
+}
+
+/* ============================================================
+   v9.1 — team header, season wrap-up, player page, motion.
+   ============================================================ */
+
+/* ---------- Team header ---------- */
+.ncaa-app .team-hero {
+  position: relative; overflow: hidden; isolation: isolate;
+  display: flex; align-items: center; gap: 1.25rem; flex-wrap: wrap;
+  padding: 1.3rem 1.5rem;
+}
+.team-hero-mark {
+  position: absolute; right: -40px; top: 50%; width: 260px; height: 260px; object-fit: contain;
+  transform: translateY(-50%) rotate(-8deg); opacity: 0.07; z-index: -1; pointer-events: none;
+}
+#teamPageContainer.fresh .team-hero-mark { animation: markDrift 1.1s cubic-bezier(.2,.8,.2,1) both; }
+.pp-hero .team-hero-mark { animation: markDrift 1.1s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes markDrift { from { opacity: 0; transform: translateY(-50%) translateX(40px) rotate(-2deg); } to { opacity: 0.07; transform: translateY(-50%) rotate(-8deg); } }
+.ncaa-app .team-hero .team-logo { width: 92px; height: 92px; filter: drop-shadow(0 8px 18px rgba(0,0,0,0.35)); }
+#teamPageContainer.fresh .team-hero .team-logo { animation: rpLogoIn 0.6s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes rpLogoIn { from { opacity: 0; transform: scale(0.7) rotate(-6deg); } to { opacity: 1; transform: none; } }
+.team-hero .team-title-block { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; margin-right: auto; }
+.team-hero .modal-team-name { font-size: 2.3rem; line-height: 1; }
+.team-hero .modal-team-year { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+.team-hero-meta { color: var(--text-muted); font-size: 0.95rem; }
+.team-hero-actions { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+.team-hero-actions .outline-btn { border-radius: var(--r-pill); }
+a.outline-btn { text-decoration: none; display: inline-flex; align-items: center; gap: 0.3rem; }
+.outline-btn.draft-link { color: #F0566F; border-color: rgba(240, 86, 111, 0.45); }
+.outline-btn.draft-link:hover { background: rgba(240, 86, 111, 0.12); border-color: #F0566F; }
+:root[data-theme="light"] .outline-btn.draft-link { color: #C0283F; }
+
+/* Stat tiles pop in one after another. */
+#teamPageContainer.fresh .team-stats-grid > *, #teamPageContainer.fresh .team-stat-cell-grid > *, .pp-tiles > * { animation: rpRise 0.45s cubic-bezier(.2,.8,.2,1) both; }
+.ncaa-app .team-stat-cell-grid > *:nth-child(n+2) { animation-delay: 25ms; } .ncaa-app .team-stat-cell-grid > *:nth-child(n+4) { animation-delay: 60ms; }
+.ncaa-app .team-stat-cell-grid > *:nth-child(n+7) { animation-delay: 100ms; } .ncaa-app .team-stat-cell-grid > *:nth-child(n+10) { animation-delay: 140ms; }
+.ncaa-app .team-stat-cell-grid > *:nth-child(n+13) { animation-delay: 180ms; }
+.ncaa-app .team-stats-grid > *:nth-child(2), .pp-tiles > *:nth-child(2) { animation-delay: 50ms; }
+.ncaa-app .team-stats-grid > *:nth-child(3), .pp-tiles > *:nth-child(3) { animation-delay: 100ms; }
+.ncaa-app .team-stats-grid > *:nth-child(4), .pp-tiles > *:nth-child(4) { animation-delay: 150ms; }
+.pp-tiles > *:nth-child(5) { animation-delay: 200ms; }
+.ncaa-app .team-stat-cell { transition: transform 0.15s ease, border-color 0.15s ease; }
+.ncaa-app .team-stat-cell:hover { transform: translateY(-2px); border-color: var(--accent); }
+
+/* ---------- Season wrap-up ---------- */
+.wrap-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; align-items: stretch; }
+.wrap-grid > * { animation: rpRise 0.5s cubic-bezier(.2,.8,.2,1) both; }
+.wrap-grid > *:nth-child(2) { animation-delay: 70ms; } .wrap-grid > *:nth-child(3) { animation-delay: 140ms; }
+.wrap-grid > *:nth-child(4) { animation-delay: 200ms; } .wrap-grid > *:nth-child(5) { animation-delay: 260ms; } .wrap-grid > *:nth-child(6) { animation-delay: 320ms; }
+.wrap-champ {
+  grid-column: span 2; display: flex; align-items: center; gap: 1.5rem; position: relative; overflow: hidden;
+  background: radial-gradient(120% 160% at 0% 0%, rgba(212,175,55,0.24), transparent 60%), var(--card-bg);
+  border-color: rgba(212,175,55,0.55); padding: 1.6rem 1.8rem;
+}
+.wrap-champ::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 224, 140, 0.16) 50%, transparent 65%);
+  transform: translateX(-100%); animation: goldSheen 2.6s 0.4s ease both;
+}
+@keyframes goldSheen { to { transform: translateX(100%); } }
+.wrap-champ-logo { width: 116px; height: 116px; object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 10px 24px rgba(212,175,55,0.35)); animation: rpLogoIn 0.7s cubic-bezier(.2,.8,.2,1) both; }
+.wrap-kicker { font-family: 'Oswald', sans-serif; font-size: 0.82rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); }
+.wrap-champ-name { font-family: 'Oswald', sans-serif; font-size: clamp(2rem, 4vw, 3rem); font-weight: 700; text-transform: uppercase; line-height: 1; margin: 0.25rem 0; cursor: pointer; }
+.wrap-champ-name:hover { color: var(--gold); }
+.wrap-champ-meta { color: var(--text-muted); }
+.wrap-title-game { margin-top: 0.8rem; display: inline-flex; align-items: baseline; gap: 0.5rem; border: 1px solid rgba(212,175,55,0.4); border-radius: var(--r-pill); padding: 0.3rem 0.9rem; font-size: 0.92rem; }
+.wrap-title-game span { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); }
+.wrap-title-game b { font-family: 'Oswald', sans-serif; font-size: 1.1rem; }
+.wrap-next {
+  display: flex; flex-direction: column; justify-content: center; gap: 0.35rem;
+  background: radial-gradient(130% 120% at 100% 0%, rgba(240, 86, 111, 0.16), transparent 60%), var(--card-bg);
+  border-color: rgba(240, 86, 111, 0.45);
+}
+.wrap-next-count { font-family: 'Oswald', sans-serif; font-size: 3rem; line-height: 1; color: #F0566F; }
+.wrap-next p { color: var(--text-muted); font-size: 0.92rem; margin: 0 0 0.5rem; }
+.wrap-next .sim-btn { align-self: flex-start; background: #F0566F; border-color: #F0566F; color: #1a0509; text-decoration: none; }
+.wrap-next .sim-btn:hover { background: #C0283F; border-color: #C0283F; color: #fff; }
+.wrap-ff { grid-column: 1 / -1; }
+.wrap-ff-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; }
+.wrap-ff-team {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 0.2rem; cursor: pointer;
+  background: var(--bg-color); border: 1px solid var(--border); border-radius: var(--r-md); padding: 1rem 0.75rem;
+  animation: rpRise 0.5s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(200ms + var(--d, 0ms));
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.wrap-ff-team:hover { transform: translateY(-3px); border-color: var(--accent); }
+.wrap-ff-team img { width: 56px; height: 56px; object-fit: contain; margin-bottom: 0.3rem; }
+.wrap-ff-team b { font-family: 'Oswald', sans-serif; text-transform: uppercase; font-size: 1.05rem; }
+.wrap-ff-team small { color: var(--text-muted); font-size: 0.78rem; }
+.wrap-ff-team span { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); margin-top: 0.2rem; }
+.wrap-ff-team.champ { border-color: rgba(212,175,55,0.7); background: radial-gradient(100% 100% at 50% 0%, rgba(212,175,55,0.18), transparent 70%), var(--bg-color); }
+.wrap-ff-team.champ span { color: var(--gold); }
+.wrap-list li { grid-template-columns: 20px minmax(0, 1fr) auto; }
+.wrap-line { font-family: 'Oswald', sans-serif; font-size: 0.92rem; white-space: nowrap; }
+.wrap-line small { font-family: 'Asap Condensed', sans-serif; color: var(--text-muted); font-size: 0.68rem; margin: 0 4px 0 1px; }
+.wrap-poll { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.1rem; }
+.wrap-poll li { display: grid; grid-template-columns: 24px 22px minmax(0, 1fr) auto; align-items: center; gap: 0.55rem; padding: 0.32rem 0.4rem; border-radius: var(--r-sm); cursor: pointer; transition: background 0.15s ease; }
+.wrap-poll li:hover { background: var(--card-hover); }
+
+/* ---------- Player page ---------- */
+.player-page-overlay { padding: 1.5rem 1.25rem 3rem; animation: csFade 0.25s ease both; }
+.pp-top { margin-bottom: 0.75rem; }
+.pp-top .nav-back-btn {
+  background: var(--card-bg); border: 1px solid var(--border); color: var(--text-main); border-radius: var(--r-pill);
+  padding: 0.35rem 0.9rem; font: inherit; font-size: 0.88rem; cursor: pointer;
+}
+.pp-top .nav-back-btn:hover { border-color: var(--accent); color: var(--accent); }
+.pp-hero {
+  position: relative; overflow: hidden; isolation: isolate;
+  display: flex; align-items: center; gap: 1.4rem; flex-wrap: wrap;
+  background: linear-gradient(115deg, var(--accent-soft), transparent 55%), var(--card-bg);
+  border: 1px solid var(--border); border-radius: var(--r-lg); padding: 1.4rem 1.6rem; box-shadow: var(--shadow-soft);
+  animation: rpRise 0.45s cubic-bezier(.2,.8,.2,1) both;
+}
+.pp-hero .player-page-logo { width: 96px; height: 96px; animation: rpLogoIn 0.6s cubic-bezier(.2,.8,.2,1) both; }
+.pp-hero .player-page-ident { margin-right: auto; }
+.pp-kicker { font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
+.pp-kicker .clickable-school { color: var(--accent); }
+.pp-hero .player-page-name { font-size: clamp(1.8rem, 4vw, 2.6rem); margin: 0.25rem 0 0.7rem; }
+.pp-num { color: var(--accent); }
+.pp-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.pp-chip { display: inline-flex; flex-direction: column; background: var(--bg-color); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.3rem 0.65rem; font-weight: 600; font-size: 0.92rem; line-height: 1.2; }
+.pp-chip small { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+.pp-team-btn { align-self: flex-start; border-radius: var(--r-pill); }
+.player-page-shell .player-accolade-block { margin-top: 0.9rem; }
+.pp-row { display: flex; gap: 0.9rem; margin: 0.9rem 0; flex-wrap: wrap; align-items: stretch; }
+.pp-tiles { flex: 1 1 520px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.6rem; }
+.pp-tile { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-md); padding: 0.8rem 0.6rem; text-align: center; display: flex; flex-direction: column; gap: 0.1rem; }
+.pp-tile span { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; color: var(--text-muted); }
+.pp-tile b { font-family: 'Oswald', sans-serif; font-size: 1.9rem; line-height: 1.05; }
+.pp-draft {
+  flex: 0 1 300px; display: flex; flex-direction: column; justify-content: center; gap: 0.15rem; text-decoration: none; color: var(--text-main);
+  background: radial-gradient(130% 120% at 100% 0%, rgba(240, 86, 111, 0.18), transparent 60%), var(--card-bg);
+  border-color: rgba(240, 86, 111, 0.45); transition: transform 0.15s ease, border-color 0.15s ease;
+  animation: rpRise 0.5s 0.2s cubic-bezier(.2,.8,.2,1) both;
+}
+.pp-draft:hover { transform: translateY(-2px); border-color: #F0566F; }
+.pp-draft b { font-family: 'Oswald', sans-serif; font-size: 1.5rem; text-transform: uppercase; line-height: 1.1; }
+.pp-draft-go { color: #F0566F; font-size: 0.85rem; font-weight: 700; }
+.pp-section { margin-top: 0.9rem; animation: rpRise 0.5s 0.15s cubic-bezier(.2,.8,.2,1) both; }
+.pp-section .uppercase-title { font-family: 'Oswald', sans-serif; text-transform: uppercase; color: var(--accent); letter-spacing: 0.03em; font-size: 1.05rem; margin-bottom: 0.4rem; }
+.pp-section .mt-2 { margin-top: 1.4rem; }
+.pp-section .table-scroll { border: 0; box-shadow: none; background: transparent; }
+
+/* ---------- Motion across the app ---------- */
+/* Rows ease in when a table appears (tab switch, filter, sort). */
+.ncaa-app .data-table tbody tr:nth-child(-n+30), .offseason-overlay .data-table tbody tr:nth-child(-n+30), .pp-section .data-table tbody tr:nth-child(-n+30) { animation: rpRow 0.35s ease both; }
+.ncaa-app .data-table tbody tr:nth-child(2) { animation-delay: 15ms; } .ncaa-app .data-table tbody tr:nth-child(3) { animation-delay: 30ms; }
+.ncaa-app .data-table tbody tr:nth-child(4) { animation-delay: 45ms; } .ncaa-app .data-table tbody tr:nth-child(5) { animation-delay: 60ms; }
+.ncaa-app .data-table tbody tr:nth-child(6) { animation-delay: 75ms; } .ncaa-app .data-table tbody tr:nth-child(7) { animation-delay: 90ms; }
+.ncaa-app .data-table tbody tr:nth-child(8) { animation-delay: 105ms; } .ncaa-app .data-table tbody tr:nth-child(9) { animation-delay: 120ms; }
+.ncaa-app .data-table tbody tr:nth-child(10) { animation-delay: 135ms; } .ncaa-app .data-table tbody tr:nth-child(n+11):nth-child(-n+30) { animation-delay: 150ms; }
+@keyframes rpRow { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+
+/* Poll movement flashes after each week. */
+.poll-move.up { animation: moveUp 0.9s 0.3s ease both; }
+.poll-move.down { animation: moveDown 0.9s 0.3s ease both; }
+@keyframes moveUp { 0% { opacity: 0; transform: translateY(6px); } 60% { opacity: 1; transform: translateY(-2px); text-shadow: 0 0 10px var(--win); } 100% { transform: none; } }
+@keyframes moveDown { 0% { opacity: 0; transform: translateY(-6px); } 60% { opacity: 1; transform: translateY(2px); text-shadow: 0 0 10px var(--loss); } 100% { transform: none; } }
+.poll-move.new { animation: rpPop 0.8s 0.3s ease both; }
+
+/* The current stage breathes. */
+.season-track li.current { animation: stageGlow 2.8s ease-in-out infinite; }
+@keyframes stageGlow { 0%, 100% { box-shadow: 0 0 0 0 var(--accent-soft); } 50% { box-shadow: 0 0 0 4px var(--accent-soft); } }
+.offseason-track li.current { animation: none; }
+
+/* The sim button while a week is being played. */
+.sim-btn.sim-main.busy {
+  pointer-events: none; color: transparent; position: relative;
+  background-image: linear-gradient(110deg, var(--accent) 30%, color-mix(in srgb, var(--accent) 60%, #fff) 50%, var(--accent) 70%);
+  background-size: 250% 100%; animation: simShimmer 1.1s linear infinite;
+}
+.sim-btn.sim-main.busy::after {
+  content: 'Simulating…'; position: absolute; inset: 0; display: grid; place-items: center; color: var(--accent-contrast);
+}
+@keyframes simShimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+
+/* Bracket columns sweep in from the outside toward the title game. */
+.nb-left > .nb-col, .nb-right > .nb-col, .nb-center { animation: rpRise 0.45s cubic-bezier(.2,.8,.2,1) both; }
+.nb-left > .nb-col:nth-child(2), .nb-right > .nb-col:nth-child(4) { animation-delay: 70ms; }
+.nb-left > .nb-col:nth-child(3), .nb-right > .nb-col:nth-child(3) { animation-delay: 140ms; }
+.nb-left > .nb-col:nth-child(4), .nb-right > .nb-col:nth-child(2) { animation-delay: 210ms; }
+.nb-left > .nb-col:nth-child(5), .nb-right > .nb-col:nth-child(1) { animation-delay: 280ms; }
+.nb-center { animation-delay: 360ms; }
+.nb-champion-box { animation: champGlow 2.4s 0.6s ease-in-out infinite alternate; }
+@keyframes champGlow { from { box-shadow: 0 0 0 0 rgba(212,175,55,0); } to { box-shadow: 0 0 22px 2px rgba(212,175,55,0.35); } }
+
+/* Cards that open something lift a little on hover. */
+.ncaa-app .card:has(> .section-head .outline-btn) { transition: border-color 0.2s ease; }
+.ncaa-app .dash-leaders .dash-box { transition: transform 0.15s ease, border-color 0.15s ease; }
+.ncaa-app .dash-leaders .dash-box:hover { transform: translateY(-2px); border-color: var(--accent); }
+.ncaa-app .dash-grid > *, .ncaa-app .dash-side > * { animation: rpRise 0.5s cubic-bezier(.2,.8,.2,1) both; }
+.ncaa-app .dash-side > *:nth-child(1) { animation-delay: 80ms; } .ncaa-app .dash-side > *:nth-child(2) { animation-delay: 160ms; }
+.ncaa-app .dash-leaders { animation-delay: 220ms; } .ncaa-app .dash-perf { animation-delay: 280ms; }
+.ncaa-app .conf-section:nth-of-type(-n+4) { animation: rpRise 0.45s cubic-bezier(.2,.8,.2,1) both; }
+
+@media (max-width: 900px) {
+  .wrap-grid { grid-template-columns: 1fr; }
+  .wrap-champ { grid-column: auto; }
+  .wrap-ff-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pp-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); flex-basis: 100%; }
+  .pp-draft { flex-basis: 100%; }
+}
+@media (max-width: 640px) {
+  .ncaa-app .team-hero { padding: 1rem; gap: 0.9rem; }
+  .ncaa-app .team-hero .team-logo { width: 64px; height: 64px; }
+  .team-hero .modal-team-name { font-size: 1.7rem; }
+  .team-hero-actions { width: 100%; }
+  .wrap-champ { flex-direction: column; align-items: flex-start; padding: 1.2rem; }
+  .wrap-champ-logo { width: 84px; height: 84px; }
+  .pp-hero { padding: 1.1rem; }
+  .pp-hero .player-page-logo { width: 64px; height: 64px; }
+  .player-page-overlay { padding: 1rem 0.75rem 2.5rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .team-hero-mark, .ncaa-app .team-hero .team-logo, .ncaa-app .team-stats-grid > *, .ncaa-app .team-stat-cell-grid > *, .pp-tiles > *,
+  .wrap-grid > *, .wrap-champ::after, .wrap-champ-logo, .wrap-ff-team, .pp-hero, .pp-hero .player-page-logo, .pp-draft, .pp-section,
+  .ncaa-app .data-table tbody tr, .offseason-overlay .data-table tbody tr, .pp-section .data-table tbody tr, .poll-move, .season-track li.current,
+  .sim-btn.sim-main.busy, .nb-left > .nb-col, .nb-right > .nb-col, .nb-center, .nb-champion-box, .ncaa-app .dash-grid > *, .ncaa-app .dash-side > *,
+  .ncaa-app .conf-section, .ncaa-app .team-index-card, .player-page-overlay { animation: none !important; }
+}
+.ncaa-app .empty-card { margin-bottom: 1.25rem; }
+.ncaa-app .empty-card .sub-text { margin: 0.3rem 0 0; }
+.pp-tile-empty { color: var(--text-muted); }
+
+@media (max-width: 640px) {
+  /* Offseason header: the main button gets its own full-width row. */
+  .offseason-head .app-actions { flex-direction: column-reverse; align-items: stretch; }
+  .offseason-head .app-actions .sim-main { font-size: 1rem; padding: 0.8rem 1rem; line-height: 1.2; }
+  .offseason-head .app-actions .sim-btn-secondary { align-self: flex-start; }
+  .ncaa-app .team-stats-grid, .player-page-shell .team-stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; }
+  .ncaa-app .stat-box .stat-value { font-size: 1.5rem; }
+}

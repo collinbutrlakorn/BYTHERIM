@@ -1,140 +1,80 @@
 window.UIController = {
   init() {
     // Guard against double-initialisation: attaching the event listeners
-    // twice would make every toggle fire two handlers and cancel itself out
-    // (the drawer would appear not to open at all).
+    // twice would make every toggle fire two handlers and cancel itself out.
     if (this._initialized) return;
     this._initialized = true;
 
     this.setupTabNavigation();
-    this.setupMegaMenu();
-    this.setupDrawer();
+    this.setupAppMenu();
     this.setupActionButtons();
     this.setupModalListeners();
     this.setupSearchInput();
     this.setupSaveManagement();
+    if (window.Cutscene) document.querySelectorAll('[data-cutscene-toggle]').forEach(el => Cutscene.renderToggle(el));
     console.log("UI Controller initialized.");
   },
 
-
-  // Slide-out side menu. The simulate button lives in the always-visible
-  // toolbar instead, so the drawer only holds things you reach for
-  // occasionally (offseason, quick links, save management).
-  setupDrawer() {
-    const drawer = document.getElementById('sideDrawer');
-    const toggle = document.getElementById('drawerToggle');
-    const scrim = document.getElementById('drawerScrim');
-    if (!drawer || !toggle) return;
-
-    const close = () => {
-      drawer.classList.remove('open');
-      toggle.classList.remove('active');
-      if (scrim) scrim.classList.remove('visible');
-    };
-    const open = () => {
-      drawer.classList.add('open');
-      toggle.classList.add('active');
-      if (scrim) scrim.classList.add('visible');
-    };
-
-    toggle.addEventListener('click', (e) => {
+  // The "…" menu in the header: save, settings, publishing.
+  setupAppMenu() {
+    const btn = document.getElementById('appMenuBtn');
+    const menu = document.getElementById('appMenu');
+    if (!btn || !menu) return;
+    const close = () => { menu.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); };
+    btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      drawer.classList.contains('open') ? close() : open();
+      const open = !menu.classList.contains('open');
+      menu.classList.toggle('open', open);
+      btn.setAttribute('aria-expanded', String(open));
     });
-    if (scrim) scrim.addEventListener('click', close);
+    document.addEventListener('click', (e) => { if (!e.target.closest('.app-menu-wrap')) close(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-    // Picking a destination from the drawer should dismiss it.
-    drawer.querySelectorAll('[data-tab]').forEach(b => b.addEventListener('click', close));
   },
 
   // Programmatic tab switch, used when the engine navigates for the user
-  // (e.g. clicking a team bubble on the dashboard jumps to its team page).
+  // (e.g. clicking a team on the dashboard jumps to its team page).
   activateTab(tabId) {
-    const btn = document.querySelector(`.mega-menu-dropdown button[data-tab="${tabId}"]`)
+    const btn = document.querySelector(`.app-tabs [data-tab="${tabId}"]`)
              || document.querySelector(`[data-tab="${tabId}"]`);
     if (btn) btn.click();
   },
 
-  setupMegaMenu() {
-    const triggers = document.querySelectorAll('.mega-menu-trigger');
-    triggers.forEach(trigger => {
-      trigger.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const menuName = trigger.getAttribute('data-menu');
-        const panel = document.querySelector(`.mega-menu-dropdown[data-menu-panel="${menuName}"]`);
-        const isOpen = panel && panel.classList.contains('open');
-
-        document.querySelectorAll('.mega-menu-dropdown').forEach(p => p.classList.remove('open'));
-        if (panel && !isOpen) panel.classList.add('open');
-      });
-    });
-
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('.mega-menu-group')) {
-        document.querySelectorAll('.mega-menu-dropdown').forEach(p => p.classList.remove('open'));
-      }
-    });
+  // Marks the tab (and any shortcut to it) active and shows its content.
+  showTab(targetTabId) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.getAttribute('data-tab') === targetTabId));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === targetTabId));
+    const active = document.querySelector(`.app-tabs .tab-btn[data-tab="${targetTabId}"]`);
+    const bar = document.querySelector('.app-tabs-inner');
+    if (active && bar && bar.scrollWidth > bar.clientWidth) {
+      const left = active.offsetLeft - bar.clientWidth / 2 + active.offsetWidth / 2;
+      if (bar.scrollTo) bar.scrollTo({ left, behavior: 'smooth' }); else bar.scrollLeft = left;
+    }
   },
 
   setupTabNavigation() {
     const tabButtons = document.querySelectorAll('[data-tab]');
-    
+
     tabButtons.forEach(btn => {
-      btn.addEventListener('click', (e) => {
+      btn.addEventListener('click', () => {
         const targetTabId = btn.getAttribute('data-tab');
         if (!targetTabId) return;
-
-        // Visual un-active all
-        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-
-        // Re-activate specific
-        btn.classList.add('active');
-        const targetContent = document.getElementById(targetTabId);
-        if (targetContent) targetContent.classList.add('active');
-
-        // Keep the top-level menu trigger in sync with whichever tab is
-        // active, so it's clear which section you're in even after the
-        // dropdown closes (this also handles "View Standings ->" style
-        // shortcut buttons that live outside any dropdown).
-        const parentDropdown = btn.closest('.mega-menu-dropdown');
-        document.querySelectorAll('.mega-menu-trigger').forEach(t => t.classList.remove('active'));
-        if (parentDropdown) {
-          const menuName = parentDropdown.getAttribute('data-menu-panel');
-          const trigger = document.querySelector(`.mega-menu-trigger[data-menu="${menuName}"]`);
-          if (trigger) trigger.classList.add('active');
-          parentDropdown.classList.remove('open');
-        } else {
-          // A shortcut button (e.g. "View Standings ->") outside the menu —
-          // find whichever dropdown actually contains a matching tab-btn.
-          const owningPanel = document.querySelector(`.mega-menu-dropdown button[data-tab="${targetTabId}"]`)?.closest('.mega-menu-dropdown');
-          if (owningPanel) {
-            const menuName = owningPanel.getAttribute('data-menu-panel');
-            const trigger = document.querySelector(`.mega-menu-trigger[data-menu="${menuName}"]`);
-            if (trigger) trigger.classList.add('active');
-            document.querySelectorAll('.tab-btn').forEach(b => {
-              if (b.getAttribute('data-tab') === targetTabId) b.classList.add('active');
-            });
-          }
-        }
+        this.showTab(targetTabId);
 
         // Record the tab in the shared navigation history so the single
         // Back control can return here.
         if (window.SimEngine && !SimEngine._suppressNav && typeof SimEngine.pushNav === 'function') {
-          SimEngine.pushNav({ type: 'tab', key: targetTabId, label: (btn.innerText || btn.textContent || '').trim() || 'previous view' });
+          const named = document.querySelector(`.app-tabs .tab-btn[data-tab="${targetTabId}"]`) || btn;
+          SimEngine.pushNav({ type: 'tab', key: targetTabId, label: (named.textContent || '').replace(/\s+/g, ' ').trim() || 'previous view' });
         }
 
-        // Trigger updates if engine is ready
         if (window.SimEngine) {
           if (targetTabId === 'awardsTab') SimEngine.updateAwardsTab();
           else if (targetTabId === 'standingsTab') SimEngine.updateStandingsTab();
           else if (targetTabId === 'teamTab') SimEngine.updateTeamTab();
           else if (targetTabId === 'teamStatsTab') SimEngine.updateTeamStatsTab();
           else if (targetTabId === 'recruitsTab') SimEngine.updateRecruitsTab();
-          else if (targetTabId === 'draftBoardTab') SimEngine.updateDraftBoardTab();
           else if (targetTabId === 'historyTab') SimEngine.updateHistoryTab();
           else if (targetTabId === 'recordsTab') SimEngine.updateRecordsTab();
-          else if (targetTabId === 'offseasonTab') SimEngine.updateOffseasonTab();
           else if (targetTabId === 'dashTab') SimEngine.updateDashboard();
         }
       });
@@ -146,26 +86,19 @@ window.UIController = {
     if (simWeekBtn) {
       simWeekBtn.addEventListener('click', async () => {
         if (!window.SimEngine) return;
+        if (SimEngine.state.ncaaDone) { SimEngine.openOffseason(); return; }
         // Spinner first, then yield a frame so it actually paints before
         // the simulation blocks the thread.
         SimEngine.showSimSpinner('Simulating…');
         await new Promise(r => setTimeout(r, 30));
         try {
-          await SimEngine.simulateWeek();
+          await SimEngine.simButtonAction();
         } finally {
           await SimEngine.hideSimSpinner();
         }
       });
     }
 
-    const offseasonBtn = document.getElementById('advanceOffseasonBtn');
-    if (offseasonBtn) {
-      offseasonBtn.addEventListener('click', () => {
-        if (confirm("Are you sure you want to advance to the next season? This will graduate seniors and progress rosters.")) {
-          if (window.SimEngine) SimEngine.runOffseason();
-        }
-      });
-    }
   },
 
   setupModalListeners() {

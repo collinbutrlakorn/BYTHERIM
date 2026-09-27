@@ -165,7 +165,7 @@
             <span class="rp-logo"><img src="./draftrplogo.png" alt="" loading="lazy"></span>
             <span class="rp-status" data-uni="draft">Live</span>
             <h3>Draft RP</h3>
-            <p>A big board and mock draft that move all season, the declared class, and draft night — the last step of every college offseason.</p>
+            <p>A big board and mock draft that move all season, then the whole pre-draft cycle — combine, lottery, team workouts, the withdrawal deadline — and draft night.</p>
             <span class="rp-cta">Open the Draft <span data-icon="arrow"></span></span>
           </a>
         </li>
@@ -210,7 +210,8 @@ fetch('../data/universe.json', { cache: 'no-cache' })
     const phase = /offseason/i.test(s.phase || '') ? 'Offseason' : s.week ? `Week ${s.week}` : (s.phase || 'Preseason');
     set('ncaa', `${s.label} · ${phase}`);
     const d = u.draft;
-    set('draft', d.stage === 'complete' ? `${d.year} draft complete` : d.stage === 'declared' ? `${d.year} class declared` : `${d.year} mock draft live`);
+    set('draft', ({ complete: `${d.year} draft complete`, declared: `${d.year} class declared`, combine: `${d.year} combine results in`,
+      lottery: `${d.year} lottery drawn`, workouts: `${d.year} workouts under way`, deadline: `${d.year} class set` })[d.stage] || `${d.year} mock draft live`);
     const moves = (u.transfers || []).filter(t => t.season === s.label).length;
     if (moves) set('recruiting', `${moves} transfers · ${s.label}`);
   })

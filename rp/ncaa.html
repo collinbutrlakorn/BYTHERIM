@@ -110,131 +110,113 @@
   <!-- Shared BYTHERIM header and footer (assets/chrome.css + site.js), then the sim's own styles. -->
   <link rel="stylesheet" href="../assets/chrome.css">
   <link rel="stylesheet" href="css/ncaa-styles.css">
+  <link rel="stylesheet" href="css/cutscene.css">
+  <link rel="stylesheet" href="css/ncaa-app.css">
   <script src="../assets/site.js"></script>
 </head>
 <body>
 
   <script>BTR.mount('rp', { base: '../' })</script>
 
-  <div class="rp-header">
-    <img src="ncaarplogo.png" alt="" class="rp-header-logo">
-    <div class="rp-header-text">
-      <a href="./" class="rp-header-kicker">BYTHERIM RP</a>
-      <h1 class="rp-header-title">NCAA Simulation</h1>
+  <!-- Title screen. To add background art, put the image in rp/art/ and
+       give .home-art a style, e.g. style="--home-art: url('art/title.jpg')".
+       The court lines and colour wash stay on top of it for legibility. -->
+  <div id="homeScreen" class="home-screen">
+    <div class="home-art" aria-hidden="true"><span class="home-court"></span></div>
+    <div class="home-inner">
+      <img src="ncaarplogo.png" alt="" class="home-logo">
+      <div class="home-kicker">BYTHERIM RP</div>
+      <h1 class="home-title">NCAA RP</h1>
+      <p class="home-desc">Every Division I program, the RP's recruits and rosters, and a full season — November tip-off to the National Championship, then the draft and the offseason.</p>
+
+      <div class="home-actions">
+        <button class="home-continue" id="loadSaveBtn" onclick="SimEngine.continueGame()" disabled>
+          <span class="home-continue-label">Continue Simulation</span>
+          <span class="home-continue-meta" id="homeSaveMeta">Looking for a save…</span>
+        </button>
+        <button class="home-new" id="newSaveBtn" onclick="SimEngine.startNewGame()">New Save</button>
+      </div>
+      <p id="noSaveMessage" class="home-note" style="display:none;">No save in this browser yet — start a new one.</p>
+
+      <nav class="home-links" aria-label="More from the RP">
+        <a href="./guide.html">How the RP works</a>
+        <a href="./draft.html">Draft RP</a>
+        <a href="../recruiting/">Recruiting</a>
+      </nav>
+      <p class="home-fiction">All RP players and recruits are fictional. Any resemblance to real people is coincidental.</p>
     </div>
   </div>
 
-  <div id="homeScreen" class="home-screen-overlay">
-    <div class="home-screen-card">
-      <img src="ncaarplogo.png" alt="BYTHERIM NCAA RP" class="home-screen-logo">
-      <h1 class="home-screen-title">NCAA RP Simulation</h1>
-      <p class="panel-desc mb-1-5">Every Division I program, the RP's recruits and rosters, and a full season from November tip-off to the National Championship.</p>
-      <button class="sim-btn w-100 mb-1" id="newSaveBtn" onclick="SimEngine.startNewGame()">New Save</button>
-      <button class="sim-btn sim-btn-secondary w-100" id="loadSaveBtn" onclick="SimEngine.continueGame()" disabled>Load Existing Save</button>
-      <p id="noSaveMessage" class="sub-text-sm mt-1" style="display:none;">No existing save found — start a New Save to begin.</p>
-      <p class="sub-text-sm mt-1"><a class="text-link" href="./guide.html">New here? How the RP works &rarr;</a></p>
-      <p class="sub-text-sm mt-1 home-fiction">All RP players and recruits are fictional. Any resemblance to real people is coincidental.</p>
-    </div>
-  </div>
-
-  <div class="sim-layout" style="display:none;">
-    <aside class="side-drawer" id="sideDrawer">
-      <div class="drawer-inner">
-        <div class="drawer-section">
-          <span class="status-badge" id="currentPhaseDisplay">Preseason</span>
-          <h2 class="season-title"><span id="currentYearDisplay">2028-29</span> SEASON</h2>
-          <button class="sim-btn sim-btn-secondary w-100" id="advanceOffseasonBtn">Advance Offseason</button>
-        </div>
-
-        <div class="drawer-section">
-          <h3 class="section-title">Quick Links</h3>
-          <div class="quick-links">
-            <button class="quick-link" data-tab="dashTab">Dashboard</button>
-            <button class="quick-link" data-tab="scheduleTab">Schedule</button>
-            <button class="quick-link" data-tab="standingsTab">Standings</button>
-            <button class="quick-link" data-tab="teamTab">Teams</button>
-            <button class="quick-link" data-tab="statsTab">Player Stats</button>
-            <button class="quick-link" data-tab="postseasonTab">Bracketology</button>
-            <button class="quick-link" data-tab="draftBoardTab">Big Board</button>
-          </div>
-        </div>
-
-        <div class="drawer-section">
-          <h3 class="section-title">Save</h3>
-          <button class="sim-btn sim-btn-secondary w-100 mb-1 btn-sm" id="exportSaveBtn">Export Save</button>
-          <input type="file" id="importSaveInput" style="display:none;" accept=".json">
-          <button class="sim-btn sim-btn-secondary w-100 mb-1 btn-sm" onclick="document.getElementById('importSaveInput').click()">Import Save</button>
-          <button class="sim-btn sim-btn-secondary w-100 btn-sm" onclick="if(confirm('Return to the home screen? Your progress is already saved automatically.')) location.reload()">Home Screen</button>
-        </div>
-
-        <div class="drawer-section">
-          <h3 class="section-title">Official universe</h3>
-          <p class="sub-text-sm mb-1">Publishing saves a <code>universe.json</code> file. Upload it to the site's <code>data</code> folder and the Draft RP and Recruiting pages will show this save to everyone.</p>
-          <button class="sim-btn btn-sm w-100" id="publishBtn" onclick="SimEngine.publishUniverse()">Publish Universe</button>
-          <p id="publishNote" class="sub-text-sm mt-1" style="display:none"></p>
+  <div class="sim-layout ncaa-app" style="display:none;">
+    <!-- Header: who, where in the season, and the one button that moves it on -->
+    <header class="app-header-card">
+      <div class="app-brand">
+        <img src="ncaarplogo.png" alt="NCAA RP" class="app-logo">
+        <div class="app-title">
+          <h1>NCAA RP</h1>
+          <p><span id="currentYearDisplay">2028-29</span> season · <span id="currentPhaseDisplay">Preseason</span></p>
         </div>
       </div>
-    </aside>
-    <div class="drawer-scrim" id="drawerScrim"></div>
+      <div class="app-actions">
+        <div class="app-menu-wrap">
+          <button class="icon-btn" id="appMenuBtn" aria-haspopup="true" aria-expanded="false" aria-label="Save and settings">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+          </button>
+          <div class="app-menu" id="appMenu" role="menu">
+            <div class="app-menu-group">
+              <span class="app-menu-label">Save</span>
+              <button role="menuitem" id="exportSaveBtn">Export save</button>
+              <input type="file" id="importSaveInput" style="display:none;" accept=".json">
+              <button role="menuitem" onclick="document.getElementById('importSaveInput').click()">Import save</button>
+              <button role="menuitem" onclick="if(confirm('Return to the title screen? Your progress is already saved.')) location.reload()">Title screen</button>
+            </div>
+            <div class="app-menu-group">
+              <span class="app-menu-label">Settings</span>
+              <button role="menuitem" data-cutscene-toggle onclick="Cutscene.setEnabled(!Cutscene.enabled())">Cutscenes: On</button>
+              <a role="menuitem" href="./guide.html">How the RP works</a>
+            </div>
+            <div class="app-menu-group">
+              <span class="app-menu-label">Official universe</span>
+              <p class="app-menu-note">Publishing downloads <code>universe.json</code>. Upload it to the site's <code>data</code> folder and the Draft RP and Recruiting pages show this save to everyone.</p>
+              <button role="menuitem" id="publishBtn" onclick="SimEngine.publishUniverse()">Publish universe</button>
+              <p id="publishNote" class="app-menu-note" style="display:none"></p>
+            </div>
+          </div>
+        </div>
+        <button class="sim-btn sim-main" id="simWeekBtn">Simulate Week 1</button>
+      </div>
+      <div class="season-progress" aria-hidden="true"><span id="seasonProgress"></span></div>
+    </header>
 
-    <div class="sim-toolbar">
-      <button class="drawer-toggle" id="drawerToggle" aria-label="Open menu">
-        <span></span><span></span><span></span>
-      </button>
+    <ol class="season-track" id="seasonTrack" aria-label="Where the season stands"></ol>
+
+    <nav class="app-tabs" aria-label="NCAA RP sections">
+      <div class="app-tabs-inner">
+        <button class="tab-btn active" data-tab="dashTab">Dashboard</button>
+        <button class="tab-btn" data-tab="scheduleTab">Schedule</button>
+        <button class="tab-btn" data-tab="standingsTab">Standings</button>
+        <button class="tab-btn" data-tab="postseasonTab">Bracketology</button>
+        <span class="tab-sep" aria-hidden="true"></span>
+        <button class="tab-btn" data-tab="teamTab">Teams</button>
+        <button class="tab-btn" data-tab="teamStatsTab">Team Stats</button>
+        <button class="tab-btn" data-tab="statsTab">Player Stats</button>
+        <button class="tab-btn" data-tab="awardsTab">Awards</button>
+        <span class="tab-sep" aria-hidden="true"></span>
+        <button class="tab-btn" data-tab="recruitsTab">Recruits</button>
+        <button class="tab-btn" data-tab="historyTab">History</button>
+        <button class="tab-btn" data-tab="recordsTab">Record Book</button>
+        <a class="tab-btn tab-link" href="./draft.html" title="The NBA draft of this universe">Draft RP <span aria-hidden="true">&nearr;</span></a>
+      </div>
+    </nav>
+
+    <div class="app-backbar">
       <button class="nav-back-btn" id="navBackBtn" style="display:none;" onclick="SimEngine.navigateBack()">
-        &larr; <span id="navBackLabel">Back</span>
+        <span aria-hidden="true">&larr;</span> <span id="navBackLabel">Back</span>
       </button>
-      <div class="toolbar-meta">
-        <span class="toolbar-phase" id="toolbarPhase">Preseason</span>
-        <span class="toolbar-year" id="toolbarYear">2028-29</span>
-      </div>
-      <button class="sim-btn sim-btn-primary toolbar-sim" id="simWeekBtn">Simulate Week 1</button>
+      <span class="toolbar-meta" hidden><span id="toolbarPhase"></span><span id="toolbarYear"></span></span>
     </div>
 
-    <main class="panel-card">
-      <div class="mega-menu">
-        <div class="mega-menu-group">
-          <button class="mega-menu-trigger active" data-menu="season">Season</button>
-          <div class="mega-menu-dropdown" data-menu-panel="season">
-            <button class="tab-btn active" data-tab="dashTab">Dashboard</button>
-            <button class="tab-btn" data-tab="scheduleTab">Schedule</button>
-            <button class="tab-btn" data-tab="standingsTab">Standings</button>
-            <button class="tab-btn" data-tab="postseasonTab">Bracketology</button>
-            <button class="tab-btn" data-tab="awardsTab">Season Awards</button>
-          </div>
-        </div>
-        <div class="mega-menu-group">
-          <button class="mega-menu-trigger" data-menu="team">Team</button>
-          <div class="mega-menu-dropdown" data-menu-panel="team">
-            <button class="tab-btn" data-tab="teamTab">Team Page</button>
-            <button class="tab-btn" data-tab="teamStatsTab">Team Stats</button>
-            <button class="tab-btn" data-tab="statsTab">All Player Stats</button>
-          </div>
-        </div>
-        <div class="mega-menu-group">
-          <button class="mega-menu-trigger" data-menu="archive">The Archive</button>
-          <div class="mega-menu-dropdown" data-menu-panel="archive">
-            <button class="tab-btn" data-tab="recruitsTab">Incoming Recruits</button>
-            <button class="tab-btn" data-tab="draftBoardTab">Big Board</button>
-            <button class="tab-btn" data-tab="historyTab">Historical Seasons</button>
-            <button class="tab-btn" data-tab="recordsTab">Record Book</button>
-          </div>
-        </div>
-      </div>
-
-      <div id="scheduleTab" class="tab-content">
-        <h3 class="mb-1">Schedule &amp; Results</h3>
-        <div id="scheduleContainer">
-          <p class="empty-table-msg">Simulate the season to generate a schedule.</p>
-        </div>
-      </div>
-
-      <div id="postseasonTab" class="tab-content">
-        <h3 class="mb-1">Bracketology</h3>
-        <div id="postseasonContainer">
-          <p class="empty-table-msg">Complete the regular season to unlock Conference Championships and the NCAA Tournament.</p>
-        </div>
-      </div>
+    <main class="app-main">
 
       <div id="dashTab" class="tab-content active">
         <div id="dashOffseasonBanner" class="dash-offseason-banner" style="display:none;">
@@ -244,31 +226,65 @@
           </div>
           <button class="sim-btn btn-sm" onclick="SimEngine.openOffseason()">Open Offseason</button>
         </div>
-        <div id="dashBracketSection" style="display:none;" class="mb-2">
-          <h3 class="mb-1" id="dashBracketTitle">BRACKET</h3>
+        <section id="dashBracketSection" style="display:none;" class="card mb-2">
+          <div class="section-head"><h2 class="section-title" id="dashBracketTitle">Bracket</h2></div>
           <div id="dashBracket"></div>
-        </div>
+        </section>
 
-        <div class="flex-between mb-1">
-          <h3 id="dashPollLabel">AP TOP 25</h3>
-          <button class="outline-btn" data-tab="standingsTab">View Standings &rarr;</button>
-        </div>
-        <div id="dashTopTeams">
-          <p class="sub-text">Start a save to generate rankings.</p>
-        </div>
+        <div class="dash-grid">
+          <section class="card dash-poll">
+            <div class="section-head">
+              <div><h2 class="section-title" id="dashPollLabel">AP Top 25</h2><p class="section-sub" id="dashPollSub"></p></div>
+              <button class="outline-btn" data-tab="standingsTab">Standings &rarr;</button>
+            </div>
+            <div id="dashTopTeams"><p class="sub-text">Start a save to generate rankings.</p></div>
+          </section>
 
-        <h3 class="mt-2 mb-1">Stat Leaders (Top 5)</h3>
-        <div class="dashboard-grid">
-          <div class="dash-box"><h4>Points (PPG)</h4><div id="dashPts"></div></div>
-          <div class="dash-box"><h4>Rebounds (RPG)</h4><div id="dashReb"></div></div>
-          <div class="dash-box"><h4>Assists (APG)</h4><div id="dashAst"></div></div>
-          <div class="dash-box"><h4>Steals (SPG)</h4><div id="dashStl"></div></div>
-          <div class="dash-box"><h4>Blocks (BPG)</h4><div id="dashBlk"></div></div>
-        </div>
+          <div class="dash-side">
+            <section class="card dash-watch">
+              <div class="section-head"><div><h2 class="section-title" id="dashWatchTitle">Games to Watch</h2><p class="section-sub" id="dashWatchSub"></p></div>
+                <button class="outline-btn" data-tab="scheduleTab">Schedule &rarr;</button></div>
+              <div id="dashWatch"></div>
+            </section>
+            <section class="card dash-draft">
+              <div class="section-head"><div><h2 class="section-title">Draft Watch</h2><p class="section-sub" id="dashDraftSub">Top of the big board</p></div>
+                <a class="outline-btn draft-link" href="./draft.html">Draft RP &nearr;</a></div>
+              <div id="dashDraft"></div>
+            </section>
+          </div>
 
-        <h3 class="mt-2 mb-1">Top Performances This Week</h3>
-        <div id="dashTopPerformances" class="perf-list">
-          <p class="sub-text">Simulate a week to see standout performances.</p>
+          <section class="card dash-leaders">
+            <div class="section-head"><div><h2 class="section-title">Stat Leaders</h2><p class="section-sub">Per game, qualified players</p></div>
+              <button class="outline-btn" data-tab="statsTab">All stats &rarr;</button></div>
+            <div class="dashboard-grid">
+              <div class="dash-box"><h4>Points</h4><div id="dashPts"></div></div>
+              <div class="dash-box"><h4>Rebounds</h4><div id="dashReb"></div></div>
+              <div class="dash-box"><h4>Assists</h4><div id="dashAst"></div></div>
+              <div class="dash-box"><h4>Steals</h4><div id="dashStl"></div></div>
+              <div class="dash-box"><h4>Blocks</h4><div id="dashBlk"></div></div>
+            </div>
+          </section>
+
+          <section class="card dash-perf">
+            <div class="section-head"><div><h2 class="section-title">Top Performances</h2><p class="section-sub" id="dashPerfSub">This week, by game score</p></div></div>
+            <div id="dashTopPerformances" class="perf-list">
+              <p class="sub-text">Simulate a week to see standout performances.</p>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div id="scheduleTab" class="tab-content">
+        <div class="section-head page-head"><div><h2 class="section-title">Schedule &amp; Results</h2><p class="section-sub">Every game, week by week. Click a team for its page.</p></div></div>
+        <div id="scheduleContainer">
+          <p class="empty-table-msg">Simulate the season to generate a schedule.</p>
+        </div>
+      </div>
+
+      <div id="postseasonTab" class="tab-content">
+        <div class="section-head page-head"><div><h2 class="section-title">Bracketology</h2><p class="section-sub">The projected field during the season, then Selection Sunday and the tournament itself.</p></div></div>
+        <div id="postseasonContainer">
+          <p class="empty-table-msg">Complete the regular season to unlock Conference Championships and the NCAA Tournament.</p>
         </div>
       </div>
 
@@ -279,8 +295,8 @@
       </div>
 
       <div id="teamStatsTab" class="tab-content">
-        <div class="flex-between wrap-gap mb-1">
-          <h3>Team Stats</h3>
+        <div class="section-head page-head">
+          <div><h2 class="section-title">Team Stats</h2><p class="section-sub">Every Division I team. Click a column to sort, a team to open its page.</p></div>
           <div class="filters-container">
             <select id="teamStatsConfFilter" onchange="SimEngine.setTeamStatsConfFilter(this.value)" class="filter-select">
               <option value="ALL">All NCAA</option>
@@ -291,19 +307,21 @@
             </select>
           </div>
         </div>
-        <div class="table-scroll">
-          <table class="data-table">
-            <thead id="teamStatsHeader"></thead>
-            <tbody id="teamStatsBody">
-              <tr><td colspan="12" class="empty-table-msg">Start a save to view team stats.</td></tr>
-            </tbody>
-          </table>
+        <div class="table-card">
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead id="teamStatsHeader"></thead>
+              <tbody id="teamStatsBody">
+                <tr><td colspan="12" class="empty-table-msg">Start a save to view team stats.</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
       <div id="statsTab" class="tab-content">
-        <div class="flex-between wrap-gap mb-1">
-          <h3>League Leaders</h3>
+        <div class="section-head page-head">
+          <div><h2 class="section-title">Player Stats</h2><p class="section-sub">League leaders. Filter by conference or position; click a player for his page.</p></div>
           <div class="filters-container">
             <select id="confFilter" onchange="SimEngine.setConfFilter(this.value)" class="filter-select"><option value="ALL">All NCAA</option></select>
             <select id="statsPosFilter" onchange="SimEngine.setStatsPosFilter(this.value)" class="filter-select">
@@ -317,13 +335,13 @@
               <option value="C">C</option>
             </select>
             <select id="scopeFilter" onchange="SimEngine.setStatScope(this.value)" class="filter-select">
-              <option value="full">Full Season Stats</option>
-              <option value="conf">Conference Games Only</option>
+              <option value="full">Full Season</option>
+              <option value="conf">Conference Games</option>
             </select>
             <select id="statTypeToggle" onchange="SimEngine.toggleStatView(this.value)" class="filter-select">
               <option value="box">Per Game</option>
               <option value="total">Season Totals</option>
-              <option value="adv">Advanced Metrics</option>
+              <option value="adv">Advanced</option>
             </select>
             <select id="statsQualified" onchange="SimEngine.setStatsQualified(this.value)" class="filter-select">
               <option value="1">Qualified Players</option>
@@ -331,26 +349,29 @@
             </select>
           </div>
         </div>
-        <div class="table-scroll">
-          <table class="data-table">
-            <thead id="statsHeader"></thead>
-            <tbody id="statsBody">
-              <tr><td colspan="25" class="empty-table-msg">Simulate games to view leaderboards.</td></tr>
-            </tbody>
-          </table>
+        <div class="table-card">
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead id="statsHeader"></thead>
+              <tbody id="statsBody">
+                <tr><td colspan="25" class="empty-table-msg">Simulate games to view leaderboards.</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
         <button class="sim-btn sim-btn-secondary mt-1" id="statsShowMore" style="display:none;" onclick="SimEngine.toggleStatsLimit()">Show Top 100</button>
       </div>
 
       <div id="standingsTab" class="tab-content">
+        <div class="section-head page-head"><div><h2 class="section-title">Standings</h2><p class="section-sub">The AP Top 25 and every conference race, updated after each week.</p></div></div>
         <div id="standingsContainer">
           <p class="empty-table-msg">Simulate games to view standings.</p>
         </div>
       </div>
 
       <div id="recruitsTab" class="tab-content">
-        <div class="flex-between wrap-gap mb-1">
-          <h3>Incoming Recruits <span class="sub-text-sm" id="recruitsClassLabel"></span></h3>
+        <div class="section-head page-head">
+          <div><h2 class="section-title">Incoming Recruits <span class="sub-text-sm" id="recruitsClassLabel"></span></h2><p class="section-sub">Next season's freshmen. Full profiles live on the <a class="text-link" href="../recruiting/">Recruiting</a> page.</p></div>
           <div class="filters-container">
             <select id="recruitsConfFilter" onchange="SimEngine.setRecruitsConfFilter(this.value)" class="filter-select">
               <option value="ALL">All NCAA</option>
@@ -363,78 +384,63 @@
             </select>
           </div>
         </div>
-        <div class="table-scroll">
-          <table class="data-table">
-            <thead>
-              <tr><th>#</th><th>Name</th><th>Pos</th><th>Rating</th><th>Hometown</th><th>Committed To</th></tr>
-            </thead>
-            <tbody id="recruitsBody">
-              <tr><td colspan="6" class="empty-table-msg">No recruit data loaded yet.</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div id="draftBoardTab" class="tab-content">
-        <div class="draft-results-head">
-          <h3 class="mb-1">Draft Board</h3>
-          <a class="text-link" href="./draft.html">Mock draft &amp; your own board on the Draft RP &rarr;</a>
-        </div>
-        <div id="draftBoardContainer">
-          <p class="empty-table-msg">Finish the NCAA Tournament to see who's declared for the draft.</p>
-        </div>
-      </div>
-
-      <div id="offseasonTab" class="tab-content">
-        <h3 class="mb-1">Offseason</h3>
-        <div id="offseasonContainer">
-          <p class="empty-table-msg">Finish the NCAA Tournament to begin the offseason.</p>
+        <div class="table-card">
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr><th>#</th><th>Name</th><th>Pos</th><th>Rating</th><th>Hometown</th><th>Committed To</th></tr>
+              </thead>
+              <tbody id="recruitsBody">
+                <tr><td colspan="6" class="empty-table-msg">No recruit data loaded yet.</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
       <div id="awardsTab" class="tab-content">
-        <div class="flex-between wrap-gap mb-1-5">
-          <h3>Season Awards</h3>
+        <div class="section-head page-head">
+          <div><h2 class="section-title">Awards</h2><p class="section-sub">Preseason projections, then the national and conference honors once the season ends.</p></div>
           <select id="awardConfFilter" onchange="SimEngine.renderConferenceAwards(this.value)" class="filter-select"></select>
         </div>
 
-        <h4 class="award-section-title">Preseason Projections</h4>
+        <h3 class="award-section-title">Preseason Projections</h3>
         <div class="awards-grid" id="preseasonAwardsGrid">
           <p class="sub-text">Start a season to generate preseason projections.</p>
         </div>
 
-        <h4 class="award-section-title mt-2">Major National Honors</h4>
+        <h3 class="award-section-title">Major National Honors</h3>
         <div class="awards-grid" id="nationalAwardsGrid">
           <p class="sub-text">Complete the season to view National Award winners.</p>
         </div>
 
-        <h4 class="award-section-title mt-2">All-American Teams</h4>
+        <h3 class="award-section-title">All-American Teams</h3>
         <div class="all-american-container" id="allAmericanContainer">
           <p class="sub-text">Complete the season to view All-American teams.</p>
         </div>
 
-        <h4 class="award-section-title mt-2" id="confAwardsTitle">Conference Honors</h4>
+        <h3 class="award-section-title" id="confAwardsTitle">Conference Honors</h3>
         <div id="confAwardsContainer">
           <p class="sub-text">Complete the season to view conference award winners.</p>
         </div>
       </div>
 
       <div id="recordsTab" class="tab-content">
-        <h3 class="mb-1">Record Book</h3>
+        <div class="section-head page-head"><div><h2 class="section-title">Record Book</h2><p class="section-sub">Single-season and career records, built from every season this universe has played.</p></div></div>
         <div id="recordsContainer">
           <p class="empty-table-msg">Record books build as seasons are completed.</p>
         </div>
       </div>
 
       <div id="historyTab" class="tab-content">
-        <h3 class="mb-1">Historical Seasons</h3>
+        <div class="section-head page-head"><div><h2 class="section-title">History</h2><p class="section-sub">Every completed season: champions, awards and every team's record.</p></div></div>
         <div id="historyContainer">
           <p class="empty-table-msg">Complete a season to begin building history.</p>
         </div>
       </div>
     </main>
   </div>
-  
+
   <div id="simSpinner" class="sim-spinner-overlay">
     <div class="sim-spinner-inner">
       <div class="sim-ball"><span class="sim-ball-line"></span></div>
@@ -444,24 +450,21 @@
 
   <div id="offseasonOverlay" class="offseason-overlay" style="display:none;">
     <div class="offseason-shell">
-      <div class="offseason-head">
-        <img src="ncaarplogo.png" alt="" class="offseason-head-logo">
-        <div>
-          <div class="offseason-title">Offseason</div>
-          <div class="offseason-subtitle" id="offseasonYear"></div>
+      <header class="app-header-card offseason-head">
+        <div class="app-brand">
+          <img src="ncaarplogo.png" alt="" class="app-logo">
+          <div class="app-title">
+            <h1>Offseason</h1>
+            <p id="offseasonYear"></p>
+          </div>
         </div>
-        <div class="offseason-actions">
-          <button class="sim-btn" id="offseasonAdvanceBtn" onclick="SimEngine.closeOffseason()">Continue to Next Season</button>
+        <div class="app-actions">
+          <button class="sim-btn sim-btn-secondary btn-sm" onclick="SimEngine.closeOffseason()">Back to the season</button>
+          <button class="sim-btn sim-main" id="offseasonAdvanceBtn" onclick="SimEngine.advanceFromOffseason()">Continue</button>
         </div>
-      </div>
+      </header>
 
-      <div class="offseason-stage-nav">
-        <button class="offseason-stage-btn active" data-stage="champion" onclick="SimEngine.setOffseasonStage('champion')">Champions</button>
-        <button class="offseason-stage-btn" data-stage="declarations" onclick="SimEngine.setOffseasonStage('declarations')">Draft Declarations</button>
-        <button class="offseason-stage-btn" data-stage="predraft" onclick="SimEngine.setOffseasonStage('predraft')">Combine</button>
-        <button class="offseason-stage-btn" data-stage="draft" onclick="SimEngine.setOffseasonStage('draft')">NBA Draft</button>
-        <button class="offseason-stage-btn" data-stage="transfers" onclick="SimEngine.setOffseasonStage('transfers')">Transfer Portal</button>
-      </div>
+      <ol class="season-track offseason-track" id="offseasonTrack" aria-label="Offseason steps"></ol>
 
       <div class="offseason-panel" id="offseasonBody"></div>
     </div>
@@ -559,6 +562,8 @@
   <script src="js/coach-core.js"></script>
   <script src="js/development-core.js"></script>
   <script src="js/nba-core.js"></script>
+  <script src="js/draft-cycle.js"></script>
+  <script src="js/cutscene.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/ui.js"></script>
   <script>

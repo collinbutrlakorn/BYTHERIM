@@ -56,7 +56,7 @@ function competitionFactor(conference) {
   return 0.62;
 }
 
-function scoreProspect(player, teamWinPct = 0.5) {
+function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
   const st = player.stats || {};
   const gp = st.gp || 0;
 
@@ -127,17 +127,23 @@ function scoreProspect(player, teamWinPct = 0.5) {
               + pedigree * 0.55 * (1 - evidence * 0.85)
               + scaledProduction * evidence * ageDiscount * 1.45;
 
-  return { score, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree, level };
+  // What the pre-draft process did to his stock: combine testing,
+  // interviews and team workouts (see draft-cycle.js). Only counts for the
+  // draft it happened in — a player who withdrew starts fresh next year.
+  const pd = player.predraft;
+  const stock = pd && (!opts.draftYear || pd.year === opts.draftYear) ? num(pd.stock) : 0;
+
+  return { score: score + stock, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree, level, stock };
 }
 
 // Ranks a list of players. `winPctFor` maps a school name to that team's
 // win percentage; pass a function so callers can source it however they
 // like (live team objects in-season, archived history at draft time).
-function buildBigBoard(players, winPctFor, limit = 60) {
+function buildBigBoard(players, winPctFor, limit = 60, opts = {}) {
   const getWinPct = typeof winPctFor === 'function' ? winPctFor : () => 0.5;
   return players
     .map(p => {
-      const parts = scoreProspect(p, getWinPct(p.school));
+      const parts = scoreProspect(p, getWinPct(p.school), opts);
       return { player: p, ...parts };
     })
     // A prospect needs either a real role this season or genuine ability.

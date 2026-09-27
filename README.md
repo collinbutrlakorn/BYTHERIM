@@ -54,6 +54,7 @@ flowchart LR
 - **The big board** is a Google Sheet published to the web. Each tab named like `2026 Board` becomes a past board on the site automatically.
 - **College and pro stats** are pulled every morning by a GitHub Action ([`update-stats.yml`](.github/workflows/update-stats.yml)) from Barttorvik and, for players with a Basketball-Reference link, Basketball-Reference. It respects both sites' crawl delays, and a failed download never erases numbers that are already saved.
 - **The RP universe** runs in the browser. Each save lives in the visitor's own browser storage. The official season is run by BYTHERIM and published with **Publish Universe** in the sim's menu, which downloads `universe.json`. Uploading it to `data/` updates the Draft RP, the recruiting portal and the RP Hub for everyone.
+- **The draft happens in the Draft RP.** When a season ends, the NCAA RP waits at its *NBA Draft* step while the Draft RP runs the combine, lottery, team workouts, withdrawal deadline and draft night against the same save (the shared logic is [`rp/js/draft-cycle.js`](rp/js/draft-cycle.js)). Combine testing is built from each player's measurements, the sheet's Attributes and Athleticism columns, and the recruiting database's scouting report; workouts depend on each NBA team's workout style and the prospect's personality.
 - **Scripted storylines** come straight from the roster sheet: a player listed at a new school in the next season's rows transfers there, and a Draft value like `2029 R:1 P:5` makes him the fifth pick of the 2029 draft.
 
 ## What's where
@@ -79,6 +80,7 @@ CNAME, sitemap.xml, robots.txt, site.webmanifest            domain, search and "
 
 - **Content** changes happen in the Google Sheets; the site picks them up on the next page load.
 - **Site settings** such as social links, the support link and visitor counting (GoatCounter) are in `CONFIG` at the top of [`assets/site.js`](assets/site.js).
+- **NCAA RP title art**: put an image in `rp/art/` and add `style="--home-art: url('art/your-image.jpg')"` to the `.home-art` element in [`rp/ncaa.html`](rp/ncaa.html). The court lines and colour wash stay on top so the title stays readable.
 - **Stats** refresh daily. To run the job now: Actions → *Update big board stats* → *Run workflow*.
 - **Tests** cover the main site, the simulation, the Draft RP, recruiting and the stats job:
 

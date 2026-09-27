@@ -32,6 +32,13 @@ tournaments, the Selection Sunday show and its Skip button, an NCAA
 Tournament played exactly from the announced bracket (1 v 16 … 8 v 9,
 regions, First Four), the offseason opening on its own, and the Back button.
 
+**draft-cycle.js** — the pre-draft cycle the Draft RP runs against a save:
+combine measurements and athletic testing in real ranges (guards quicker,
+bigs longer), personalities and grades, the lottery order, team workouts
+that vary by franchise style and personality, the withdrawal deadline,
+sixty picks on draft night, the final board kept for history, and the
+NCAA RP opening the transfer portal once the draft is done.
+
 **draft-and-save.js** — checks the NBA lottery produces real-world odds,
 the mock draft is well formed (60 unique picks, better prospects going
 earlier), and the save file stays bounded. That last check exists because
