@@ -393,17 +393,53 @@ window.SimEngine = {
   // is added for a school, it automatically takes priority; nothing else
   // needs to change.
   KNOWN_LOGO_FILES: new Set([
-    'alabama', 'arizona', 'arizonastate', 'arkansas', 'auburn', 'baylor', 'boisestate', 'bostoncollege', 'butler',
-    'byu', 'cal', 'cincinnati', 'clemson', 'colorado', 'coloradostate', 'connecticut', 'creighton', 'depaul',
-    'duke', 'florida', 'floridastate', 'fordham', 'fresnostate', 'georgetown', 'georgia', 'gonzaga', 'gtech',
-    'houston', 'illinois', 'indiana', 'iowa', 'iowastate', 'kansas', 'kansasstate', 'kentucky', 'louisville',
-    'lsu', 'marquette', 'maryland', 'memphis', 'miami', 'michigan', 'michiganstate', 'minnesota', 'mississippistate',
-    'missouri', 'ncstate', 'nebraska', 'northwestern', 'notredame', 'ohiostate', 'oklahoma', 'oklahomastate', 'olemiss',
-    'oregon', 'oregonstate', 'pennstate', 'pitt', 'providence', 'purdue', 'rutgers', 'scar', 'sdsu',
-    'setonhall', 'smu', 'stanford', 'stjohns', 'syracuse', 'tcu', 'temple', 'tennessee', 'texas',
-    'texasam', 'texasstate', 'texastech', 'ucf', 'ucla', 'unc', 'unlv', 'usc', 'utah',
-    'utahstate', 'vanderbilt', 'villanova', 'virginia', 'virginiatech', 'wakeforest', 'washington', 'wazzou', 'westvirginia',
-    'wisconsin', 'xavier'
+    'abilenechristian', 'airforce', 'akron', 'alabama', 'alabamaam', 'alabamastate', 'albany', 'alcornstate',
+    'american', 'appalachianstate', 'arizona', 'arizonastate', 'arkansas', 'arkansaspinebluff', 'arkansasstate',
+    'army', 'auburn', 'austinpeaystate', 'ballstate', 'baylor', 'bellarmine', 'belmont', 'bethunecookman',
+    'binghamton', 'boisestate', 'boston', 'bostoncollege', 'bowlinggreen', 'bradley', 'brown', 'bryant', 'bucknell',
+    'buffalo', 'butler', 'byu', 'cal', 'californiabaptist', 'calpoly', 'calstatefullerton', 'calstatenorthridge',
+    'campbell', 'canisius', 'centralarkansas', 'centralconnecticut', 'centralmichigan', 'charleston',
+    'charlestonsouthern', 'charlotte', 'chattanooga', 'chicagostate', 'cincinnati', 'citadel', 'clemson',
+    'clevelandstate', 'coastalcarolina', 'colgate', 'colorado', 'coloradostate', 'columbia', 'connecticut',
+    'coppinstate', 'cornell', 'creighton', 'csubakersfield', 'dartmouth', 'davidson', 'dayton', 'delaware',
+    'delawarestate', 'denver', 'depaul', 'detroitmercy', 'drake', 'drexel', 'duke', 'duquesne', 'eastcarolina',
+    'easternillinois', 'easternkentucky', 'easternmichigan', 'easternwashington', 'easttexasam', 'elon', 'etsu',
+    'evansville', 'fairfield', 'fairleighdickinson', 'fiu', 'florida', 'floridaam', 'floridaatlantic',
+    'floridagulfcoast', 'floridastate', 'fordham', 'fresnostate', 'furman', 'gardnerwebb', 'georgemason',
+    'georgetown', 'georgewashington', 'georgia', 'georgiasouthern', 'georgiastate', 'gonzaga', 'gramblingstate',
+    'grandcanyon', 'greenbay', 'gtech', 'hampton', 'harvard', 'hawaii', 'highpoint', 'hofstra', 'holycross',
+    'houston', 'houstonchristian', 'howard', 'idaho', 'idahostate', 'illinois', 'illinoischicago', 'illinoisstate',
+    'incarnateword', 'indiana', 'indianastate', 'iona', 'iowa', 'iowastate', 'iuindy', 'jacksonstate', 'jacksonville',
+    'jacksonvillestate', 'jamesmadison', 'kansas', 'kansascity', 'kansasstate', 'kennesawstate', 'kentstate',
+    'kentucky', 'lafayette', 'lamar', 'lasalle', 'lehigh', 'lemoyne', 'liberty', 'lindenwood', 'lipscomb',
+    'littlerock', 'longbeachstate', 'longisland', 'longwood', 'louisiana', 'louisianamonroe', 'louisianatech',
+    'louisville', 'loyolachicago', 'loyolamaryland', 'loyolamarymount', 'lsu', 'lsuneworleans', 'maine', 'manhattan',
+    'marist', 'marquette', 'marshall', 'maryland', 'mcneesestate', 'memphis', 'mercer', 'mercyhurst', 'merrimack',
+    'miami', 'miamioh', 'michigan', 'michiganstate', 'middletennessee', 'milwaukee', 'minnesota', 'mississippistate',
+    'mississippivalleystate', 'missouri', 'missouristate', 'monmouth', 'montana', 'montanastate', 'moreheadstate',
+    'morganstate', 'mountstmarys', 'murraystate', 'navy', 'nccu', 'ncstate', 'nebraska', 'nebraskaomaha', 'nevada',
+    'newhampshire', 'newhaven', 'newmexico', 'newmexicostate', 'niagara', 'nichollsstate', 'njit', 'norfolkstate',
+    'northalabama', 'northcarolinaat', 'northdakota', 'northdakotastate', 'northeastern', 'northernarizona',
+    'northerncolorado', 'northernillinois', 'northerniowa', 'northernkentucky', 'northflorida', 'northtexas',
+    'northwestern', 'northwesternstate', 'notredame', 'oakland', 'ohio', 'ohiostate', 'oklahoma', 'oklahomastate',
+    'olddominion', 'olemiss', 'oralroberts', 'oregon', 'oregonstate', 'pacific', 'pennstate', 'pennsylvania',
+    'pepperdine', 'pitt', 'portland', 'portlandstate', 'prairieviewam', 'presbyterian', 'princeton', 'providence',
+    'purdue', 'purduefortwayne', 'queensofcharlotte', 'quinnipiac', 'radford', 'rhodeisland', 'rice', 'richmond',
+    'rider', 'robertmorris', 'rutgers', 'sacramentostate', 'sacredheart', 'saintjosephs', 'saintlouis', 'saintmarys',
+    'saintpeters', 'samford', 'samhoustonstate', 'sandiego', 'sanfrancisco', 'sanjosestate', 'santaclara', 'scar',
+    'scstate', 'sdsu', 'seattle', 'setonhall', 'siena', 'siuedwardsville', 'smu', 'southalabama', 'southdakota',
+    'southdakotastate', 'southeasternlouisiana', 'southeastmissouri', 'southern', 'southernillinois',
+    'southernindiana', 'southernmiss', 'southernutah', 'southflorida', 'stanford', 'stbonaventure', 'stephenfaustin',
+    'stetson', 'stjohns', 'stonehill', 'stonybrook', 'stthomas', 'syracuse', 'tarletonstate', 'tcu', 'temple',
+    'tennessee', 'tennesseestate', 'tennesseetech', 'texas', 'texasam', 'texasamcorpuschristi', 'texassouthern',
+    'texasstate', 'texastech', 'toledo', 'towson', 'troy', 'tulane', 'tulsa', 'uab', 'ucdavis', 'ucf', 'ucirvine',
+    'ucla', 'ucriverside', 'ucsandiego', 'ucsantabarbara', 'umass', 'umasslowell', 'umbc', 'umes', 'unc',
+    'uncasheville', 'uncg', 'uncw', 'unlv', 'usc', 'uscupstate', 'utah', 'utahstate', 'utahtech', 'utahvalley',
+    'utarlington', 'utep', 'utmartin', 'utrgv', 'utsa', 'valparaiso', 'vanderbilt', 'vcu', 'vermont', 'villanova',
+    'virginia', 'virginiatech', 'vmi', 'wagner', 'wakeforest', 'washington', 'wazzou', 'weberstate',
+    'westerncarolina', 'westernillinois', 'westernkentucky', 'westernmichigan', 'westflorida', 'westgeorgia',
+    'westvirginia', 'wichitastate', 'williammary', 'winthrop', 'wisconsin', 'wofford', 'wrightstate', 'wyoming',
+    'xavier', 'yale', 'youngstownstate'
   ]),
 
   _logoCache: {},
@@ -424,10 +460,9 @@ window.SimEngine = {
   },
 
   // Builds a small initials-on-a-circle badge as an inline SVG data URI —
-  // no network request, no file to manage, and it's original artwork (not
-  // a reproduction of any school's actual trademarked logo), so there's no
-  // copyright concern in generating one for all 280+ schools without a
-  // real file yet.
+  // no network request, no file to manage. Every Division I school in
+  // TeamsMaster has a file now, so this only covers a name the sheet uses
+  // that doesn't resolve to one.
   generateFallbackLogo(schoolName) {
     const initials = this.getInitialsForBadge(schoolName);
     const color = this.getColorForName(schoolName);
