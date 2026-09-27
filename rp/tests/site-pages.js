@@ -56,6 +56,19 @@ PAGES.forEach(p => {
     ok(!html.includes('github.io'), `${f}: no github.io links left`);
     ok((html.match(/rel="icon"/g) || []).length === 1, `${f}: exactly one favicon`);
   });
+  every.forEach(f => {
+    const html = read(f);
+    const m = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+    let data = null;
+    try { data = JSON.parse(m[1]); } catch (e) { /* reported below */ }
+    const types = data ? data['@graph'].map(n => n['@type']) : [];
+    const person = data && data['@graph'].find(n => n['@type'] === 'Person');
+    ok(types.includes('Organization') && types.includes('WebSite') && person && person.name === 'Collin Butrlakorn',
+      `${f}: structured data names BYTHERIM and its creator`);
+    ok(html.includes('<meta name="author" content="Collin Butrlakorn">'), `${f}: author meta`);
+  });
+  ok(/"@type": "PodcastSeries"/.test(read('podcast.html')), 'podcast: marked up as a podcast series');
+  ok(/Collin Butrlakorn/.test(read('about.html').split('<body>')[1]) && /Collin Butrlakorn/.test(read('index.html').split('<body>')[1]), 'about and home name Collin Butrlakorn in the visible text');
   const manifest = JSON.parse(read('site.webmanifest'));
   ok(manifest.start_url === '/' && manifest.icons.every(i => exists(i.src.slice(1))) && manifest.icons.some(i => i.purpose === 'maskable'), 'manifest: icons exist, including a maskable one');
   ok(exists('favicon.ico') && exists('assets/logo-header.png'), 'favicon.ico and the light header logo exist');

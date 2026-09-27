@@ -991,3 +991,9 @@ a.card:hover { border-color: var(--border-strong); transform: translateY(-2px); 
 .play-btn { position: absolute; left: 50%; top: 50%; width: 76px; height: 54px; transform: translate(-50%, -50%); border-radius: 14px; background: #e62117; box-shadow: 0 6px 20px rgba(0,0,0,.45); }
 .play-btn::after { content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-35%, -50%); border-style: solid; border-width: 11px 0 11px 19px; border-color: transparent transparent transparent #fff; }
 .facade-label { position: absolute; left: 1rem; bottom: .85rem; font-family: 'Oswald', sans-serif; font-size: .95rem; letter-spacing: .06em; text-transform: uppercase; text-shadow: 0 2px 8px rgba(0,0,0,.7); }
+
+/* About: the person behind BYTHERIM */
+.founder { padding: 1.6rem 1.75rem; }
+.founder h2 { font-size: 1.9rem; text-transform: uppercase; margin: 0.35rem 0 0.6rem; }
+.founder p { color: var(--muted); max-width: 720px; margin-bottom: 1rem; }
+.footer-bottom a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }

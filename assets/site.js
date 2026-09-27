@@ -331,7 +331,7 @@
       ${['youtube', 'spotify', 'apple', 'x', 'instagram', 'tiktok', 'substack'].map(k => `<a href="${CONFIG.social[k].url}" target="_blank" rel="noopener">${CONFIG.social[k].label}</a>`).join('')}
     </div>
   </div>
-  <div class="footer-bottom">&copy; ${new Date().getFullYear()} BYTHERIM</div>
+  <div class="footer-bottom">&copy; ${new Date().getFullYear()} BYTHERIM · Created by <a href="${BASE}about.html">Collin Butrlakorn</a></div>
 </footer>`;
   }
 
