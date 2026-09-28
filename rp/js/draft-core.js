@@ -56,7 +56,12 @@ function num(v, fallback = 0) {
 const POWER_SIX = new Set(['ACC', 'Big Ten', 'Big 12', 'SEC', 'Big East', 'Pac-12']);
 const STRONG_MID = new Set(['American', 'A-10', 'Mountain West', 'West Coast', 'Missouri Valley', 'Conference USA']);
 
+// A teenager holding his own against grown men in a pro league is a
+// stronger signal than the same numbers in college.
+const PRO_LEVEL = 1.25;
+
 function competitionFactor(conference) {
+  if (conference === 'Pro') return PRO_LEVEL;
   if (POWER_SIX.has(conference)) return 1.0;
   if (STRONG_MID.has(conference)) return 0.80;
   return 0.62;
@@ -78,7 +83,10 @@ function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
   const minutesReliability = Math.min(1, totalMin / 450);
   const evidence = Math.min(1, gp / 15) * minutesReliability;
 
-  const youth = CLASS_YOUTH[player.class] !== undefined ? CLASS_YOUTH[player.class] : 3;
+  // A pro is aged by his seasons since high school (draftClass), not by a
+  // college class he doesn't have.
+  const cls = player.draftClass || player.class;
+  const youth = CLASS_YOUTH[cls] !== undefined ? CLASS_YOUTH[cls] : 3;
 
   const hIn = parseHeightInches(player.ht);
   const target = POS_SIZE_TARGET[player.pos] || 79;
@@ -120,9 +128,9 @@ function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
 
   // Production counts for less as a player gets older: a freshman's
   // numbers are evidence of upside, a senior's are close to his ceiling.
-  const ageDiscount = player.class === 'FR' ? 1.0
-    : player.class === 'SO' ? 0.88
-    : player.class === 'JR' ? 0.72
+  const ageDiscount = cls === 'FR' ? 1.0
+    : cls === 'SO' ? 0.88
+    : cls === 'JR' ? 0.72
     : 0.58;
 
   // Size is weighted more heavily than before — seven-footers with thin
@@ -190,7 +198,7 @@ function scoutingTags(entry) {
   return tags.slice(0, 4);
 }
 
-const DraftCore = { parseHeightInches, scoreProspect, competitionFactor, POWER_SIX, STRONG_MID, buildBigBoard, scoutingTags, CLASS_YOUTH, POS_SIZE_TARGET };
+const DraftCore = { PRO_LEVEL, parseHeightInches, scoreProspect, competitionFactor, POWER_SIX, STRONG_MID, buildBigBoard, scoutingTags, CLASS_YOUTH, POS_SIZE_TARGET };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = DraftCore;
 else if (typeof window !== 'undefined') window.DraftCore = DraftCore;

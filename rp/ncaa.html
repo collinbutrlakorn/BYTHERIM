@@ -372,8 +372,9 @@
 
       <div id="recruitsTab" class="tab-content">
         <div class="section-head page-head">
-          <div><h2 class="section-title">Incoming Recruits <span class="sub-text-sm" id="recruitsClassLabel"></span></h2><p class="section-sub">Next season's freshmen. Full profiles live on the <a class="text-link" href="../recruiting/">Recruiting</a> page.</p></div>
+          <div><h2 class="section-title">Recruits <span class="sub-text-sm" id="recruitsClassLabel"></span></h2><p class="section-sub" id="recruitsSub">Rankings move and commitments come in as the season goes. Full profiles live on the <a class="text-link" href="../recruiting/">Recruiting</a> page.</p></div>
           <div class="filters-container">
+            <div class="seg" id="recruitsClassSeg" role="tablist" aria-label="Class"></div>
             <select id="recruitsConfFilter" onchange="SimEngine.setRecruitsConfFilter(this.value)" class="filter-select">
               <option value="ALL">All NCAA</option>
               <option value="HIGH_MAJOR">High Majors</option>
@@ -385,6 +386,7 @@
             </select>
           </div>
         </div>
+        <div id="hsEvents"></div>
         <div class="table-card">
           <div class="table-scroll">
             <table class="data-table">
@@ -571,6 +573,7 @@
   <script src="js/gamecenter.js"></script>
   <script src="js/recruit-sheet.js"></script>
   <script src="js/roster-sheet.js"></script>
+  <script src="js/hs-season.js"></script>
   <script src="js/engine.js"></script>
   <script src="js/ui.js"></script>
   <script>

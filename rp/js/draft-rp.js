@@ -191,6 +191,9 @@ const DraftRP = {
       return null;
     }
     if (!saved || !players || players.length === 0) return null;
+    // International pros live in the league record, not the players table.
+    const pros = (saved.proPlayers || []).map(p => ({ ...p }));
+    players = players.concat(pros);
 
     const year = saved.currentYear || 2028;
     const draftYear = year + 1;           // a 2028-29 season feeds the 2029 draft
@@ -246,7 +249,7 @@ const DraftRP = {
       history,
       updated: null,
       // Kept for running the cycle from here.
-      saved, players, byId, declared
+      saved, players, byId, declared, proIds: new Set(pros.map(p => p.id))
     };
   },
 
@@ -400,6 +403,7 @@ const DraftRP = {
 
   async persistStep(res, c) {
     const changed = new Map();
+    const proIds = c.proIds || new Set();
     Object.entries(res.players || {}).forEach(([id, pd]) => {
       const p = c.byId[id];
       if (p) { p.predraft = pd; changed.set(id, p); }
@@ -409,6 +413,13 @@ const DraftRP = {
       if (p) { p.draft = d; changed.set(id, p); }
     });
     const patch = { draftCycle: res.cycle, ...(res.state || {}) };
+    // A pro's combine and draft go back into the league record's pro list;
+    // only college players belong in the players table.
+    const changedPros = [...changed.keys()].filter(id => proIds.has(id));
+    if (changedPros.length) {
+      patch.proPlayers = (c.saved.proPlayers || []).map(p => (changed.has(p.id) ? changed.get(p.id) : p));
+      changedPros.forEach(id => changed.delete(id));
+    }
     if (res.draftEntry) {
       patch.draftHistory = (c.saved.draftHistory || []).filter(d => d.year !== res.draftEntry.year).concat([res.draftEntry]);
     }

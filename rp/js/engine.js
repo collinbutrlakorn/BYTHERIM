@@ -144,6 +144,9 @@ window.SimEngine = {
   },
 
   resetStateToDefaults() {
+    this.state.hsCalendar = null;
+    this.state.proPlayers = [];
+    this.state.recruitsClassView = 'incoming';
     this.state.year = 2028;
     this.state.week = 0;
     this.state.maxWeeks = 15;
@@ -218,6 +221,8 @@ window.SimEngine = {
           this.state.lastDeclarationsYear = savedState.lastDeclarationsYear || null;
           this.state.returningPlayers = savedState.returningPlayers || [];
           this.state.scheduleViewWeek = savedState.scheduleViewWeek || 1;
+          this.state.hsCalendar = savedState.hsCalendar || null;
+          this.state.proPlayers = savedState.proPlayers || [];
 
           const savedTeams = await db.teams.toArray();
           const savedPlayers = await db.players.toArray();
@@ -241,6 +246,9 @@ window.SimEngine = {
             // Pending recruits aren't saved on their own; rebuild them from
             // the saved class list or the Recruits tab comes back empty.
             this.refreshRecruitPool();
+            if (!(this.state.proPlayers || []).length) this.refreshProPool();
+            this.updateProSeasons();
+            this.advanceHsCalendar();
             this.syncUI();
             this.logNews(`Loaded Season ${this.state.year} (${this.state.teams.length} teams, ${this.state.activePlayers.length} players).`);
             return;
@@ -328,7 +336,9 @@ window.SimEngine = {
           draftCycle: this.state.draftCycle || null,
           lastDeclarationsYear: this.state.lastDeclarationsYear,
           returningPlayers: this.state.returningPlayers,
-          scheduleViewWeek: this.state.scheduleViewWeek
+          scheduleViewWeek: this.state.scheduleViewWeek,
+          hsCalendar: this.state.hsCalendar || null,
+          proPlayers: this.state.proPlayers || []
         });
         await db.teams.clear();
         // Teams are stored WITHOUT their rosters: team.roster holds the same
@@ -597,6 +607,9 @@ window.SimEngine = {
     }
 
     this.initSeasonData();
+    this.refreshProPool();
+    this.updateProSeasons();
+    this.advanceHsCalendar();
     this.syncUI();
     await this.saveStateToDB();
     const realCount = Object.keys(realTeamsMap).length;
@@ -1315,6 +1328,19 @@ window.SimEngine = {
       stars: parseFloat(getVal(['stars', 'star'], '')) || null,
       avatar: String(getVal(['avatar', 'pfp', 'photo', 'headshot'], '') || '').trim(),
       state: String(getVal(['state'], '') || '').trim(),
+      // Recruiting-sheet background the high-school season plays out (see
+      // hs-season.js): birthdate, last club, an explicit reclassification,
+      // and all-star selections from the accolades column.
+      dob: String(getVal(['dob', 'birthdate', 'dateofbirth', 'born'], '') || '').trim(),
+      // The recruiting service's own rating, before it's mapped to the
+      // college scale (international pros are valued from it).
+      recRating: isRecruit ? (parseFloat(rawRating) || null) : null,
+      intlTeam: String(getVal(['intlteam'], '') || '').trim(),
+      reclassFrom: parseInt(getVal(['reclass', 'reclassfrom', 'originalclass'], ''), 10) || null,
+      allStar: (() => {
+        const a = String(getVal(['accolades'], '') || '').toLowerCase();
+        return a ? { mcd: /mcdonald/.test(a), jbc: /jordan brand/.test(a), nhs: /hoop summit/.test(a) } : null;
+      })(),
       // Schools this player has suited up for, oldest first. Transfers
       // aren't simulated yet, so this is normally just the current school —
       // but the field exists so a transfer only has to append to it.
@@ -1736,7 +1762,7 @@ window.SimEngine = {
     // previously pinned into fixed draft ranges because the board couldn't
     // see their pre-college production; now that the recruiting sheet's
     // full stat tiers are read, the model gets there on its own.
-    return DraftCore.buildBigBoard(this.state.activePlayers, winPctFor, limit, { draftYear: this.upcomingDraftYear() });
+    return DraftCore.buildBigBoard(this.draftPool(), winPctFor, limit, { draftYear: this.upcomingDraftYear() });
   },
 
   // A published Google Sheet occasionally returns a transient error or a
@@ -2719,6 +2745,31 @@ window.SimEngine = {
     } else if (!this.state.ncaaDone) {
       await this.simulateNCAATournament();
     }
+    // The high-school season and the international pros move with it.
+    this.advanceHsCalendar();
+    this.updateProSeasons();
+    await this.saveHsState();
+  },
+
+  // The high-school calendar and the pros change after the main save has
+  // already run, so they're written on their own.
+  async saveHsState() {
+    try {
+      if (typeof db !== 'undefined' && db.leagueState && db.leagueState.update) {
+        await db.leagueState.update(1, { hsCalendar: this.state.hsCalendar || null, proPlayers: this.state.proPlayers || [] });
+      }
+    } catch (e) { console.warn('Saving the high-school calendar:', e); }
+  },
+
+  phaseLabelShort() {
+    const s = this.state;
+    if (s.ncaaDone) return 'April';
+    if (s.confChampsDone) {
+      const n = s.ncaaTournament ? s.ncaaTournament.rounds.length : 0;
+      return n ? this.NCAA_ROUND_NAMES[n - 1] : 'Selection Sunday';
+    }
+    if (s.regularSeasonDone) return 'Conf. tournaments';
+    return s.week ? `Week ${s.week}` : 'Preseason';
   },
 
   // Finds a team object by school name — schedule entries store school
@@ -3366,6 +3417,26 @@ window.SimEngine = {
       }
     });
 
+    // International pros: a projected first-rounder enters, so does anyone
+    // in his last year before he'd be automatically eligible anyway, and a
+    // borderline one sometimes tests the waters.
+    (this.state.proPlayers || []).forEach(p => {
+      const rank = boardRank[p.id] || 999;
+      const last = (p.proYears || 0) >= 3;
+      const scripted = this.scriptedDraftFor(p);
+      const draftYear = this.upcomingDraftYear();
+      let declares = rank <= 30 || last || (rank <= 60 && Math.random() < 0.55);
+      if (scripted && scripted.year === draftYear) declares = true;
+      else if (scripted && scripted.year > draftYear && !last) declares = false;
+      if (!declares) return;
+      declarations.push({
+        id: p.id, name: p.name, school: p.school, pos: p.pos, class: 'Pro',
+        rating: parseFloat(p.rating) || 0, mandatory: last, boardRank: rank,
+        scripted: !!(scripted && scripted.year === draftYear), conference: 'Pro', isPro: true,
+        ppg: p.stats ? p.stats.ppg : '0.0', rpg: p.stats ? p.stats.rpg : '0.0', apg: p.stats ? p.stats.apg : '0.0'
+      });
+    });
+
     // Default ordering is by draft board position; the offseason screen
     // can regroup by school.
     declarations.sort((a, b) => a.boardRank - b.boardRank);
@@ -4009,8 +4080,8 @@ window.SimEngine = {
     try {
       const fromDb = await db.players.toArray();
       const byId = {};
-      fromDb.forEach(p => { byId[p.id] = p; });
-      this.state.activePlayers.forEach(p => {
+      fromDb.concat(saved.proPlayers || []).forEach(p => { byId[p.id] = p; });
+      this.draftPool().forEach(p => {
         const d = byId[p.id];
         if (!d) return;
         if (d.predraft) p.predraft = d.predraft;
@@ -4020,11 +4091,61 @@ window.SimEngine = {
     return true;
   },
 
+  // ---------- International pros (see hs-season.js) ----------
+  //
+  // An international recruit who never commits to a college plays
+  // professionally. He's draft-eligible from his class year, for four
+  // drafts, and teams can take him in any of them.
+  refreshProPool() {
+    if (!this.hsReady()) return;
+    const draftYear = this.upcomingDraftYear();
+    const departed = this.state.departedNames || new Set();
+    const isD1 = n => this.isD1School(n);
+    const have = new Map((this.state.proPlayers || []).map(p => [p.id, p]));
+    const out = [];
+    (this.state.allRecruits || []).forEach(r => {
+      if (r.fromOthers || !r.recClassYear || departed.has(r.name)) return;
+      const c = Number(r.recClassYear);
+      if (c > draftYear || c < draftYear - 3 || !HSCore.turnsPro(r, isD1)) return;
+      const p = have.get(r.id) || { ...r, isRecruit: false, gameLog: [], accolades: [], seasonHistory: [] };
+      p.isPro = true;
+      p.club = p.club || HSCore.clubFor(r, isD1);
+      p.school = p.club;
+      p.conference = 'Pro';
+      p.school_logo = '../schoollogos/pro.png';
+      p.collegeHistory = [p.club];
+      p.proYears = draftYear - c;
+      p.rating = Math.round(HSCore.proTalent(r));
+      p.rsci = HSCore.proPedigreeRank(r) || p.rsci || null;
+      p.class = 'Pro';
+      // How the draft board ages him: a first-year pro is as young as a
+      // college freshman.
+      p.draftClass = ['FR', 'SO', 'JR', 'SR'][Math.min(3, p.proYears)];
+      out.push(p);
+    });
+    this.state.proPlayers = out;
+  },
+
+  // Each pro's season so far: a seeded pro-league line, played out over
+  // the same calendar as the college season.
+  updateProSeasons() {
+    if (!this.hsReady()) return;
+    const p = this.seasonProgress();
+    (this.state.proPlayers || []).forEach(pl => {
+      pl.stats = { ...this.getZeroStats(), ...HSCore.proStats(HSCore.proLine(pl, this.state.year, pl.proYears || 0), p) };
+    });
+  },
+
+  // Everyone the draft can see: college players and eligible pros.
+  draftPool() {
+    return this.state.activePlayers.concat(this.state.proPlayers || []);
+  },
+
   // The context the shared DraftCycle logic runs against.
   draftContext(rng) {
     const draftYear = this.upcomingDraftYear();
     const byId = {};
-    this.state.activePlayers.forEach(p => { byId[p.id] = p; });
+    this.draftPool().forEach(p => { byId[p.id] = p; });
     const winPct = school => {
       const t = this.state.teams.find(x => x.school === school);
       const h = t && (t.history || []).find(x => x.year === this.state.year);
@@ -4032,7 +4153,7 @@ window.SimEngine = {
       const l = h ? h.losses : t && t.simData ? t.simData.losses : 0;
       return w + l > 0 ? w / (w + l) : 0.5;
     };
-    const board = limit => DraftCore.buildBigBoard(this.state.activePlayers, winPct, limit, { draftYear });
+    const board = limit => DraftCore.buildBigBoard(this.draftPool(), winPct, limit, { draftYear });
     return {
       draftYear, byId, rng: rng || Math.random,
       league: this.getNbaLeague(draftYear),
@@ -4052,7 +4173,7 @@ window.SimEngine = {
   applyDraftStep(res) {
     if (!res) return;
     const byId = {};
-    this.state.activePlayers.forEach(p => { byId[p.id] = p; });
+    this.draftPool().forEach(p => { byId[p.id] = p; });
     Object.entries(res.players || {}).forEach(([id, pd]) => { if (byId[id]) byId[id].predraft = pd; });
     Object.entries(res.draftFor || {}).forEach(([id, d]) => { if (byId[id]) byId[id].draft = d; });
     Object.assign(this.state, res.state || {});
@@ -4090,7 +4211,7 @@ window.SimEngine = {
   // still exist. Game logs are excluded to keep the save small.
   snapshotDeclarations() {
     this.state.lastDeclarations = (this.state.draftDeclarations || []).map(d => {
-      const full = this.state.activePlayers.find(p => p.id === d.id);
+      const full = this.draftPool().find(p => p.id === d.id);
       if (!full) return { ...d };
       return {
         ...d,
@@ -4150,6 +4271,9 @@ window.SimEngine = {
     this.runTransferPortal();
 
     const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
+    // Drafted pros are gone to the NBA; the rest keep playing overseas.
+    const draftedYear = this.upcomingDraftYear();
+    (this.state.proPlayers || []).forEach(p => { if (p.draft && p.draft.year === draftedYear) this.markDeparted(p); });
     // Kept for the offseason screen — state.draftDeclarations is cleared
     // below when the new season is set up.
     this.snapshotDeclarations();
@@ -4226,6 +4350,9 @@ window.SimEngine = {
     }
 
     this.initSeasonData();
+    this.refreshProPool();
+    this.updateProSeasons();
+    this.advanceHsCalendar();
     this.closeOffseason();
     this.logNews(`Advanced to ${this.state.year} Offseason. Graduated seniors cleared; incoming recruits added.`);
     
@@ -4481,6 +4608,7 @@ window.SimEngine = {
 
   // Jumps straight to a team's page under the Team tab.
   goToTeamPage(school) {
+    if (!this.findTeam(school)) return;   // an all-star team, say: no team page
     this.closePlayerPage();
     this._countedTeam = null;
     this.state.teamPageSelection = school;
@@ -5171,7 +5299,7 @@ window.SimEngine = {
   },
 
   findPlayerRef(idOrName) {
-    const pool = this.state.activePlayers.concat(this.state.recruits || []);
+    const pool = this.state.activePlayers.concat(this.state.recruits || [], this.state.proPlayers || [], this.state.allRecruits || []);
     return pool.find(p => p.id === idOrName) || pool.find(p => p.name === idOrName);
   },
 
@@ -7272,6 +7400,7 @@ window.SimEngine = {
       // So the Draft RP's board weighs upside the same way this one does.
       potentialGrade: p.potentialGrade || null,
       traits: p.traits || null,
+      isPro: !!p.isPro, draftClass: p.draftClass || null,
       // The sheet's Draft column, so the Draft RP's mock agrees with draft night.
       scriptedDraft: this.scriptedDraftFor(p) || null
     };
@@ -7298,7 +7427,7 @@ window.SimEngine = {
   buildUniverseSnapshot() {
     const year = this.state.year;
     const draftYear = this.upcomingDraftYear();
-    const players = this.state.activePlayers || [];
+    const players = this.draftPool();
     const byId = {};
     players.forEach(p => { byId[p.id] = p; });
 
@@ -7452,40 +7581,272 @@ window.SimEngine = {
     return this.getIncomingRecruitClassYear();
   },
 
+  // ---------- The high-school season (see hs-season.js) ----------
+
+  hsReady() { return typeof HSCore !== 'undefined'; },
+  isD1School(name) { return !!this.findTeamByName(name); },
+
+  // Everyone the recruiting sheet has in a class as it stands at season
+  // progress p (a reclassifying player is in his old class until he moves).
+  hsClassMembers(classYear, p = this.seasonProgress()) {
+    const departed = this.state.departedNames || new Set();
+    return (this.state.allRecruits || []).filter(r => !r.fromOthers && r.recClassYear && !departed.has(r.name) &&
+      HSCore.currentClass(r, this.state.year, p) === Number(classYear));
+  },
+
+  // A class as the Recruits tab shows it: today's ranking, movement since
+  // the season began, and only the commitments made so far.
+  hsClassView(classYear) {
+    const year = this.state.year, p = this.seasonProgress();
+    const cp = HSCore.classProgress(classYear, year, p);
+    const members = this.hsClassMembers(classYear, p);
+    const ranks = HSCore.rankClass(members, cp);
+    const start = HSCore.rankClass(this.hsClassMembers(classYear, 0), HSCore.classProgress(classYear, year, 0));
+    const isD1 = n => this.isD1School(n);
+    return members.map(r => {
+      const rank = ranks.get(r) || null, was = start.get(r) || null;
+      const pro = HSCore.turnsPro(r, isD1);
+      const decided = HSCore.commitVisible(r, cp);
+      let stars = Number(r.stars) || (r.rsci > 0 ? (r.rsci <= 25 ? 5 : r.rsci <= 100 ? 4 : 3) : 0);
+      if (rank && stars === 5 && rank > 40) stars = 4;
+      if (rank && stars === 4 && rank > 130) stars = 3;
+      const from = HSCore.reclassFrom(r);
+      return {
+        r, rank, delta: rank && was ? was - rank : 0, arrived: !!(rank && !was),
+        school: !pro && decided ? HSCore.committedTo(r) : '', pro, club: pro && decided ? HSCore.clubFor(r, isD1) : '',
+        stars, intl: HSCore.isInternational(r),
+        reclassed: from && Number(r.recClassYear) === Number(classYear) ? from : null
+      };
+    }).sort((a, b) => (a.rank || 9999) - (b.rank || 9999) || (Number(b.r.rating) || 0) - (Number(a.r.rating) || 0));
+  },
+
+  // Moves the high-school calendar up to where the season is: commitments
+  // and reclassifications as they happen, all-star rosters when they're
+  // announced, and the games themselves.
+  advanceHsCalendar() {
+    if (!this.hsReady() || !this.state.teams.length) return;
+    const s = this.state, year = s.year, p = this.seasonProgress();
+    if (!s.hsCalendar || s.hsCalendar.year !== year) s.hsCalendar = { year, lastP: p, events: {}, wire: [] };
+    const cal = s.hsCalendar;
+    const prev = cal.lastP;
+    const incoming = year + 1;
+    const isD1 = n => this.isD1School(n);
+    const wire = [];
+    const when = this.phaseLabelShort ? this.phaseLabelShort() : `Week ${s.week}`;
+    if (p > prev) {
+      // Rank as it stands today, per class, for the headlines.
+      const nowRank = new Map();
+      [incoming, incoming + 1].forEach(c => {
+        HSCore.rankClass(this.hsClassMembers(c, p), HSCore.classProgress(c, year, p)).forEach((rk, r) => nowRank.set(r, rk));
+      });
+      (s.allRecruits || []).forEach(r => {
+        if (r.fromOthers || !r.recClassYear) return;
+        const c = Number(r.recClassYear);
+        if (c !== incoming && c !== incoming + 1) return;
+        const a = HSCore.classProgress(c, year, prev), b = HSCore.classProgress(c, year, p);
+        const at = HSCore.commitAt(r);
+        const rk = nowRank.get(r) || null;
+        const top = rk && rk <= 60;
+        if (at > a && at <= b && (top || HSCore.isInternational(r))) {
+          if (HSCore.turnsPro(r, isD1)) wire.push({ kind: 'pro', id: r.id, rank: rk, text: `${r.name} signs with ${HSCore.clubFor(r, isD1)} and turns pro` });
+          else if (HSCore.committedTo(r)) wire.push({ kind: 'commit', id: r.id, rank: rk, school: HSCore.committedTo(r), text: `${rk ? '#' + rk + ' ' : ''}${r.name} commits to ${HSCore.committedTo(r)}` });
+        }
+        const from = HSCore.reclassFrom(r);
+        if (from && c === incoming) {
+          const ra = HSCore.reclassAt(r);
+          if (ra > a && ra <= b) wire.push({ kind: 'reclass', id: r.id, rank: r.rsci, text: `${r.name} reclassifies from ${from} into the class of ${c}` });
+        }
+      });
+    }
+    // All-star rosters and games, in calendar order.
+    Object.keys(HSCore.EVENTS).forEach(key => {
+      const ev = HSCore.EVENTS[key];
+      let e = cal.events[key];
+      if (!e && p >= ev.announce) {
+        const rosters = this.hsRosters(incoming, key);
+        if (!rosters) return;
+        e = cal.events[key] = { key, classYear: incoming, rosters, result: null, seen: false };
+        wire.push({ kind: 'roster', key, text: `${ev.name} rosters announced` });
+      }
+      if (e && !e.result && p >= ev.play && typeof GameCore !== 'undefined') {
+        e.result = this.playAllStarGame(key, e.rosters);
+        if (e.result) wire.push({ kind: 'game', key, text: `The ${ev.name} is final` });
+      }
+    });
+    cal.lastP = Math.max(prev, p);
+    if (!wire.length) return;
+    wire.forEach(w => { w.when = when; w.year = year; });
+    cal.wire = wire.slice().reverse().concat(cal.wire || []).slice(0, 60);
+    wire.forEach(w => this.logNews(w.text));
+    // One toast at most: the biggest story.
+    const order = ['game', 'roster', 'reclass', 'commit', 'pro'];
+    const lead = wire.slice().sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || (a.rank || 999) - (b.rank || 999))[0];
+    if (lead && (lead.kind === 'game' || lead.kind === 'roster' || lead.kind === 'reclass' || (lead.rank && lead.rank <= 15))) {
+      const more = wire.length - 1;
+      const sub = lead.kind === 'game' ? 'Watch it from the Recruits tab.' : more ? `Plus ${more} more on the recruiting wire.` : 'On the Recruits tab.';
+      if (!this.holdForLive(() => this.toast(lead.text, sub))) this.toast(lead.text, sub);
+    }
+  },
+
+  // An event's teams: { teamName: [recruit ids] }.
+  hsRosters(classYear, key) {
+    const all = (this.state.allRecruits || []).filter(r => !r.fromOthers);
+    const members = all.filter(r => Number(r.recClassYear) === Number(classYear));
+    if (members.length < 12) return null;
+    const nextIntl = all.filter(r => Number(r.recClassYear) === Number(classYear) + 1 && HSCore.isInternational(r));
+    const sel = HSCore.selectRosters(members, classYear, nextIntl);
+    const ids = list => list.map(r => r.id);
+    if (key === 'mcd') { const t = HSCore.splitEastWest(sel.mcd); return { East: ids(t.East), West: ids(t.West) }; }
+    if (key === 'jbc') { const t = HSCore.splitSnake(sel.jbc, HSCore.EVENTS.jbc.teams); return { Home: ids(t.Home), Away: ids(t.Away) }; }
+    return { USA: ids(sel.nhs.usa), World: ids(sel.nhs.world) };
+  },
+
+  // Plays an all-star game with the same engine as every college game,
+  // opened up: more possessions, less defense.
+  playAllStarGame(key, rosters) {
+    const byId = new Map((this.state.allRecruits || []).map(r => [r.id, r]));
+    const names = Object.keys(rosters);
+    const MINS = [25, 23, 22, 21, 19, 18, 16, 15, 13, 12, 9, 7];
+    const build = name => {
+      const players = (rosters[name] || []).map(id => byId.get(id)).filter(Boolean)
+        .map(r => ({ ...r, school: name, class: 'FR', role: '', committed: HSCore.committedTo(r), rating: HSCore.proTalent(r) }))
+        .sort((a, b) => (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0));
+      const total = MINS.slice(0, players.length).reduce((n, m) => n + m, 0) || 1;
+      const team = { school: name, conference: '', roster: players, usageReference: 84 };
+      players.forEach((pl, i) => { pl.expectedStats = this.buildBaseStatExpectations(pl, (MINS[i] || 6) * 200 / total, team); });
+      const top = players.slice(0, 8);
+      team.simData = { teamOvr: top.reduce((n, pl) => n + (parseFloat(pl.rating) || 75), 0) / Math.max(1, top.length), rosterRef: players };
+      team.coachProfile = { pace: 1.1, defense: 0.95 };
+      return team;
+    };
+    const H = build(names[0]), A = build(names[1]);
+    if (H.roster.length < 5 || A.roster.length < 5) return null;
+    const res = GameCore.simulateSingleGame(H, A, { homeCourtEdge: 0, paceBase: 176, marginVarianceStd: 12 });
+    const lines = boxes => boxes.map(({ player, box }, i) => ({
+      ...box, id: player.id, name: player.name, pos: player.pos, jersey: player.jersey || '', committed: player.committed || '', started: i < 5
+    }));
+    const home = { name: names[0], score: res.homeScore, lines: lines(res.homePlayerBoxes) };
+    const away = { name: names[1], score: res.awayScore, lines: lines(res.awayPlayerBoxes) };
+    const win = home.score > away.score ? home : away;
+    const gs = b => b.pts + 0.4 * (b.twoPm + b.threePm) - 0.7 * (b.twoPa + b.threePa) + 0.7 * (b.oreb || 0) + 0.3 * (b.dreb || 0) + b.stl + 0.7 * b.ast + 0.7 * b.blk - b.tov;
+    // Voters don't just read the box score: a little noise, so the best
+    // player in the class doesn't sweep every MVP.
+    // Picked from the winners' top three, weighted, and a player who
+    // already won one this spring has to clearly outplay the field again.
+    const mvpRng = HSCore.rngFor(`${key}|${names.join('|')}|${home.score}-${away.score}`);
+    const won = new Set(Object.values((this.state.hsCalendar && this.state.hsCalendar.events) || {})
+      .map(e => e.result && e.result.mvp && e.result.mvp.id).filter(Boolean));
+    const top3 = win.lines.map(l => ({ l, v: gs(l) - (won.has(l.id) ? 7 : 0) })).sort((a, b) => b.v - a.v).slice(0, 3);
+    const roll = mvpRng();
+    const mvp = (top3[roll < 0.6 ? 0 : roll < 0.87 ? 1 : 2] || top3[0] || {}).l;
+    const statline = b => [`${b.pts} pts`, b.reb >= 5 ? `${b.reb} reb` : '', b.ast >= 4 ? `${b.ast} ast` : ''].filter(Boolean).join(', ');
+    return { home, away, mvp: mvp ? { id: mvp.id, name: mvp.name, team: win.name, line: statline(mvp) } : null };
+  },
+
+  watchAllStarGame(key) {
+    const e = this.state.hsCalendar && this.state.hsCalendar.events[key];
+    if (typeof GameCenter === 'undefined') return;
+    const game = this.allStarLiveGame(key);
+    if (!game) return;
+    e.seen = true;
+    this.closePlayerPage();
+    GameCenter.open(game, { mode: 'live', onClose: () => this.updateRecruitsTab() });
+  },
+
+  // The Game Center broadcast of a played all-star game.
+  allStarLiveGame(key) {
+    const e = this.state.hsCalendar && this.state.hsCalendar.events[key];
+    if (!e || !e.result || typeof LiveCore === 'undefined') return null;
+    const ev = HSCore.EVENTS[key], res = e.result;
+    const meta = {
+      key: `hs|${e.classYear}|${key}`, label: ev.name, neutral: true, big: true,
+      home: { school: res.home.name, record: `Class of ${e.classYear}` }, away: { school: res.away.name, record: `Class of ${e.classYear}` },
+      spread: 0, homeScore: res.home.score, awayScore: res.away.score,
+      note: res.mvp ? `${res.mvp.name} is the game's MVP.` : ''
+    };
+    return LiveCore.build(meta, { home: res.home.lines, away: res.away.lines });
+  },
+
+  revealAllStarGame(key) {
+    const e = this.state.hsCalendar && this.state.hsCalendar.events[key];
+    if (e) { e.seen = true; this.updateRecruitsTab(); }
+  },
+
+  toggleHsRoster(key) {
+    this._hsOpen = this._hsOpen === key ? null : key;
+    this.updateRecruitsTab();
+  },
+
+  // The all-star events and the recruiting wire, above the class table.
+  renderHsEvents(classYear) {
+    const el = document.getElementById('hsEvents');
+    if (!el) return;
+    const s = this.state, cal = s.hsCalendar && s.hsCalendar.year === s.year ? s.hsCalendar : null;
+    if (!this.hsReady() || !cal || classYear !== s.year + 1) { el.innerHTML = ''; return; }
+    const byId = new Map((s.allRecruits || []).map(r => [r.id, r]));
+    const card = key => {
+      const ev = HSCore.EVENTS[key], e = cal.events[key];
+      if (!e) return `<div class="hs-event pending"><span class="hs-ev-name">${this.esc(ev.name)}</span><small>Rosters not announced yet</small></div>`;
+      const res = e.result;
+      const names = Object.keys(e.rosters);
+      let body;
+      if (res && e.seen) {
+        const w = res.home.score > res.away.score;
+        body = `<div class="hs-score"><span class="${w ? 'won' : ''}">${this.esc(res.home.name)} <b>${res.home.score}</b></span><span class="${w ? '' : 'won'}">${this.esc(res.away.name)} <b>${res.away.score}</b></span></div>
+          ${res.mvp ? `<small class="hs-mvp">MVP: <a class="text-link" onclick="SimEngine.openPlayerModal('${String(res.mvp.id).replace(/'/g, "\\'")}')">${this.esc(res.mvp.name)}</a> · ${this.esc(res.mvp.line)}</small>` : ''}
+          <button type="button" class="hs-btn" onclick="SimEngine.watchAllStarGame('${key}')">&#9654; Watch replay</button>`;
+      } else if (res) {
+        body = `<small>Final</small><div class="hs-actions"><button type="button" class="hs-btn primary" onclick="SimEngine.watchAllStarGame('${key}')">&#9654; Watch</button>
+          <button type="button" class="hs-btn" onclick="SimEngine.revealAllStarGame('${key}')">Show result</button></div>`;
+      } else {
+        body = `<small>${names.map(n => this.esc(n)).join(' vs ')} · ${ev.play >= 1 ? 'after the title game' : 'Final Four week'}</small>`;
+      }
+      const open = this._hsOpen === key;
+      const roster = open ? `<div class="hs-rosters">${names.map(n => `<div><b>${this.esc(n)}</b><ol>${(e.rosters[n] || []).map(id => byId.get(id)).filter(Boolean)
+        .map(r => { const c = HSCore.committedTo(r); return `<li onclick="SimEngine.openPlayerModal('${String(r.id).replace(/'/g, "\\'")}')">${r.rsci > 0 ? `<span class="hs-rk">${r.rsci}</span>` : '<span class="hs-rk">INTL</span>'}${this.esc(r.name)}${c && HSCore.commitVisible(r, 1) && this.isD1School(c) ? `<img src="${this.getTeamLogo(c)}" class="xs-logo" alt="">` : ''}</li>`; }).join('')}</ol></div>`).join('')}</div>` : '';
+      return `<div class="hs-event${res ? ' final' : ''}"><span class="hs-ev-name">${this.esc(ev.name)}</span>${body}
+        <button type="button" class="hs-link" onclick="SimEngine.toggleHsRoster('${key}')">${open ? 'Hide rosters' : 'Rosters'}</button>${roster}</div>`;
+    };
+    const wire = (cal.wire || []).slice(0, 8).map(w => `<li class="wire-${w.kind}"><span class="hs-when">${this.esc(w.when || '')}</span>${w.school ? `<img src="${this.getTeamLogo(w.school)}" class="xs-logo" alt="">` : ''}${w.id ? `<a onclick="SimEngine.openPlayerModal('${String(w.id).replace(/'/g, "\\'")}')">${this.esc(w.text)}</a>` : this.esc(w.text)}</li>`).join('');
+    el.innerHTML = `<div class="hs-grid">${Object.keys(HSCore.EVENTS).map(card).join('')}</div>
+      ${wire ? `<div class="card hs-wire"><h3 class="section-title">Recruiting wire</h3><ul>${wire}</ul></div>` : ''}`;
+  },
+
+  setRecruitsClassView(v) { this.state.recruitsClassView = v; this.updateRecruitsTab(); },
+
   updateRecruitsTab() {
     const body = document.getElementById('recruitsBody');
     const label = document.getElementById('recruitsClassLabel');
     if (!body) return;
+    if (!this.hsReady()) return;
 
-    const incomingYear = this.getIncomingRecruitClassYear();
-    if (label) label.innerText = `Class of ${this.incomingClassLabel()}`;
+    const incoming = this.getIncomingRecruitClassYear();
+    const view = this.state.recruitsClassView === 'next' ? incoming + 1 : incoming;
+    if (label) label.innerText = `Class of ${view}`;
+    const seg = document.getElementById('recruitsClassSeg');
+    if (seg) seg.innerHTML = [['incoming', incoming, 'Incoming'], ['next', incoming + 1, 'Next year']].map(([k, y, t]) =>
+      `<button type="button" class="${view === y ? 'on' : ''}" onclick="SimEngine.setRecruitsClassView('${k}')">${t} <small>${y}</small></button>`).join('');
+    const sub = document.getElementById('recruitsSub');
+    if (sub) sub.innerHTML = view === incoming
+      ? `Next season's freshmen. Rankings move and commitments come in through the season; everything is final after the title game. Full profiles on the <a class="text-link" href="../recruiting/">Recruiting</a> page.`
+      : `The class after next, a year out. Most of them are still uncommitted.`;
+    this.renderHsEvents(view);
 
-    if (!this.state.recruits || this.state.recruits.length === 0) {
+    if (!(this.state.allRecruits || []).length) {
       body.innerHTML = `<tr><td colspan="7" class="empty-table-msg">No recruit data loaded yet.</td></tr>`;
       return;
     }
-
-    let recruits = this.state.recruits.filter(r => String(r.recClassYear) === String(incomingYear));
-
-    if (this.state.recruitsStatusFilter === 'committed') {
-      recruits = recruits.filter(r => r.school && r.school !== 'Uncommitted' && r.school !== 'Free Agent');
-    } else if (this.state.recruitsStatusFilter === 'uncommitted') {
-      recruits = recruits.filter(r => !r.school || r.school === 'Uncommitted' || r.school === 'Free Agent');
-    }
-
+    let list = this.hsClassView(view);
+    if (this.state.recruitsStatusFilter === 'committed') list = list.filter(e => e.school);
+    else if (this.state.recruitsStatusFilter === 'uncommitted') list = list.filter(e => !e.school && !e.club);
     if (this.state.recruitsConfFilter && this.state.recruitsConfFilter !== 'ALL') {
-      recruits = recruits.filter(r => {
-        const team = this.state.teams.find(t => t.school === r.school);
+      list = list.filter(e => {
+        const team = e.school && this.findTeamByName(e.school);
         return team && this.matchesConfFilter(team.conference, this.state.recruitsConfFilter);
       });
     }
-
-    // Listed in recruiting-ranking order; the sim's ratings stay hidden.
-    const rk = r => (r.rsci > 0 ? r.rsci : 9999);
-    recruits.sort((a, b) => rk(a) - rk(b) || parseFloat(b.rating) - parseFloat(a.rating));
-
-    if (recruits.length === 0) {
-      body.innerHTML = `<tr><td colspan="7" class="empty-table-msg">No ${this.incomingClassLabel()} recruits match these filters.</td></tr>`;
+    if (list.length === 0) {
+      body.innerHTML = `<tr><td colspan="7" class="empty-table-msg">No ${view} recruits match these filters.</td></tr>`;
       return;
     }
 
@@ -7495,21 +7856,25 @@ window.SimEngine = {
       return /^https?:/.test(a) ? encodeURI(a) : '../' + encodeURI(a.replace(/^\.?\//, ''));
     };
     const stars = n => { const k = Math.max(0, Math.min(5, Math.round(parseFloat(n) || 0))); return k ? `<span class="rec-stars s${k}">${'★'.repeat(k)}<i>${'★'.repeat(5 - k)}</i></span>` : '<span class="sub-text-sm">—</span>'; };
-    body.innerHTML = recruits.map((r, i) => {
+    const move = e => e.arrived ? '<span class="rec-move new">NEW</span>'
+      : e.delta >= 3 ? `<span class="rec-move up">▲${e.delta}</span>` : e.delta <= -3 ? `<span class="rec-move down">▼${-e.delta}</span>` : '';
+    body.innerHTML = list.map(e => {
+      const r = e.r;
       const safeId = String(r.id).replace(/'/g, "\\'");
-      const committed = r.school && r.school !== 'Uncommitted' && r.school !== 'Free Agent';
       const home = r.hometown && r.hometown !== 'N/A' ? r.hometown : '';
+      const tag = e.reclassed ? `<span class="rec-tag">Reclassified from ${e.reclassed}</span>` : '';
+      const commit = e.school
+        ? `<div class="rec-commit">${this.isD1School(e.school) ? `<img src="${this.getTeamLogo(e.school)}" class="xs-logo" alt="">` : ''}<b>${this.esc(e.school)}</b></div>`
+        : e.club ? `<span class="rec-pro">Pro · ${this.esc(e.club)}</span>` : '<span class="rec-open">Uncommitted</span>';
       return `<tr class="rec-row" onclick="SimEngine.openPlayerModal('${safeId}')">
-        <td class="rec-rank">${r.rsci > 0 ? r.rsci : i + 1}</td>
+        <td class="rec-rank">${e.rank || (e.intl ? '<small>INTL</small>' : '—')}${move(e)}</td>
         <td><div class="rec-player"><img src="${photo(r)}" class="rec-avatar" loading="lazy" alt="" onerror="this.onerror=null;this.src='../emptypfpicon.png'">
-          <div><b>${this.esc(r.name)}</b><small>${this.esc(home)}</small></div></div></td>
+          <div><b>${this.esc(r.name)}</b><small>${this.esc(home)}</small>${tag}</div></div></td>
         <td><span class="rec-pos">${this.esc(r.pos || '')}</span></td>
         <td class="rec-htwt">${this.esc(r.ht || '')}${r.wt ? ` / ${this.esc(r.wt)}` : ''}</td>
         <td class="rec-hs">${this.esc(r.hs || '—')}</td>
-        <td>${stars(r.stars || (r.rsci > 0 ? (r.rsci <= 25 ? 5 : r.rsci <= 100 ? 4 : 3) : 0))}</td>
-        <td>${committed
-          ? `<div class="rec-commit"><img src="${this.getTeamLogo(r.school)}" class="xs-logo" alt=""><b>${this.esc(r.school)}</b></div>`
-          : '<span class="rec-open">Uncommitted</span>'}</td>
+        <td>${stars(e.stars)}</td>
+        <td>${commit}</td>
       </tr>`;
     }).join('');
   },

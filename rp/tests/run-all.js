@@ -2,7 +2,7 @@
 const { execFileSync } = require('child_process');
 const path = require('path');
 
-const TESTS = ['no-duplicate-members.js', 'league-stats.js', 'season-cycle.js', 'postseason.js', 'live-games.js', 'big-games.js', 'draft-cycle.js', 'draft-and-save.js', 'save-integrity.js', 'rp-integration.js', 'rp-pages.js', 'recruiting-page.js', 'recruiting-branding.js', 'recruiting-mobile.js', 'site-pages.js', 'stats-updater.js'];
+const TESTS = ['no-duplicate-members.js', 'league-stats.js', 'season-cycle.js', 'postseason.js', 'live-games.js', 'big-games.js', 'draft-cycle.js', 'hs-season.js', 'draft-and-save.js', 'save-integrity.js', 'rp-integration.js', 'rp-pages.js', 'recruiting-page.js', 'recruiting-branding.js', 'recruiting-mobile.js', 'site-pages.js', 'stats-updater.js'];
 let failed = 0;
 
 TESTS.forEach(t => {

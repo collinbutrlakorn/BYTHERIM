@@ -840,3 +840,46 @@ a.outline-btn { text-decoration: none; display: inline-flex; align-items: center
 .rec-commit { display: flex; align-items: center; gap: 0.45rem; }
 .rec-open { color: var(--text-muted); font-size: 0.82rem; font-style: italic; }
 @media (max-width: 800px) { .rec-htwt, .rec-hs, #recruitsTab th:nth-child(4), #recruitsTab th:nth-child(5) { display: none; } }
+
+/* ---------- Recruits: class toggle, movement, the high-school season ---------- */
+.seg { display: inline-flex; background: var(--bg-color); border: 1px solid var(--border); border-radius: var(--r-pill); padding: 3px; gap: 2px; }
+.seg button { border: 0; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.82rem; font-weight: 600; padding: 0.35rem 0.8rem; border-radius: var(--r-pill); cursor: pointer; }
+.seg button small { opacity: 0.75; font-weight: 500; margin-left: 0.2rem; }
+.seg button.on { background: var(--accent); color: var(--accent-contrast); }
+.rec-rank small { font-size: 0.7rem; letter-spacing: 0.04em; color: var(--text-muted); }
+.rec-move { display: block; font-family: inherit; font-size: 0.68rem; font-weight: 700; line-height: 1; margin-top: 2px; }
+.rec-move.up { color: var(--win); }
+.rec-move.down { color: var(--loss); }
+.rec-move.new { color: var(--accent); }
+.rec-tag { display: inline-block; margin-top: 3px; font-size: 0.68rem; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: var(--r-pill); padding: 1px 7px; width: fit-content; }
+.rec-pro { font-size: 0.82rem; font-weight: 600; color: var(--gold); }
+.hs-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin-bottom: 0.9rem; }
+@media (max-width: 900px) { .hs-grid { grid-template-columns: 1fr; } }
+.hs-event { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 0.85rem 1rem; display: flex; flex-direction: column; gap: 0.35rem; }
+.hs-event.pending { opacity: 0.7; }
+.hs-event.final { border-color: var(--accent-soft-strong); }
+.hs-ev-name { font-family: 'Oswald', sans-serif; font-weight: 600; font-size: 1.02rem; letter-spacing: 0.01em; }
+.hs-event small { color: var(--text-muted); font-size: 0.8rem; }
+.hs-score { display: flex; flex-direction: column; gap: 2px; font-size: 0.95rem; }
+.hs-score span { display: flex; justify-content: space-between; color: var(--text-muted); }
+.hs-score span.won { color: var(--text-main); font-weight: 700; }
+.hs-score b { font-family: 'Oswald', sans-serif; font-size: 1.1rem; }
+.hs-mvp a { cursor: pointer; font-weight: 700; }
+.hs-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.hs-btn { border: 1px solid var(--border); background: var(--bg-color); color: var(--text-main); font: inherit; font-size: 0.8rem; font-weight: 600; padding: 0.35rem 0.75rem; border-radius: var(--r-pill); cursor: pointer; width: fit-content; }
+.hs-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.hs-link { border: 0; background: none; color: var(--accent); font: inherit; font-size: 0.78rem; font-weight: 600; padding: 0; cursor: pointer; text-align: left; width: fit-content; }
+.hs-rosters { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-top: 0.3rem; }
+.hs-rosters b { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.hs-rosters ol { list-style: none; margin: 0.25rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.hs-rosters li { display: flex; align-items: center; gap: 0.35rem; font-size: 0.82rem; cursor: pointer; }
+.hs-rosters li:hover { color: var(--accent); }
+.hs-rk { font-family: 'Oswald', sans-serif; font-size: 0.72rem; color: var(--text-muted); min-width: 2.1em; }
+.hs-wire { margin-bottom: 0.9rem; padding: 0.85rem 1rem; }
+.hs-wire ul { list-style: none; margin: 0.4rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.hs-wire li { display: flex; align-items: center; gap: 0.45rem; font-size: 0.86rem; }
+.hs-wire li a { cursor: pointer; }
+.hs-wire li a:hover { color: var(--accent); }
+.hs-when { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; min-width: 7.5rem; }
+.hs-wire .wire-reclass a, .hs-wire .wire-game, .hs-wire .wire-roster { font-weight: 700; }
+@media (max-width: 600px) { .hs-when { min-width: 0; } .hs-wire li { flex-wrap: wrap; } }
