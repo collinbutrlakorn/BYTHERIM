@@ -520,6 +520,53 @@ function buildConsistentBoxes(homeRaw, awayRaw, homeScore, awayScore, opts = {})
   return { homeBoxes: post(homeBoxes), awayBoxes: post(awayBoxes), possessions: poss };
 }
 
+// A team plays exactly 200 minutes and nobody plays more than 40.
+// Each player's minutes are drawn on their own (his role, a little
+// variance, extra when teammates are out), so without this a team's
+// total drifted anywhere from the 180s to the 220s and a starter could
+// log 50 minutes in a regulation game. Minutes are scaled to fit, capped,
+// the overflow handed to the others who played, and rounded so the total
+// is exact. Nobody who sat is put in.
+function fitMinutes(boxes, total = 200, cap = 40) {
+  const idx = boxes.map((b, i) => i).filter(i => (boxes[i].min || 0) > 0);
+  if (!idx.length) return boxes;
+  let want = idx.map(i => boxes[i].min);
+  const room = Math.min(total, cap * idx.length);
+  // Short of the total: the extra goes where there's room, so the bench
+  // picks up more of it than a starter already near 36.
+  let short = room - want.reduce((n, v) => n + v, 0);
+  for (let pass = 0; pass < 6 && short > 1e-6; pass++) {
+    const w = want.map(v => Math.max(0, v * (36 - v)));
+    const tw = w.reduce((n, x) => n + x, 0);
+    if (!tw) break;
+    want = want.map((v, k) => v + short * w[k] / tw);
+    short = 0;
+    want = want.map(v => { if (v > cap) { short += v - cap; return cap; } return v; });
+  }
+  for (let pass = 0; pass < 8; pass++) {
+    const capped = want.map(v => v >= cap);
+    const fixed = want.reduce((n, v, k) => n + (capped[k] ? cap : 0), 0);
+    const free = want.reduce((n, v, k) => n + (capped[k] ? 0 : v), 0);
+    if (free <= 0) break;
+    const scale = (room - fixed) / free;
+    want = want.map((v, k) => (capped[k] ? cap : Math.min(cap, v * scale)));
+    if (Math.abs(want.reduce((n, v) => n + v, 0) - room) < 1e-6) break;
+  }
+  const floor = want.map(v => Math.max(1, Math.floor(v)));
+  let left = room - floor.reduce((n, v) => n + v, 0);
+  const order = want.map((v, k) => ({ k, r: v - Math.floor(v) })).sort((a, b) => b.r - a.r);
+  for (let j = 0; left > 0 && j < order.length * 2; j++) {
+    const k = order[j % order.length].k;
+    if (floor[k] < cap) { floor[k]++; left--; }
+  }
+  for (let j = order.length - 1; left < 0 && j >= 0; j--) {
+    const k = order[j].k;
+    if (floor[k] > 1) { floor[k]--; left++; }
+  }
+  idx.forEach((i, k) => { boxes[i].min = floor[k]; });
+  return boxes;
+}
+
 // Simulates one game between two teams. Returns final scores and a
 // per-player box score for everyone who played, reconciled so each
 // team's total points exactly equals its final score.
@@ -577,12 +624,16 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
 
   const homeBoost = opts.homeMinutesMultiplier || 1;
   const awayBoost = opts.awayMinutesMultiplier || 1;
-  const homeRaw = homeRoster.map(p => ({ player: p, box: generateRawPlayerBox(p, homeBoost) }));
-  const awayRaw = awayRoster.map(p => ({ player: p, box: generateRawPlayerBox(p, awayBoost) }));
+  // A boost is either one number for the whole roster or, per player, a
+  // function (so an injury's minutes can go mostly to the bench).
+  const boostOf = (b, p) => (typeof b === 'function' ? b(p) : b);
+  const homeRaw = homeRoster.map(p => ({ player: p, box: generateRawPlayerBox(p, boostOf(homeBoost, p)) }));
+  const awayRaw = awayRoster.map(p => ({ player: p, box: generateRawPlayerBox(p, boostOf(awayBoost, p)) }));
 
   // Both teams' lines are built together: possessions, rebounds, steals
   // and fouls all depend on what the other team did.
   const { homeBoxes, awayBoxes } = buildConsistentBoxes(homeRaw.map(x => x.box), awayRaw.map(x => x.box), homeScore, awayScore);
+  [homeBoxes, awayBoxes].forEach(b => fitMinutes(b));
 
   return {
     homeScore, awayScore,
@@ -591,7 +642,7 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
   };
 }
 
-const GameCore = { generateRawPlayerBox, reconcileTeamScore, capTeamAssists, capIndividualShare, capShotVolume, capOffensiveRebounds, buildConsistentBoxes, simulateSingleGame, getZeroBox };
+const GameCore = { fitMinutes, generateRawPlayerBox, reconcileTeamScore, capTeamAssists, capIndividualShare, capShotVolume, capOffensiveRebounds, buildConsistentBoxes, simulateSingleGame, getZeroBox };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = GameCore;
 else if (typeof window !== 'undefined') window.GameCore = GameCore;

@@ -883,3 +883,8 @@ a.outline-btn { text-decoration: none; display: inline-flex; align-items: center
 .hs-when { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; min-width: 7.5rem; }
 .hs-wire .wire-reclass a, .hs-wire .wire-game, .hs-wire .wire-roster { font-weight: 700; }
 @media (max-width: 600px) { .hs-when { min-width: 0; } .hs-wire li { flex-wrap: wrap; } }
+.hs-ev-head { display: flex; align-items: center; gap: 0.6rem; }
+.hs-ev-logo { width: 40px; height: 40px; object-fit: contain; flex-shrink: 0; }
+.hs-rosters b { display: flex; align-items: center; gap: 0.35rem; }
+.pp-left { display: flex; flex-direction: column; gap: 2px; padding: 0.75rem 1rem; margin-bottom: 0.8rem; border-left: 3px solid var(--accent); }
+.pp-left span { color: var(--text-muted); font-size: 0.85rem; }

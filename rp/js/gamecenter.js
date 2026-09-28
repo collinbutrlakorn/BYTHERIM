@@ -535,6 +535,7 @@
           if (this.el) this.el.style.setProperty(`--gc-${s}`, c);
           this.fixContrast();
         };
+        if (m[s].color) { apply(m[s].color); return; }          // a team with set colours (all-star games)
         if (this._colorCache[school]) { apply(this._colorCache[school]); return; }
         this.colorFromLogo(this.logo(school)).then(c => { if (c) { this._colorCache[school] = c; apply(c); } }).catch(() => {});
       });

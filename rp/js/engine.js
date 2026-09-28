@@ -459,6 +459,9 @@ window.SimEngine = {
 
   getTeamLogo(schoolName) {
     if (!schoolName || schoolName === 'Free Agent' || schoolName === 'Uncommitted') return '';
+    // The all-star teams (East/West, Team Air/Team Flight, USA/World).
+    const star = typeof HSCore !== 'undefined' && HSCore.TEAM_STYLE[schoolName];
+    if (star && !this.findTeam(schoolName)) return `../schoollogos/${star.logo}.png`;
     if (this._logoCache[schoolName]) return this._logoCache[schoolName];
 
     const normalized = String(schoolName).toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -2383,6 +2386,23 @@ window.SimEngine = {
       free.forEach(x => { x.mpg = 0; });
     }
 
+    // Nobody averages more than his ceiling: the top of his band if the
+    // sheet gave him a role, 34 otherwise. Players without a role used to
+    // split whatever the banded ones left with no ceiling at all, which put
+    // unmarked starters at 37-40 a night. The excess goes to teammates with
+    // room, unmarked ones first.
+    const ceilingOf = x => (x.band ? x.band[1] : 34);
+    for (let pass = 0; pass < 8; pass++) {
+      let extra = 0;
+      weights.forEach(x => { const c = ceilingOf(x); if (x.mpg > c) { extra += x.mpg - c; x.mpg = c; } });
+      if (extra < 0.01) break;
+      const open = w => w.filter(x => x.mpg > 0 && x.mpg < ceilingOf(x) - 0.01);
+      const pool = open(free).length ? open(free) : open(weights);
+      const tot = pool.reduce((n, x) => n + x.mpg, 0);
+      if (!tot) break;
+      pool.forEach(x => { x.mpg += extra * (x.mpg / tot); });
+    }
+
     weights.forEach(x => {
       x.p.allocatedMpg = x.mpg < 2 ? 0 : x.mpg;
       x.p.isBench = !team.starters.includes(x.p.id);
@@ -2828,9 +2848,20 @@ window.SimEngine = {
     const lostMinutes = full
       .filter(p => p.injuredUntilWeek && p.injuredUntilWeek >= week)
       .reduce((n, p) => n + (parseFloat(p.expectedStats && p.expectedStats.mpg) || 0), 0);
-    const remaining = available.reduce((n, p) => n + (parseFloat(p.expectedStats && p.expectedStats.mpg) || 0), 0);
-    const multiplier = remaining > 0 ? Math.min(1.45, (remaining + lostMinutes) / remaining) : 1;
-    return { available, multiplier };
+    // An injured player's minutes go out by headroom, not in proportion:
+    // the bench and the sixth man pick up most of them, and a star already
+    // playing 34 barely moves. A flat multiplier had stars logging 38-40
+    // every time a teammate sat.
+    const mpgOf = p => parseFloat(p.expectedStats && p.expectedStats.mpg) || 0;
+    const room = p => { const m = mpgOf(p); return m > 0 ? m * Math.max(0, 36 - m) : 0; };
+    const roomTotal = available.reduce((n, p) => n + room(p), 0);
+    if (!lostMinutes || !roomTotal) return { available, multiplier: 1 };
+    const boost = new Map();
+    available.forEach(p => {
+      const m = mpgOf(p);
+      if (m > 0) boost.set(p.id, Math.min(1.8, 1 + (lostMinutes * room(p) / roomTotal) / m));
+    });
+    return { available, multiplier: p => boost.get(p.id) || 1 };
   },
 
   // Rolls injuries for the upcoming week. Rates are deliberately modest:
@@ -3403,6 +3434,8 @@ window.SimEngine = {
       else if (scripted && scripted.year > draftYear && !mandatory) declares = false;
       // On next season's tab: the sheet already has him back.
       else if (this.listedNextSeason(p)) declares = false;
+      // Too young for this draft (the sheet's scripted pick still stands).
+      if (declares && !(scripted && scripted.year === draftYear) && typeof DraftCore !== 'undefined' && !DraftCore.ageEligible(p, draftYear)) declares = false;
 
       if (declares) {
         declarations.push({
@@ -3454,7 +3487,8 @@ window.SimEngine = {
   archiveCompletedSeason() {
     const year = this.state.year;
 
-    this.state.activePlayers.forEach(p => {
+    // Pros too, so a drafted pro's profile has his season overseas.
+    this.draftPool().forEach(p => {
       if (!p.seasonHistory) p.seasonHistory = [];
       if (p.stats && p.stats.gp > 0 && !p.seasonHistory.some(h => h.year === year)) {
         p.seasonHistory.push({
@@ -4105,8 +4139,12 @@ window.SimEngine = {
     const out = [];
     (this.state.allRecruits || []).forEach(r => {
       if (r.fromOthers || !r.recClassYear || departed.has(r.name)) return;
+      // Like a one-and-done freshman: a pro from the class of 2028 is first
+      // in the 2029 draft, and he has four drafts to be taken in, provided
+      // he's old enough.
       const c = Number(r.recClassYear);
-      if (c > draftYear || c < draftYear - 3 || !HSCore.turnsPro(r, isD1)) return;
+      if (c + 1 > draftYear || c + 4 < draftYear || !HSCore.turnsPro(r, isD1)) return;
+      if (typeof DraftCore !== 'undefined' && !DraftCore.ageEligible(r, draftYear)) return;
       const p = have.get(r.id) || { ...r, isRecruit: false, gameLog: [], accolades: [], seasonHistory: [] };
       p.isPro = true;
       p.club = p.club || HSCore.clubFor(r, isD1);
@@ -4114,7 +4152,7 @@ window.SimEngine = {
       p.conference = 'Pro';
       p.school_logo = '../schoollogos/pro.png';
       p.collegeHistory = [p.club];
-      p.proYears = draftYear - c;
+      p.proYears = draftYear - (c + 1);
       p.rating = Math.round(HSCore.proTalent(r));
       p.rsci = HSCore.proPedigreeRank(r) || p.rsci || null;
       p.class = 'Pro';
@@ -4273,7 +4311,7 @@ window.SimEngine = {
     const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
     // Drafted pros are gone to the NBA; the rest keep playing overseas.
     const draftedYear = this.upcomingDraftYear();
-    (this.state.proPlayers || []).forEach(p => { if (p.draft && p.draft.year === draftedYear) this.markDeparted(p); });
+    (this.state.proPlayers || []).forEach(p => { if (p.draft && p.draft.year === draftedYear) { this.archiveDeparted(p, 'draft'); this.markDeparted(p); } });
     // Kept for the offseason screen — state.draftDeclarations is cleared
     // below when the new season is set up.
     this.snapshotDeclarations();
@@ -4288,7 +4326,7 @@ window.SimEngine = {
       });
 
       team.roster = team.roster.filter(p => {
-        if (declaredIds.has(p.id)) { this.archiveDeparted(p); this.markDeparted(p); return false; }
+        if (declaredIds.has(p.id)) { this.archiveDeparted(p, p.draft ? 'draft' : 'undrafted'); this.markDeparted(p); return false; }
         const nextClass = classProgression[p.class];
         // Listed on next season's tab: back for another year, even as a
         // senior (a fifth year or a redshirt), in the class the tab gives.
@@ -5299,7 +5337,7 @@ window.SimEngine = {
   },
 
   findPlayerRef(idOrName) {
-    const pool = this.state.activePlayers.concat(this.state.recruits || [], this.state.proPlayers || [], this.state.allRecruits || []);
+    const pool = this.state.activePlayers.concat(this.state.recruits || [], this.state.proPlayers || [], this.state.departedArchive || [], this.state.allRecruits || []);
     return pool.find(p => p.id === idOrName) || pool.find(p => p.name === idOrName);
   },
 
@@ -5383,7 +5421,7 @@ window.SimEngine = {
 
     // Career table: every archived season plus the one in progress.
     const seasons = [...(player.seasonHistory || [])];
-    if (st.gp > 0 && !seasons.some(h => h.year === this.state.year)) {
+    if (!player.departed && st.gp > 0 && !seasons.some(h => h.year === this.state.year)) {
       seasons.push({ year: this.state.year, school: player.school, class: player.class, stats: st });
     }
     seasons.sort((a, b) => a.year - b.year);
@@ -5466,6 +5504,9 @@ window.SimEngine = {
         ${preseason.length ? `<div><span class="accolade-tag preseason">Preseason</span> ${preseason.join(' • ')}</div>` : ''}
         ${postseason.length ? `<div><span class="accolade-tag postseason">Honors</span> ${postseason.join(' • ')}</div>` : ''}
       </div>` : ''}
+
+      ${player.departed ? `<div class="card pp-left"><b>${player.leftFor === 'draft' && player.draft ? `Left for the ${player.draft.year} NBA Draft` : player.leftFor === 'undrafted' ? 'Declared for the draft and went undrafted' : 'Graduated'}</b>
+        <span>after the ${this.seasonLabelFor(player.leftAfter)} season${player.isPro && player.club ? ` · played professionally for ${this.esc(player.club)}` : ''}. The numbers are from his final season.</span></div>` : ''}
 
       <div class="pp-row">
         <div class="pp-tiles">
@@ -7400,7 +7441,7 @@ window.SimEngine = {
       // So the Draft RP's board weighs upside the same way this one does.
       potentialGrade: p.potentialGrade || null,
       traits: p.traits || null,
-      isPro: !!p.isPro, draftClass: p.draftClass || null,
+      isPro: !!p.isPro, draftClass: p.draftClass || null, dob: p.dob || null,
       // The sheet's Draft column, so the Draft RP's mock agrees with draft night.
       scriptedDraft: this.scriptedDraftFor(p) || null
     };
@@ -7540,9 +7581,9 @@ window.SimEngine = {
   // Only their season lines are retained — no game logs.
   DEPARTED_ARCHIVE_CAP: 3000,
 
-  archiveDeparted(player) {
+  archiveDeparted(player, reason) {
     if (!this.state.departedArchive) this.state.departedArchive = [];
-    if (!player || !(player.seasonHistory || []).length) return;
+    if (!player || (!(player.seasonHistory || []).length && !player.draft)) return;
     if (this.state.departedArchive.some(p => p.id === player.id)) return;
 
     // Career scoring total, used both as a record-book value and as the
@@ -7552,18 +7593,29 @@ window.SimEngine = {
       return n + (parseFloat(st.ppg) || 0) * (st.gp || 0);
     }, 0);
 
+    // Enough to show his profile after he's gone: bio, where he played,
+    // every season's full line, and his last season as his current one.
+    const hist = player.seasonHistory || [];
+    const last = hist.length ? hist[hist.length - 1] : null;
     this.state.departedArchive.push({
       id: player.id, name: player.name, pos: player.pos,
       careerPts: Math.round(career),
       collegeHistory: player.collegeHistory,
       draft: player.draft || null,
-      seasonHistory: player.seasonHistory
+      seasonHistory: hist,
+      departed: true, leftAfter: this.state.year, leftFor: reason || (player.draft ? 'draft' : 'graduated'),
+      school: player.school, conference: player.conference, class: player.class, jersey: player.jersey,
+      ht: player.ht, wt: player.wt, hometown: player.hometown, hs: player.hs, rsci: player.rsci || null,
+      recClassYear: player.recClassYear || null, isPro: !!player.isPro, club: player.club || null,
+      accolades: player.accolades || [], bigGames: player.bigGames || [], bigGameStock: player.bigGameStock || 0,
+      stats: last ? last.stats : null
     });
 
     // Every departing player would otherwise be kept forever. Only the
     // careers that could plausibly appear in a record book are retained.
     if (this.state.departedArchive.length > this.DEPARTED_ARCHIVE_CAP * 1.3) {
-      this.state.departedArchive.sort((a, b) => (b.careerPts || 0) - (a.careerPts || 0));
+      // Drafted players are always kept.
+      this.state.departedArchive.sort((a, b) => (b.draft ? 1 : 0) - (a.draft ? 1 : 0) || (b.careerPts || 0) - (a.careerPts || 0));
       this.state.departedArchive.length = this.DEPARTED_ARCHIVE_CAP;
     }
   },
@@ -7697,7 +7749,7 @@ window.SimEngine = {
     const sel = HSCore.selectRosters(members, classYear, nextIntl);
     const ids = list => list.map(r => r.id);
     if (key === 'mcd') { const t = HSCore.splitEastWest(sel.mcd); return { East: ids(t.East), West: ids(t.West) }; }
-    if (key === 'jbc') { const t = HSCore.splitSnake(sel.jbc, HSCore.EVENTS.jbc.teams); return { Home: ids(t.Home), Away: ids(t.Away) }; }
+    if (key === 'jbc') { const [a, b] = HSCore.EVENTS.jbc.teams; const t = HSCore.splitSnake(sel.jbc, [a, b]); return { [a]: ids(t[a]), [b]: ids(t[b]) }; }
     return { USA: ids(sel.nhs.usa), World: ids(sel.nhs.world) };
   },
 
@@ -7760,7 +7812,8 @@ window.SimEngine = {
     const ev = HSCore.EVENTS[key], res = e.result;
     const meta = {
       key: `hs|${e.classYear}|${key}`, label: ev.name, neutral: true, big: true,
-      home: { school: res.home.name, record: `Class of ${e.classYear}` }, away: { school: res.away.name, record: `Class of ${e.classYear}` },
+      home: { school: res.home.name, record: `Class of ${e.classYear}`, color: (HSCore.TEAM_STYLE[res.home.name] || {}).color },
+      away: { school: res.away.name, record: `Class of ${e.classYear}`, color: (HSCore.TEAM_STYLE[res.away.name] || {}).color },
       spread: 0, homeScore: res.home.score, awayScore: res.away.score,
       note: res.mvp ? `${res.mvp.name} is the game's MVP.` : ''
     };
@@ -7786,7 +7839,8 @@ window.SimEngine = {
     const byId = new Map((s.allRecruits || []).map(r => [r.id, r]));
     const card = key => {
       const ev = HSCore.EVENTS[key], e = cal.events[key];
-      if (!e) return `<div class="hs-event pending"><span class="hs-ev-name">${this.esc(ev.name)}</span><small>Rosters not announced yet</small></div>`;
+      const head = `<div class="hs-ev-head"><img src="../${HSCore.EVENT_LOGO[key]}" alt="" class="hs-ev-logo"><span class="hs-ev-name">${this.esc(ev.name)}</span></div>`;
+      if (!e) return `<div class="hs-event pending">${head}<small>Rosters not announced yet</small></div>`;
       const res = e.result;
       const names = Object.keys(e.rosters);
       let body;
@@ -7802,9 +7856,9 @@ window.SimEngine = {
         body = `<small>${names.map(n => this.esc(n)).join(' vs ')} · ${ev.play >= 1 ? 'after the title game' : 'Final Four week'}</small>`;
       }
       const open = this._hsOpen === key;
-      const roster = open ? `<div class="hs-rosters">${names.map(n => `<div><b>${this.esc(n)}</b><ol>${(e.rosters[n] || []).map(id => byId.get(id)).filter(Boolean)
-        .map(r => { const c = HSCore.committedTo(r); return `<li onclick="SimEngine.openPlayerModal('${String(r.id).replace(/'/g, "\\'")}')">${r.rsci > 0 ? `<span class="hs-rk">${r.rsci}</span>` : '<span class="hs-rk">INTL</span>'}${this.esc(r.name)}${c && HSCore.commitVisible(r, 1) && this.isD1School(c) ? `<img src="${this.getTeamLogo(c)}" class="xs-logo" alt="">` : ''}</li>`; }).join('')}</ol></div>`).join('')}</div>` : '';
-      return `<div class="hs-event${res ? ' final' : ''}"><span class="hs-ev-name">${this.esc(ev.name)}</span>${body}
+      const roster = open ? `<div class="hs-rosters">${names.map(n => `<div><b><img src="${this.getTeamLogo(n)}" alt="" class="xs-logo">${this.esc(n)}</b><ol>${(e.rosters[n] || []).map(id => byId.get(id)).filter(Boolean)
+        .map(r => { const c = HSCore.committedTo(r); return `<li onclick="SimEngine.openPlayerModal('${String(r.id).replace(/'/g, "\\'")}')"><span class="hs-rk">${this.esc(r.pos || '')}</span>${this.esc(r.name)}${c && HSCore.commitVisible(r, 1) && this.isD1School(c) ? `<img src="${this.getTeamLogo(c)}" class="xs-logo" alt="">` : ''}</li>`; }).join('')}</ol></div>`).join('')}</div>` : '';
+      return `<div class="hs-event${res ? ' final' : ''}">${head}${body}
         <button type="button" class="hs-link" onclick="SimEngine.toggleHsRoster('${key}')">${open ? 'Hide rosters' : 'Rosters'}</button>${roster}</div>`;
     };
     const wire = (cal.wire || []).slice(0, 8).map(w => `<li class="wire-${w.kind}"><span class="hs-when">${this.esc(w.when || '')}</span>${w.school ? `<img src="${this.getTeamLogo(w.school)}" class="xs-logo" alt="">` : ''}${w.id ? `<a onclick="SimEngine.openPlayerModal('${String(w.id).replace(/'/g, "\\'")}')">${this.esc(w.text)}</a>` : this.esc(w.text)}</li>`).join('');

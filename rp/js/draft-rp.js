@@ -128,7 +128,10 @@ const DraftRP = {
   openLinkedPlayer(id) {
     const onBoard = (this.state.masterBoard || []).some(e => e.player.id === id);
     const drafted = (this.state.results || []).some(r => r.id === id);
-    if (!onBoard && !drafted) return;
+    // A player from an earlier draft opens in that year's results.
+    const past = !onBoard && !drafted ? (this.state.history || []).find(h => (h.picks || []).some(p => p.id === id)) : null;
+    if (!onBoard && !drafted && !past) return;
+    if (past) this.state.historyYear = past.year;
     this.state.view = onBoard ? 'master' : 'mock';
     this.state.expanded = id;
     this.render();
@@ -753,7 +756,7 @@ const DraftRP = {
 
     const rows = shown.map(d => {
       const entry = isCurrent ? this.findProspect(d.id) : null;
-      const detail = entry || { player: { id: d.id, name: d.name, school: d.school, pos: d.pos, class: d.class, ht: d.ht, stats: { ppg: d.ppg, rpg: d.rpg, apg: d.apg } }, tags: [] };
+      const detail = entry || this.detailFromRecord(d);
       return `<tr class="prospect-row" onclick="DraftRP.toggleDetail('${this.esc(d.id)}')">
         <td class="rank-cell">${d.pick}</td>
         <td>${d.team ? `<div class="player-cell nba-team-cell">
@@ -1155,13 +1158,23 @@ const DraftRP = {
 
   // Past big boards: the final board kept with each draft. Drafts held
   // before boards were archived show the drafted players in board order.
+  // A drafted (or boarded) player from a past draft, from what was kept
+  // with it: the full stat line when there is one.
+  detailFromRecord(d) {
+    return {
+      player: { id: d.id, name: d.name, school: d.school, pos: d.pos, class: d.class, ht: d.ht, wt: d.wt, hometown: d.hometown, hs: d.hs, jersey: d.jersey,
+        stats: d.stats || { ppg: d.ppg, rpg: d.rpg, apg: d.apg } },
+      tags: d.tags || []
+    };
+  },
+
   renderPastBoard() {
     const s = this.state;
     const h = s.history.find(x => x.year === s.historyYear) || {};
     const board = h.board && h.board.length ? h.board
       : (h.picks || []).filter(p => p.boardRank).slice().sort((a, b) => a.boardRank - b.boardRank)
           .map(p => ({ rank: p.boardRank, name: p.name, school: p.school, pos: p.pos, class: p.class, ht: p.ht, ppg: p.ppg, rpg: p.rpg, apg: p.apg, pick: p.pick, team: p.team }));
-    const rows = board.map(b => `<tr>
+    const rows = board.map(b => `<tr class="prospect-row" onclick="DraftRP.toggleDetail('${this.esc(b.id || b.name)}')">
         <td class="rank-cell">${b.rank}</td>
         <td><div class="player-cell"><span class="player-name">${b.name}${b.combineGrade ? ` <span class="grade-badge sm ${this.gradeClass(b.combineGrade)}">${b.combineGrade}</span>` : ''}</span>
           <span class="player-archetype">${(b.tags && b.tags[0]) || b.school || ''}</span></div></td>
@@ -1171,7 +1184,8 @@ const DraftRP = {
         <td class="school-col">${b.school || '-'}</td>
         <td>${b.ppg != null ? b.ppg : '—'}</td><td>${b.rpg != null ? b.rpg : '—'}</td><td>${b.apg != null ? b.apg : '—'}</td>
         <td>${b.pick ? `<div class="player-cell nba-team-cell">${b.team ? `<img src="${this.nbaLogo(b.team)}" class="nba-logo-sm" alt="" onerror="this.remove()">` : ''}<span class="player-name">#${b.pick}</span></div>` : '<span class="sub-text">Undrafted</span>'}</td>
-      </tr>`).join('');
+      </tr>
+      ${s.expanded === (b.id || b.name) ? `<tr class="detail-row"><td colspan="10">${this.renderProspectDetail(this.detailFromRecord(b), { readOnly: true })}</td></tr>` : ''}`).join('');
     return `
       <div class="draft-section-head">
         <div>

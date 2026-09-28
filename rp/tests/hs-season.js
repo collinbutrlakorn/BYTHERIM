@@ -36,6 +36,8 @@ const FIX = path.join(__dirname, 'fixtures');
   ok(HS.reclassFrom({ name: 'Young Guy', recClassYear: 2031, rsci: 40, dob: '10/2/2013' }) === 2032, 'a ranked player born after August 31 of his year is young for his class');
   ok(HS.reclassFrom({ name: 'Normal Guy', recClassYear: 2031, rsci: 40, dob: '6/2/2013' }) === null, 'one born in the normal window is not');
   ok(HS.reclassFrom({ name: 'Sheet Says', recClassYear: 2031, reclassFrom: 2032 }) === 2032, 'a Reclass column in the sheet is honored');
+  ok(HS.reclassFrom({ name: 'Leo Newsom', recClassYear: 2030, rsci: 2, dob: '10/12/2012', allStar: { mcd: true } }) === null,
+    'a McDonald\'s All-American is never a reclass, however young');
   ok(HS.currentClass(kam, 2028, 0.2) === 2030 && HS.currentClass(kam, 2028, 1) === 2029, 'he is listed in 2030 until late in the season, then in 2029');
 
   const intl = Array.from({ length: 14 }, (_, i) => ({ name: `Intl ${i}`, recClassYear: 2029, rsci: null, rating: 85 - i, state: 'INT', school: '' }));
@@ -58,17 +60,39 @@ const FIX = path.join(__dirname, 'fixtures');
   ok(st0.gp === 0 && st1.gp >= 30 && parseFloat(st1.ppg) > 2 && parseFloat(st1.ppg) < 16 && parseFloat(st1.mpg) < 30,
     `a teenage pro's line is modest against grown men (${st1.ppg} ppg in ${st1.mpg} mpg)`);
 
+  const DC = w.DraftCore;
+  ok(DC.ageEligible({ dob: '12/31/2010' }, 2029) && !DC.ageEligible({ dob: '1/1/2011' }, 2029) && DC.ageEligible({}, 2029),
+    'the 2029 draft takes players born in 2010 or earlier');
+  const box = n => Array.from({ length: n }, (_, i) => ({ min: i < 9 ? 20 + (i < 5 ? 14 : 0) + i : 0 }));
+  const fitted = w.GameCore.fitMinutes(box(12));
+  ok(fitted.reduce((t, b) => t + b.min, 0) === 200 && fitted.every(b => b.min <= 40) && fitted.slice(9).every(b => b.min === 0),
+    'a box score is fitted to 200 minutes, nobody over 40, nobody who sat put in');
+
   // ---------- a season ----------
   await Sim.init();
   await Sim.startNewGame();
   const incoming = Sim.getIncomingRecruitClassYear();
   const view0 = Sim.hsClassView(incoming);
   ok(view0.length > 50 && view0.some(e => e.school) && view0.some(e => !e.school && !e.club), 'preseason: some of the class has committed, some has not');
+  const draftYear = Sim.upcomingDraftYear();
+  ok(Sim.state.proPlayers.every(p => Number(p.recClassYear) + 1 <= draftYear && DC.ageEligible(p, draftYear)),
+    `pros are in the draft the year after their class, and old enough (${Sim.state.proPlayers.map(p => p.name + ' ' + p.recClassYear).join(', ')})`);
   ok((Sim.state.proPlayers || []).length > 0 && Sim.state.proPlayers.every(p => p.isPro && p.conference === 'Pro' && p.club),
     `uncommitted internationals are playing pro (${Sim.state.proPlayers.map(p => `${p.name}, ${p.club}`).slice(0, 3).join('; ')})`);
   ok(!Sim.state.activePlayers.some(p => p.isPro), 'no pro is on a college roster');
 
+  for (let i = 0; i < 4; i++) await Sim.simulateWeek();
+  ok(Sim.buildUniverseSnapshot().draft.pool.some(p => p.isPro && p.draftClass && p.dob !== undefined), 'mid-season, the Draft RP\'s live pool carries the pros');
   ok(await playSeason(Sim), 'season played');
+  const teamGames = {};
+  let maxMin = 0;
+  Sim.state.activePlayers.forEach(p => (p.gameLog || []).forEach(l => {
+    const k = `${p.school}|${l.week}|${l.phase}|${l.opponent}`;
+    teamGames[k] = (teamGames[k] || 0) + (l.min || 0);
+    maxMin = Math.max(maxMin, l.min || 0);
+  }));
+  const sums = Object.values(teamGames);
+  ok(sums.every(v => v === 200) && maxMin <= 40, `every team plays exactly 200 minutes a game, nobody over 40 (${sums.length} team-games, max ${maxMin})`);
   const cal = Sim.state.hsCalendar;
   ok(cal && cal.year === Sim.state.year && (cal.wire || []).length > 10, `the recruiting wire filled up over the season (${(cal.wire || []).length} items)`);
   ok(cal.wire.some(x => x.kind === 'commit'), 'commitments came in during the season');
@@ -94,7 +118,8 @@ const FIX = path.join(__dirname, 'fixtures');
   const board = Sim.computeDraftBigBoard(120);
   ok(board.some(e => e.player.isPro), `pros are on the draft board (${board.filter(e => e.player.isPro).map(e => `#${board.indexOf(e) + 1} ${e.player.name}`).join(', ')})`);
   const snap = Sim.buildUniverseSnapshot();
-  ok(snap.draft.pool.some(p => p.isPro && p.draftClass), 'the Draft RP\'s published pool carries the pros');
+  const proDeclared = (Sim.state.draftDeclarations || []).some(d => d.isPro);
+  ok(!proDeclared || snap.draft.pool.some(p => p.isPro && p.draftClass), 'the Draft RP\'s published pool carries the pros who declared');
 
   const di = Sim.OFFSEASON_STAGES.findIndex(s => s.key === 'draft');
   for (let i = 0; i <= di; i++) await Sim.simulateWeek();
@@ -102,6 +127,16 @@ const FIX = path.join(__dirname, 'fixtures');
   for (let i = di + 1; i < Sim.OFFSEASON_STAGES.length; i++) await Sim.simulateWeek();
   ok(!Sim.state.proPlayers.some(p => draftedPros.some(d => d.id === p.id)), `drafted pros leave the pro pool (${draftedPros.map(d => '#' + d.pick + ' ' + d.name).join(', ') || 'none drafted'})`);
   ok(!Sim.state.activePlayers.some(p => p.isPro), 'and no pro ever joins a college roster');
+
+  // Players who left can still be looked up, with their last season.
+  const hist = (Sim.state.draftHistory || []).find(h => h.year === draftYear);
+  ok(hist && hist.picks.every(pk => pk.stats && pk.stats.gp !== undefined && pk.stats.p40pts !== undefined), 'each pick keeps his full final stat line with the draft');
+  ok(hist.board.every(b => b.stats), '...and so does the final big board');
+  const gone = hist.picks.find(pk => !Sim.state.activePlayers.some(p => p.id === pk.id));
+  const ref = gone && Sim.findPlayerRef(gone.id);
+  ok(ref && ref.departed && ref.stats && ref.stats.gp > 0 && (ref.seasonHistory || []).length >= 1, `a drafted player's profile is still there (${gone && gone.name})`);
+  const html = Sim.renderPlayerPage(ref);
+  ok(html.includes(ref.name) && html.includes('Left for the') && html.includes('Per 40'), 'his page shows why he left and his full final season');
   ok(Sim.state.hsCalendar.year === Sim.state.year && Object.keys(Sim.state.hsCalendar.events).length === 0, 'the new season starts a new high-school calendar');
 
   console.log('\nHigh-school season verified.');

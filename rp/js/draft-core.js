@@ -158,9 +158,22 @@ function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
 // Ranks a list of players. `winPctFor` maps a school name to that team's
 // win percentage; pass a function so callers can source it however they
 // like (live team objects in-season, archived history at draft time).
+// The draft's age limit: a player must be 19 by the end of the draft
+// year, so the youngest in the 2029 draft was born in 2010. A player with
+// no birthdate on file is assumed old enough.
+function birthYear(p) {
+  const m = String((p && p.dob) || '').match(/(\d{4})/);
+  return m ? parseInt(m[1], 10) : null;
+}
+function ageEligible(p, draftYear) {
+  const y = birthYear(p);
+  return !y || !draftYear || y <= draftYear - 19;
+}
+
 function buildBigBoard(players, winPctFor, limit = 60, opts = {}) {
   const getWinPct = typeof winPctFor === 'function' ? winPctFor : () => 0.5;
   return players
+    .filter(p => ageEligible(p, opts.draftYear))
     .map(p => {
       const parts = scoreProspect(p, getWinPct(p.school), opts);
       return { player: p, ...parts };
@@ -198,7 +211,7 @@ function scoutingTags(entry) {
   return tags.slice(0, 4);
 }
 
-const DraftCore = { PRO_LEVEL, parseHeightInches, scoreProspect, competitionFactor, POWER_SIX, STRONG_MID, buildBigBoard, scoutingTags, CLASS_YOUTH, POS_SIZE_TARGET };
+const DraftCore = { birthYear, ageEligible, PRO_LEVEL, parseHeightInches, scoreProspect, competitionFactor, POWER_SIX, STRONG_MID, buildBigBoard, scoutingTags, CLASS_YOUTH, POS_SIZE_TARGET };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = DraftCore;
 else if (typeof window !== 'undefined') window.DraftCore = DraftCore;

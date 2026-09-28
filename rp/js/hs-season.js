@@ -132,6 +132,9 @@
   function reclassFrom(r) {
     const c = Number(r.recClassYear);
     if (!c) return null;
+    // A McDonald's All-American is set in his class: the roster is made of
+    // seniors, so he was never a reclass.
+    if (r.allStar && r.allStar.mcd) return null;
     const own = Number(r.reclassFrom);
     if (own && own > c) return own;
     const named = RECLASS_NAMED[String(r.name || '').trim().toLowerCase()];
@@ -157,9 +160,17 @@
   //
   // Announced and played on the incoming class's senior-season calendar
   // (p = progress through the current season, 0-1).
+  // Each team's badge (schoollogos/) and colour; each event's logo sits at
+  // the site root.
+  const TEAM_STYLE = {
+    West: { logo: 'allstar-mcd-west', color: '#2563eb' }, East: { logo: 'allstar-mcd-east', color: '#d42a37' },
+    'Team Air': { logo: 'allstar-jbc-air', color: '#141414' }, 'Team Flight': { logo: 'allstar-jbc-flight', color: '#d42a37' },
+    USA: { logo: 'allstar-nhs-usa', color: '#e8ecf2' }, World: { logo: 'allstar-nhs-world', color: '#141414' }
+  };
+  const EVENT_LOGO = { mcd: 'mcdaag.png', jbc: 'jbc.png', nhs: 'nikehoopsummit.png' };
   const EVENTS = {
     mcd: { name: "McDonald's All-American Game", short: "McDonald's AA", size: 24, pool: 35, announce: 0.45, play: 0.9, teams: ['East', 'West'] },
-    jbc: { name: 'Jordan Brand Classic', short: 'Jordan Brand', size: 24, pool: 75, announce: 0.6, play: 1, teams: ['Home', 'Away'] },
+    jbc: { name: 'Jordan Brand Classic', short: 'Jordan Brand', size: 24, pool: 75, announce: 0.6, play: 1, teams: ['Team Air', 'Team Flight'] },
     nhs: { name: 'Nike Hoop Summit', short: 'Hoop Summit', size: 24, pool: 30, announce: 0.7, play: 1, teams: ['USA', 'World'] }
   };
   const flagged = (r, k) => !!(r.allStar && r.allStar[k]);
@@ -339,6 +350,6 @@
   root.HSCore = {
     hash, rngFor, isInternational, committedTo, classProgress, rankOffset, rankClass,
     commitAt, commitVisible, RECLASS_NAMED, parseDob, reclassFrom, reclassAt, currentClass,
-    EVENTS, selectRosters, splitEastWest, splitSnake, clubFor, turnsPro, proTalent, proPedigreeRank, proLine, proStats, US_STATES
+    EVENTS, TEAM_STYLE, EVENT_LOGO, selectRosters, splitEastWest, splitSnake, clubFor, turnsPro, proTalent, proPedigreeRank, proLine, proStats, US_STATES
   };
 })(typeof window !== 'undefined' ? window : globalThis);

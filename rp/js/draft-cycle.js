@@ -485,6 +485,20 @@
     return ids.map(id => byId[id]).filter(Boolean);
   }
 
+  // The stat line kept with a draft: what a profile shows (box score,
+  // advanced, per 40), without the season totals it was built from.
+  const KEEP_STATS = ['gp', 'gs', 'mpg', 'ppg', 'oreb', 'dreb', 'rpg', 'apg', 'stl', 'blk', 'tov', 'pf', 'fgm', 'fga', 'fgPct',
+    'threePm', 'threePa', 'threePPct', 'ftm', 'fta', 'ftPct', 'bpm', 'obpm', 'dbpm', 'tsPct', 'eFgPct', 'rTsPct', 'orebPct',
+    'drebPct', 'trbPct', 'astPct', 'tovPct', 'blkPct', 'usg', 'ftr', 'threePar', 'ortg', 'drtg', 'netRtg',
+    'p40pts', 'p40oreb', 'p40dreb', 'p40reb', 'p40ast', 'p40stl', 'p40blk', 'p40tov', 'p40pf', 'p40fga', 'p40threePa', 'p40fta'];
+  function keptStats(st) {
+    if (!st) return null;
+    const out = {};
+    KEEP_STATS.forEach(k => { if (st[k] !== undefined && typeof st[k] !== 'object') out[k] = st[k]; });
+    return out;
+  }
+  const keptBio = p => ({ wt: p.wt || null, hometown: p.hometown || null, hs: p.hs || null, jersey: p.jersey || null, rsci: p.rsci || null, stats: keptStats(p.stats) });
+
   function runDraft(ctx, lottery, interest) {
     const rng = ctx.rng || Math.random;
     const declaredIds = new Set(ctx.declarations.map(d => d.id));
@@ -528,6 +542,7 @@
         team: pk.team ? { id: pk.team.id, name: pk.team.name, logo: pk.team.logo } : null,
         boardRank: pk.boardRank,
         scripted: landedScripted,
+        ...keptBio(p),
         workedOut: !!(interest && pk.team && interest[pk.team.id] && interest[pk.team.id][p.id] > 0)
       };
     });
@@ -544,7 +559,8 @@
         score: +e.score.toFixed(1), tags,
         combineGrade: pd ? pd.grade || null : null, workoutGrade: pd ? pd.workoutGrade || null : null,
         pick: drafted[p.id] ? drafted[p.id].pick : null,
-        team: drafted[p.id] ? drafted[p.id].team : null
+        team: drafted[p.id] ? drafted[p.id].team : null,
+        ...keptBio(p)
       };
     });
     return { picks, finalBoard };
