@@ -22,11 +22,17 @@
   const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/';
   const CHUNK = 900000;          // base64 characters per chunk document
 
+  // Gives up after a while: a blocked or unreachable CDN must never leave
+  // a page waiting.
   const loadScript = src => new Promise((res, rej) => {
     const s = document.createElement('script');
-    s.src = src; s.async = false; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src));
+    const t = setTimeout(() => rej(new Error('Timed out loading ' + src)), 10000);
+    s.src = src; s.async = false;
+    s.onload = () => { clearTimeout(t); res(); };
+    s.onerror = () => { clearTimeout(t); rej(new Error('Could not load ' + src)); };
     document.head.appendChild(s);
   });
+  const within = (promise, ms, fallback) => Promise.race([promise, new Promise(r => setTimeout(() => r(fallback), ms))]);
 
   // ---------- bytes <-> text ----------
   async function gzip(text) {
@@ -212,10 +218,11 @@
     },
     // The official universe: the one an admin published, else the file.
     async universe(url = '../data/universe.json') {
-      await this.init();
+      // Accounts get a few seconds to start; after that the file is used.
+      await within(this.init(), 2500, false);
       if (this.enabled) {
         try {
-          const got = await this.getBlob('official/universe');
+          const got = await within(this.getBlob('official/universe'), 8000, null);
           if (got) return JSON.parse(got.text);
         } catch (e) { console.warn('Published universe unavailable, using the file:', e.message || e); }
       }

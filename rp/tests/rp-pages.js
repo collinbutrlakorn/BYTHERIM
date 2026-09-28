@@ -20,6 +20,9 @@ const clone = o => JSON.parse(JSON.stringify(o));
 class LocalOnly extends ResourceLoader {
   fetch(url) {
     if (!url.startsWith('http://localhost/') || !/\.js$/.test(url)) return null;
+    // Accounts stay off here (tests/cloud.js covers them): Firebase itself
+    // can't load in this environment.
+    if (/cloud-config\.js$/.test(url)) return Promise.resolve(Buffer.from('window.BTR_CLOUD_CONFIG = null;'));
     return Promise.resolve(fs.readFileSync(path.join(ROOT, decodeURIComponent(new URL(url).pathname))));
   }
 }
