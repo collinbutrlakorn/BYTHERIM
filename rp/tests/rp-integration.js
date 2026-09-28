@@ -29,6 +29,24 @@ const keep = (name, snap) => { if (OUT) fs.writeFileSync(path.join(OUT, name + '
   ok(spec && spec.year === 2029 && spec.pick === 5 && spec.overall === 5, 'Draft column "2029 R:1 P:5" is read');
   ok(Sim.parseDraftSpec('2030 R:2 P:3').overall === 33, 'second-round picks count from 31');
   ok(Sim.parseDraftSpec('') === null, 'an empty Draft cell means no scripted pick');
+  const exact = Sim.parseDraftSpec('2033 P1');
+  ok(exact && exact.year === 2033 && exact.overall === 1 && exact.round === 1 && exact.pick === 1, 'Draft column "2033 P1" is an exact pick 1');
+  const exact2 = Sim.parseDraftSpec('2033 Pick 35');
+  ok(exact2 && exact2.overall === 35 && exact2.round === 2 && exact2.pick === 5, '"2033 Pick 35" is exact overall pick 35 (round 2, pick 5)');
+  const range = Sim.parseDraftSpec('2033 T10');
+  ok(range && range.year === 2033 && range.range === 10 && !range.overall, 'Draft column "2033 T10" is a guaranteed top-10 range, not an exact pick');
+  ok(Sim.parseDraftSpec('2033 Top 5').range === 5, '"Top 5" reads the same as "T5"');
+
+  // ---- Strength 1 / Strength 2 / Weakness dropdowns ----
+  const getVal = row => (keys, fallback = '') => { for (const k of keys) if (row[k] !== undefined && row[k] !== '') return row[k]; return fallback; };
+  const traitProf = Sim.buildPlaystyleProfile({}, getVal({ strength1: 'Shooter', strength2: 'Rim Protector', weakness: 'Tunnel Vision' }));
+  ok(traitProf.threePar > 1 && traitProf.threePct > 1, '"Shooter" nudges three-point volume and accuracy up');
+  ok(traitProf.blk > 1, '"Rim Protector" nudges block rate up');
+  ok(traitProf.ast < 1, '"Tunnel Vision" nudges assist rate down');
+  ok(traitProf.reb === 1 && traitProf.stl === 1, 'traits not picked are left alone');
+  const singleTrait = Sim.buildPlaystyleProfile({}, getVal({ strength1: 'Bucket Getter' }));
+  ok(singleTrait.score > 1, '"Bucket Getter" nudges scoring usage up');
+  ok(Sim.buildPlaystyleProfile({}, getVal({})) === null, 'no strength, weakness, tier or scouting text means no playstyle profile at all');
 
   const drew = Sim.state.activePlayers.find(p => p.name === 'DaRon Drew');
   ok(drew && !/^T\s*-/.test(drew.hometown || ''), 'FROM "T - Ohio" is a transfer note, not a hometown');
@@ -64,12 +82,16 @@ const keep = (name, snap) => { if (OUT) fs.writeFileSync(path.join(OUT, name + '
   for (let i = 0; i <= draftIdx; i++) await Sim.simulateWeek();
 
   const stillIn = Sim.state.draftDeclarations.map(d => d.name);
-  ok(stillIn.includes('Alberto Rodriguez') && stillIn.includes('Clark Wilkins'), 'scripted picks never withdraw');
+  ok(stillIn.includes('Alberto Rodriguez') && stillIn.includes('Clark Wilkins') && stillIn.includes('Trevon Ashe'),
+    'scripted picks never withdraw, exact or ranged');
 
   const res = Sim.state.draftResults || [];
   ok(res.length >= 30, `the draft is held (${res.length} picks)`);
   ok(res.every(r => r.team && r.team.name && r.team.logo), 'every pick has an NBA team');
   ok(new Set(res.map(r => r.id)).size === res.length, 'no player drafted twice');
+  const ashe = res.find(r => r.name === 'Trevon Ashe');
+  ok(ashe && ashe.pick <= 10, `"2029 T10" lands the player somewhere in the top 10 (picked ${ashe && ashe.pick})`);
+  ok(ashe && ashe.scripted, 'a landed range lock is marked scripted, same as an exact pick');
   ok(res.every((r, i) => r.pick === i + 1), 'picks are numbered in order');
   const p1 = res.find(r => r.pick === 1), p5 = res.find(r => r.pick === 5);
   ok(p1 && p1.name === 'Alberto Rodriguez', `pick 1 is Alberto Rodriguez (${p1 && p1.name})`);

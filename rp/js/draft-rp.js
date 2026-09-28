@@ -576,13 +576,16 @@ const DraftRP = {
     const c = s.sources[s.source] || {};
     const seed = `${s.source}|${s.draftYear}|${c.updated || ''}|${s.mockSeed}`;
     const fixed = {};
+    const ranged = [];
     s.prospects.forEach(e => {
       const sd = e.player.scriptedDraft;
-      if (sd && sd.year === s.draftYear && sd.overall && !fixed[sd.overall]) fixed[sd.overall] = e;
+      if (!sd || sd.year !== s.draftYear) return;
+      if (sd.overall) { if (!fixed[sd.overall]) fixed[sd.overall] = e; }
+      else if (sd.range) { ranged.push({ entry: e, maxPick: sd.range }); }
     });
     const lottery = s.mockSeed === 0 ? this.drawnLottery() : null;
     s.mock = NBACore.buildMockDraft(s.prospects, s.league, this.seededRng(seed), fixed,
-      { lottery: lottery || undefined, interest: s.cycle && s.cycle.interest ? s.cycle.interest : undefined });
+      { lottery: lottery || undefined, interest: s.cycle && s.cycle.interest ? s.cycle.interest : undefined, ranged });
   },
 
   regenerateMock() { this.buildMock(); this.render(); },

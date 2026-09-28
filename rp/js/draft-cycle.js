@@ -481,28 +481,46 @@
   function runDraft(ctx, lottery, interest) {
     const rng = ctx.rng || Math.random;
     const declaredIds = new Set(ctx.declarations.map(d => d.id));
-    const board = ctx.fullBoard(400).filter(e => declaredIds.has(e.player.id));
+    let board = ctx.fullBoard(400).filter(e => declaredIds.has(e.player.id));
+    // A player the sheet scripts into this draft is drafted however his
+    // season went, so he's on the board even if he fell outside the top 400.
+    const onBoard = new Set(board.map(e => e.player.id));
+    const missing = ctx.declarations.filter(d => {
+      if (onBoard.has(d.id)) return false;
+      const spec = ctx.scriptedFor(ctx.byId[d.id]);
+      return spec && spec.year === ctx.draftYear;
+    });
+    if (missing.length) {
+      const want = new Set(missing.map(d => d.id));
+      board = board.concat(ctx.fullBoard(100000).filter(e => want.has(e.player.id)));
+    }
     const fixed = {};
+    const ranged = [];
     board.forEach(e => {
       const spec = ctx.scriptedFor(e.player);
-      if (spec && spec.year === ctx.draftYear && !fixed[spec.overall]) fixed[spec.overall] = e;
+      if (!spec || spec.year !== ctx.draftYear) return;
+      if (spec.overall) { if (!fixed[spec.overall]) fixed[spec.overall] = e; }
+      else if (spec.range) { ranged.push({ entry: e, maxPick: spec.range }); }
     });
     const order = orderTeams(ctx, lottery.order);
     const draft = NB.buildMockDraft(board, ctx.league, rng, fixed, {
       lottery: { order, lotteryWinners: orderTeams(ctx, lottery.winners.map(w => w.id)) },
-      interest
+      interest,
+      ranged
     });
     const picks = draft.picks.map(pk => {
       const p = pk.player;
       const spec = ctx.scriptedFor(p);
       const st = p.stats || {};
+      const landedScripted = !!spec && spec.year === ctx.draftYear &&
+        ((spec.overall && spec.overall === pk.pick) || (spec.range && pk.pick <= spec.range));
       return {
         pick: pk.pick, round: pk.round, year: ctx.draftYear,
         id: p.id, name: p.name, school: p.school, pos: p.pos, ht: p.ht,
         class: p.class, ppg: st.ppg || '0.0', rpg: st.rpg || '0.0', apg: st.apg || '0.0',
         team: pk.team ? { id: pk.team.id, name: pk.team.name, logo: pk.team.logo } : null,
         boardRank: pk.boardRank,
-        scripted: !!(spec && spec.year === ctx.draftYear && spec.overall === pk.pick),
+        scripted: landedScripted,
         workedOut: !!(interest && pk.team && interest[pk.team.id] && interest[pk.team.id][p.id] > 0)
       };
     });

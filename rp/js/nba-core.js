@@ -138,20 +138,46 @@ function buildMockDraft(board, league, rng = Math.random, fixed = {}, opts = {})
   const r = rngPick(rng);
   const lottery = opts.lottery || runLottery(league, r);
   const interest = opts.interest || {};
+  // opts.ranged: [{ entry, maxPick }] — a player guaranteed to go somewhere
+  // in picks 1..maxPick, with the exact slot left to team need/fit like
+  // anyone else. He's added to every shortlist inside his window so a team
+  // can take him early, and forced in at maxPick as a last resort if the
+  // window closes with him still on the board.
+  const ranged = opts.ranged || [];
   const pinned = new Set(Object.values(fixed || {}));
   const available = board.filter(e => !pinned.has(e));
+  const drafted = new Set();
   const picks = [];
 
   lottery.order.slice(0, 60).forEach((team, i) => {
-    const slot = fixed && fixed[i + 1];
+    const pickNum = i + 1;
+    const slot = fixed && fixed[pickNum];
     if (slot) {
-      picks.push({ pick: i + 1, round: i < 30 ? 1 : 2, team, player: slot.player, boardRank: board.indexOf(slot) + 1, needs: teamNeeds(team), scripted: true });
+      picks.push({ pick: pickNum, round: pickNum <= 30 ? 1 : 2, team, player: slot.player, boardRank: board.indexOf(slot) + 1, needs: teamNeeds(team), scripted: true });
+      drafted.add(slot);
+      const si = available.indexOf(slot); if (si >= 0) available.splice(si, 1);
+      return;
+    }
+    // A ranged lock whose window has closed goes out first — earliest
+    // deadline first if more than one lock collides on the same pick.
+    const overdue = ranged.filter(rl => !drafted.has(rl.entry) && available.includes(rl.entry) && rl.maxPick <= pickNum)
+      .sort((a, b) => a.maxPick - b.maxPick)[0];
+    if (overdue) {
+      picks.push({ pick: pickNum, round: pickNum <= 30 ? 1 : 2, team, player: overdue.entry.player, boardRank: board.indexOf(overdue.entry) + 1, needs: teamNeeds(team), scripted: true });
+      drafted.add(overdue.entry);
+      const oi = available.indexOf(overdue.entry); if (oi >= 0) available.splice(oi, 1);
       return;
     }
     if (available.length === 0) return;
     // Teams consider a shortlist rather than only the top name, which is
     // what lets need and a little randomness move players a few spots.
     const shortlist = available.slice(0, Math.min(opts.interest ? 8 : 6, available.length));
+    // Still-open ranged locks are weighed by every team inside their
+    // window, even if their raw score wouldn't put them in the natural
+    // shortlist.
+    ranged.forEach(rl => {
+      if (!drafted.has(rl.entry) && available.includes(rl.entry) && !shortlist.includes(rl.entry)) shortlist.push(rl.entry);
+    });
     let best = null, bestScore = -Infinity;
     shortlist.forEach(entry => {
       const liked = (interest[team.id] || {})[entry.player.id] || 0;
@@ -160,9 +186,10 @@ function buildMockDraft(board, league, rng = Math.random, fixed = {}, opts = {})
     });
     const idx = available.indexOf(best);
     available.splice(idx, 1);
+    drafted.add(best);
     picks.push({
-      pick: i + 1,
-      round: i < 30 ? 1 : 2,
+      pick: pickNum,
+      round: pickNum <= 30 ? 1 : 2,
       team,
       player: best.player,
       boardRank: board.indexOf(best) + 1,

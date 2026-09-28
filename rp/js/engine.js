@@ -872,6 +872,31 @@ window.SimEngine = {
     connector:     { usage: 0.78, par: 0.95, oreb: 0.90, ast: 1.10, ftr: 1.00 }
   },
 
+  // The roster sheet's Strength 1 / Strength 2 / Weakness columns: a fixed
+  // dropdown vocabulary rather than free text, so a pick maps to exactly
+  // one deterministic tendency nudge (see buildPlaystyleProfile) instead of
+  // being fuzzy-matched. Values are matched case-insensitively, trimmed.
+  STRENGTH_TRAITS: {
+    'shooter': { threePar: 1.18, threePct: 1.10 },
+    'playmaker': { ast: 1.18 },
+    'rebounder': { reb: 1.15 },
+    'rim protector': { blk: 1.20 },
+    'lockdown defender': { stl: 1.16 },
+    'bucket getter': { score: 1.15 }
+  },
+  WEAKNESS_TRAITS: {
+    'streaky shooter': { threePct: 0.86, threePar: 0.90 },
+    'tunnel vision': { ast: 0.84 },
+    'poor free throw shooter': { ftPct: 0.82 }
+  },
+  // Clamp bounds for each tendency multiplier — shared by the free-text
+  // scouting-tag nudges above and the canonical dropdown nudges below.
+  PLAYSTYLE_BOUNDS: {
+    threePar: [0.35, 1.75], threePct: [0.80, 1.22], ast: [0.78, 1.28],
+    reb: [0.85, 1.14], blk: [0.80, 1.25], stl: [0.82, 1.22],
+    score: [0.82, 1.20], ftPct: [0.85, 1.15]
+  },
+
   classifyArchetype(text, pos) {
     const t = (text || '').toLowerCase();
     const p = String(pos || '').toUpperCase();
@@ -1023,9 +1048,32 @@ window.SimEngine = {
       if (has(weak, 'free throw')) nudge('ftPct', 0.92, 0.85, 1.15);
     }
 
-    // Statistics decide the archetype where they exist; text is the
-    // fallback for recruits without a stat line.
-    prof.archetype = this.archetypeFromStats(tier, pos) || this.classifyArchetype(tags, pos);
+    // The roster sheet's Strength 1 / Strength 2 / Weakness dropdowns:
+    // exact, unambiguous picks from a fixed vocabulary, applied on top of
+    // whatever the free text above already nudged.
+    const trait = v => String(v || '').trim().toLowerCase();
+    const s1 = trait(getVal(['strength1'], '')), s2 = trait(getVal(['strength2'], '')), wk = trait(getVal(['weakness'], ''));
+    if (s1 || s2 || wk) {
+      found = true;
+      const applyTrait = (map, key) => {
+        const effect = map[key];
+        if (!effect) return;
+        Object.keys(effect).forEach(k => {
+          const [lo, hi] = this.PLAYSTYLE_BOUNDS[k];
+          prof[k] = Math.max(lo, Math.min(hi, prof[k] * effect[k]));
+        });
+      };
+      applyTrait(this.STRENGTH_TRAITS, s1);
+      applyTrait(this.STRENGTH_TRAITS, s2);
+      applyTrait(this.WEAKNESS_TRAITS, wk);
+    }
+
+    // Statistics decide the archetype where they exist; text (including the
+    // dropdown picks, which double as archetype hints — "Bucket Getter",
+    // "Rim Protector" and "Lockdown Defender" all read straight through) is
+    // the fallback for recruits without a stat line.
+    const archetypeText = `${tags} ${s1} ${s2}`;
+    prof.archetype = this.archetypeFromStats(tier, pos) || this.classifyArchetype(archetypeText, pos);
 
     return found ? prof : null;
   },
@@ -1077,8 +1125,10 @@ window.SimEngine = {
         const sc = { scouting: cut(getVal(['scouting', 'scoutingreport', 'report'], '')), strengths: cut(getVal(['strengths'], '')), weaknesses: cut(getVal(['weaknesses'], '')) };
         return sc.scouting || sc.strengths || sc.weaknesses ? sc : null;
       })(),
-      // The roster sheet's FROM column holds either a hometown or a transfer
-      // note ("T - Ohio"); only the former is a hometown.
+      // A clean Hometown column is read as-is. Older sheets instead put a
+      // hometown OR a transfer note ("T - Ohio") in one FROM column, so
+      // that fallback still filters the note out rather than showing it
+      // as a hometown.
       hometown: (() => {
         const h = String(getVal(['hometown', 'home', 'from'], 'N/A'));
         return /^T\s*-/i.test(h) ? 'N/A' : h;
@@ -1089,12 +1139,19 @@ window.SimEngine = {
       jersey: String(getVal(['jersey', 'number', 'num', 'jerseynumber', 'uniform'], '')).replace(/[^0-9]/g, ''),
       // Optional authoring columns. None of these are displayed anywhere —
       // they exist purely so the sheet can steer the simulation directly.
-      //   Role        focal point / starter / sixth man / bench / depth
-      //   Attributes  free text tags, parsed like scouting strengths
-      //   Athleticism 0-100, feeds finishing, steals and rebounding
-      //   Potential   0-100, affects year-over-year development
+      //   Role         focal point / starter / sixth man / bench / depth
+      //   Strength 1/2 a dropdown pick from STRENGTH_TRAITS above
+      //   Weakness     a dropdown pick from WEAKNESS_TRAITS above
+      //   Attributes   legacy free-text tags, parsed like scouting strengths
+      //                (still read for older sheets; new ones use the
+      //                Strength/Weakness dropdowns instead)
+      //   Athleticism  0-100, feeds finishing, steals and rebounding
+      //   Potential    0-100, affects year-over-year development
       role: String(getVal(['role', 'playerrole', 'usage'], '')).trim().toLowerCase(),
       attributes: String(getVal(['attributes', 'attribute', 'traits', 'tags'], '')).trim(),
+      strength1: String(getVal(['strength1'], '')).trim(),
+      strength2: String(getVal(['strength2'], '')).trim(),
+      weakness: String(getVal(['weakness'], '')).trim(),
       athleticism: parseFloat(getVal(['athleticism', 'ath', 'athlete'], '')) || null,
       potential: parseFloat(getVal(['potential', 'pot', 'ceiling'], '')) || null,
       // National recruit ranking, used by the draft big board's pedigree term.
@@ -1107,8 +1164,9 @@ window.SimEngine = {
       // but the field exists so a transfer only has to append to it.
       collegeHistory: (() => {
         // Players who transferred before the simulation began carry their
-        // prior stop in a "Previous School" column.
-        const prev = getVal(['previousschool', 'prevschool', 'formerschool', 'transferfrom'], '');
+        // prior stop in a "Transferred From" column (or the legacy
+        // "Previous School").
+        const prev = getVal(['transferredfrom', 'previousschool', 'prevschool', 'formerschool', 'transferfrom'], '');
         return prev && prev !== school ? [prev, school] : [school];
       })(),
       playstyle: this.buildPlaystyleProfile(raw, getVal),
@@ -2968,19 +3026,45 @@ window.SimEngine = {
 
   // ---------- Scripted draft picks & the NBA side of the draft ----------
 
-  // The roster sheet's Draft column scripts where a player is taken:
-  // "2030 R:1 P:3" is the 2030 draft, round 1, third pick. Loose spacing
-  // and "Rd"/"Pick" spellings are accepted.
+  // The roster sheet's Draft column scripts a real-world outcome:
+  //   "2033 P1"   -- exact overall pick 1
+  //   "2033 T10"  -- somewhere in the top 10; the simulated board and
+  //                  team fit decide the exact slot within that range
+  // The legacy "2030 R:1 P:3" (round + pick-in-round) is still read.
   parseDraftSpec(v) {
     const s = String(v || '').trim();
     if (!s) return null;
     const year = (s.match(/(20\d{2})/) || [])[1];
-    const round = (s.match(/R(?:d|ound)?\s*[:#.]?\s*(\d)/i) || [])[1];
-    const pick = (s.match(/P(?:ick)?\s*[:#.]?\s*(\d{1,2})/i) || [])[1];
-    if (!year || !pick) return null;
-    const r = parseInt(round || '1', 10), p = parseInt(pick, 10);
-    if (p < 1 || p > 30 || r < 1 || r > 2) return null;
-    return { year: parseInt(year, 10), round: r, pick: p, overall: (r - 1) * 30 + p };
+    if (!year) return null;
+    const yr = parseInt(year, 10);
+
+    // Legacy: an explicit round marker means "round N, pick M within it".
+    const roundM = s.match(/\bR(?:d|ound)?\s*[:#.]?\s*(\d)\b/i);
+    if (roundM) {
+      const pickM = s.match(/\bP(?:ick)?\s*[:#.]?\s*(\d{1,2})\b/i);
+      if (!pickM) return null;
+      const r = parseInt(roundM[1], 10), p = parseInt(pickM[1], 10);
+      if (p < 1 || p > 30 || r < 1 || r > 2) return null;
+      return { year: yr, round: r, pick: p, overall: (r - 1) * 30 + p };
+    }
+
+    // "T10" / "Top 10": guaranteed inside the top N picks, exact slot left
+    // to the simulated draft.
+    const topM = s.match(/\bT(?:op)?\s*[:#.]?\s*(\d{1,2})\b/i);
+    if (topM) {
+      const range = parseInt(topM[1], 10);
+      if (range < 1 || range > 60) return null;
+      return { year: yr, range };
+    }
+
+    // "P1" / "Pick 1": exact overall pick.
+    const pickM = s.match(/\bP(?:ick)?\s*[:#.]?\s*(\d{1,2})\b/i);
+    if (pickM) {
+      const pick = parseInt(pickM[1], 10);
+      if (pick < 1 || pick > 60) return null;
+      return { year: yr, overall: pick, round: pick <= 30 ? 1 : 2, pick: pick <= 30 ? pick : pick - 30 };
+    }
+    return null;
   },
 
   // A player's scripted slot: from his own record, or (for saves made
