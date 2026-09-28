@@ -19,7 +19,7 @@ const keep = (name, snap) => { if (OUT) fs.writeFileSync(path.join(OUT, name + '
 (async () => {
   const roster = fs.readFileSync(path.join(FIX, 'roster.csv'), 'utf8');
   const recruits = fs.readFileSync(path.join(FIX, 'recruits.csv'), 'utf8');
-  const { Sim } = boot({ roster, recruits });
+  const { Sim, window: w } = boot({ roster, recruits });
   await Sim.init();
   await Sim.startNewGame();
   ok(Sim.state.year === 2028, `universe starts in 2028-29 (${Sim.state.year})`);
@@ -47,6 +47,38 @@ const keep = (name, snap) => { if (OUT) fs.writeFileSync(path.join(OUT, name + '
   const singleTrait = Sim.buildPlaystyleProfile({}, getVal({ strength1: 'Bucket Getter' }));
   ok(singleTrait.score > 1, '"Bucket Getter" nudges scoring usage up');
   ok(Sim.buildPlaystyleProfile({}, getVal({})) === null, 'no strength, weakness, tier or scouting text means no playstyle profile at all');
+
+  // Three strengths, two weaknesses, IQ / Physicals / Defense and friends.
+  const tr = Sim.readTraits(getVal({ strength1: 'IQ', strength2: 'physicals', strength3: 'Lockdown Defender', weakness1: 'Shot Blocking', weakness2: 'Rebounding' }));
+  ok(tr.strengths.join() === 'IQ,Physicals,Lockdown Defender' && tr.weaknesses.join() === 'Shot Blocking,Rebounding', 'all five trait slots are read, ignoring case');
+  ok(Sim.readTraits(getVal({ weakness: 'Tunnel Vision' })).weaknesses[0] === 'IQ', '"Tunnel Vision" is read as the IQ weakness');
+  ok(Sim.readTraits(getVal({ strength1: 'elite shooter, good defender' })).extraStrengthText.includes('elite shooter'), 'free text in a Strength cell is kept as a scouting note');
+  const bigProf = Sim.buildPlaystyleProfile({}, getVal({ weakness1: 'Shot Blocking', weakness2: 'Rebounding' }));
+  ok(bigProf.blk < 0.8 && bigProf.reb < 0.9, `a big who can't block or rebound really doesn't (blk x${bigProf.blk.toFixed(2)}, reb x${bigProf.reb.toFixed(2)})`);
+  const smart = Sim.traitEffects({ traits: { strengths: ['IQ'], weaknesses: [] } });
+  const careless = Sim.traitEffects({ traits: { strengths: [], weaknesses: ['IQ'] } });
+  ok(smart.tov < 1 && smart.pf < 1 && careless.tov > 1 && careless.pf > 1, 'IQ cuts turnovers and fouls; low IQ adds them');
+  ok(smart.impact > 0 && Sim.traitEffects({ traits: { strengths: [], weaknesses: ['Defense'] } }).impact < 0, 'IQ helps and bad defense hurts his team\'s rating');
+  ok(Sim.traitEffects({ traits: { strengths: ['Physicals'], weaknesses: [] } }).fta > 1, 'physical players get to the line more');
+
+  // Athleticism and Potential grades.
+  ok(Sim.parseGrade('a+') === 'A+' && Sim.parseGrade('B -') === 'B-' && Sim.parseGrade('F') === 'F' && Sim.parseGrade('E') === null && Sim.parseGrade('85') === null, 'letter grades are read');
+  const g = Sim.readGrades(getVal({ athleticism: 'A+', potential: 'B' }), 80);
+  ok(g.athleticism === 99 && g.potential === 89 && g.potentialGrade === 'B', `A+ athleticism is 99; B potential is 9 points of growth (${g.athleticism}, ${g.potential})`);
+  ok(Sim.readGrades(getVal({ athleticism: 'C+' }), 80).athleticism === 75, 'a C+ athlete is a typical D1 athlete (no effect)');
+  ok(Sim.readGrades(getVal({ athleticism: '85', potential: '92' }), 80).potential === 92, 'plain numbers still work');
+  ok(Sim.readGrades(getVal({ athleticism: '2030 R:1 P:1' }), 80).athleticism === null, 'a draft pick typed into Athleticism is ignored, not read as 2030');
+  const DCore = w.DraftCore;
+  const base = { rating: 84, class: 'SO', pos: 'SF', ht: "6'7", stats: {} };
+  ok(DCore.scoreProspect({ ...base, potentialGrade: 'A+' }).score - DCore.scoreProspect({ ...base, potentialGrade: 'C' }).score === 9,
+    'NBA teams draft upside: an A+ potential outranks a C by 9 board points');
+
+  // A one-season sheet with a leftover next-season row loads the player once.
+  const rows = [{ name: 'Al Two', class: 'SR', team: 'Alabama' }, { name: 'Al Two', class: 'GR', team: 'Alabama' },
+    { name: 'Lew Moves', class: 'JR', team: 'Arkansas' }, { name: 'Lew Moves', class: 'SO', team: 'Missouri' }, { name: 'Solo', class: 'FR', team: 'Duke' }];
+  const later = Sim.laterSeasonRows(rows);
+  ok(later.size === 2 && later.has(rows[1]) && later.has(rows[2]), 'with no Year column, only a player\'s earliest class year is loaded');
+  ok(Sim.laterSeasonRows([{ name: 'A', class: 'SO', year: '2029' }, { name: 'A', class: 'JR', year: '2030' }]).size === 0, 'sheets with a Year column are left to the season filter');
 
   const drew = Sim.state.activePlayers.find(p => p.name === 'DaRon Drew');
   ok(drew && !/^T\s*-/.test(drew.hometown || ''), 'FROM "T - Ohio" is a transfer note, not a hometown');

@@ -530,9 +530,10 @@ window.SimEngine = {
         // next year), which the offseason reads below.
         this.state.rawRosterRows = rawRosters;
         let skippedFutureSeasons = 0;
+        const laterSeason = this.laterSeasonRows(rawRosters);
         rawRosters.forEach(rawPlayer => {
           if (!this.rowHasPlayerName(rawPlayer)) return;
-          if (!this.rowBelongsToCurrentSeason(rawPlayer)) { skippedFutureSeasons++; return; }
+          if (!this.rowBelongsToCurrentSeason(rawPlayer) || laterSeason.has(rawPlayer)) { skippedFutureSeasons++; return; }
 
           // Recruit-vs-roster overlap is resolved later, in
           // filterActiveData()/mergeRecruitIntoPlayer, once the full
@@ -757,6 +758,29 @@ window.SimEngine = {
     return null;
   },
 
+  // A sheet with no season column is meant to hold one season. If a player
+  // still appears more than once (a later season's row left in), only his
+  // earliest class year is this season; the others are set aside so he
+  // isn't loaded twice.
+  laterSeasonRows(rows) {
+    const later = new Set();
+    if (rows.some(r => this.getRowSeasonYear(r) !== null)) return later;
+    const ORDER = { FR: 1, SO: 2, JR: 3, SR: 4, GR: 5 };
+    const byName = {};
+    rows.forEach(r => {
+      if (!this.rowHasPlayerName(r)) return;
+      const key = String(r.name || r.player || r.fullname).trim().toLowerCase();
+      (byName[key] = byName[key] || []).push(r);
+    });
+    Object.values(byName).forEach(list => {
+      if (list.length < 2) return;
+      const rank = r => ORDER[this.normalizeClassStanding(r.class || r.yr || r.classstanding)] || 3;
+      const keep = list.reduce((a, b) => (rank(b) < rank(a) ? b : a));
+      list.forEach(r => { if (r !== keep) later.add(r); });
+    });
+    return later;
+  },
+
   rowBelongsToCurrentSeason(raw) {
     const yr = this.getRowSeasonYear(raw);
     if (yr === null) return true;   // no season column — keep everything
@@ -872,29 +896,125 @@ window.SimEngine = {
     connector:     { usage: 0.78, par: 0.95, oreb: 0.90, ast: 1.10, ftr: 1.00 }
   },
 
-  // The roster sheet's Strength 1 / Strength 2 / Weakness columns: a fixed
-  // dropdown vocabulary rather than free text, so a pick maps to exactly
-  // one deterministic tendency nudge (see buildPlaystyleProfile) instead of
-  // being fuzzy-matched. Values are matched case-insensitively, trimmed.
+  // The roster sheet's Strength 1-3 and Weakness 1-2 columns: a fixed
+  // dropdown vocabulary, so each pick has one known effect instead of being
+  // fuzzy-matched. Cells are matched ignoring case, spaces and punctuation.
+  //   play    tendency multipliers (see buildPlaystyleProfile)
+  //   stat    adjustments to his projected line (buildBaseStatExpectations):
+  //           tov, pf and fta multiply; twoP is added to 2P%; dbpm is added
+  //   impact  rating points added to his part of the team rating, which is
+  //           what decides games. It's how a trait that barely shows in a
+  //           box score (IQ, physicality, defense) still wins or loses them.
   STRENGTH_TRAITS: {
-    'shooter': { threePar: 1.18, threePct: 1.10 },
-    'playmaker': { ast: 1.18 },
-    'rebounder': { reb: 1.15 },
-    'rim protector': { blk: 1.20 },
-    'lockdown defender': { stl: 1.16 },
-    'bucket getter': { score: 1.15 }
+    shooter:          { label: 'Shooter', play: { threePar: 1.18, threePct: 1.10 } },
+    playmaker:        { label: 'Playmaker', play: { ast: 1.18 } },
+    rebounder:        { label: 'Rebounder', play: { reb: 1.14 } },
+    rimprotector:     { label: 'Rim Protector', play: { blk: 1.20 }, stat: { dbpm: 0.8 }, impact: 0.6 },
+    lockdowndefender: { label: 'Lockdown Defender', play: { stl: 1.16 }, stat: { dbpm: 1.0 }, impact: 0.8 },
+    bucketgetter:     { label: 'Bucket Getter', play: { score: 1.15 } },
+    iq:               { label: 'IQ', stat: { tov: 0.72, pf: 0.82, twoP: 0.010 }, impact: 1.0 },
+    physicals:        { label: 'Physicals', play: { reb: 1.06 }, stat: { fta: 1.12, twoP: 0.012, dbpm: 0.5 }, impact: 0.6 }
   },
   WEAKNESS_TRAITS: {
-    'streaky shooter': { threePct: 0.86, threePar: 0.90 },
-    'tunnel vision': { ast: 0.84 },
-    'poor free throw shooter': { ftPct: 0.82 }
+    streakyshooter:       { label: 'Streaky Shooter', play: { threePct: 0.86, threePar: 0.90 } },
+    poorfreethrowshooter: { label: 'Poor Free Throw Shooter', play: { ftPct: 0.82 } },
+    defense:              { label: 'Defense', play: { stl: 0.85, blk: 0.90 }, stat: { dbpm: -1.5 }, impact: -1.2 },
+    shotblocking:         { label: 'Shot Blocking', play: { blk: 0.68 } },
+    rebounding:           { label: 'Rebounding', play: { reb: 0.84 } },
+    iq:                   { label: 'IQ', play: { ast: 0.88, threePct: 0.96 }, stat: { tov: 1.30, pf: 1.12, twoP: -0.015 }, impact: -1.0 }
+  },
+  // Other spellings people reach for. "Tunnel Vision" was the old name for
+  // the IQ weakness.
+  TRAIT_ALIASES: {
+    tunnelvision: 'iq', basketballiq: 'iq', highiq: 'iq', lowiq: 'iq',
+    physical: 'physicals', physicality: 'physicals', strength: 'physicals',
+    poorfreethrow: 'poorfreethrowshooter', freethrows: 'poorfreethrowshooter', freethrowshooting: 'poorfreethrowshooter',
+    poordefense: 'defense', baddefense: 'defense', defender: 'defense',
+    rimprotection: 'rimprotector', shotblocker: 'shotblocking', rebounder: 'rebounder'
   },
   // Clamp bounds for each tendency multiplier — shared by the free-text
-  // scouting-tag nudges above and the canonical dropdown nudges below.
+  // scouting-tag nudges, the dropdown traits and the stat projection.
   PLAYSTYLE_BOUNDS: {
     threePar: [0.35, 1.75], threePct: [0.80, 1.22], ast: [0.78, 1.28],
-    reb: [0.85, 1.14], blk: [0.80, 1.25], stl: [0.82, 1.22],
-    score: [0.82, 1.20], ftPct: [0.85, 1.15]
+    reb: [0.80, 1.14], blk: [0.65, 1.25], stl: [0.78, 1.22],
+    score: [0.82, 1.20], ftPct: [0.80, 1.15]
+  },
+
+  // Athleticism and Potential are letter grades, graded the way an NBA
+  // scout would grade a prospect: B is a typical draftable player.
+  GRADE_STEPS: ['F', 'D-', 'D', 'D+', 'C-', 'C', 'C+', 'B-', 'B', 'B+', 'A-', 'A', 'A+'],
+  // Rating points a player can still grow by, per Potential grade.
+  POTENTIAL_HEADROOM: [0, 1, 2, 3, 4, 5, 6, 7, 9, 11, 13, 15, 18],
+
+  // "A+", "b-", "C" -> the grade as written in GRADE_STEPS, or null.
+  parseGrade(v) {
+    const m = String(v || '').trim().toUpperCase().match(/^([A-DF])\s*([+-])?$/);
+    if (!m) return null;
+    const g = m[1] + (m[2] || '');
+    if (this.GRADE_STEPS.includes(g)) return g;
+    return m[1] === 'F' ? 'F' : null;
+  },
+
+  // Athleticism: a C+ is a typical D1 athlete (75, no effect) and each step
+  // is about four points, from F (50) to A+ (99). Potential: his rating
+  // ceiling is his current rating plus the grade's headroom. A plain number
+  // in either column still works the way it always did.
+  readGrades(getVal, rating) {
+    const athRaw = getVal(['athleticism', 'ath', 'athlete'], '');
+    const potRaw = getVal(['potential', 'pot', 'ceiling'], '');
+    const athGrade = this.parseGrade(athRaw), potGrade = this.parseGrade(potRaw);
+    // A plain number only counts if it's on the 0-100 scale; anything else
+    // (a draft pick typed into the wrong column, say) is ignored.
+    const plain = v => { const n = Number(String(v).trim()); return n > 0 && n <= 100 ? n : null; };
+    const athleticism = athGrade
+      ? Math.round(50 + this.GRADE_STEPS.indexOf(athGrade) * 49 / 12)
+      : plain(athRaw);
+    const potential = potGrade
+      ? Math.min(99, Math.round((parseFloat(rating) || 70) + this.POTENTIAL_HEADROOM[this.GRADE_STEPS.indexOf(potGrade)]))
+      : plain(potRaw);
+    return { athleticism, potential, athleticismGrade: athGrade, potentialGrade: potGrade };
+  },
+
+  traitKey(v) {
+    const k = String(v || '').toLowerCase().replace(/[^a-z]/g, '');
+    return this.TRAIT_ALIASES[k] || k;
+  },
+
+  // Reads the Strength 1-3 / Weakness 1-2 cells. Anything that isn't in the
+  // vocabulary is handed back as free text so it can still be read like a
+  // scouting note rather than thrown away.
+  readTraits(getVal) {
+    const out = { strengths: [], weaknesses: [], extraStrengthText: '', extraWeakText: '' };
+    const take = (keys, map, list, extraKey) => {
+      keys.forEach(k => {
+        const raw = String(getVal([k], '') || '').trim();
+        if (!raw) return;
+        const t = map[this.traitKey(raw)];
+        if (t) { if (!list.includes(t.label)) list.push(t.label); }
+        else out[extraKey] += ' ' + raw;
+      });
+    };
+    take(['strength1', 'strength2', 'strength3', 'strength'], this.STRENGTH_TRAITS, out.strengths, 'extraStrengthText');
+    take(['weakness1', 'weakness2', 'weakness'], this.WEAKNESS_TRAITS, out.weaknesses, 'extraWeakText');
+    return out;
+  },
+
+  // Everything a player's traits do outside the playstyle multipliers.
+  traitEffects(player) {
+    const e = { tov: 1, pf: 1, fta: 1, twoP: 0, dbpm: 0, impact: 0 };
+    const tr = player && player.traits;
+    if (!tr) return e;
+    const add = (t) => {
+      if (!t) return;
+      const s = t.stat || {};
+      ['tov', 'pf', 'fta'].forEach(k => { if (s[k]) e[k] *= s[k]; });
+      e.twoP += s.twoP || 0;
+      e.dbpm += s.dbpm || 0;
+      e.impact += t.impact || 0;
+    };
+    (tr.strengths || []).forEach(l => add(this.STRENGTH_TRAITS[this.traitKey(l)]));
+    (tr.weaknesses || []).forEach(l => add(this.WEAKNESS_TRAITS[this.traitKey(l)]));
+    return e;
   },
 
   classifyArchetype(text, pos) {
@@ -1028,13 +1148,17 @@ window.SimEngine = {
       prof.ftPct = ratio(tier.ft, 72, 0.85, 1.15);
     }
 
+    // The Strength / Weakness dropdowns. A cell that isn't one of the
+    // listed traits is read below as a scouting note instead.
+    const traits = this.readTraits(getVal);
+
     // Scouting text still contributes, but only where the numbers are
     // silent — it's a description of a player, not a measurement of him.
-    const tags = (getVal(['strengths'], '') + ' ' + getVal(['scouting'], '') + ' ' + getVal(['attributes'], '')).toLowerCase();
-    const weak = getVal(['weaknesses'], '').toLowerCase();
+    const tags = (getVal(['strengths'], '') + ' ' + getVal(['scouting'], '') + ' ' + getVal(['attributes'], '') + ' ' + traits.extraStrengthText).toLowerCase();
+    const weak = (getVal(['weaknesses'], '') + ' ' + traits.extraWeakText).toLowerCase();
     const has = (txt, ...words) => words.some(w => txt.includes(w));
 
-    if (tags.trim()) {
+    if (tags.trim() || weak.trim()) {
       found = true;
       const nudge = (key, mult, lo, hi) => { prof[key] = Math.max(lo, Math.min(hi, prof[key] * mult)); };
       if (has(tags, 'shoot', 'shooter', 'stroke', 'range', 'spacing')) { nudge('threePar', 1.12, 0.35, 1.75); nudge('threePct', 1.05, 0.80, 1.22); }
@@ -1048,31 +1172,22 @@ window.SimEngine = {
       if (has(weak, 'free throw')) nudge('ftPct', 0.92, 0.85, 1.15);
     }
 
-    // The roster sheet's Strength 1 / Strength 2 / Weakness dropdowns:
-    // exact, unambiguous picks from a fixed vocabulary, applied on top of
-    // whatever the free text above already nudged.
-    const trait = v => String(v || '').trim().toLowerCase();
-    const s1 = trait(getVal(['strength1'], '')), s2 = trait(getVal(['strength2'], '')), wk = trait(getVal(['weakness'], ''));
-    if (s1 || s2 || wk) {
+    // Dropdown picks are exact, so they apply on top of any free text.
+    if (traits.strengths.length || traits.weaknesses.length) {
       found = true;
-      const applyTrait = (map, key) => {
-        const effect = map[key];
-        if (!effect) return;
-        Object.keys(effect).forEach(k => {
-          const [lo, hi] = this.PLAYSTYLE_BOUNDS[k];
-          prof[k] = Math.max(lo, Math.min(hi, prof[k] * effect[k]));
-        });
-      };
-      applyTrait(this.STRENGTH_TRAITS, s1);
-      applyTrait(this.STRENGTH_TRAITS, s2);
-      applyTrait(this.WEAKNESS_TRAITS, wk);
+      const apply = t => Object.keys((t && t.play) || {}).forEach(k => {
+        const [lo, hi] = this.PLAYSTYLE_BOUNDS[k];
+        prof[k] = Math.max(lo, Math.min(hi, prof[k] * t.play[k]));
+      });
+      traits.strengths.forEach(l => apply(this.STRENGTH_TRAITS[this.traitKey(l)]));
+      traits.weaknesses.forEach(l => apply(this.WEAKNESS_TRAITS[this.traitKey(l)]));
     }
 
-    // Statistics decide the archetype where they exist; text (including the
-    // dropdown picks, which double as archetype hints — "Bucket Getter",
-    // "Rim Protector" and "Lockdown Defender" all read straight through) is
-    // the fallback for recruits without a stat line.
-    const archetypeText = `${tags} ${s1} ${s2}`;
+    // Statistics decide the archetype where they exist; text is the
+    // fallback for recruits without a stat line. The strength picks count
+    // as text here: "Bucket Getter", "Rim Protector" and "Lockdown
+    // Defender" read straight through as archetype hints.
+    const archetypeText = `${tags} ${traits.strengths.join(' ').toLowerCase()}`;
     prof.archetype = this.archetypeFromStats(tier, pos) || this.classifyArchetype(archetypeText, pos);
 
     return found ? prof : null;
@@ -1139,21 +1254,21 @@ window.SimEngine = {
       jersey: String(getVal(['jersey', 'number', 'num', 'jerseynumber', 'uniform'], '')).replace(/[^0-9]/g, ''),
       // Optional authoring columns. None of these are displayed anywhere —
       // they exist purely so the sheet can steer the simulation directly.
-      //   Role         focal point / starter / sixth man / bench / depth
-      //   Strength 1/2 a dropdown pick from STRENGTH_TRAITS above
-      //   Weakness     a dropdown pick from WEAKNESS_TRAITS above
-      //   Attributes   legacy free-text tags, parsed like scouting strengths
-      //                (still read for older sheets; new ones use the
-      //                Strength/Weakness dropdowns instead)
-      //   Athleticism  0-100, feeds finishing, steals and rebounding
-      //   Potential    0-100, affects year-over-year development
+      //   Role           focal point / starter / sixth man / rotation / bench
+      //   Strength 1-3   dropdown picks from STRENGTH_TRAITS above
+      //   Weakness 1-2   dropdown picks from WEAKNESS_TRAITS above
+      //   Attributes     legacy free-text tags, parsed like scouting strengths
+      //   Athleticism    letter grade (or legacy 0-100): finishing, steals,
+      //                  rebounding and combine testing
+      //   Potential      letter grade (or legacy rating ceiling): how far he
+      //                  can develop, and how NBA teams value his upside
       role: String(getVal(['role', 'playerrole', 'usage'], '')).trim().toLowerCase(),
       attributes: String(getVal(['attributes', 'attribute', 'traits', 'tags'], '')).trim(),
-      strength1: String(getVal(['strength1'], '')).trim(),
-      strength2: String(getVal(['strength2'], '')).trim(),
-      weakness: String(getVal(['weakness'], '')).trim(),
-      athleticism: parseFloat(getVal(['athleticism', 'ath', 'athlete'], '')) || null,
-      potential: parseFloat(getVal(['potential', 'pot', 'ceiling'], '')) || null,
+      traits: (() => {
+        const t = this.readTraits(getVal);
+        return t.strengths.length || t.weaknesses.length ? { strengths: t.strengths, weaknesses: t.weaknesses } : null;
+      })(),
+      ...this.readGrades(getVal, rating),
       // National recruit ranking, used by the draft big board's pedigree term.
       rsci: parseFloat(getVal(['rsci', 'rank', 'nationalrank', 'ranking'], '')) || null,
       stars: parseFloat(getVal(['stars', 'star'], '')) || null,
@@ -1889,7 +2004,9 @@ window.SimEngine = {
       // inflated every counting stat through usageScale. A gentler decay
       // spreads 200 minutes across a believable 9-10 man rotation.
       const top8 = roster.slice(0, 8);
-      const teamOvr = top8.reduce((sum, p) => sum + parseFloat(p.rating), 0) / Math.max(1, Math.min(8, top8.length));
+      // Traits like IQ and defense are worth a little more (or less) than
+      // the rating says, and that's what decides games.
+      const teamOvr = top8.reduce((sum, p) => sum + parseFloat(p.rating) + this.traitEffects(p).impact, 0) / Math.max(1, Math.min(8, top8.length));
       const winPct = Math.min(0.94, Math.max(0.06, 0.50 + (teamOvr - 78) * 0.038));
 
       team.expectedWinPct = winPct;
@@ -2447,11 +2564,14 @@ window.SimEngine = {
       // than amplification, which is why imported classes used to look
       // unrealistic while later, generated-heavy years read fine.
       const lim = (v, lo, hi) => Math.max(lo, Math.min(hi, v || 1));
-      ppg *= lim(ps.score, 0.82, 1.20);
-      rpg *= lim(ps.reb, 0.85, 1.14);
-      apg *= lim(ps.ast, 0.78, 1.28);
-      stl *= lim(ps.stl, 0.82, 1.22);
-      blk *= lim(ps.blk, 0.80, 1.25);
+      // Same bounds the playstyle itself is built within, so a scouted
+      // weakness (a big who can't block shots) isn't clamped back to normal.
+      const B = this.PLAYSTYLE_BOUNDS;
+      ppg *= lim(ps.score, ...B.score);
+      rpg *= lim(ps.reb, ...B.reb);
+      apg *= lim(ps.ast, ...B.ast);
+      stl *= lim(ps.stl, ...B.stl);
+      blk *= lim(ps.blk, ...B.blk);
     }
 
     // A genuine focal point creates for others as well as scoring. When a
@@ -2483,6 +2603,17 @@ window.SimEngine = {
       blk *= coach.blocks;
       tov *= coach.turnovers;
     }
+
+    // Strength / Weakness picks that act on the rest of his line: IQ means
+    // fewer turnovers and fouls and better shots, physicality earns free
+    // throws and finishes through contact, and defense moves his DBPM.
+    const tr = this.traitEffects(player);
+    tov = Math.max(0.2, tov * tr.tov);
+    pf = Math.min(3.8, Math.max(0.4, pf * tr.pf));
+    fta = Math.max(0.2, fta * tr.fta);
+    twoPPct = Math.min(0.72, Math.max(0.38, twoPPct + tr.twoP));
+    dbpm += tr.dbpm;
+    bpm += tr.dbpm;
 
     let ortg = 95 + (obpm * 3.2);
     let drtg = 105 - (dbpm * 3.2);
@@ -6949,6 +7080,9 @@ window.SimEngine = {
       stats: this.slimStats(p.stats), draft: p.draft || null,
       predraft: p.predraft && p.predraft.year === this.upcomingDraftYear() ? p.predraft : null,
       bigGameStock: p.bigGameStock || 0, bigGames: (p.bigGames || []).slice(-6),
+      // So the Draft RP's board weighs upside the same way this one does.
+      potentialGrade: p.potentialGrade || null,
+      traits: p.traits || null,
       // The sheet's Draft column, so the Draft RP's mock agrees with draft night.
       scriptedDraft: this.scriptedDraftFor(p) || null
     };

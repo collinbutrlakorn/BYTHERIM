@@ -84,9 +84,13 @@
   // Attributes column plus the recruiting database's report.
   function scoutText(p) {
     const s = p.scout || {};
-    return [p.attributes, s.scouting, s.strengths, s.weaknesses].filter(Boolean).join(' | ').toLowerCase();
+    const picks = (p.traits && p.traits.strengths) || [];
+    return [p.attributes, s.scouting, s.strengths, s.weaknesses, ...picks].filter(Boolean).join(' | ').toLowerCase();
   }
-  function weakText(p) { return String((p.scout || {}).weaknesses || '').toLowerCase(); }
+  function weakText(p) {
+    const picks = (p.traits && p.traits.weaknesses) || [];
+    return [(p.scout || {}).weaknesses, ...picks].filter(Boolean).join(' | ').toLowerCase();
+  }
   function has(text, ...words) { return words.some(w => text.includes(w)); }
 
   // ---------- the athlete ----------
@@ -102,7 +106,10 @@
     const arche = (p.playstyle && p.playstyle.archetype) || '';
     const noise = k => (hash01(`${p.id}|${k}`) - 0.5) * 16;
 
-    const base = p.athleticism ? clamp(num(p.athleticism), 30, 99)
+    // The sheet grades athleticism against D1 players (C+ = 75 = typical);
+    // combine numbers are graded against draft prospects, where the
+    // typical tester sits nearer 58.
+    const base = p.athleticism ? clamp(58 + (num(p.athleticism) - 75) * 1.1, 30, 99)
       : 56 + ({ slasher: 11, rollBig: 8, defender: 8, primaryScorer: 4, playmaker: 2, connector: 0, shooter: -4, postHub: -7 }[arche] || 0)
            + (num(p.rating, 72) - 75) * 0.35;
 

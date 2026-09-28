@@ -33,6 +33,12 @@ function parseHeightInches(ht) {
   return isNaN(n) ? null : n;
 }
 
+// The roster sheet's Potential grade, read the way NBA teams read upside:
+// they draft the ceiling. B is a typical draftable prospect. It never
+// decays with evidence — a great season doesn't change how high a player
+// can go, only whether he's getting there.
+const POTENTIAL_UPSIDE = { 'A+': 7, A: 5.5, 'A-': 4, 'B+': 2.5, B: 1, 'B-': 0, 'C+': -1, C: -2, 'C-': -3, 'D+': -4, D: -4.5, 'D-': -5, F: -6 };
+
 function num(v, fallback = 0) {
   const n = parseFloat(v);
   return isNaN(n) ? fallback : n;
@@ -136,8 +142,9 @@ function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
   // against the player's own standard (see noteBigGame in the engine).
   // Reset every season.
   const bigGames = num(player.bigGameStock);
+  const upside = POTENTIAL_UPSIDE[player.potentialGrade] || 0;
 
-  return { score: score + stock + bigGames, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree, level, stock, bigGames };
+  return { score: score + stock + bigGames + upside, upside, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree, level, stock, bigGames };
 }
 
 // Ranks a list of players. `winPctFor` maps a school name to that team's
