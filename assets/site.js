@@ -295,6 +295,7 @@
       <a href="${BASE}rp/" class="nav-rp${active === 'rp' ? ' active" aria-current="page' : ''}">BYTHERIM RP</a>
     </nav>
     <div class="header-tools">
+      ${active === 'rp' ? '<div id="accountSlot" class="account-slot"></div>' : ''}
       <button class="icon-btn" type="button" data-action="theme" aria-label="Switch between light and dark" title="Light / dark">${icon('theme')}</button>
       <button class="icon-btn nav-toggle" type="button" data-action="menu" aria-label="Open menu" aria-expanded="false" aria-controls="siteNav">
         <span></span><span></span><span></span>

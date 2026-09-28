@@ -81,6 +81,7 @@ window.SimEngine = {
   },
 
   async init() {
+    if (typeof Cloud !== 'undefined') Cloud.onChange(u => { this.renderCloudMenu(); if (u && this.state.teams.length) this.offerCloudSave(); });
     await this.setupHomeScreen();
   },
 
@@ -289,6 +290,7 @@ window.SimEngine = {
   },
 
   async saveStateToDB() {
+    this.scheduleCloudSync();
     if (typeof db === 'undefined' || !db.leagueState) return;
     // During the offseason the Draft RP may have written to this save.
     if (this.state.ncaaDone) await this.syncDraftFromDB();
@@ -1988,6 +1990,7 @@ window.SimEngine = {
       oreb: t1(totals.oreb), dreb: t1(totals.dreb), rpg: t1(totals.reb), apg: t1(totals.ast),
       stl: t1(totals.stl), blk: t1(totals.blk), tov: t1(totals.tov), pf: t1(totals.pf),
       fgm: t1(totals.fgm), fga: t1(totals.fga), fgPct: t3(totals.fgm, totals.fga),
+      twoPm: t1(totals.fgm - totals.threePm), twoPa: t1(totals.fga - totals.threePa), twoPPct: t3(totals.fgm - totals.threePm, totals.fga - totals.threePa),
       threePm: t1(totals.threePm), threePa: t1(totals.threePa), threePPct: t3(totals.threePm, totals.threePa),
       ftm: t1(totals.ftm), fta: t1(totals.fta), ftPct: t3(totals.ftm, totals.fta),
       eFgPct: totals.fga > 0 ? t3(totals.fgm + 0.5 * totals.threePm, totals.fga) : '.000',
@@ -2019,7 +2022,7 @@ window.SimEngine = {
     // Stats where a LOWER value is better get ranked ascending.
     const lowerIsBetter = new Set(['oppPpg', 'tov', 'pf', 'drtg']);
     const rankable = ['ppg','oppPpg','diff','oreb','dreb','rpg','apg','stl','blk','tov','pf',
-                      'fgm','fga','fgPct','threePm','threePa','threePPct','ftm','fta','ftPct',
+                      'fgm','fga','fgPct','twoPm','twoPa','twoPPct','threePm','threePa','threePPct','ftm','fta','ftPct',
                       'eFgPct','tsPct','astToRatio','threePar','ftr','pace','ortg','drtg','netRtg'];
 
     rankable.forEach(key => {
@@ -2597,6 +2600,11 @@ window.SimEngine = {
     if (coach) {
       threePar = Math.max(0.05, Math.min(0.88, threePar * coach.threePar));
     }
+    // However a player is profiled, some shot mixes don't happen: a point
+    // or combo guard who has to run the offense never takes 60% of his
+    // shots from three, and a centre stays near the rim.
+    const PAR_CEILING = { PG: 0.54, CG: 0.54, G: 0.55, SG: 0.6, W: 0.6, 'G/F': 0.6, SF: 0.6, F: 0.52, PF: 0.5, 'F/C': 0.4, C: 0.36 };
+    threePar = Math.min(threePar, PAR_CEILING[pos] !== undefined ? PAR_CEILING[pos] : 0.6);
     // Small forwards and wings shoot like perimeter players, even though
     // they count as "big" for rebounding above.
     const interiorShooter = ['PF', 'C', 'F/C'].includes(pos) || (isBig && !['SF', 'F', 'W', 'G/F'].includes(pos));
@@ -5349,7 +5357,7 @@ window.SimEngine = {
     const body = document.getElementById('playerPageBody');
     if (!overlay || !body) return;
 
-    body.innerHTML = this.renderPlayerPage(player);
+    body.innerHTML = this.isUpcomingRecruit(player) ? this.renderRecruitCard(player) : this.renderPlayerPage(player);
     overlay.style.display = 'block';
     if (typeof Cutscene !== 'undefined' && !this.reducedMotion()) Cutscene.countUp(body);
     document.body.classList.add('player-page-open');
@@ -5377,7 +5385,7 @@ window.SimEngine = {
          ['p40threePa','3PA'],['p40fta','FTA']]
       : [['gp','GP'],['gs','GS'],['mpg','MPG'],['ppg','PPG'],['oreb','OREB'],['dreb','DREB'],['rpg','RPG'],
          ['apg','APG'],['stl','SPG'],['blk','BPG'],['tov','TOV'],['pf','PF'],['fgm','FGM'],['fga','FGA'],
-         ['fgPct','FG%'],['threePm','3PM'],['threePa','3PA'],['threePPct','3P%'],['ftm','FTM'],['fta','FTA'],['ftPct','FT%']];
+         ['fgPct','FG%'],['twoPm','2P'],['twoPa','2PA'],['twoPPct','2P%'],['threePm','3PM'],['threePa','3PA'],['threePPct','3P%'],['ftm','FTM'],['fta','FTA'],['ftPct','FT%']];
 
     const head = `<tr><th>Season</th><th>School</th><th>Class</th>${cols.map(c => `<th>${c[1]}</th>`).join('')}</tr>`;
     const body = rowsData.map(r => {
@@ -5657,7 +5665,10 @@ window.SimEngine = {
         if (played) {
           foot = `<span class="sb-status">Final</span><button type="button" class="sb-link game-link" onclick="${this.openGameJs(g.home, g.away, g.week, phase)}" title="Box score and play-by-play">Box score &rsaquo;</button>`;
         } else if (g.week === upcoming) {
-          foot = `<span class="sb-status">Up next</span><button type="button" class="watch-btn" onclick="${this.watchGameJs(g.home, g.away, g.week, phase)}">&#9654; Watch live</button>`;
+          const ref = { home: g.home, away: g.away, week: g.week, phase };
+          foot = `<span class="sb-status">${this.tipLabel(ref)}</span><span class="sb-watch">${this.watchListBtn(g.home, g.away, g.week, phase)}<button type="button" class="watch-btn" onclick="${this.watchGameJs(g.home, g.away, g.week, phase)}">&#9654; Watch live</button></span>`;
+        } else {
+          foot = `<span class="sb-status">${g.isConf ? 'Conference' : 'Non-conference'} · ${this.tipLabel({ home: g.home, away: g.away, week: g.week, phase })}</span>`;
         }
         gamesHtml += `
           <div class="schedule-pill sb-card${played ? ' final' : ''}">
@@ -6650,11 +6661,14 @@ window.SimEngine = {
   isGamePlayed(ref) { return !!this.resolveGameRef(ref); },
 
   // Other results from the same slate, revealed during the broadcast.
-  slateTicker(watched, slate) {
+  slateTicker(watched, slate, watching = []) {
     const res = [];
+    const myTip = this.tipMinutes(watched);
     const rng = typeof LiveCore !== 'undefined' ? LiveCore.rngFrom(this.gameKey(watched) + '|ticker') : Math.random;
     const rankOf = sc => { const t = this.findTeam(sc); return t ? this.pollRankOf(t) : null; };
-    const ranked = slate.filter(r => !(r.home === watched.home && r.away === watched.away) && !(r.home === watched.away && r.away === watched.home));
+    // Only games that would have finished by some point in this broadcast,
+    // and never one still on the watch list.
+    const ranked = slate.filter(r => !this.sameGame(r, watched) && !watching.some(w => this.sameGame(w, r)) && this.tipMinutes(r) - myTip <= 20);
     const scored = ranked.map(r => ({ r, w: (rankOf(r.home) ? 30 - rankOf(r.home) : 0) + (rankOf(r.away) ? 30 - rankOf(r.away) : 0) }))
       .filter(x => watched.phase === 'ncaa' || x.w > 0).sort((a, b) => b.w - a.w).slice(0, 12);
     scored.forEach(({ r }) => {
@@ -6668,37 +6682,140 @@ window.SimEngine = {
         homeScore: lines[0].teamScore, awayScore: lines[0].oppScore,
         homeRank: ref.phase === 'ncaa' ? (seeds[ref.home] || {}).seed : rankOf(ref.home),
         awayRank: ref.phase === 'ncaa' ? (seeds[ref.away] || {}).seed : rankOf(ref.away),
-        at: 0.3 + rng() * 0.75
+        // A game that tipped earlier ends earlier in this one: a two-hour
+        // window, so one that started an hour before is final at halftime.
+        at: Math.max(0.02, Math.min(1.05, 1 + (this.tipMinutes(r) - myTip) / 120 + (rng() - 0.5) * 0.1))
       });
     });
     return res;
   },
 
-  async watchGame(ref) {
-    if (typeof GameCenter === 'undefined' || this._watching) return;
-    if (this.isGamePlayed(ref)) return this.openGame(ref);
+  // ---------- Tip times ----------
+  //
+  // Hours behind Eastern for each school: a conference default, then the
+  // schools that sit in a different zone from the rest of their league.
+  TZ_CONF: { 'A-10': 0, ACC: 0, ASUN: 0, 'America East': 0, American: 1, 'Big 12': 1, 'Big East': 0, 'Big Sky': 2, 'Big South': 0,
+    'Big Ten': 0, 'Big West': 3, CAA: 0, 'Conference USA': 1, 'Horizon League': 0, 'Ivy League': 0, MAAC: 0, MAC: 0, MEAC: 0,
+    'Missouri Valley': 1, 'Mountain West': 2, NEC: 0, 'Ohio Valley': 1, 'Pac-12': 3, 'Patriot League': 0, SEC: 1, SWAC: 1,
+    Southern: 0, Southland: 1, 'Sun Belt': 0, 'The Summit': 1, UAC: 1, 'West Coast': 3 },
+  TZ_SCHOOL: { 'Loyola Chicago': 1, 'Saint Louis': 1, Cal: 3, Stanford: 3, SMU: 1, Lipscomb: 1, 'West Florida': 1,
+    Charlotte: 0, 'East Carolina': 0, 'Florida Atlantic': 0, 'South Florida': 0, Temple: 0,
+    Arizona: 2, 'Arizona State': 2, BYU: 2, Colorado: 2, Utah: 2, UCF: 0, Cincinnati: 0, 'West Virginia': 0,
+    Creighton: 1, DePaul: 1, Marquette: 1, 'Eastern Washington': 3, Idaho: 3, 'Portland State': 3,
+    Illinois: 1, Iowa: 1, Minnesota: 1, Nebraska: 1, Northwestern: 1, Wisconsin: 1, UCLA: 3, USC: 3, Oregon: 3, Washington: 3,
+    'Utah Valley': 2, Delaware: 0, FIU: 0, 'Kennesaw State': 0, Liberty: 0, 'New Mexico State': 2,
+    Milwaukee: 1, 'Green Bay': 1, 'Northern Illinois': 1, 'Indiana State': 0,
+    Hawaii: 5, Nevada: 3, 'San Jose State': 3, 'UC Davis': 3, UNLV: 3, 'Grand Canyon': 2, UTEP: 2, 'Chicago State': 1,
+    'Morehead State': 0, 'Boise State': 2, 'Colorado State': 2, 'Utah State': 2, 'Texas State': 1, Samford: 1,
+    'Arkansas State': 1, Louisiana: 1, 'Louisiana-Monroe': 1, 'Louisiana Tech': 1, 'South Alabama': 1, 'Southern Miss': 1, Troy: 1,
+    'Eastern Kentucky': 0, 'West Georgia': 0, Denver: 2 },
+  tzOf(school) {
+    if (this.TZ_SCHOOL[school] !== undefined) return this.TZ_SCHOOL[school];
+    const t = this.findTeam(school);
+    return t && this.TZ_CONF[t.conference] !== undefined ? this.TZ_CONF[t.conference] : 0;
+  },
+  // Minutes after midnight Eastern. Most games tip in the evening where
+  // they're played, so the East goes first and the West Coast last; some
+  // are weekend afternoon games. Tournament games run in sessions.
+  tipMinutes(ref) {
+    const key = `${ref.home}|${ref.away}|${ref.week}|${ref.phase}|${this.state.year}`;
+    const rng = typeof HSCore !== 'undefined' ? HSCore.rngFor(key + '|tip') : Math.random;
+    if (ref.phase === 'ncaa' || ref.phase === 'conftourney') {
+      const sessions = [12 * 60 + 15, 14 * 60 + 45, 16 * 60 + 30, 19 * 60 + 10, 21 * 60 + 40];
+      return sessions[Math.floor(rng() * sessions.length)];
+    }
+    const roll = rng();
+    const local = roll < 0.2 ? [12, 14, 16][Math.floor(rng() * 3)] * 60 : 19 * 60 + [0, 0, 30, -30][Math.floor(rng() * 4)];
+    return local + this.tzOf(ref.home) * 60;
+  },
+  tipLabel(ref) {
+    const m = this.tipMinutes(ref) % (24 * 60);
+    const h = Math.floor(m / 60), mm = String(m % 60).padStart(2, '0');
+    return `${((h + 11) % 12) + 1}:${mm} ${h < 12 ? 'AM' : 'PM'} ET`;
+  },
+  sameGame(a, b) {
+    return a && b && a.week === b.week && (a.phase || '') === (b.phase || '') &&
+      ((a.home === b.home && a.away === b.away) || (a.home === b.away && a.away === b.home));
+  },
+
+  // ---------- Watching more than one game ----------
+  inWatchList(ref) { return (this._watchQueue || []).some(r => this.sameGame(r, ref)); },
+  toggleWatchList(ref) {
+    const q = this._watchQueue || (this._watchQueue = []);
+    const i = q.findIndex(r => this.sameGame(r, ref));
+    if (i >= 0) q.splice(i, 1); else q.push(ref);
+    this.renderWatchBar();
+    if (document.getElementById('scheduleContainer')) this.updateScheduleTab && this.updateScheduleTab();
+    this.renderDashWatch && this.renderDashWatch();
+  },
+  watchListJs(home, away, week, phase) { return `SimEngine.toggleWatchList({home:'${this.jsArg(home)}',away:'${this.jsArg(away)}',week:${week},phase:'${phase}'})`; },
+  watchListBtn(home, away, week, phase) {
+    const on = this.inWatchList({ home, away, week, phase });
+    return `<button type="button" class="watch-add${on ? ' on' : ''}" onclick="event.stopPropagation();${this.watchListJs(home, away, week, phase)}" title="${on ? 'Remove from' : 'Add to'} your watch list" aria-label="${on ? 'Remove from' : 'Add to'} watch list">${on ? '✓' : '＋'}</button>`;
+  },
+  renderWatchBar() {
+    if (typeof document === 'undefined' || !document.body) return;
+    let bar = document.getElementById('watchBar');
+    const q = (this._watchQueue || []).filter(r => this.upcomingSlate().some(x => this.sameGame(x, r)));
+    this._watchQueue = q;
+    if (!q.length) { if (bar) bar.remove(); return; }
+    if (!bar) { bar = document.createElement('div'); bar.id = 'watchBar'; bar.className = 'watch-bar'; document.body.appendChild(bar); }
+    const sorted = q.slice().sort((a, b) => this.tipMinutes(a) - this.tipMinutes(b));
+    bar.innerHTML = `<div class="wb-games">${sorted.map(r => `<span class="wb-game"><small>${this.tipLabel(r)}</small><img src="${this.getTeamLogo(r.away)}" class="xs-logo" alt="">${this.esc(this.shortSchool ? this.shortSchool(r.away) : r.away)} <i>at</i> <img src="${this.getTeamLogo(r.home)}" class="xs-logo" alt="">${this.esc(this.shortSchool ? this.shortSchool(r.home) : r.home)}</span>`).join('')}</div>
+      <div class="wb-actions"><button type="button" class="spot-secondary" onclick="SimEngine._watchQueue=[];SimEngine.renderWatchBar();SimEngine.updateScheduleTab&&SimEngine.updateScheduleTab();">Clear</button>
+      <button type="button" class="spot-primary" onclick="SimEngine.watchGames(SimEngine._watchQueue.slice())">&#9654; Watch ${q.length} game${q.length === 1 ? '' : 's'}</button></div>`;
+  },
+
+  // Plays the slate once, then opens each chosen game from the tip in
+  // tip-time order, with an "up next" card between them.
+  async watchGames(refs) {
+    if (typeof GameCenter === 'undefined' || this._watching || !refs || !refs.length) return;
     const slate = this.upcomingSlate();
-    if (!slate.some(r => (r.home === ref.home && r.away === ref.away) || (r.home === ref.away && r.away === ref.home))) {
+    const live = refs.filter(r => slate.some(x => this.sameGame(x, r)));
+    if (!live.length) {
+      if (this.isGamePlayed(refs[0])) return this.openGame(refs[0]);
       this.toast('Not on the next slate', 'Only games in the next week or round can be watched live.');
       return;
     }
+    this._watchQueue = [];
+    this.renderWatchBar();
     this._watching = true;
     this._liveHold = [];
-    this.showSimSpinner('Heading to the arena…');
+    this.showSimSpinner(live.length > 1 ? `Heading to ${live.length} arenas…` : 'Heading to the arena…');
     await new Promise(r => setTimeout(r, 30));
     try {
       await this.simulateWeek();
     } catch (e) {
-      console.error('Watching a game:', e);
+      console.error('Watching games:', e);
     } finally {
       await this.hideSimSpinner();
       this._watching = false;
     }
-    const resolved = this.resolveGameRef(ref);
-    const game = resolved && this.buildLiveGame(resolved);
-    if (!game) { this.releaseLiveHold(); return; }
+    const order = live.map(r => this.resolveGameRef(r)).filter(Boolean).sort((a, b) => this.tipMinutes(a) - this.tipMinutes(b));
+    if (!order.length) { this.releaseLiveHold(); return; }
     this.closePlayerPage();
-    GameCenter.open(game, { mode: 'live', ticker: this.slateTicker(resolved, slate), onClose: () => this.releaseLiveHold() });
+    const play = i => {
+      const r = order[i];
+      const game = this.buildLiveGame(r);
+      const after = () => {
+        if (i + 1 < order.length) {
+          const n = order[i + 1];
+          this.spotlight({ kicker: `Up next · ${this.tipLabel(n)}`, title: `${n.away} at ${n.home}`, logo: this.getTeamLogo(n.home),
+            sub: `Game ${i + 2} of ${order.length} on your watch list.`,
+            actions: [{ label: '▶ Watch', primary: true, fn: () => play(i + 1) }, { label: 'Skip the rest', fn: () => this.releaseLiveHold() }] }, { force: true });
+        } else this.releaseLiveHold();
+      };
+      if (!game) { after(); return; }
+      GameCenter.open(game, { mode: 'live', ticker: this.slateTicker(r, slate, order), onClose: after });
+    };
+    play(0);
+  },
+
+  // Watching one game also takes along anything already on the watch list.
+  async watchGame(ref) {
+    if (this.isGamePlayed(ref)) return this.openGame(ref);
+    const queued = (this._watchQueue || []).filter(r => !this.sameGame(r, ref));
+    return this.watchGames([ref].concat(queued));
   },
 
   openGame(ref, opts = {}) {
@@ -7046,7 +7163,8 @@ window.SimEngine = {
     const cols = mode === 'box'
       ? [['jersey','#'],['name','Player'],['pos','Pos'],['class','Cl'],['gp','GP'],['gs','GS'],['mpg','MPG'],['ppg','PPG'],
          ['oreb','OREB'],['rpg','RPG'],['apg','APG'],['stl','SPG'],['blk','BPG'],['tov','TOV'],['pf','PF'],
-         ['fgm','FGM'],['fga','FGA'],['fgPct','FG%'],['threePm','3PM'],['threePa','3PA'],['threePPct','3P%'],
+         ['fgm','FGM'],['fga','FGA'],['fgPct','FG%'],['twoPm','2P'],['twoPa','2PA'],['twoPPct','2P%'],
+         ['threePm','3PM'],['threePa','3PA'],['threePPct','3P%'],
          ['ftm','FTM'],['fta','FTA'],['ftPct','FT%']]
       : [['jersey','#'],['name','Player'],['pos','Pos'],['mpg','MPG'],['bpm','BPM'],['obpm','OBPM'],['dbpm','DBPM'],
          ['tsPct','TS%'],['eFgPct','eFG%'],['orebPct','OREB%'],['drebPct','DREB%'],['trbPct','TRB%'],
@@ -7231,6 +7349,7 @@ window.SimEngine = {
       : [['school','Team'],['conference','Conf'],['gp','GP'],['ppg','PPG'],['oppPpg','OPP'],
          ['oreb','OREB'],['dreb','DREB'],['rpg','RPG'],['apg','APG'],['stl','SPG'],['blk','BPG'],
          ['tov','TOV'],['pf','PF'],['fgm','FGM'],['fga','FGA'],['fgPct','FG%'],
+         ['twoPm','2P'],['twoPa','2PA'],['twoPPct','2P%'],
          ['threePm','3PM'],['threePa','3PA'],['threePPct','3P%'],['ftm','FTM'],['fta','FTA'],['ftPct','FT%']];
 
     let rows = this.computeAllTeamStats()
@@ -7558,6 +7677,18 @@ window.SimEngine = {
     const snapshot = this.buildUniverseSnapshot();
     const json = JSON.stringify(snapshot);
     await this.saveStateToDB();   // keeps the NBA league generated for the snapshot
+    // With accounts on, an admin publishes straight to the site.
+    if (typeof Cloud !== 'undefined' && Cloud.enabled && Cloud.admin) {
+      const note = document.getElementById('publishNote');
+      if (note) { note.style.display = ''; note.textContent = 'Publishing…'; }
+      try {
+        await Cloud.publishUniverse(json);
+        if (note) note.innerHTML = `Published (${snapshot.season.label}). The Draft RP, Recruiting page and RP Hub now show this save to everyone.`;
+      } catch (e) {
+        if (note) note.textContent = `Couldn't publish: ${e.message || e}`;
+      }
+      return snapshot;
+    }
     try {
       const blob = new Blob([json], { type: 'application/json' });
       const a = document.createElement('a');
@@ -7573,6 +7704,70 @@ window.SimEngine = {
       note.innerHTML = `<b>universe.json</b> downloaded (${(json.length / 1024).toFixed(0)} KB, ${snapshot.season.label}). Upload it to the repo's <b>data</b> folder to update the recruiting page and Draft RP for everyone.`;
     }
     return snapshot;
+  },
+
+  // ---------- Accounts (see cloud.js) ----------
+
+  cloudSummary() { return `${this.seasonLabelFor(this.state.year)} · ${this.phaseLabelShort()}`; },
+
+  // Shows the account part of the menu, and decides who sees Publish:
+  // with accounts on, only admins.
+  renderCloudMenu() {
+    if (typeof Cloud === 'undefined' || typeof document === 'undefined') return;
+    const group = document.getElementById('cloudGroup'), pub = document.getElementById('publishGroup');
+    const note = document.getElementById('cloudNote'), how = document.getElementById('publishHow');
+    if (!Cloud.enabled) { if (group) group.style.display = 'none'; if (pub) pub.style.display = ''; return; }
+    if (group) group.style.display = '';
+    if (pub) pub.style.display = Cloud.admin ? '' : 'none';
+    if (how && Cloud.admin) how.textContent = 'You\'re an admin: publishing puts this save on the Draft RP, Recruiting page and RP Hub for everyone.';
+    ['cloudSaveBtn', 'cloudLoadBtn'].forEach(id => { const b = document.getElementById(id); if (b) b.style.display = Cloud.user ? '' : 'none'; });
+    if (note) note.innerHTML = Cloud.user
+      ? `Signed in as <b>${this.esc(Cloud.user.email)}</b>. Your save follows you to any device.`
+      : 'Sign in with Google (top right) to keep your save and draft boards in your account.';
+  },
+
+  async cloudSave(quiet) {
+    if (typeof Cloud === 'undefined' || !Cloud.user || typeof db === 'undefined' || !db.leagueState) return;
+    const note = document.getElementById('cloudNote');
+    try {
+      if (!quiet && note) note.textContent = 'Saving to your account…';
+      await this.saveStateToDB();
+      await Cloud.uploadSave(db, this.cloudSummary());
+      if (note) note.innerHTML = `Saved to your account (${this.esc(this.cloudSummary())}).`;
+    } catch (e) {
+      if (note) note.textContent = `Couldn't save to your account: ${e.message || e}`;
+    }
+  },
+
+  async cloudLoad() {
+    if (typeof Cloud === 'undefined' || !Cloud.user) return;
+    const meta = await Cloud.getMeta(Cloud.savePath());
+    if (!meta) { this.toast('No save on your account yet', 'Use "Save to my account" first.'); return; }
+    if (!confirm(`Load the save on your account (${meta.summary || 'saved ' + new Date(meta.updatedAt).toLocaleString()})? It replaces the save in this browser.`)) return;
+    this.showSimSpinner('Loading your save…');
+    try { await Cloud.downloadSave(db); location.reload(); }
+    catch (e) { await this.hideSimSpinner(); alert(`Couldn't load it: ${e.message || e}`); }
+  },
+
+  // After signing in: if the account holds a newer save than this browser
+  // last synced, offer it.
+  async offerCloudSave() {
+    if (typeof Cloud === 'undefined' || !Cloud.user) return;
+    try {
+      const meta = await Cloud.getMeta(Cloud.savePath());
+      if (!meta || meta.updatedAt <= Cloud.lastSynced()) return;
+      this.spotlight({ kicker: 'Your account', title: 'Pick up where you left off?', sub: `Your account has a save from ${new Date(meta.updatedAt).toLocaleString()}${meta.summary ? ` (${meta.summary})` : ''}.`,
+        actions: [{ label: 'Load it', primary: true, fn: async () => { this.showSimSpinner('Loading your save…'); await Cloud.downloadSave(db); location.reload(); } },
+          { label: 'Keep this browser\'s save' }] }, { force: true });
+    } catch (e) { /* offline or no access: nothing to offer */ }
+  },
+
+  // Signed in, the save goes up to the account a few minutes after the
+  // last change, so a session is never lost to a cleared browser.
+  scheduleCloudSync() {
+    if (typeof Cloud === 'undefined' || !Cloud.user) return;
+    clearTimeout(this._cloudTimer);
+    this._cloudTimer = setTimeout(() => this.cloudSave(true), 3 * 60 * 1000);
   },
 
   // Permanently retires a player from the college universe.
@@ -7653,15 +7848,21 @@ window.SimEngine = {
     const cp = HSCore.classProgress(classYear, year, p);
     const members = this.hsClassMembers(classYear, p);
     const ranks = HSCore.rankClass(members, cp);
+    // The final class (reclassifiers included) sets the star counts; today's
+    // members get them in today's order.
+    const finalMembers = (this.state.allRecruits || []).filter(r => !r.fromOthers && Number(r.recClassYear) === Number(classYear));
+    const q = HSCore.starQuota(finalMembers, cp, classYear);
+    const starOf = new Map();
+    members.filter(r => ranks.get(r)).sort((a, b) => ranks.get(a) - ranks.get(b)).forEach((r, i) => {
+      starOf.set(r, cp >= 1 && Number(r.stars) ? Number(r.stars) : i < q.five ? 5 : i < q.fourPlus ? 4 : 3);
+    });
     const start = HSCore.rankClass(this.hsClassMembers(classYear, 0), HSCore.classProgress(classYear, year, 0));
     const isD1 = n => this.isD1School(n);
     return members.map(r => {
       const rank = ranks.get(r) || null, was = start.get(r) || null;
       const pro = HSCore.turnsPro(r, isD1);
       const decided = HSCore.commitVisible(r, cp);
-      let stars = Number(r.stars) || (r.rsci > 0 ? (r.rsci <= 25 ? 5 : r.rsci <= 100 ? 4 : 3) : 0);
-      if (rank && stars === 5 && rank > 40) stars = 4;
-      if (rank && stars === 4 && rank > 130) stars = 3;
+      const stars = starOf.get(r) || Number(r.stars) || 0;
       const from = HSCore.reclassFrom(r);
       return {
         r, rank, delta: rank && was ? was - rank : 0, arrived: !!(rank && !was),
@@ -7670,6 +7871,96 @@ window.SimEngine = {
         reclassed: from && Number(r.recClassYear) === Number(classYear) ? from : null
       };
     }).sort((a, b) => (a.rank || 9999) - (b.rank || 9999) || (Number(b.r.rating) || 0) - (Number(a.r.rating) || 0));
+  },
+
+  // A recruit who hasn't played a college (or pro) game yet: he gets a
+  // recruit card, not a college profile full of empty stats.
+  isUpcomingRecruit(p) {
+    if (!p || p.departed || p.isPro || !this.hsReady()) return false;
+    if (this.state.activePlayers.includes(p) || (this.state.proPlayers || []).includes(p)) return false;
+    return (this.state.allRecruits || []).includes(p) || (this.state.recruits || []).includes(p);
+  },
+
+  // The recruit as the Recruits tab has him today: rank and stars as they
+  // stand, movement since the preseason, the commitment if it's public,
+  // and any all-star selections announced so far.
+  renderRecruitCard(r) {
+    const s = this.state;
+    const cls = HSCore.currentClass(r, s.year, this.seasonProgress());
+    const e = this.hsClassView(cls).find(x => x.r === r) || { rank: null, stars: Number(r.stars) || 0, delta: 0 };
+    const star = n => `<span class="rec-stars s${n}">${'★'.repeat(n)}<i>${'★'.repeat(5 - n)}</i></span>`;
+    const cal = s.hsCalendar && s.hsCalendar.year === s.year ? s.hsCalendar : null;
+    const picked = cal ? Object.keys(cal.events).filter(k => Object.values(cal.events[k].rosters || {}).some(ids => ids.includes(r.id)))
+      .map(k => { const t = Object.keys(cal.events[k].rosters).find(n => cal.events[k].rosters[n].includes(r.id)); return `${HSCore.EVENTS[k].name} · ${t}`; }) : [];
+    const commit = e.school ? `<div class="rc-commit"><img src="${this.getTeamLogo(e.school)}" class="sm-logo" alt=""><div><small>Committed to</small><b>${this.esc(e.school)}</b></div></div>`
+      : e.club ? `<div class="rc-commit"><img src="../schoollogos/pro.png" class="sm-logo" alt=""><div><small>Turning pro</small><b>${this.esc(e.club)}</b></div></div>`
+      : `<div class="rc-commit open"><div><small>Status</small><b>Uncommitted</b></div></div>`;
+    const move = e.arrived ? '<span class="rec-move new">NEW</span>' : e.delta >= 1 ? `<span class="rec-move up">▲${e.delta} since the preseason</span>` : e.delta <= -1 ? `<span class="rec-move down">▼${-e.delta} since the preseason</span>` : '';
+    const sc = r.scout || {};
+    const fact = (k, v) => v ? `<div class="rc-fact"><small>${k}</small><b>${this.esc(v)}</b></div>` : '';
+    const from = HSCore.reclassFrom(r);
+    const reclassNote = from ? (cls === Number(r.recClassYear) ? `Reclassified from the class of ${from}.` : '') : '';
+    return `<div class="recruit-card">
+      <div class="rc-head card">
+        <div class="rc-rank"><small>${cls} rank</small><b>${e.rank ? '#' + e.rank : (e.intl ? 'INTL' : 'NR')}</b>${move}</div>
+        <div class="rc-id">
+          <span class="rc-kicker">Class of ${cls} · ${this.esc(r.pos || '')}</span>
+          <h2>${this.esc(r.name)}</h2>
+          <div>${e.stars ? star(e.stars) : ''}</div>
+          ${reclassNote ? `<span class="rec-tag">${reclassNote}</span>` : ''}
+        </div>
+        ${commit}
+      </div>
+      <div class="rc-facts card">${fact('Height', r.ht)}${fact('Weight', r.wt ? r.wt + ' lb' : '')}${fact('Wingspan', r.wingspan)}${fact('Hometown', r.hometown && r.hometown !== 'N/A' ? r.hometown : '')}${fact('High school', r.hs)}</div>
+      ${picked.length ? `<div class="card rc-block"><h3 class="section-title">All-star games</h3><ul>${picked.map(x => `<li>${this.esc(x)}</li>`).join('')}</ul></div>` : ''}
+      ${sc.strengths || sc.weaknesses || sc.scouting ? `<div class="card rc-block"><h3 class="section-title">Scouting report</h3>
+        ${sc.scouting ? `<p>${this.esc(sc.scouting)}</p>` : ''}
+        ${sc.strengths ? `<p><b>Strengths:</b> ${this.esc(sc.strengths)}</p>` : ''}${sc.weaknesses ? `<p><b>Weaknesses:</b> ${this.esc(sc.weaknesses)}</p>` : ''}</div>` : ''}
+      <p class="sub-text rc-foot">Rankings and commitments are where things stand in the ${this.seasonLabelFor(s.year)} season. The full profile is on the <a class="text-link" href="../recruiting/">Recruiting</a> page.</p>
+    </div>`;
+  },
+
+  // A center-screen card for the big moments of the high-school calendar.
+  // Several in a row queue up; nothing shows over a live broadcast.
+  spotlight(card, opts = {}) {
+    if (typeof document === 'undefined' || !document.body) return;
+    if (window.__BTR_NO_CUTSCENES && !opts.force) return;
+    if (!opts.force && this.holdForLive(() => this.spotlight(card))) return;
+    this._spotQueue = this._spotQueue || [];
+    this._spotQueue.push(card);
+    if (this._spotQueue.length === 1) this.showNextSpotlight();
+  },
+  showNextSpotlight() {
+    const card = (this._spotQueue || [])[0];
+    if (!card) return;
+    const el = document.createElement('div');
+    el.className = 'spotlight';
+    el.innerHTML = `<div class="spotlight-card" role="dialog" aria-modal="true">
+      ${card.logo ? `<img src="${card.logo}" alt="" class="spotlight-logo">` : ''}
+      <span class="spotlight-kicker">${this.esc(card.kicker || '')}</span>
+      <h2>${this.esc(card.title)}</h2>
+      ${card.sub ? `<p>${this.esc(card.sub)}</p>` : ''}
+      <div class="spotlight-actions">${(card.actions || []).map((a, i) => `<button type="button" class="${a.primary ? 'spot-primary' : 'spot-secondary'}" data-i="${i}">${this.esc(a.label)}</button>`).join('')}</div>
+    </div>`;
+    const close = () => { el.remove(); this._spotQueue.shift(); this.showNextSpotlight(); };
+    el.addEventListener('click', ev => {
+      const b = ev.target.closest('button[data-i]');
+      if (b) { const a = card.actions[+b.dataset.i]; close(); if (a && a.fn) a.fn(); return; }
+      if (ev.target === el) close();
+    });
+    document.body.appendChild(el);
+  },
+  hsSpotlight(key, kind) {
+    const ev = HSCore.EVENTS[key];
+    const logo = `../${HSCore.EVENT_LOGO[key]}`;
+    const toTab = () => { this._hsOpen = key; this.state.recruitsClassView = 'incoming'; if (window.UIController && UIController.activateTab) UIController.activateTab('recruitsTab'); this.updateRecruitsTab(); };
+    if (kind === 'roster') {
+      this.spotlight({ logo, kicker: 'Rosters announced', title: `The ${ev.name} rosters are out`, sub: 'See who made it, then watch the game when it tips off.',
+        actions: [{ label: 'See the rosters', primary: true, fn: toTab }, { label: 'Later' }] });
+    } else {
+      this.spotlight({ logo, kicker: ev.play >= 1 ? 'After the title game' : 'Final Four week', title: `Watch the ${ev.name}`, sub: 'The best of the incoming class, from the opening tip.',
+        actions: [{ label: 'Watch', primary: true, fn: () => this.watchAllStarGame(key) }, { label: 'Later', fn: () => { if (document.getElementById('hsEvents')) this.updateRecruitsTab(); } }] });
+    }
   },
 
   // Moves the high-school calendar up to where the season is: commitments
@@ -7719,10 +8010,11 @@ window.SimEngine = {
         if (!rosters) return;
         e = cal.events[key] = { key, classYear: incoming, rosters, result: null, seen: false };
         wire.push({ kind: 'roster', key, text: `${ev.name} rosters announced` });
+        this.hsSpotlight(key, 'roster');
       }
       if (e && !e.result && p >= ev.play && typeof GameCore !== 'undefined') {
         e.result = this.playAllStarGame(key, e.rosters);
-        if (e.result) wire.push({ kind: 'game', key, text: `The ${ev.name} is final` });
+        if (e.result) { wire.push({ kind: 'game', key, text: `The ${ev.name} is final` }); this.hsSpotlight(key, 'game'); }
       }
     });
     cal.lastP = Math.max(prev, p);
@@ -7733,7 +8025,7 @@ window.SimEngine = {
     // One toast at most: the biggest story.
     const order = ['game', 'roster', 'reclass', 'commit', 'pro'];
     const lead = wire.slice().sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind) || (a.rank || 999) - (b.rank || 999))[0];
-    if (lead && (lead.kind === 'game' || lead.kind === 'roster' || lead.kind === 'reclass' || (lead.rank && lead.rank <= 15))) {
+    if (lead && lead.kind !== 'game' && lead.kind !== 'roster' && (lead.kind === 'reclass' || (lead.rank && lead.rank <= 15))) {
       const more = wire.length - 1;
       const sub = lead.kind === 'game' ? 'Watch it from the Recruits tab.' : more ? `Plus ${more} more on the recruiting wire.` : 'On the Recruits tab.';
       if (!this.holdForLive(() => this.toast(lead.text, sub))) this.toast(lead.text, sub);
@@ -7904,11 +8196,6 @@ window.SimEngine = {
       return;
     }
 
-    const photo = r => {
-      const a = r.avatar || '';
-      if (!a) return '../emptypfpicon.png';
-      return /^https?:/.test(a) ? encodeURI(a) : '../' + encodeURI(a.replace(/^\.?\//, ''));
-    };
     const stars = n => { const k = Math.max(0, Math.min(5, Math.round(parseFloat(n) || 0))); return k ? `<span class="rec-stars s${k}">${'★'.repeat(k)}<i>${'★'.repeat(5 - k)}</i></span>` : '<span class="sub-text-sm">—</span>'; };
     const move = e => e.arrived ? '<span class="rec-move new">NEW</span>'
       : e.delta >= 3 ? `<span class="rec-move up">▲${e.delta}</span>` : e.delta <= -3 ? `<span class="rec-move down">▼${-e.delta}</span>` : '';
@@ -7922,8 +8209,7 @@ window.SimEngine = {
         : e.club ? `<span class="rec-pro">Pro · ${this.esc(e.club)}</span>` : '<span class="rec-open">Uncommitted</span>';
       return `<tr class="rec-row" onclick="SimEngine.openPlayerModal('${safeId}')">
         <td class="rec-rank">${e.rank || (e.intl ? '<small>INTL</small>' : '—')}${move(e)}</td>
-        <td><div class="rec-player"><img src="${photo(r)}" class="rec-avatar" loading="lazy" alt="" onerror="this.onerror=null;this.src='../emptypfpicon.png'">
-          <div><b>${this.esc(r.name)}</b><small>${this.esc(home)}</small>${tag}</div></div></td>
+        <td><div class="rec-player"><div><b>${this.esc(r.name)}</b><small>${this.esc(home)}</small>${tag}</div></div></td>
         <td><span class="rec-pos">${this.esc(r.pos || '')}</span></td>
         <td class="rec-htwt">${this.esc(r.ht || '')}${r.wt ? ` / ${this.esc(r.wt)}` : ''}</td>
         <td class="rec-hs">${this.esc(r.hs || '—')}</td>
@@ -8360,7 +8646,7 @@ window.SimEngine = {
         .filter(x => x.ranked).sort((a, b) => a.weight - b.weight).slice(0, 5);
       if (title) title.textContent = 'Games to Watch';
       if (sub) sub.textContent = `Week ${next}`;
-      el.innerHTML = games.length ? `<ul class="watch-list">${games.map(({ g }) => `<li>${team(g.away)}<span class="watch-at">at</span>${team(g.home)}${g.isConf ? '<span class="watch-tag">Conf</span>' : ''}<button type="button" class="watch-btn sm" onclick="${this.watchGameJs(g.home, g.away, g.week, g.isConf ? 'conf' : 'nonconf')}" aria-label="Watch ${this.esc(g.away)} at ${this.esc(g.home)} live">&#9654; Watch</button></li>`).join('')}</ul>`
+      el.innerHTML = games.length ? `<ul class="watch-list">${games.map(({ g }) => `<li>${team(g.away)}<span class="watch-at">at</span>${team(g.home)}${g.isConf ? '<span class="watch-tag">Conf</span>' : ''}<span class="watch-tip">${this.tipLabel({ home: g.home, away: g.away, week: g.week, phase: g.isConf ? 'conf' : 'nonconf' })}</span>${this.watchListBtn(g.home, g.away, g.week, g.isConf ? 'conf' : 'nonconf')}<button type="button" class="watch-btn sm" onclick="${this.watchGameJs(g.home, g.away, g.week, g.isConf ? 'conf' : 'nonconf')}" aria-label="Watch ${this.esc(g.away)} at ${this.esc(g.home)} live">&#9654; Watch</button></li>`).join('')}</ul>`
         : '<p class="sub-text-sm">No ranked teams play next week.</p>';
       return;
     }
@@ -8374,7 +8660,7 @@ window.SimEngine = {
       const tm = sc => `<span class="watch-team" onclick="event.stopPropagation();SimEngine.goToTeamPage('${this.jsArg(sc)}')"><img src="${this.getTeamLogo(sc)}" alt="" class="xs-logo">${seedTag(sc)}${this.esc(sc)}</span>`;
       if (title) title.textContent = nextUp[0].label.split(' · ')[0];
       if (sub) sub.textContent = `${nextUp.length} game${nextUp.length === 1 ? '' : 's'} · watch any of them live`;
-      el.innerHTML = `<ul class="watch-list">${games.map(g => `<li>${tm(g.home)}<span class="watch-at">vs</span>${tm(g.away)}<button type="button" class="watch-btn sm" onclick="${this.watchGameJs(g.home, g.away, g.week, 'ncaa')}">&#9654; Watch</button></li>`).join('')}</ul>`;
+      el.innerHTML = `<ul class="watch-list">${games.map(g => `<li>${tm(g.home)}<span class="watch-at">vs</span>${tm(g.away)}<span class="watch-tip">${this.tipLabel({ home: g.home, away: g.away, week: g.week, phase: 'ncaa' })}</span>${this.watchListBtn(g.home, g.away, g.week, 'ncaa')}<button type="button" class="watch-btn sm" onclick="${this.watchGameJs(g.home, g.away, g.week, 'ncaa')}">&#9654; Watch</button></li>`).join('')}</ul>`;
       return;
     }
     if (s.confChampsDone && !s.ncaaDone && s.ncaaTournament) {

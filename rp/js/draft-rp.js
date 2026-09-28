@@ -100,6 +100,7 @@ const DraftRP = {
   // ---------- Loading ----------
 
   async init() {
+    if (typeof Cloud !== 'undefined') Cloud.onChange(u => { if (u) this.syncBoardsFromCloud(); });
     this.initTheme();
     document.querySelectorAll('[data-cutscene-toggle]').forEach(el => { if (window.Cutscene) Cutscene.renderToggle(el); });
     const [official, local] = await Promise.all([this.loadOfficial(), this.loadLocal()]);
@@ -144,9 +145,14 @@ const DraftRP = {
   async loadOfficial() {
     if (typeof fetch === 'undefined') return null;
     try {
-      const res = await fetch(this.UNIVERSE_URL, { cache: 'no-cache' });
-      if (!res.ok) return null;
-      const u = await res.json();
+      // With accounts on, the universe an admin published; else the file.
+      let u;
+      if (typeof Cloud !== 'undefined') u = await Cloud.universe(this.UNIVERSE_URL);
+      else {
+        const res = await fetch(this.UNIVERSE_URL, { cache: 'no-cache' });
+        if (!res.ok) return null;
+        u = await res.json();
+      }
       return u && u.draft && u.season ? this.contextFromUniverse(u) : null;
     } catch (e) {
       return null;
@@ -816,10 +822,27 @@ const DraftRP = {
   },
 
   saveCustomBoard() {
+    const hidden = (this.state.hiddenBoardIds || []).filter(id => !this.state.customOrder.includes(id));
+    const ids = this.state.customOrder.concat(hidden);
     try {
-      const hidden = (this.state.hiddenBoardIds || []).filter(id => !this.state.customOrder.includes(id));
-      localStorage.setItem(this.customBoardKey(), JSON.stringify(this.state.customOrder.concat(hidden)));
+      localStorage.setItem(this.customBoardKey(), JSON.stringify(ids));
     } catch (e) { /* storage blocked — board just won't persist */ }
+    // Signed in, the board follows the account.
+    if (typeof Cloud !== 'undefined' && Cloud.user) Cloud.setBoard(this.customBoardKey(), ids).catch(() => {});
+  },
+
+  // On sign-in, boards saved to the account come down into this browser
+  // (the account's copy wins), and boards made here before signing in go up.
+  async syncBoardsFromCloud() {
+    if (typeof Cloud === 'undefined' || !Cloud.user) return;
+    try {
+      const data = await Cloud.getUserData();
+      const boards = data.boards || {};
+      Object.keys(boards).forEach(k => { try { localStorage.setItem(k, JSON.stringify(boards[k])); } catch (e) { /* storage blocked */ } });
+      const mine = this.customBoardKey();
+      if (!boards[mine] && (this.state.customOrder || []).length) this.saveCustomBoard();
+      if (this.state.prospects && this.state.prospects.length) { this.loadCustomBoard(); this.render(); }
+    } catch (e) { console.warn('Draft boards from your account:', e); }
   },
 
   addToBoard(id) {

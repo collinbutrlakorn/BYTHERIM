@@ -112,6 +112,8 @@
 </head>
 <body>
 <script>BTR.mount('rp', { base: '../' })</script>
+<script src="js/cloud-config.js"></script>
+<script src="js/cloud.js"></script>
 
 <section class="hero hero-busy" style="background-image: url('../assets/hero-rp-banner.jpg');">
   <div class="container">
@@ -201,8 +203,7 @@
 <script>
 // The status line on each card follows the published universe
 // (data/universe.json, written by "Publish Universe" in the NCAA RP).
-fetch('../data/universe.json', { cache: 'no-cache' })
-  .then(r => (r.ok ? r.json() : null))
+(window.Cloud ? Cloud.universe('../data/universe.json') : fetch('../data/universe.json', { cache: 'no-cache' }).then(r => (r.ok ? r.json() : null)))
   .then(u => {
     if (!u || !u.season || !u.draft) return;
     const set = (k, text) => { const el = document.querySelector(`[data-uni="${k}"]`); if (el) el.textContent = text; };

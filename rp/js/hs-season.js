@@ -98,6 +98,39 @@
     return out;
   }
 
+  // ---------- stars ----------
+  //
+  // How many 5-stars (and 4-stars) the class has right now. The sheet's
+  // own counts are where it finishes; earlier in the cycle the services
+  // are stingier, so the 5-star count starts lower (never under 15, or the
+  // class's real count if that's smaller) and fills in. The 4-and-5-star
+  // total stays the sheet's, so a player dropping from 5 lands on 4.
+  function starQuota(members, cp, classYear) {
+    const ranked = members.filter(r => Number(r.rsci) > 0);
+    const five = ranked.filter(r => Number(r.stars) >= 5).length;
+    const fourPlus = ranked.filter(r => Number(r.stars) >= 4).length;
+    if (cp >= 1) return { five, fourPlus };
+    const rng = rngFor(`${classYear}|stars`);
+    const floor = Math.min(15, five);
+    const start = floor + Math.round((five - floor) * rng() * 0.5);
+    const t = clamp(cp, 0, 1);
+    const wobble = Math.round((rngFor(`${classYear}|stars|${Math.round(cp * 40)}`)() - 0.5) * 2);
+    const now = clamp(Math.round(start + (five - start) * t * t) + wobble, floor, five);
+    return { five: now, fourPlus };
+  }
+
+  // Stars by where a player ranks today, filling the quota from the top.
+  function starsByRank(members, ranks, cp, classYear) {
+    const q = starQuota(members, cp, classYear);
+    const out = new Map();
+    const order = members.filter(r => ranks.get(r)).sort((a, b) => ranks.get(a) - ranks.get(b));
+    order.forEach((r, i) => {
+      if (cp >= 1) { out.set(r, Number(r.stars) || (i < q.five ? 5 : i < q.fourPlus ? 4 : 3)); return; }
+      out.set(r, i < q.five ? 5 : i < q.fourPlus ? 4 : 3);
+    });
+    return out;
+  }
+
   // ---------- commitments ----------
   //
   // When his commitment becomes public, on the class-progress scale: a
@@ -348,7 +381,7 @@
   }
 
   root.HSCore = {
-    hash, rngFor, isInternational, committedTo, classProgress, rankOffset, rankClass,
+    hash, rngFor, isInternational, committedTo, classProgress, rankOffset, rankClass, starQuota, starsByRank,
     commitAt, commitVisible, RECLASS_NAMED, parseDob, reclassFrom, reclassAt, currentClass,
     EVENTS, TEAM_STYLE, EVENT_LOGO, selectRosters, splitEastWest, splitSnake, clubFor, turnsPro, proTalent, proPedigreeRank, proLine, proStats, US_STATES
   };

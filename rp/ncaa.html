@@ -118,6 +118,8 @@
 <body>
 
   <script>BTR.mount('rp', { base: '../' })</script>
+<script src="js/cloud-config.js"></script>
+<script src="js/cloud.js"></script>
 
   <!-- Title screen. To add background art, put the image in rp/art/ and
        give .home-art a style, e.g. style="--home-art: url('art/title.jpg')".
@@ -176,9 +178,15 @@
               <button role="menuitem" data-cutscene-toggle onclick="Cutscene.setEnabled(!Cutscene.enabled())">Cutscenes: On</button>
               <a role="menuitem" href="./guide.html">How the RP works</a>
             </div>
-            <div class="app-menu-group">
+            <div class="app-menu-group" id="cloudGroup" style="display:none">
+              <span class="app-menu-label">Your account</span>
+              <p id="cloudNote" class="app-menu-note"></p>
+              <button role="menuitem" id="cloudSaveBtn" onclick="SimEngine.cloudSave()">Save to my account</button>
+              <button role="menuitem" id="cloudLoadBtn" onclick="SimEngine.cloudLoad()">Load from my account</button>
+            </div>
+            <div class="app-menu-group" id="publishGroup">
               <span class="app-menu-label">Official universe</span>
-              <p class="app-menu-note">Publishing downloads <code>universe.json</code>. Upload it to the site's <code>data</code> folder and the Draft RP and Recruiting pages show this save to everyone.</p>
+              <p class="app-menu-note" id="publishHow">Publishing downloads <code>universe.json</code>. Upload it to the site's <code>data</code> folder and the Draft RP and Recruiting pages show this save to everyone.</p>
               <button role="menuitem" id="publishBtn" onclick="SimEngine.publishUniverse()">Publish universe</button>
               <p id="publishNote" class="app-menu-note" style="display:none"></p>
             </div>

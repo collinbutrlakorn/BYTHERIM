@@ -179,8 +179,7 @@ function loadPortalData() {
     Portal.ready.sheet = true;
   }
 
-  fetch(UNIVERSE_URL, { cache: 'no-cache' })
-    .then(r => (r.ok ? r.json() : null))
+  (window.Cloud ? Cloud.universe(UNIVERSE_URL) : fetch(UNIVERSE_URL, { cache: 'no-cache' }).then(r => (r.ok ? r.json() : null)))
     .then(u => { Portal.universe = u && u.version ? u : null; })
     .catch(() => { Portal.universe = null; })
     .finally(() => { Portal.ready.universe = true; done(); });

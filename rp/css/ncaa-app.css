@@ -888,3 +888,59 @@ a.outline-btn { text-decoration: none; display: inline-flex; align-items: center
 .hs-rosters b { display: flex; align-items: center; gap: 0.35rem; }
 .pp-left { display: flex; flex-direction: column; gap: 2px; padding: 0.75rem 1rem; margin-bottom: 0.8rem; border-left: 3px solid var(--accent); }
 .pp-left span { color: var(--text-muted); font-size: 0.85rem; }
+
+/* ---------- Recruit card (a recruit who hasn't played yet) ---------- */
+.recruit-card { display: flex; flex-direction: column; gap: 0.9rem; max-width: 980px; margin: 0 auto; }
+.rc-head { display: grid; grid-template-columns: auto 1fr auto; gap: 1.2rem; align-items: center; padding: 1.2rem 1.4rem; }
+.rc-rank { display: flex; flex-direction: column; align-items: center; min-width: 5.5rem; }
+.rc-rank small, .rc-fact small, .rc-commit small { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); font-weight: 700; }
+.rc-rank b { font-family: 'Oswald', sans-serif; font-size: 2.6rem; line-height: 1.05; color: var(--accent); }
+.rc-id h2 { font-family: 'Oswald', sans-serif; font-size: 2rem; margin: 0.1rem 0 0.25rem; line-height: 1.1; }
+.rc-kicker { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted); }
+.rc-id .rec-stars { font-size: 1.1rem; }
+.rc-commit { display: flex; align-items: center; gap: 0.6rem; padding: 0.7rem 0.9rem; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--bg-color); }
+.rc-commit div { display: flex; flex-direction: column; }
+.rc-commit b { font-size: 1rem; }
+.rc-commit.open b { color: var(--text-muted); font-style: italic; }
+.rc-facts { display: flex; flex-wrap: wrap; gap: 1.4rem; padding: 0.9rem 1.4rem; }
+.rc-fact { display: flex; flex-direction: column; gap: 2px; }
+.rc-block { padding: 0.9rem 1.4rem; }
+.rc-block ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+.rc-block p { margin: 0.4rem 0 0; line-height: 1.5; }
+.rc-foot { text-align: center; }
+@media (max-width: 700px) { .rc-head { grid-template-columns: auto 1fr; } .rc-commit { grid-column: 1 / -1; } }
+
+/* ---------- Spotlight: center-screen announcements ---------- */
+.spotlight { position: fixed; inset: 0; z-index: 4000; display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: rgba(4, 6, 12, 0.72); backdrop-filter: blur(4px); animation: spot-in 220ms ease-out; }
+.spotlight-card { width: min(460px, 100%); background: var(--card-bg); border: 1px solid var(--accent-soft-strong); border-radius: var(--r-lg);
+  padding: 1.8rem 1.6rem 1.4rem; text-align: center; box-shadow: var(--shadow-lift); display: flex; flex-direction: column; align-items: center; gap: 0.5rem;
+  animation: spot-pop 320ms cubic-bezier(.2, 1.3, .4, 1); }
+.spotlight-logo { width: 96px; height: 96px; object-fit: contain; margin-bottom: 0.3rem; }
+.spotlight-kicker { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); }
+.spotlight-card h2 { font-family: 'Oswald', sans-serif; font-size: 1.7rem; line-height: 1.15; margin: 0; }
+.spotlight-card p { color: var(--text-muted); margin: 0; }
+.spotlight-actions { display: flex; gap: 0.6rem; margin-top: 0.8rem; flex-wrap: wrap; justify-content: center; }
+.spot-primary, .spot-secondary { font: inherit; font-weight: 700; font-size: 0.92rem; padding: 0.6rem 1.3rem; border-radius: var(--r-pill); cursor: pointer; }
+.spot-primary { background: var(--accent); color: var(--accent-contrast); border: 1px solid var(--accent); }
+.spot-secondary { background: transparent; color: var(--text-main); border: 1px solid var(--border); }
+@keyframes spot-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes spot-pop { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .spotlight, .spotlight-card { animation: none; } }
+
+/* ---------- Watch list: several games a week ---------- */
+.sb-watch { display: inline-flex; align-items: center; gap: 0.35rem; }
+.watch-add { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-color); color: var(--text-main);
+  font: inherit; font-weight: 700; font-size: 0.9rem; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.watch-add.on { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.watch-tip { font-size: 0.72rem; color: var(--text-muted); font-weight: 600; margin-left: auto; white-space: nowrap; }
+.watch-list li .watch-add { margin-left: 0.4rem; }
+.watch-bar { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 3500; width: min(920px, calc(100% - 32px));
+  background: var(--card-bg); border: 1px solid var(--accent-soft-strong); border-radius: var(--r-lg); box-shadow: var(--shadow-lift);
+  padding: 0.7rem 0.9rem; display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; }
+.wb-games { display: flex; gap: 0.5rem; flex-wrap: wrap; flex: 1; min-width: 0; }
+.wb-game { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.82rem; font-weight: 600; background: var(--bg-color);
+  border: 1px solid var(--border); border-radius: var(--r-pill); padding: 0.25rem 0.6rem; }
+.wb-game small { color: var(--accent); font-weight: 700; margin-right: 0.2rem; }
+.wb-game i { color: var(--text-muted); font-style: normal; font-weight: 500; }
+.wb-actions { display: flex; gap: 0.5rem; }

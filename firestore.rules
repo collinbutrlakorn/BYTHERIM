@@ -1,0 +1,31 @@
+rules_version = '2';
+// Paste into Firebase console > Firestore Database > Rules, then Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() && request.auth.token.email != null
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/config/admins)
+        && request.auth.token.email.lower() in get(/databases/$(database)/documents/config/admins).data.emails;
+    }
+
+    // Each person's saves and draft boards: theirs alone.
+    match /users/{uid}/{document=**} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // The official universe: everyone reads, admins publish.
+    match /official/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // The admin list: only admins can see or change it (anyone else's
+    // check simply fails, which the site reads as "not an admin"). The
+    // first admin is added by hand in the Firebase console.
+    match /config/admins {
+      allow read, write: if isAdmin();
+    }
+  }
+}

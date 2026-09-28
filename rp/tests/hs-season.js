@@ -81,6 +81,29 @@ const FIX = path.join(__dirname, 'fixtures');
     `uncommitted internationals are playing pro (${Sim.state.proPlayers.map(p => `${p.name}, ${p.club}`).slice(0, 3).join('; ')})`);
   ok(!Sim.state.activePlayers.some(p => p.isPro), 'no pro is on a college roster');
 
+  // Stars: the 5-star count starts low and never passes the sheet's.
+  const finalFive = Sim.state.allRecruits.filter(r => !r.fromOthers && Number(r.recClassYear) === incoming && Number(r.rsci) > 0 && Number(r.stars) >= 5).length;
+  const fiveNow = view0.filter(e => e.rank && e.stars === 5).length;
+  ok(fiveNow <= finalFive && fiveNow >= Math.min(15, finalFive), `preseason 5-stars (${fiveNow}) sit between 15 and the class's real count (${finalFive})`);
+  const rankedStars = view0.filter(e => e.rank).map(e => e.stars);
+  ok(rankedStars.every((v, i) => i === 0 || v <= rankedStars[i - 1]), 'stars follow the current ranking: 5-stars on top');
+
+  // A recruit opens as a recruit, not as an empty college profile.
+  const rec = view0.find(e => e.rank).r;
+  ok(Sim.isUpcomingRecruit(rec), 'an incoming recruit is recognised as one');
+  const card = Sim.renderRecruitCard(rec);
+  ok(card.includes(rec.name) && card.includes('Class of') && !card.includes('Box Score') && !card.includes('<img src="../emptypfpicon'), 'his card shows his current standing, no college stats and no photo');
+
+  // Tip times: the East tips before the West.
+  const slate = Sim.upcomingSlate();
+  const east = slate.find(g => Sim.tzOf(g.home) === 0), west = slate.find(g => Sim.tzOf(g.home) === 3);
+  if (east && west) {
+    const evening = r => { const m = Sim.tipMinutes(r) - Sim.tzOf(r.home) * 60; return m >= 18 * 60; };
+    ok(slate.filter(evening).filter(g => Sim.tzOf(g.home) === 3).every(w => slate.filter(evening).filter(g => Sim.tzOf(g.home) === 0).every(e2 => Sim.tipMinutes(e2) < Sim.tipMinutes(w))),
+      'evening games tip in the East before the West Coast');
+  }
+  ok(/^\d{1,2}:\d{2} (AM|PM) ET$/.test(Sim.tipLabel(slate[0])), `tip times read like "${Sim.tipLabel(slate[0])}"`);
+
   for (let i = 0; i < 4; i++) await Sim.simulateWeek();
   ok(Sim.buildUniverseSnapshot().draft.pool.some(p => p.isPro && p.draftClass && p.dob !== undefined), 'mid-season, the Draft RP\'s live pool carries the pros');
   ok(await playSeason(Sim), 'season played');
@@ -93,6 +116,12 @@ const FIX = path.join(__dirname, 'fixtures');
   }));
   const sums = Object.values(teamGames);
   ok(sums.every(v => v === 200) && maxMin <= 40, `every team plays exactly 200 minutes a game, nobody over 40 (${sums.length} team-games, max ${maxMin})`);
+  const guards = Sim.state.activePlayers.filter(p => ['PG', 'CG', 'G'].includes(p.pos) && p.stats && parseFloat(p.stats.fga) >= 4);
+  ok(guards.every(p => parseFloat(p.stats.threePar) <= 0.6), `no point or combo guard takes 60% of his shots from three (max ${Math.max(...guards.map(p => parseFloat(p.stats.threePar))).toFixed(3)})`);
+  const someTeam = Sim.state.teams.find(t => (t.roster || []).length);
+  ok(['2P', '2PA', '2P%'].every(h => Sim.renderTeamPlayerTable(someTeam, 'box').includes(`>${h}<`)), 'team rosters show 2P, 2PA and 2P%');
+  const fiveEnd = Sim.hsClassView(incoming).filter(e => e.rank && e.stars === 5).length;
+  ok(fiveEnd === finalFive, `after the title game the class has exactly its ${finalFive} 5-stars`);
   const cal = Sim.state.hsCalendar;
   ok(cal && cal.year === Sim.state.year && (cal.wire || []).length > 10, `the recruiting wire filled up over the season (${(cal.wire || []).length} items)`);
   ok(cal.wire.some(x => x.kind === 'commit'), 'commitments came in during the season');
