@@ -516,15 +516,23 @@ window.SimEngine = {
       // to take the rosters down with it.
       // The recruiting database has a tab per class plus "Others";
       // RecruitSheet reads every tab (see recruit-sheet.js).
+      // The roster sheet has a tab per season; RosterSheet reads them all
+      // (see roster-sheet.js). Without it, the single roster tab is read.
+      const loadRosters = typeof RosterSheet !== 'undefined'
+        ? RosterSheet.load(t => this.parseCSV(t)).then(r => {
+            if (r.failed.length) console.warn('Roster tabs that failed to load:', r.failed.join(', '));
+            return r.rows.length ? { ok: true, rows: r.rows } : { ok: false };
+          })
+        : this.fetchWithRetry(rostersUrl).then(async res => (res.ok ? { ok: true, rows: this.parseCSV(await res.text()) } : { ok: false }));
       const [recruitLoad, rostersRes] = await Promise.all([
         RecruitSheet.load(t => this.parseCSV(t), { yearKey: 'classyear', nameKey: 'name' }),
-        this.fetchWithRetry(rostersUrl)
+        loadRosters
       ]);
       const recruitsOk = recruitLoad.rows.length > 0;
       rawRecruits = recruitLoad.rows;
       if (recruitLoad.failed.length) console.warn('Recruiting tabs that failed to load:', recruitLoad.failed.join(', '));
       if (rostersRes.ok) {
-        const rawRosters = this.parseCSV(await rostersRes.text());
+        const rawRosters = rostersRes.rows;
         // Retained in full: rows for future seasons are how the sheet
         // expresses a predetermined transfer (same player, different team,
         // next year), which the offseason reads below.
@@ -999,6 +1007,40 @@ window.SimEngine = {
     return out;
   },
 
+  PLAYSTYLE_KEYS: ['score', 'reb', 'ast', 'stl', 'blk', 'threePar', 'threePct', 'ftPct'],
+
+  playstyleValues(prof) {
+    const out = {};
+    this.PLAYSTYLE_KEYS.forEach(k => { out[k] = prof && prof[k] !== undefined ? prof[k] : 1; });
+    return out;
+  },
+
+  applyTraitMultipliers(prof, traits) {
+    const apply = t => Object.keys((t && t.play) || {}).forEach(k => {
+      const [lo, hi] = this.PLAYSTYLE_BOUNDS[k];
+      prof[k] = Math.max(lo, Math.min(hi, prof[k] * t.play[k]));
+    });
+    ((traits && traits.strengths) || []).forEach(l => apply(this.STRENGTH_TRAITS[this.traitKey(l)]));
+    ((traits && traits.weaknesses) || []).forEach(l => apply(this.WEAKNESS_TRAITS[this.traitKey(l)]));
+  },
+
+  // Rebuilds a player's playstyle from its trait-free base plus the traits
+  // he has now. A new object, so a profile shared with the recruiting
+  // database's record is never changed underneath it.
+  applyTraitsToPlaystyle(player) {
+    if (!player) return;
+    const old = player.playstyle;
+    if (!old && !player.traits) return;
+    const base = (old && old.base) || this.playstyleValues(old);
+    const prof = { ...(old || { usage: 1 }), ...base, base: { ...base } };
+    this.applyTraitMultipliers(prof, player.traits);
+    if (!prof.archetype) {
+      const text = ((player.traits && player.traits.strengths) || []).join(' ').toLowerCase();
+      prof.archetype = this.classifyArchetype(text, player.pos);
+    }
+    player.playstyle = prof;
+  },
+
   // Everything a player's traits do outside the playstyle multipliers.
   traitEffects(player) {
     const e = { tov: 1, pf: 1, fta: 1, twoP: 0, dbpm: 0, impact: 0 };
@@ -1172,15 +1214,14 @@ window.SimEngine = {
       if (has(weak, 'free throw')) nudge('ftPct', 0.92, 0.85, 1.15);
     }
 
-    // Dropdown picks are exact, so they apply on top of any free text.
+    // Dropdown picks are exact, so they apply on top of any free text. The
+    // profile before them is kept as `base`, so a later season's tab (or a
+    // merge with the recruiting database) can re-apply a player's current
+    // traits without stacking them on top of old ones.
+    prof.base = this.playstyleValues(prof);
     if (traits.strengths.length || traits.weaknesses.length) {
       found = true;
-      const apply = t => Object.keys((t && t.play) || {}).forEach(k => {
-        const [lo, hi] = this.PLAYSTYLE_BOUNDS[k];
-        prof[k] = Math.max(lo, Math.min(hi, prof[k] * t.play[k]));
-      });
-      traits.strengths.forEach(l => apply(this.STRENGTH_TRAITS[this.traitKey(l)]));
-      traits.weaknesses.forEach(l => apply(this.WEAKNESS_TRAITS[this.traitKey(l)]));
+      this.applyTraitMultipliers(prof, traits);
     }
 
     // Statistics decide the archetype where they exist; text is the
@@ -1399,6 +1440,9 @@ window.SimEngine = {
     existingPlayer.school_logo = this.getTeamLogo(existingPlayer.school);
     const tm = this.state.teams.find(t => t.school === existingPlayer.school);
     if (tm) existingPlayer.conference = tm.conference;
+    // The recruit's playstyle (from his HS/AAU numbers) replaced the roster
+    // sheet's, so the roster sheet's Strength/Weakness picks go back on.
+    if (existingPlayer.traits) this.applyTraitsToPlaystyle(existingPlayer);
   },
 
   // Recruits join their roster after the universe is built, so they miss
@@ -3306,6 +3350,8 @@ window.SimEngine = {
       const draftYear = this.upcomingDraftYear();
       if (scripted && scripted.year === draftYear) declares = true;
       else if (scripted && scripted.year > draftYear && !mandatory) declares = false;
+      // On next season's tab: the sheet already has him back.
+      else if (this.listedNextSeason(p)) declares = false;
 
       if (declares) {
         declarations.push({
@@ -3516,7 +3562,9 @@ window.SimEngine = {
       // Keep the best player at each lineup slot first, so trimming can
       // never leave a team without a centre or a point guard.
       const kept = [];
-      const remaining = [...roster].sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
+      // Players the season's tab lists are never the ones cut.
+      const remaining = [...roster].sort((a, b) =>
+        (b.onSeasonSheet ? 1 : 0) - (a.onSeasonSheet ? 1 : 0) || parseFloat(b.rating) - parseFloat(a.rating));
       ['C', 'PG', 'PF', 'SG', 'SF'].forEach(slot => {
         const eligible = this.SLOT_ELIGIBILITY[slot] || [];
         const idx = remaining.findIndex(p => eligible.includes((p.pos || '').toUpperCase()));
@@ -3552,6 +3600,130 @@ window.SimEngine = {
   // Reads next season's rows from the roster sheet. A player listed at a
   // different school the following year is a transfer the sheet author
   // intended, so it's executed exactly rather than left to chance.
+  // The rows on one season's tab, by lowercase name. seasonTag is the
+  // sheet's label for the season, the year it ends (2028-29 -> 2029).
+  seasonSheetRows(seasonTag) {
+    const out = {};
+    (this.state.rawRosterRows || []).forEach(r => {
+      if (!this.rowHasPlayerName(r) || this.getRowSeasonYear(r) !== seasonTag) return;
+      const key = String(r.name || r.player || r.fullname).trim().toLowerCase();
+      (out[key] = out[key] || []).push(r);
+    });
+    return out;
+  },
+
+  // His row on NEXT season's tab, if the sheet lists him there. A listed
+  // player is coming back — to the same school, or to the one the tab puts
+  // him at — so he doesn't declare early, enter the portal or graduate.
+  // With two players sharing a name, only a row naming his school counts.
+  listedNextSeason(p) {
+    if (!p) return null;
+    const tag = this.currentSeasonSheetYear() + 1;
+    const src = this.state.rawRosterRows;
+    if (!this._nextSheet || this._nextSheet.tag !== tag || this._nextSheet.src !== src) {
+      this._nextSheet = { tag, src, rows: this.seasonSheetRows(tag) };
+    }
+    const rows = this._nextSheet.rows[String(p.name || '').trim().toLowerCase()];
+    if (!rows || !rows.length) return null;
+    if (rows.length === 1) return rows[0];
+    const school = String(p.school || '').toLowerCase();
+    return rows.find(r => [r.team, r.school, r.transferredfrom, r.previousschool]
+      .some(v => String(v || '').trim().toLowerCase() === school)) || null;
+  },
+
+  findTeamByName(name) {
+    const n = String(name || '').trim().toLowerCase();
+    if (!n) return null;
+    return this.state.teams.find(t => t.school.toLowerCase() === n) ||
+      (typeof RosterGen !== 'undefined' && RosterGen.normalizeSchoolKey
+        ? this.state.teams.find(t => RosterGen.normalizeSchoolKey(t.school) === RosterGen.normalizeSchoolKey(name))
+        : null) || null;
+  },
+
+  // Applies the tab for the season that's starting. Listed players already
+  // in the universe take whatever the row fills in (role, traits, grades,
+  // OVR, class, draft pick); blank cells leave the simulation's value.
+  // Names not in the universe (JUCO and non-D1 transfers, walk-ons) join
+  // the team the row puts them on.
+  applySeasonSheet() {
+    const byName = this.seasonSheetRows(this.currentSeasonSheetYear());
+    this.state.teams.forEach(t => (t.roster || []).forEach(p => { delete p.onSeasonSheet; }));
+    const departed = this.state.departedNames || new Set();
+    let updated = 0, added = 0;
+    // Each player answers to one row. Without this, two different players
+    // who share a name (two freshman Elijah Williamses) would both resolve
+    // to whichever one the first row created.
+    const claimed = new Set();
+    Object.keys(byName).forEach(key => byName[key].forEach(row => {
+      const team = this.findTeamByName(row.team || row.school);
+      if (!team) return;
+      const matches = [];
+      this.state.teams.forEach(t => (t.roster || []).forEach(p => {
+        if (!claimed.has(p) && String(p.name || '').trim().toLowerCase() === key) matches.push({ t, p });
+      }));
+      const hit = matches.find(m => m.t === team) || (matches.length === 1 && byName[key].length === 1 ? matches[0] : null);
+      if (!hit) {
+        if (departed.has && departed.has(row.name)) return;   // drafted or graduated already
+        const fresh = this.normalizePlayerObj(row, false);
+        fresh.school = team.school;
+        fresh.conference = team.conference;
+        fresh.school_logo = this.getTeamLogo(team.school);
+        fresh.onSeasonSheet = true;
+        team.roster.push(fresh);
+        claimed.add(fresh);
+        added++;
+        return;
+      }
+      const p = hit.p;
+      if (hit.t !== team) {
+        hit.t.roster = hit.t.roster.filter(x => x.id !== p.id);
+        if (!p.collegeHistory) p.collegeHistory = [hit.t.school];
+        if (p.collegeHistory[p.collegeHistory.length - 1] !== team.school) p.collegeHistory.push(team.school);
+        p.school = team.school;
+        p.conference = team.conference;
+        p.school_logo = this.getTeamLogo(team.school);
+        team.roster.push(p);
+      }
+      this.applySheetRow(p, row, team);
+      p.onSeasonSheet = true;
+      claimed.add(p);
+      updated++;
+    }));
+    if (updated || added) console.log(`Season sheet: ${updated} listed players updated, ${added} added.`);
+    return { updated, added };
+  },
+
+  // One row's filled-in cells onto an existing player.
+  applySheetRow(p, row, team) {
+    const getVal = (keys, fallback = '') => {
+      for (const k of keys) if (row[k] !== undefined && String(row[k]).trim() !== '') return row[k];
+      return fallback;
+    };
+    const filled = keys => getVal(keys, null) !== null;
+    if (filled(['rating', 'ovr'])) {
+      const r = parseFloat(getVal(['rating', 'ovr']));
+      if (!isNaN(r)) p.rating = r;
+    }
+    const cls = this.normalizeClassStanding(getVal(['class', 'yr', 'classstanding'], ''));
+    if (cls) p.class = cls;
+    if (filled(['pos', 'position'])) p.pos = String(getVal(['pos', 'position'])).toUpperCase();
+    if (filled(['ht', 'height'])) p.ht = getVal(['ht', 'height']);
+    if (filled(['wt', 'weight'])) p.wt = getVal(['wt', 'weight']);
+    if (filled(['role', 'playerrole'])) p.role = String(getVal(['role', 'playerrole'])).trim().toLowerCase();
+    const jersey = String(getVal(['jersey', 'number', 'num', 'jerseynumber'], '')).replace(/[^0-9]/g, '');
+    if (jersey && !(team.roster || []).some(x => x !== p && String(x.jersey) === jersey)) p.jersey = jersey;
+    const g = this.readGrades(getVal, p.rating);
+    if (g.athleticism) { p.athleticism = g.athleticism; p.athleticismGrade = g.athleticismGrade; }
+    if (g.potential) { p.potential = g.potential; p.potentialGrade = g.potentialGrade; }
+    const t = this.readTraits(getVal);
+    if (t.strengths.length || t.weaknesses.length) {
+      p.traits = { strengths: t.strengths, weaknesses: t.weaknesses };
+      this.applyTraitsToPlaystyle(p);
+    }
+    const draft = this.parseDraftSpec(getVal(['draft', 'draftpick', 'scripteddraft'], ''));
+    if (draft) p.scriptedDraft = draft;
+  },
+
   applyScriptedTransfers() {
     const rows = this.state.rawRosterRows || [];
     if (rows.length === 0) return [];
@@ -3626,6 +3798,7 @@ window.SimEngine = {
       (team.roster || []).forEach(p => {
         if (declaredIds.has(p.id)) return;                 // already leaving for the draft
         if (excludeIds && excludeIds.has(p.id)) return;     // already moved by a scripted transfer
+        if (this.listedNextSeason(p)) return;               // next season's tab says where he plays
         if (p.class === 'SR' || p.class === 'GR') return;   // out of eligibility anyway
 
         const st = p.stats || this.getZeroStats();
@@ -3993,6 +4166,13 @@ window.SimEngine = {
       team.roster = team.roster.filter(p => {
         if (declaredIds.has(p.id)) { this.archiveDeparted(p); this.markDeparted(p); return false; }
         const nextClass = classProgression[p.class];
+        // Listed on next season's tab: back for another year, even as a
+        // senior (a fifth year or a redshirt), in the class the tab gives.
+        const listed = this.listedNextSeason(p);
+        if (listed) {
+          p.class = this.normalizeClassStanding(listed.class || listed.yr) || nextClass || 'GR';
+          return true;
+        }
         if (nextClass) { p.class = nextClass; return true; }
         this.archiveDeparted(p);                                             // eligibility exhausted
         this.markDeparted(p);
@@ -4035,6 +4215,15 @@ window.SimEngine = {
     // Returning players develop before the new season is set up, so the
     // rotation and stat expectations are built from their new ratings.
     this.runPlayerDevelopment();
+
+    // The new season's tab goes on last, so what it sets (roles, traits,
+    // OVR) is what the season starts with. Players it adds can push a
+    // roster past the limit; generated players are the ones cut.
+    const sheet = this.applySeasonSheet();
+    if (sheet.updated || sheet.added) {
+      this.enforceRosterLimits();
+      this.filterActiveData();
+    }
 
     this.initSeasonData();
     this.closeOffseason();

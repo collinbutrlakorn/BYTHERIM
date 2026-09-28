@@ -73,6 +73,30 @@ const keep = (name, snap) => { if (OUT) fs.writeFileSync(path.join(OUT, name + '
   ok(DCore.scoreProspect({ ...base, potentialGrade: 'A+' }).score - DCore.scoreProspect({ ...base, potentialGrade: 'C' }).score === 9,
     'NBA teams draft upside: an A+ potential outranks a C by 9 board points');
 
+  // Season tabs on the roster sheet.
+  const RS = w.RosterSheet;
+  ok(RS.seasonStart('2028-29') === 2028 && RS.seasonStart('2029–30') === 2029 && RS.seasonStart('2030-2031') === 2030 && RS.seasonStart('2031') === 2031 && RS.seasonStart('Coaches') === null,
+    'season tabs are read from names like "2028-29"');
+  const tabsOnly = RS.seasonTabs([{ name: 'Data', gid: '0' }, { name: 'Coaches', gid: '1430573464' }]);
+  ok(tabsOnly.length === 1 && tabsOnly[0].gid === '0', 'before any season tabs exist, the first tab is the first season');
+  const tabsSeasons = RS.seasonTabs([{ name: '2029-30', gid: '5' }, { name: 'Coaches', gid: '1' }, { name: '2028-29', gid: '0' }]);
+  ok(tabsSeasons.map(t => t.name).join() === '2028-29,2029-30', 'with season tabs, only those are read, oldest first');
+
+  // Generated names fit where the player is from.
+  const RG = w.RosterGen, usedNames = new Set(), ids = [];
+  for (let i = 0; i < 3000; i++) ids.push(RG.generateIdentity(['SEC', 'MAC', 'Big Sky', 'SWAC', 'MAAC'][i % 5], usedNames));
+  const abroad = ids.filter(x => !/, [A-Z]{2}$/.test(x.hometown));
+  ok(abroad.length > 90 && abroad.length < 400, `a realistic share of generated players are international (${abroad.length} of 3000)`);
+  const mismatched = abroad.filter(x => {
+    const c = RG.INTERNATIONAL.find(k => x.hometown.endsWith(k.country) || k.cities.includes(x.hometown));
+    if (!c || !c.first) return false;
+    const [f, ...l] = x.name.split(' ');
+    return !c.first.includes(f) || !c.last.includes(l.join(' '));
+  });
+  ok(abroad.every(x => RG.INTERNATIONAL.some(k => x.hometown.endsWith(k.country) || k.cities.includes(x.hometown))) && mismatched.length === 0,
+    `an international player's first and last name both come from his country (${mismatched.slice(0, 3).map(x => x.name + ', ' + x.hometown).join('; ') || 'all match'})`);
+  ok(!ids.some(x => /Antetokounmpo|Ausar|Scoot|Chet|Shai|Paolo|Jokic|Doncic/.test(x.name)), 'no famous-player names in the generated pools');
+
   // A one-season sheet with a leftover next-season row loads the player once.
   const rows = [{ name: 'Al Two', class: 'SR', team: 'Alabama' }, { name: 'Al Two', class: 'GR', team: 'Alabama' },
     { name: 'Lew Moves', class: 'JR', team: 'Arkansas' }, { name: 'Lew Moves', class: 'SO', team: 'Missouri' }, { name: 'Solo', class: 'FR', team: 'Duke' }];
@@ -142,6 +166,29 @@ const keep = (name, snap) => { if (OUT) fs.writeFileSync(path.join(OUT, name + '
   // ---- the rest of the offseason: portal and rollover ----
   for (let i = draftIdx + 1; i < Sim.OFFSEASON_STAGES.length; i++) await Sim.simulateWeek();
   ok(Sim.state.year === 2029, 'the season rolls over to 2029-30');
+
+  // ---- the 2029-30 tab goes on as the new season starts ----
+  const now = n => { for (const t of Sim.state.teams) { const p = (t.roster || []).find(x => x.name === n); if (p) return p; } return null; };
+  const burns = now('Robert Burns');
+  ok(burns && burns.school === 'Michigan' && burns.role === 'focal point' && burns.rating === 85 && burns.class === 'JR',
+    `a returning player takes his new role, OVR and class from next season's tab (${burns && [burns.school, burns.role, burns.rating, burns.class].join(', ')})`);
+  const sorrentine = now('Alain Sorrentine');
+  ok(sorrentine && sorrentine.school === 'Alabama' && sorrentine.class === 'GR' && sorrentine.role === 'focal point',
+    'a senior listed again next season stays for a fifth year instead of graduating');
+  ok(!(Sim.state.transferHistory || []).some(t => t.name === 'Robert Burns'), 'a player the next tab keeps at his school never enters the portal');
+  ok(now('Karem Deng') && now('Karem Deng').school === 'Michigan', 'a new name on next season\'s tab joins his team');
+  const nova = (Sim.state.teams.find(t => t.school === 'Villanova') || {}).roster || [];
+  ok(['Gerard Graham', 'Trevor Caffey', 'Bryon Howell'].every(n => nova.some(p => p.name === n)),
+    'a team first filled in on the 2029-30 tab gets its sheet players, replacing generated ones');
+  ok(Sim.state.teams.every(t => (t.roster || []).length <= Sim.ROSTER_LIMIT), 'no roster goes over the limit');
+  const tab30 = Sim.seasonSheetRows(2030);
+  const missing = [];
+  Object.values(tab30).forEach(rows => rows.forEach(r => {
+    const team = Sim.findTeamByName(r.team);
+    if (!team || Sim.state.departedNames.has(r.name)) return;
+    if (!(team.roster || []).some(p => p.name === r.name)) missing.push(`${r.name} (${r.team})`);
+  }));
+  ok(missing.length === 0, `every player on the 2029-30 tab is on his team (${missing.slice(0, 5).join(', ') || 'all there'})`);
 
   const th = Sim.state.transferHistory || [];
   ok(th.length > 0, `transfers are recorded (${th.length})`);

@@ -6,52 +6,198 @@
 // real data yet — gets generated so every team is playable.
 // ============================================================
 
-const FIRST_NAMES = [
-  'Marcus','Jalen','Tyler','Xavier','Isaiah','Malik','Devin','Cameron','Andre','Jordan',
-  'Elijah','Trevon','Kobe','Amari','DeShawn','Tremaine','Caleb','Nasir','Zion','Aiden',
-  'Chris','Michael','Anthony','Brandon','Justin','Kevin','Ryan','Austin','Josh','Ethan',
-  'Darius','Terrence','Malachi','Quentin','Reggie','Julian','Braylon','Dominic','Kaden','Miles',
-  'Noah','Gavin','Landon','Carter','Wyatt','Hunter','Colton','Blake','Nathaniel','Omar',
-  'Dante','Marcel','Jaylen','Keon','Rasheed','Tobias','Emmanuel','Sekou','Amir','Deshaun',
-  'Trey','Jamal','Donovan','Tristan','Bryce','Corey','Damian','Khalil','Rashad','Tyrese',
-  'Jaden','Kyrie','Shai','Obi','Bol','Precious','Chet','Paolo','Jabari','Bennedict',
-  'Ausar','Amen','Scoot','Brandin','Gradey','Dereck','Kris','Jett','Cason','Keyonte',
-  'Anthony','Nick','Adem','Dariq','Bilal','Ousmane','Moussa','Ibrahima','Cheick','Mamadi',
-  'Luka','Nikola','Goran','Dario','Vlatko','Andrej','Stefan','Milos','Aleksej','Filip',
-  'Santiago','Mateo','Diego','Rafael','Emilio','Joaquin','Tomas','Andres','Bruno','Gabriel',
-  'Liam','Declan','Rory','Finn','Callum','Cian','Eoin','Padraig','Seamus','Killian',
-  'Hugo','Mathis','Theo','Baptiste','Clement','Antoine','Lucien','Adrien','Killian','Evan',
-  'Jonas','Lukas','Maximilian','Niklas','Felix','Moritz','Julius','Leon','Til','Anton',
-  'Takumi','Ren','Haruto','Yuto','Kaito','Sota','Riku','Hinata','Yuki','Asahi',
-  'Ade','Chidi','Emeka','Kelechi','Obinna','Tunde','Kwame','Kofi','Yaw','Abdoulaye',
-  'Jermaine','Rodney','Curtis','Vernon','Otis','Clarence','Eugene','Leroy','Percy','Alvin',
-  'Zaire','Zaylen','Kyree','Jaxon','Braxton','Ashton','Camden','Easton','Weston','Beckham',
-  'Isaias','Ezra','Silas','Abram','Josiah','Micah','Levi','Asher','Judah','Boaz'
+// ---------- names ----------
+//
+// A generated player's name has to fit where he's from. Where he's from
+// is decided first (an American hometown, or one of the countries that
+// actually send players to Division I), and the name is drawn from that
+// place's pools. Lists are ordered roughly from most to least common and
+// drawn with a lean toward the front, so ordinary names dominate the way
+// they do on real rosters. Nothing here is a famous player's name.
+
+// First names for American players, broadly common among young American
+// men and on American basketball rosters.
+const US_FIRST = [
+  'Jalen','Isaiah','Elijah','Jordan','Cameron','Caleb','Christian','Michael','Marcus','Josiah',
+  'Chris','Justin','Brandon','Tyler','Jayden','Malik','Darius','Devin','Anthony','Josh',
+  'Joshua','Kevin','Ryan','Aaron','Andrew','Nathan','Noah','Ethan','Jaylen','Xavier',
+  'Jaden','Tyrese','Deandre','Andre','Trey','Jamal','Terrence','Amari','Kameron','Keon',
+  'Kendall','Bryce','Evan','Isaac','Julian','Gabriel','Daniel','David','Matthew','James',
+  'John','Jacob','Mason','Carter','Dominic','Donovan','Derrick','Dylan','Logan','Luke',
+  'Cole','Drew','Chase','Grant','Blake','Tristan','Landon','Micah','Miles','Myles',
+  'Omari','Quincy','Reggie','Rashad','Corey','Darnell','Dante','Demetrius','Desmond','Elias',
+  'Emmanuel','Ian','Jerome','Jonah','Khalil','Lamar','Marcel','Maurice','Nasir','Quentin',
+  'Shawn','Terrell','Travis','Troy','Wesley','Kenneth','Bryson','Camden','Colby','Denzel',
+  'Tre','Kobe','Jaylon','Jahmir','Zaire','Jermaine','Tyrell','Cedric','Marquis','Alex'
+];
+// Paired with the European-heritage surnames below, which in practice come
+// with these more than with the full list.
+const US_FIRST_CLASSIC = [
+  'Jack','Luke','Cole','Tyler','Ryan','Connor','Drew','Owen','Nick','Matt',
+  'Brady','Tanner','Kyle','Evan','Ben','Sam','Jake','Logan','Carter','Hunter',
+  'Grant','Blake','Chase','Mason','Ethan','Noah','Caleb','Michael','Andrew','Jacob',
+  'Zach','Dylan','Alex','Max','Trevor','Brendan','Sean','Liam','Aiden','Gavin','Colin','Will'
+];
+// Most common American surnames, roughly in census order (Hispanic
+// surnames are kept separately so their share can follow geography).
+const US_LAST = [
+  'Smith','Johnson','Williams','Brown','Jones','Davis','Miller','Wilson','Moore','Taylor',
+  'Anderson','Thomas','Jackson','White','Harris','Martin','Thompson','Robinson','Clark','Lewis',
+  'Walker','Hall','Allen','Young','King','Wright','Scott','Green','Baker','Adams',
+  'Nelson','Hill','Campbell','Mitchell','Roberts','Carter','Phillips','Evans','Turner','Parker',
+  'Collins','Edwards','Stewart','Morris','Murphy','Cook','Rogers','Morgan','Cooper','Peterson',
+  'Reed','Bailey','Bell','Kelly','Howard','Ward','Cox','Richardson','Wood','Watson',
+  'Brooks','Bennett','Gray','James','Hughes','Price','Sanders','Myers','Long','Ross',
+  'Foster','Powell','Jenkins','Perry','Russell','Sullivan','Butler','Barnes','Fisher','Henderson',
+  'Coleman','Simmons','Patterson','Jordan','Reynolds','Hamilton','Graham','Wallace','Woods','Cole',
+  'West','Owens','Marshall','Ellis','Harrison','Gibson','McDonald','Murray','Freeman','Wells',
+  'Webb','Simpson','Stevens','Tucker','Porter','Hunter','Hicks','Crawford','Henry','Boyd',
+  'Mason','Kennedy','Warren','Dixon','Burns','Gordon','Shaw','Holmes','Rice','Robertson',
+  'Hunt','Black','Daniels','Palmer','Mills','Nichols','Grant','Knight','Ferguson','Stone',
+  'Hawkins','Dunn','Perkins','Hudson','Spencer','Gardner','Stephens','Payne','Pierce','Berry',
+  'Matthews','Arnold','Willis','Ray','Watkins','Carroll','Duncan','Hart','Cunningham','Bradley',
+  'Lane','Andrews','Harper','Fox','Riley','Armstrong','Weaver','Greene','Lawrence','Elliott',
+  'Sims','Austin','Franklin','Lawson','Fields','Carr','Williamson','Howell','Jefferson','Washington',
+  'Banks','Bishop','Walton','Mack','Tate','Glover','Moss','Horton'
+];
+const US_LAST_SOUTH = [
+  'Washington','Jefferson','Banks','Holloway','Gaines','McCoy','Tillman','Pruitt','Bullock','Singleton',
+  'Mayfield','Battle','Toney','Glover','Horton','McKinney','Pittman','Lockett','Dorsey','Sheppard',
+  'Hairston','Bryant','Rhodes','Whitfield','Mims','Odom','Council','Staten','Blackmon','Gatewood'
+];
+const US_LAST_NORTHEAST = [
+  'Murphy','Sullivan','O\'Brien','Kelly','Walsh','Ryan','Fitzgerald','McCarthy','Doyle','Byrne',
+  'Romano','Russo','DeLuca','Esposito','Marino','Rossi','Caruso','Gallo','Rizzo','Costa',
+  'Nolan','Brennan','Keane','Donovan','Quinn','Gallagher'
+];
+const US_LAST_MIDWEST = [
+  'Schmidt','Mueller','Schneider','Becker','Hoffman','Wagner','Koch','Klein','Kowalski','Nowak',
+  'Wojcik','Lewandowski','Olson','Larson','Swanson','Hanson','Lindgren','Meyer','Weber','Kraus',
+  'Novak','Zimmerman','Schultz','Krueger','Brandt'
+];
+const US_LAST_MOUNTAIN = [
+  'Jensen','Christensen','Larsen','Hansen','Nielsen','Petersen','Olsen','Madsen','Sorensen','Andersen',
+  'Pratt','Hatch','Call','Rowley','Bingham'
+];
+const US_LAST_HISPANIC = [
+  'Garcia','Rodriguez','Martinez','Hernandez','Lopez','Gonzalez','Perez','Sanchez','Ramirez','Torres',
+  'Flores','Rivera','Gomez','Diaz','Reyes','Cruz','Morales','Ortiz','Gutierrez','Chavez',
+  'Ramos','Ruiz','Mendoza','Alvarez','Castillo','Jimenez','Vasquez','Romero','Herrera','Medina',
+  'Aguilar','Vargas','Castro','Guerrero','Fernandez','Delgado','Soto','Salazar'
+];
+const US_FIRST_HISPANIC = [
+  'Adrian','Angel','Daniel','Diego','Gabriel','Isaac','Javier','Jose','Juan','Luis',
+  'Mateo','Miguel','Julian','Alejandro','Carlos','Eric','Victor','Marco','Andres','Nico',
+  'Rafael','Sebastian','Christian','Santiago','Ivan','Oscar','Josue','Emilio','Joel','Elijah'
 ];
 
-const LAST_NAMES = [
-  'Johnson','Williams','Brown','Davis','Miller','Wilson','Moore','Taylor','Anderson','Thomas',
-  'Jackson','White','Harris','Martin','Thompson','Robinson','Clark','Lewis','Walker','Hall',
-  'Young','King','Wright','Scott','Green','Baker','Adams','Nelson','Carter','Mitchell',
-  'Roberts','Turner','Phillips','Campbell','Parker','Evans','Edwards','Collins','Stewart','Sanchez',
-  'Morris','Rogers','Reed','Cook','Bell','Murphy','Bailey','Rivera','Cooper','Richardson',
-  'Cox','Howard','Ward','Torres','Peterson','Gray','Ramirez','James','Watson','Brooks',
-  'Kelly','Sanders','Price','Bennett','Wood','Barnes','Ross','Henderson','Coleman','Jenkins',
-  'Perry','Powell','Long','Patterson','Hughes','Flores','Washington','Butler','Simmons','Foster',
-  'Gonzales','Bryant','Alexander','Russell','Griffin','Diaz','Hayes','Myers','Ford','Hamilton',
-  'Graham','Sullivan','Wallace','Woods','Cole','West','Jordan','Owens','Reynolds','Fisher',
-  'Ellis','Harrison','Gibson','McDonald','Cruz','Marshall','Ortiz','Gomez','Murray','Freeman',
-  'Wells','Webb','Simpson','Stevens','Tucker','Porter','Hunter','Hicks','Crawford','Henry',
-  'Boyd','Mason','Morales','Kennedy','Warren','Dixon','Ramos','Reyes','Burns','Gordon',
-  'Shaw','Holmes','Rice','Robertson','Hunt','Black','Daniels','Palmer','Mills','Nichols',
-  'Grant','Knight','Ferguson','Rose','Stone','Hawkins','Dunn','Perkins','Hudson','Spencer',
-  'Okafor','Adebayo','Achiuwa','Bamba','Diallo','Sissoko','Traore','Toure','Keita','Ndiaye',
-  'Jokic','Doncic','Vucevic','Bogdanovic','Petrusev','Micic','Simonovic','Topic','Avramovic','Guduric',
-  'Antetokounmpo','Papanikolaou','Sloukas','Dorsey','Calathes','Printezis','Mitoglou','Larentzakis','Agravanis','Kalaitzakis',
-  'Schroder','Wagner','Bonga','Kleber','Hartenstein','Thiemann','Obst','Voigtmann','Giffey','Lo',
-  'Nowell','Timme','Strawther','Holmgren','Braun','Suggs','Kispert','Ayayi','Nembhard','Watson',
-  'Castellan','Moriarty','Okonkwo','Vasquez','Beaumont','Lindqvist','Haugen','Novak','Kaminski','Duarte'
+// Share of an American player's surname drawn from a regional pool, by
+// the state he's from.
+const HISPANIC_SHARE = { TX: 0.24, CA: 0.24, AZ: 0.22, NM: 0.30, FL: 0.16, NV: 0.16, CO: 0.14 };
+const STATE_REGION_NAMES = {
+  'South': ['AL','GA','SC','NC','TN','MS','LA','AR','KY','VA','WV','MD','DC','OK','TX','FL'],
+  'Northeast': ['NY','NJ','PA','MA','CT','RI','NH','VT','ME','DE'],
+  'Midwest': ['IL','IN','MI','OH','WI','MN','IA','NE','KS','ND','SD','MO'],
+  'Mountain': ['UT','ID','MT','WY']
+};
+const REGIONAL_LAST = { South: US_LAST_SOUTH, Northeast: US_LAST_NORTHEAST, Midwest: US_LAST_MIDWEST, Mountain: US_LAST_MOUNTAIN };
+
+// Countries that send players to Division I, weighted roughly by how many
+// they send. Each has its own cities and name pools, so a name always
+// matches its country.
+const INTERNATIONAL = [
+  { w: 14, country: 'Canada', cities: ['Toronto, ON','Mississauga, ON','Brampton, ON','Hamilton, ON','Ottawa, ON','Montreal, QC','Vancouver, BC','Calgary, AB','Edmonton, AB','Winnipeg, MB'],
+    first: null, last: null },   // Canadian names follow the American pools
+  { w: 11, country: 'Nigeria', cities: ['Lagos','Abuja','Ibadan','Kano','Port Harcourt','Enugu','Benin City'],
+    first: ['Chinedu','Emeka','Ifeanyi','Obinna','Chukwuemeka','Tobi','Tunde','Femi','Seun','Ayo','Kelechi','Uche','Samuel','David','Daniel','Victor','Michael','Joshua','Ikenna','Oluwaseun'],
+    last: ['Okafor','Okoro','Eze','Nwosu','Okeke','Adeyemi','Balogun','Ogunleye','Adeleke','Ibrahim','Bello','Nnamdi','Obi','Onyeka','Uzoma','Afolabi','Ogbonna','Chukwu','Olatunji','Akinola'] },
+  { w: 8, country: 'Australia', cities: ['Melbourne, AUS','Sydney, AUS','Perth, AUS','Brisbane, AUS','Adelaide, AUS','Canberra, AUS'],
+    first: ['Jack','Liam','Josh','Lachlan','Mitchell','Cooper','Harry','Oliver','Tom','Sam','Will','Riley','Jake','Ben','Angus','Hamish','Bailey','Nathan','Luke','Kai'],
+    last: ['Smith','Jones','Williams','Brown','Wilson','Taylor','Johnson','White','Martin','Anderson','Thompson','Walker','Kelly','Ryan','Campbell','Harris','Clarke','O\'Brien','Mitchell','Murphy','Hughes','Cooper'] },
+  { w: 6, country: 'Serbia', cities: ['Belgrade','Novi Sad','Nis','Kragujevac'],
+    first: ['Nikola','Stefan','Marko','Luka','Filip','Aleksa','Lazar','Milos','Uros','Nemanja','Vuk','Dusan','Strahinja','Ognjen'],
+    last: ['Jovanovic','Petrovic','Nikolic','Markovic','Djordjevic','Stojanovic','Ilic','Pavlovic','Popovic','Stankovic','Kostic','Radovanovic','Lazic','Todorovic'] },
+  { w: 6, country: 'France', cities: ['Paris','Lyon','Marseille','Lille','Bordeaux','Nantes','Strasbourg','Toulouse'],
+    first: ['Hugo','Lucas','Theo','Enzo','Nathan','Mathis','Louis','Tom','Maxime','Antoine','Clement','Axel','Yanis','Bastien','Quentin','Noah'],
+    last: ['Martin','Bernard','Dubois','Thomas','Robert','Richard','Petit','Durand','Leroy','Moreau','Simon','Laurent','Lefebvre','Michel','Fontaine','Rousseau','Girard','Bonnet','Lambert'] },
+  { w: 5, country: 'Germany', cities: ['Berlin','Munich','Hamburg','Cologne','Frankfurt','Bonn','Ulm','Bamberg'],
+    first: ['Lukas','Leon','Jonas','Felix','Paul','Luca','Niklas','Finn','Tim','Jan','Moritz','Maximilian','Julian','Tobias'],
+    last: ['Muller','Schmidt','Schneider','Fischer','Weber','Meyer','Wagner','Becker','Schulz','Hoffmann','Koch','Richter','Klein','Wolf','Neumann','Braun','Zimmermann'] },
+  { w: 5, country: 'Senegal', cities: ['Dakar','Thies','Saint-Louis','Rufisque'],
+    first: ['Mamadou','Moussa','Cheikh','Abdoulaye','Ibrahima','Ousmane','Babacar','Modou','Pape','Serigne','Aliou','Amadou'],
+    last: ['Diop','Ndiaye','Fall','Sarr','Diallo','Faye','Gueye','Sow','Ba','Sy','Mbaye','Seck','Niang','Cisse'] },
+  { w: 4, country: 'Lithuania', cities: ['Vilnius','Kaunas','Klaipeda','Siauliai'],
+    first: ['Lukas','Matas','Nojus','Dominykas','Mantas','Tomas','Rokas','Karolis','Deividas','Arnas','Ignas','Paulius'],
+    last: ['Kazlauskas','Jankauskas','Petrauskas','Stankevicius','Vasiliauskas','Zukauskas','Butkus','Paulauskas','Urbonas','Navickas','Kavaliauskas','Rimkus'] },
+  { w: 4, country: 'Spain', cities: ['Madrid','Barcelona','Valencia','Seville','Malaga','Bilbao','Zaragoza'],
+    first: ['Pablo','Alejandro','Hugo','Daniel','Alvaro','Adrian','Mario','Sergio','Javier','Marcos','Carlos','Diego','Jorge','Ivan','Ruben'],
+    last: ['Garcia','Fernandez','Gonzalez','Rodriguez','Lopez','Martinez','Sanchez','Perez','Martin','Gomez','Ruiz','Diaz','Moreno','Alonso','Navarro','Torres'] },
+  { w: 4, country: 'Cameroon', cities: ['Yaounde','Douala','Bafoussam'],
+    first: ['Jean','Joel','Christian','Franck','Yannick','Brice','Serge','Arnaud','Steve','Paul'],
+    last: ['Mbarga','Ngono','Essomba','Fotso','Kamga','Tchatchoua','Nkodo','Atangana','Owona','Mbida'] },
+  { w: 3, country: 'Croatia', cities: ['Zagreb','Split','Rijeka','Zadar'],
+    first: ['Ivan','Luka','Marko','Josip','Ante','Mateo','Karlo','Filip','Dominik','Toni'],
+    last: ['Horvat','Kovacevic','Babic','Maric','Juric','Novak','Kovacic','Knezevic','Vukovic','Pavic','Bozic','Blazevic'] },
+  { w: 3, country: 'Mali', cities: ['Bamako','Sikasso','Segou'],
+    first: ['Mamadou','Moussa','Seydou','Boubacar','Adama','Souleymane','Ibrahim','Oumar','Sekou','Bakary'],
+    last: ['Traore','Keita','Coulibaly','Diarra','Konate','Sissoko','Toure','Camara','Doumbia','Kante'] },
+  { w: 3, country: 'South Sudan', cities: ['Juba','Wau','Malakal'],
+    first: ['Majok','Garang','Akol','Mabior','Chol','Kuol','Makur','Nyang','Peter','John','Gabriel','Deng'],
+    last: ['Mayen','Akec','Garang','Mabil','Makuach','Kuany','Ajak','Marial','Chol','Aguer','Lual','Majak'] },
+  { w: 3, country: 'Dominican Republic', cities: ['Santo Domingo','Santiago','San Pedro de Macoris','La Romana'],
+    first: ['Luis','Jose','Juan','Angel','Carlos','Jean','Miguel','Victor','Eddy','Yeison','Wilmer','Anthony'],
+    last: ['Rodriguez','Perez','Martinez','Garcia','Santana','Reyes','Pena','Ramirez','De Leon','Mejia','Almonte','Batista','Castillo','Rosario','Tavarez'] },
+  { w: 2, country: 'Puerto Rico', cities: ['San Juan, PR','Bayamon, PR','Carolina, PR','Ponce, PR','Caguas, PR'],
+    first: ['Jose','Luis','Carlos','Angel','Xavier','Christian','Javier','Joel','Gabriel','Yadiel','Adrian','Jan'],
+    last: ['Rivera','Rodriguez','Santiago','Colon','Vazquez','Torres','Ortiz','Cruz','Ramos','Diaz','Morales','Maldonado','Figueroa','Velez','Negron','Melendez'] },
+  { w: 2, country: 'Slovenia', cities: ['Ljubljana','Maribor','Celje'],
+    first: ['Luka','Jan','Nejc','Ziga','Matic','Tilen','Rok','Jaka','Anze'],
+    last: ['Novak','Horvat','Krajnc','Zupancic','Kovacic','Potocnik','Mlakar','Vidmar','Kos','Golob'] },
+  { w: 2, country: 'Latvia', cities: ['Riga','Liepaja','Daugavpils'],
+    first: ['Rihards','Janis','Martins','Davis','Roberts','Arturs','Edgars','Kristers','Rolands'],
+    last: ['Berzins','Kalnins','Ozolins','Jansons','Liepins','Krumins','Vitols','Zarins'] },
+  { w: 2, country: 'Italy', cities: ['Rome','Milan','Bologna','Turin','Naples','Florence'],
+    first: ['Lorenzo','Matteo','Leonardo','Francesco','Alessandro','Andrea','Riccardo','Tommaso','Gabriele','Marco','Davide','Luca'],
+    last: ['Rossi','Russo','Ferrari','Esposito','Bianchi','Romano','Colombo','Ricci','Marino','Greco','Bruno','Gallo','Conti','Mancini','Costa'] },
+  { w: 2, country: 'Greece', cities: ['Athens','Thessaloniki','Patras'],
+    first: ['Giorgos','Nikos','Dimitris','Kostas','Alexandros','Panagiotis','Christos','Vasilis','Stavros','Thanasis'],
+    last: ['Papadopoulos','Pappas','Georgiou','Oikonomou','Nikolaidis','Dimitriou','Karagiannis','Vlachos','Makris','Christodoulou','Konstantinou','Alexiou'] },
+  { w: 2, country: 'Turkey', cities: ['Istanbul','Ankara','Izmir','Bursa'],
+    first: ['Emre','Mehmet','Mustafa','Burak','Can','Kerem','Arda','Efe','Yusuf','Berk','Onur'],
+    last: ['Yilmaz','Kaya','Demir','Sahin','Celik','Yildiz','Aydin','Ozturk','Arslan','Dogan','Kilic','Aslan'] },
+  { w: 2, country: 'Finland', cities: ['Helsinki','Espoo','Tampere','Turku'],
+    first: ['Mikko','Eetu','Aleksi','Elias','Onni','Joonas','Veeti','Niko','Jere','Aapo'],
+    last: ['Korhonen','Virtanen','Makinen','Nieminen','Hamalainen','Laine','Heikkinen','Koskinen','Jarvinen','Lehtonen'] },
+  { w: 2, country: 'Sweden', cities: ['Stockholm','Gothenburg','Malmo','Uppsala'],
+    first: ['Erik','Oscar','William','Hugo','Lucas','Viktor','Filip','Anton','Axel','Isak'],
+    last: ['Andersson','Johansson','Karlsson','Nilsson','Eriksson','Larsson','Olsson','Persson','Svensson','Lindberg','Lindqvist'] },
+  { w: 2, country: 'England', cities: ['London, ENG','Manchester, ENG','Birmingham, ENG','Leeds, ENG','Bristol, ENG'],
+    first: ['Oliver','Harry','George','Jack','Charlie','Kieran','Reece','Callum','Joel','Ethan','Josh','Jamal','Tyrese'],
+    last: ['Smith','Jones','Taylor','Brown','Williams','Wilson','Evans','Thomas','Roberts','Walker','Wright','Robinson','Thompson','Hughes','Edwards','Green','Clarke'] },
+  { w: 2, country: 'Brazil', cities: ['Sao Paulo','Rio de Janeiro','Brasilia','Belo Horizonte','Franca'],
+    first: ['Lucas','Gabriel','Matheus','Pedro','Guilherme','Rafael','Felipe','Bruno','Vinicius','Gustavo','Thiago','Joao'],
+    last: ['Silva','Santos','Oliveira','Souza','Lima','Pereira','Costa','Ferreira','Rodrigues','Almeida','Carvalho','Ribeiro'] },
+  { w: 1, country: 'Netherlands', cities: ['Amsterdam','Rotterdam','Utrecht','The Hague'],
+    first: ['Daan','Sem','Luuk','Jesse','Thijs','Bram','Lars','Ruben','Stijn','Niels'],
+    last: ['de Jong','Jansen','de Vries','van Dijk','Bakker','Visser','Smit','Meijer','de Boer','Mulder'] },
+  { w: 1, country: 'Belgium', cities: ['Brussels','Antwerp','Ghent','Liege'],
+    first: ['Arthur','Louis','Jules','Victor','Lucas','Mathis','Wout','Senne','Thibault'],
+    last: ['Peeters','Janssens','Maes','Jacobs','Mertens','Willems','Claes','Goossens','Wouters'] },
+  { w: 1, country: 'Argentina', cities: ['Buenos Aires','Cordoba','Rosario','Bahia Blanca'],
+    first: ['Santiago','Mateo','Tomas','Juan','Nicolas','Facundo','Lautaro','Agustin','Franco','Joaquin'],
+    last: ['Gonzalez','Rodriguez','Gomez','Fernandez','Lopez','Diaz','Martinez','Perez','Sosa','Romero','Alvarez','Benitez'] },
+  { w: 1, country: 'Israel', cities: ['Tel Aviv','Jerusalem','Haifa'],
+    first: ['Yonatan','Itay','Omer','Noam','Ido','Daniel','Eitan','Amit','Tomer','Yuval'],
+    last: ['Cohen','Levi','Mizrahi','Peretz','Biton','Friedman','Avraham','Katz','Azoulay','Dahan'] },
+  { w: 1, country: 'DR Congo', cities: ['Kinshasa','Lubumbashi'],
+    first: ['Jonathan','Christian','Patrick','Jordan','Grace','Merveille','Glody','Exauce'],
+    last: ['Mukendi','Kabongo','Ilunga','Tshibangu','Mbuyi','Kalala','Lukusa','Kasongo'] }
 ];
+const INTERNATIONAL_SHARE = 0.09;
+
+// Kept under the old names for anything that reads them.
+const FIRST_NAMES = US_FIRST;
+const LAST_NAMES = US_LAST;
 
 // Hometowns span the whole country, not just the traditional talent hubs:
 // every state sends players to Division I, usually from its largest metro
@@ -220,14 +366,18 @@ const NATIONAL_RECRUITING_CONFS = new Set(['ACC', 'Big Ten', 'Big 12', 'SEC', 'B
 
 // Power-conference programs draw from everywhere; everyone else recruits
 // mostly within their own footprint, with a minority of outside finds.
+// American hometowns only: international players are placed by
+// internationalIdentity, with names from their own country.
+const US_HOMETOWNS = HOMETOWNS.filter(h => /, [A-Z]{2}$/.test(h));
+
 function pickHometown(conference, rng = Math.random) {
-  if (NATIONAL_RECRUITING_CONFS.has(conference)) return pick(HOMETOWNS, rng);
+  if (NATIONAL_RECRUITING_CONFS.has(conference)) return pick(US_HOMETOWNS, rng);
   const region = CONFERENCE_REGION[conference];
   const pool = region && REGION_HOMETOWNS[region];
-  if (!pool) return pick(HOMETOWNS, rng);
+  if (!pool) return pick(US_HOMETOWNS, rng);
   // About a quarter of a mid-major roster still comes from outside the
   // immediate region — transfers, junior college finds, internationals.
-  return rng() < 0.74 ? pick(pool, rng) : pick(HOMETOWNS, rng);
+  return rng() < 0.74 ? pick(pool, rng) : pick(US_HOMETOWNS, rng);
 }
 
 function generateBuild(pos, rng = Math.random) {
@@ -323,14 +473,54 @@ function generateHighSchool(rng = Math.random) {
   return `${pick(HS_PREFIX, rng)} ${pick(HS_SUFFIX, rng)}`;
 }
 
-function generatePlayerName(usedNames, rng = Math.random) {
-  let name, attempts = 0;
+// Leans toward the front of a list, where the common names are.
+function pickCommon(arr, rng = Math.random) {
+  return arr[Math.min(arr.length - 1, Math.floor(arr.length * Math.pow(rng(), 1.6)))];
+}
+
+function americanIdentity(conference, rng) {
+  const hometown = pickHometown(conference, rng);
+  const st = (hometown.match(/,\s*([A-Z]{2})$/) || [])[1] || '';
+  const region = Object.keys(STATE_REGION_NAMES).find(r => STATE_REGION_NAMES[r].includes(st));
+  let first, last;
+  const roll = rng();
+  if (roll < (HISPANIC_SHARE[st] || 0.05)) {
+    last = pickCommon(US_LAST_HISPANIC, rng);
+    first = rng() < 0.45 ? pickCommon(US_FIRST_HISPANIC, rng) : pickCommon(US_FIRST, rng);
+  } else if (region && region !== 'South' && rng() < 0.18) {
+    last = pickCommon(REGIONAL_LAST[region], rng);
+    first = pickCommon(US_FIRST_CLASSIC, rng);
+  } else {
+    last = region === 'South' && rng() < 0.18 ? pickCommon(US_LAST_SOUTH, rng) : pickCommon(US_LAST, rng);
+    first = rng() < 0.3 ? pickCommon(US_FIRST_CLASSIC, rng) : pickCommon(US_FIRST, rng);
+  }
+  return { name: `${first} ${last}`, hometown };
+}
+
+function internationalIdentity(rng) {
+  const total = INTERNATIONAL.reduce((n, c) => n + c.w, 0);
+  let r = rng() * total, c = INTERNATIONAL[0];
+  for (const x of INTERNATIONAL) { r -= x.w; if (r <= 0) { c = x; break; } }
+  const city = pick(c.cities, rng);
+  const hometown = /,/.test(city) ? city : `${city}, ${c.country}`;
+  const first = pickCommon(c.first || US_FIRST, rng);
+  const last = pickCommon(c.last || US_LAST, rng);
+  return { name: `${first} ${last}`, hometown };
+}
+
+// A generated player's name and hometown, decided together so they match.
+function generateIdentity(conference, usedNames, rng = Math.random) {
+  let who, attempts = 0;
   do {
-    name = `${pick(FIRST_NAMES, rng)} ${pick(LAST_NAMES, rng)}`;
+    who = rng() < INTERNATIONAL_SHARE ? internationalIdentity(rng) : americanIdentity(conference, rng);
     attempts++;
-  } while (usedNames.has(name) && attempts < 20);
-  usedNames.add(name);
-  return name;
+  } while (usedNames && usedNames.has(who.name) && attempts < 20);
+  if (usedNames) usedNames.add(who.name);
+  return who;
+}
+
+function generatePlayerName(usedNames, rng = Math.random) {
+  return generateIdentity(null, usedNames, rng).name;
 }
 
 // Generates one filler player for a team, targeting the given position and
@@ -351,17 +541,20 @@ function generateFillerPlayer(school, conference, position, teamBaseline, roster
   }
   rating = Math.max(45, Math.min(94, Math.round(rating)));
   const build = generateBuild(position, rng);
+  const who = generateIdentity(conference, usedNames, rng);
   return {
     id: `${school}_gen_${rosterIndex}_${Math.random().toString(36).slice(2, 7)}`,
-    name: generatePlayerName(usedNames, rng),
+    name: who.name,
     school, conference,
     school_logo: '',
     pos: position,
     class: cls,
     ht: build.ht,
     wt: build.wt,
-    hometown: pickHometown(conference, rng),
-    hs: generateHighSchool(rng),
+    hometown: who.hometown,
+    // Internationals come through academies and clubs, not US high schools.
+    hs: /, [A-Z]{2}$/.test(who.hometown) ? generateHighSchool(rng) : '',
+
     rating,
     isRecruit: false,
     isGenerated: true,
@@ -508,7 +701,7 @@ function buildFullUniverse(masterTeamList, existingTeams, opts = {}) {
 }
 
 const RosterGen = {
-  FIRST_NAMES, LAST_NAMES, HOMETOWNS, CONFERENCE_TIERS, TIER_RANGES,
+  FIRST_NAMES, LAST_NAMES, INTERNATIONAL, generateIdentity, HOMETOWNS, CONFERENCE_TIERS, TIER_RANGES,
   getConferenceTier, normalizeSchoolKey, buildSchoolAliasIndex, generateHighSchool, pickHometown,
   POSITION_BUILD, generateBuild, pickJersey, POPULAR_JERSEYS, RARE_JERSEYS, generatePlayerName, generateFillerPlayer, nextNeededPosition, buildFullUniverse
 };
