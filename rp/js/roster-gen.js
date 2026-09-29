@@ -636,9 +636,15 @@ function buildFullUniverse(masterTeamList, existingTeams, opts = {}) {
 
   const finalTeams = masterTeamList.map(masterEntry => {
     const existing = existingByName[masterEntry.name];
-    const tier = getConferenceTier(masterEntry.conference);
-    const [lo, hi] = TIER_RANGES[tier];
-    const teamBaseline = lo + rng() * (hi - lo);
+    // A program's own level (from its prestige) when the caller has one;
+    // otherwise a draw from its conference tier's range.
+    const level = opts.programLevelFor ? opts.programLevelFor(masterEntry.name, masterEntry.conference) : null;
+    let teamBaseline;
+    if (level != null) teamBaseline = level + (rng() - 0.5) * 8;
+    else {
+      const [lo, hi] = TIER_RANGES[getConferenceTier(masterEntry.conference)];
+      teamBaseline = lo + rng() * (hi - lo);
+    }
 
     const roster = existing && existing.roster ? [...existing.roster] : [];
     const usedNames = new Set(roster.map(p => p.name));

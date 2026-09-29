@@ -8,7 +8,7 @@ const { JSDOM } = require('jsdom');
 const RP = path.join(__dirname, '..');
 const JS = path.join(RP, 'js');
 
-const SCRIPTS = ['teams-master.js', 'roster-gen.js', 'schedule-core.js', 'game-core.js',
+const SCRIPTS = ['teams-master.js', 'roster-gen.js', 'prestige.js', 'schedule-core.js', 'game-core.js',
   'tournament-core.js', 'draft-core.js', 'coach-core.js', 'development-core.js',
   'nba-core.js', 'draft-cycle.js', 'cutscene.js', 'live-core.js', 'gamecenter.js', 'recruit-sheet.js', 'roster-sheet.js', 'hs-season.js', 'engine.js', 'ui.js'];
 

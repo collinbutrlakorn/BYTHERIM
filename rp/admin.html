@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BYTHERIM | RP Admin</title>
+<meta name="description" content="Admin view of the BYTHERIM RP save: teams, prestige, coaches, and every player's overall, sheet and generated.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#06070a">
+<link rel="icon" type="image/png" sizes="32x32" href="../assets/icons/favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@400;500;600;700&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/chrome.css">
+<link rel="stylesheet" href="css/ncaa-styles.css">
+<link rel="stylesheet" href="css/admin.css">
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<script>BTR.mount('rp', { base: '../' })</script>
+<script src="js/cloud-config.js"></script>
+<script src="js/cloud.js"></script>
+
+<main class="adm">
+  <header class="adm-head">
+    <div>
+      <h1>RP Admin</h1>
+      <p id="admSummary" class="adm-sub">Checking your account…</p>
+    </div>
+    <div class="adm-head-actions">
+      <a href="./ncaa.html" class="sim-btn sim-btn-secondary btn-sm">NCAA RP</a>
+      <a href="./draft.html" class="sim-btn sim-btn-secondary btn-sm">Draft RP</a>
+    </div>
+  </header>
+
+  <nav class="adm-tabs" id="admTabs" hidden>
+    <button data-tab="overview" class="active">Overalls</button>
+    <button data-tab="teams">Teams</button>
+    <button data-tab="players">Players</button>
+    <button data-tab="coaches">Coaches</button>
+  </nav>
+
+  <section id="admBody"><p class="adm-empty">Loading…</p></section>
+</main>
+
+<script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+<script src="js/db.js"></script>
+<script src="js/teams-master.js"></script>
+<script src="js/roster-gen.js"></script>
+<script src="js/prestige.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>

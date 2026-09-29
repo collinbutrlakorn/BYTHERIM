@@ -944,3 +944,22 @@ a.outline-btn { text-decoration: none; display: inline-flex; align-items: center
 .wb-game small { color: var(--accent); font-weight: 700; margin-right: 0.2rem; }
 .wb-game i { color: var(--text-muted); font-style: normal; font-weight: 500; }
 .wb-actions { display: flex; gap: 0.5rem; }
+
+/* Conference standings: wide enough that school names read in full. */
+.conf-standings-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); }
+.conf-card .data-table { table-layout: auto; width: 100%; }
+.conf-card .data-table th, .conf-card .data-table td { padding-left: 0.5rem; padding-right: 0.5rem; white-space: nowrap; }
+.conf-card .data-table th:first-child, .conf-card .data-table td:first-child { width: 1.8rem; }
+.conf-card .data-table td:nth-child(2) { width: 100%; white-space: normal; }
+.conf-card .data-table td:nth-child(n+3), .conf-card .data-table th:nth-child(n+3) { text-align: center; width: 4.2rem; }
+.conf-card .team-cell-wrap { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+.conf-team-name { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.conf-team-name .team-name-cell { white-space: normal; overflow: visible; text-overflow: clip; max-width: none; }
+.conf-team-name .ap-rank-tag { margin-left: 0; font-size: 0.7rem; }
+
+/* Skip ahead */
+.app-menu button:disabled { opacity: 0.4; cursor: default; background: none; color: inherit; }
+
+/* Coach record line */
+.coach-meta { font-size: 0.78rem; color: var(--text-muted); }
+@media (min-width: 641px) { .ncaa-app .team-stats-grid.five { grid-template-columns: repeat(5, minmax(0, 1fr)); } }

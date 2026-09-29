@@ -211,6 +211,10 @@ window.SimEngine = {
             this.state.offseasonStageIndex = old === 0 ? 0 : old <= 4 ? 1 : old === 5 ? 2 : 3;
           }
           this.state.portalYear = savedState.portalYear || null;
+          this.state.carouselYear = savedState.carouselYear || null;
+          this.state.coachChanges = savedState.coachChanges || [];
+          this.state.lastCoachChanges = savedState.lastCoachChanges || [];
+          this.state.formerCoaches = savedState.formerCoaches || [];
           this.state.lastWeekSummary = savedState.lastWeekSummary || null;
           this.state.draftResults = savedState.draftResults || [];
           this.state.draftLottery = savedState.draftLottery || null;
@@ -244,6 +248,7 @@ window.SimEngine = {
 
             this.state.teams = savedTeams;
             this.state.activePlayers = savedPlayers;
+            this.refreshPrestige();
             // Pending recruits aren't saved on their own; rebuild them from
             // the saved class list or the Recruits tab comes back empty.
             this.refreshRecruitPool();
@@ -290,6 +295,8 @@ window.SimEngine = {
   },
 
   async saveStateToDB() {
+    // Skipping ahead saves once, at the end, not after every week.
+    if (this._skipping) { this._skipDirty = true; return; }
     this.scheduleCloudSync();
     if (typeof db === 'undefined' || !db.leagueState) return;
     // During the offseason the Draft RP may have written to this save.
@@ -328,6 +335,10 @@ window.SimEngine = {
           offseasonStageIndex: this.state.offseasonStageIndex,
           offseasonSteps: 4,
           portalYear: this.state.portalYear || null,
+          carouselYear: this.state.carouselYear || null,
+          coachChanges: this.state.coachChanges || [],
+          lastCoachChanges: this.state.lastCoachChanges || [],
+          formerCoaches: this.state.formerCoaches || [],
           lastWeekSummary: this.state.lastWeekSummary || null,
           draftResults: this.state.draftResults,
           draftLottery: this.state.draftLottery,
@@ -655,7 +666,10 @@ window.SimEngine = {
     };
     const { teams, unmatchedRealTeams } = RosterGen.buildFullUniverse(TeamsMaster, realTeams, {
       targetRosterSize: 13,
-      coachProfileFor: coachLookup
+      coachProfileFor: coachLookup,
+      programLevelFor: (typeof Prestige !== 'undefined')
+        ? (name, conf) => Prestige.programLevel(Prestige.historyScore(name, conf))
+        : null
     });
     if (unmatchedRealTeams.length > 0) {
       console.warn('Schools in your sheet not found in the master D1 list (kept as their own team rather than dropped):', unmatchedRealTeams);
@@ -679,6 +693,7 @@ window.SimEngine = {
 
     this.filterActiveData();
     this.attachCoachesToTeams();
+    this.refreshPrestige();
   },
 
 
@@ -1687,6 +1702,7 @@ window.SimEngine = {
       const PRESTIGE_MIDS = ['Gonzaga', 'Saint Mary\'s', 'Memphis', 'Dayton', 'VCU', 'Wichita State', 'Butler'];
       let prestige = isPower ? 5.5 : (isStrongMid ? 3 : 0);
       if (PRESTIGE_MIDS.includes(t.school)) prestige = Math.max(prestige, 5.5);
+      if (t.prestige != null) prestige = Math.max(0, Math.min(7, (t.prestige - 30) / 10));
 
       const blueChips = (t.roster || [])
         .filter(p => p.rsci && parseFloat(p.rsci) <= 60).length;
@@ -1912,6 +1928,210 @@ window.SimEngine = {
     });
   },
 
+  // --- Program prestige & the coaching carousel ---
+
+  // Every team gets a coach (a generated one where the coaches sheet has
+  // nobody), a reputation for that coach, and a prestige score. Safe to
+  // run any time; only missing pieces are filled in.
+  refreshPrestige() {
+    if (typeof Prestige === 'undefined') return;
+    const used = new Set(this.state.teams.map(t => t.coach && t.coach.name).filter(Boolean));
+    this.state.teams.forEach(t => {
+      const hist = Prestige.historyScore(t.school, t.conference);
+      if (!t.coach) {
+        // Filling a job at the start of a save: an established coach, not
+        // a first-year hire.
+        t.coach = this.generateCoach(t, used);
+        delete t.coach.rep; delete t.coach.since;
+      }
+      const c = t.coach;
+      if (c.rep == null) c.rep = hist;   // a coach starts at the level of the job he holds
+      // Coaches on the sheet have been in their jobs a while; a few start
+      // the save already under pressure.
+      if (c.since == null) c.since = this.state.year - Math.floor(Math.random() * 9);
+      if (c.hotSeat == null) c.hotSeat = Math.random() < 0.15 ? 1 : 0;
+      if (!c.id) c.id = `coach-${RosterGen.normalizeSchoolKey(c.name)}-${RosterGen.normalizeSchoolKey(t.school)}`;
+      const r = Prestige.compute(t);
+      t.prestigeHistory = r.history;
+      t.prestige = r.prestige;
+    });
+  },
+
+  coachMetaLine(team) {
+    const c = team.coach;
+    if (!c) return '';
+    const yrs = Math.max(1, this.state.year - (c.since || this.state.year) + 1);
+    const bits = [`Year ${yrs}`];
+    if (c.careerW != null || c.careerL != null) bits.push(`${c.careerW || 0}-${c.careerL || 0} career`);
+    if (c.rep != null) bits.push(`Reputation ${Math.round(c.rep)}`);
+    if (c.prevSchool) bits.push(`from ${this.esc(c.prevSchool)}`);
+    if (c.hotSeat >= 1) bits.push('Hot seat');
+    return bits.join(' · ');
+  },
+
+  // A new head coach nobody's heard of: a name, a neutral playbook and a
+  // reputation a little under what the job usually commands.
+  generateCoach(team, used) {
+    let name = 'Staff';
+    if (typeof RosterGen !== 'undefined') {
+      for (let i = 0; i < 8; i++) {
+        name = RosterGen.generateIdentity(null, used || new Set()).name;
+        if (!used || !used.has(name)) break;
+      }
+      if (used) used.add(name);
+    }
+    const hist = (typeof Prestige !== 'undefined') ? Prestige.historyScore(team.school, team.conference) : 42;
+    return {
+      name, style: '', generated: true, since: this.state.year,
+      rep: Math.round(Math.max(20, Math.min(80, hist * 0.7 + 8 + Math.random() * 10))),
+      id: `coach-gen-${Math.random().toString(36).slice(2, 9)}`
+    };
+  },
+
+  // How many games each team won in the NCAA Tournament this season.
+  ncaaWinsBySchool() {
+    const wins = {};
+    const b = this.state.ncaaTournament;
+    const count = g => { if (g && g.winner && g.winner.school) wins[g.winner.school] = (wins[g.winner.school] || 0) + 1; };
+    if (b && b.rounds) b.rounds.forEach(r => (r || []).forEach(count));
+    return wins;
+  },
+
+  // End of season, before the portal: coaches are judged, some are let go
+  // or retire, the best jobs go to coaches who've won somewhere smaller,
+  // and a few players follow their coach. Returns those players' moves.
+  runCoachingCarousel() {
+    if (typeof Prestige === 'undefined' || !this.state.teams.length) return [];
+    if (this.state.carouselYear === this.state.year) return [];
+    this.state.carouselYear = this.state.year;
+    this.refreshPrestige();
+    const year = this.state.year;
+    const ncaaWins = this.ncaaWinsBySchool();
+
+    // 1. The season goes on every coach's record. A team is judged against
+    // what its talent predicted, re-centred on the league so the average
+    // team is exactly "as expected".
+    // (A straight line fitted across the league, win% on predicted win%,
+    // so the best rosters aren't held to a bar nobody reaches.)
+    const wpOf = t => { const gp = t.simData.wins + t.simData.losses; return gp ? t.simData.wins / gp : 0.5; };
+    const xs = this.state.teams.map(t => t.expectedWinPct != null ? t.expectedWinPct : 0.5), ys = this.state.teams.map(wpOf);
+    const mx = xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length), my = ys.reduce((a, b) => a + b, 0) / Math.max(1, ys.length);
+    let sxy = 0, sxx = 0;
+    xs.forEach((x, i) => { sxy += (x - mx) * (ys[i] - my); sxx += (x - mx) * (x - mx); });
+    const slope = sxx > 0 ? sxy / sxx : 0, icpt = my - slope * mx;
+    this.state.teams.forEach(t => {
+      const c = t.coach;
+      const h = (t.history || []).find(x => x.year === year) || {
+        wins: t.simData.wins, losses: t.simData.losses, ncaaSeed: t.ncaaSeed || null, wonNationalTitle: !!t.wonNationalTitle
+      };
+      const season = { ...h, ncaaWins: ncaaWins[t.school] || 0 };
+      const exp = Math.max(0.05, Math.min(0.95, icpt + slope * (t.expectedWinPct != null ? t.expectedWinPct : 0.5)));
+      const value = Prestige.coachSeasonValue(t, season, exp);
+      c.rep = Math.round((c.rep * 0.72 + value * 0.28) * 10) / 10;
+      c.seasons = (c.seasons || 0) + 1;
+      c.careerW = (c.careerW || 0) + (season.wins || 0);
+      c.careerL = (c.careerL || 0) + (season.losses || 0);
+      c.log = (c.log || []).concat({ year, school: t.school, w: season.wins || 0, l: season.losses || 0, seed: season.ncaaSeed || null, ncaaWins: season.ncaaWins }).slice(-30);
+      const gp = (season.wins || 0) + (season.losses || 0);
+      const wp = gp ? season.wins / gp : 0.5;
+      const under = wp < exp - 0.06 || (t.prestige >= 80 && !season.ncaaSeed && wp < 0.6);
+      c.badYear = wp < exp - 0.12 || wp < 0.3;
+      c.hotSeat = under ? (c.hotSeat || 0) + 1 : Math.max(0, (c.hotSeat || 0) - 1);
+    });
+
+    // 2. Firings and retirements.
+    const changes = [];
+    const openings = [];
+    this.state.teams.forEach(t => {
+      const c = t.coach;
+      const tenure = year - (c.since || year) + 1;
+      let fireOdds = 0;
+      if (c.hotSeat >= 2 && tenure >= 3) fireOdds = 0.55 + (t.prestige >= 74 ? 0.2 : 0) + (c.hotSeat - 2) * 0.2;
+      else if (c.badYear && tenure >= 3) fireOdds = 0.2 + (t.prestige >= 74 ? 0.15 : 0);
+      const retireOdds = 0.025 + (tenure >= 12 ? 0.04 : 0) + (tenure >= 20 ? 0.06 : 0);
+      if (Math.random() < fireOdds) {
+        changes.push({ year, kind: 'fired', school: t.school, coach: c.name, text: `${t.school} fires ${c.name} after ${tenure} season${tenure === 1 ? '' : 's'}` });
+        openings.push(t);
+      } else if (Math.random() < retireOdds) {
+        changes.push({ year, kind: 'retired', school: t.school, coach: c.name, text: `${c.name} retires from ${t.school}` });
+        openings.push(t);
+      }
+    });
+    openings.forEach(t => {
+      const gone = t.coach;
+      t.coach = null;
+      t.coachProfile = (typeof CoachCore !== 'undefined') ? CoachCore.neutralProfile() : t.coachProfile;
+      t.coachTags = [];
+      this.state.formerCoaches = (this.state.formerCoaches || []).concat({ ...gone, lastSchool: t.school, leftYear: year }).slice(-300);
+    });
+
+    // 3. Openings fill best job first. A coach who's been winning at a
+    // smaller program is the first call; when he takes it, his old job
+    // opens up in turn.
+    const followers = [];
+    const moved = new Set();
+    const used = new Set(this.state.teams.map(t => t.coach && t.coach.name).filter(Boolean));
+    const queue = [...openings];
+    let guard = 0;
+    while (queue.length && guard++ < 400) {
+      queue.sort((a, b) => (b.prestige || 0) - (a.prestige || 0));
+      const job = queue.shift();
+      const candidates = this.state.teams.filter(t => t.coach && !moved.has(t.coach.id) && t.school !== job.school
+        && (t.prestige || 0) <= (job.prestige || 0) - 6
+        && t.coach.rep >= Math.max(55, (job.prestige || 0) - 12)
+        && (t.coach.hotSeat || 0) === 0
+        && (year - (t.coach.since || year)) >= 1)
+        .sort((a, b) => b.coach.rep - a.coach.rep);
+      let hired = null;
+      for (const from of candidates.slice(0, 4)) {
+        if (Math.random() < 0.7) { hired = from; break; }
+      }
+      if (hired) {
+        const c = hired.coach;
+        moved.add(c.id);
+        job.coach = { ...c, since: year + 1, hotSeat: 0, prevSchool: hired.school };
+        job.coachProfile = hired.coachProfile;
+        job.coachTags = hired.coachTags;
+        hired.coach = null;
+        hired.coachProfile = (typeof CoachCore !== 'undefined') ? CoachCore.neutralProfile() : hired.coachProfile;
+        hired.coachTags = [];
+        changes.push({ year, kind: 'hired', school: job.school, from: hired.school, coach: c.name, text: `${job.school} hires ${c.name} away from ${hired.school}` });
+        followers.push(...this.coachFollowers(hired, job, c));
+        queue.push(hired);
+      } else {
+        job.coach = this.generateCoach(job, used);
+        job.coach.since = year + 1;
+        changes.push({ year, kind: 'hired', school: job.school, from: null, coach: job.coach.name, text: `${job.school} names ${job.coach.name} head coach` });
+      }
+    }
+    this.rebuildCoachProfileMap();
+    this.refreshPrestige();
+
+    this.state.lastCoachChanges = changes;
+    this.state.coachChanges = (this.state.coachChanges || []).concat(changes).slice(-600);
+    changes.filter(c => c.kind !== 'hired' || c.from).slice(0, 12).forEach(c => this.logNews(c.text));
+    return followers;
+  },
+
+  // When a coach moves, a couple of the players he'd been counting on can
+  // follow him. Seniors don't, nor anyone the next season's tab already
+  // places, nor anyone leaving for the draft.
+  coachFollowers(fromTeam, toTeam, coach) {
+    const declared = new Set((this.state.draftDeclarations || []).map(d => d.id));
+    const pool = (fromTeam.roster || []).filter(p => !declared.has(p.id) && !this.listedNextSeason(p)
+      && !['SR', 'GR'].includes(this.normalizeClassStanding(p.class)))
+      .sort((a, b) => (parseFloat(b.stats && b.stats.mpg) || 0) - (parseFloat(a.stats && a.stats.mpg) || 0));
+    const out = [];
+    for (const p of pool.slice(0, 8)) {
+      if (out.length >= 2) break;
+      if ((toTeam.roster || []).length + out.length >= this.ROSTER_LIMIT) break;
+      if (Math.random() < 0.18) {
+        out.push({ player: p, from: fromTeam.school, to: toTeam.school, reason: `Followed ${coach.name}` });
+      }
+    }
+    return out;
+  },
+
   // --- Preseason rankings & strength of schedule ---
 
   // Preseason poll: driven by roster strength, with a deliberate lean
@@ -1921,7 +2141,10 @@ window.SimEngine = {
     const tierBonus = { 1: 3.0, 2: 1.2, 3: 0.0, 4: -1.0 };
     this.state.teams.forEach(t => {
       const tier = (typeof RosterGen !== 'undefined') ? RosterGen.getConferenceTier(t.conference) : 3;
-      const bonus = (tierBonus[tier] || 0) + (this.isHighMajor(t.conference) ? 1.5 : 0);
+      // Prestige, when known, stands in for the conference tier.
+      const bonus = t.prestige != null
+        ? (t.prestige - 50) * 0.07 + (this.isHighMajor(t.conference) ? 1.0 : 0)
+        : (tierBonus[tier] || 0) + (this.isHighMajor(t.conference) ? 1.5 : 0);
       t.preseasonScore = (t.simData.teamOvr || 0) + bonus;
     });
     const sorted = [...this.state.teams].sort((a, b) => b.preseasonScore - a.preseasonScore);
@@ -2782,6 +3005,7 @@ window.SimEngine = {
   // The high-school calendar and the pros change after the main save has
   // already run, so they're written on their own.
   async saveHsState() {
+    if (this._skipping) { this._skipDirty = true; return; }
     try {
       if (typeof db !== 'undefined' && db.leagueState && db.leagueState.update) {
         await db.leagueState.update(1, { hsCalendar: this.state.hsCalendar || null, proPlayers: this.state.proPlayers || [] });
@@ -3506,6 +3730,7 @@ window.SimEngine = {
       }
     });
 
+    const ncaaWins = this.ncaaWinsBySchool();
     this.state.teams.forEach(team => {
       if (!team.history) team.history = [];
       if (team.history.some(h => h.year === year)) return;
@@ -3518,7 +3743,8 @@ window.SimEngine = {
         apRank: team.apRank || null,
         ncaaSeed: team.ncaaSeed || null,
         wonConfTourney: !!team.wonConfTourney,
-        wonNationalTitle: !!team.wonNationalTitle
+        wonNationalTitle: !!team.wonNationalTitle,
+        ncaaWins: ncaaWins[team.school] || 0
       });
     });
 
@@ -3618,9 +3844,13 @@ window.SimEngine = {
       // it weaker again the next year — a feedback loop that deflated
       // league-wide talent by more than ten rating points over four
       // seasons. Blue-bloods reload; they don't spiral.
+      // The program's level comes from its prestige: history, recent
+      // seasons and the coach. Without it, the conference tier's range.
       const tier = RosterGen.getConferenceTier(team.conference);
       const range = RosterGen.TIER_RANGES[tier] || [62, 78];   // [min, max]
-      const programLevel = (range[0] + range[1]) / 2;
+      const programLevel = (typeof Prestige !== 'undefined' && team.prestige != null)
+        ? Prestige.programLevel(team.prestige)
+        : (range[0] + range[1]) / 2;
       const rosterAvg = roster.length
         ? roster.reduce((n, p) => n + parseFloat(p.rating), 0) / roster.length
         : programLevel;
@@ -3903,7 +4133,10 @@ window.SimEngine = {
     const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
 
     // Destination pool, best programs first.
-    const destinations = [...this.state.teams].sort((a, b) => (b.simData.teamOvr || 0) - (a.simData.teamOvr || 0));
+    // A program's pull is its talent plus its name: players move up to
+    // better teams, and toward the programs with prestige.
+    const pull = t => (t.simData.teamOvr || 0) + ((t.prestige != null ? t.prestige : 50) - 50) * 0.1;
+    const destinations = [...this.state.teams].sort((a, b) => pull(b) - pull(a));
 
     this.state.teams.forEach(team => {
       const sosPercentile = team.sosRank ? 1 - (team.sosRank / this.state.teams.length) : 0.5;
@@ -3946,7 +4179,7 @@ window.SimEngine = {
           // Land somewhere plausibly better, with some randomness so it
           // isn't always the single strongest program.
           const better = destinations.filter(d =>
-            d.school !== team.school && (d.simData.teamOvr || 0) > (team.simData.teamOvr || 0));
+            d.school !== team.school && pull(d) > pull(team));
           let pool = better.length > 0 ? better.slice(0, Math.max(5, Math.floor(better.length * 0.25))) : destinations.slice(0, 10);
           // Only schools with a scholarship open, and preferably ones that
           // actually need this position.
@@ -4054,6 +4287,78 @@ window.SimEngine = {
     if (key === 'summary' || key === 'draft') return 'draft';
     if (key === 'portal' || key === 'rosters') return 'transfers';
     return 'champion';
+  },
+
+  // ---------- Skip ahead ----------
+  // Simulates week after week (and round after round) until the season
+  // reaches the chosen point. Cutscenes, spotlights and toasts stay quiet
+  // on the way; everything still lands in the news and the records.
+  SKIP_TARGETS: [
+    { key: 'conf', label: 'Conference play' },
+    { key: 'confT', label: 'Conference tournaments' },
+    { key: 'ncaa', label: 'NCAA Tournament' },
+    { key: 'off', label: 'Offseason' }
+  ],
+  skipReached(target) {
+    const s = this.state;
+    if (target === 'conf') return s.regularSeasonDone || (s.nonConfEnd > 0 && (s.week || 0) >= s.nonConfEnd);
+    if (target === 'confT') return !!s.regularSeasonDone;
+    if (target === 'ncaa') return !!s.confChampsDone;
+    if (target === 'off') return !!s.ncaaDone;
+    return true;
+  },
+  canSkipTo(target) {
+    if (!this.state.teams.length || this._skipping || this._watching) return false;
+    return !this.skipReached(target);
+  },
+  async skipTo(target) {
+    const t = this.SKIP_TARGETS.find(x => x.key === target);
+    if (!t || !this.canSkipTo(target)) return;
+    const hadFlag = typeof window !== 'undefined' ? window.__BTR_NO_CUTSCENES : false;
+    this._skipping = true;
+    if (typeof window !== 'undefined') window.__BTR_NO_CUTSCENES = true;
+    this.showSimSpinner(`Skipping to ${t.label.toLowerCase()}…`);
+    await new Promise(r => setTimeout(r, 30));
+    let guard = 0;
+    try {
+      while (!this.skipReached(target) && guard++ < 80) {
+        await this.simulateWeek();
+        const el = document.getElementById('simSpinnerLabel');
+        if (el) el.textContent = `Skipping to ${t.label.toLowerCase()}… ${this.phaseLabelShort()}`;
+        await new Promise(r => setTimeout(r, 0));
+      }
+    } catch (e) {
+      console.error('Skipping ahead:', e);
+    } finally {
+      this._skipping = false;
+      if (typeof window !== 'undefined') window.__BTR_NO_CUTSCENES = hadFlag;
+      this._spotQueue = [];
+      if (this._skipDirty) {
+        this._skipDirty = false;
+        const el = document.getElementById('simSpinnerLabel');
+        if (el) el.textContent = 'Saving…';
+        await this.saveStateToDB();
+        await this.saveHsState();
+      }
+      await this.hideSimSpinner();
+    }
+    this.syncUI();
+    this.toast(`Skipped to ${t.label.toLowerCase()}`, `${this.seasonLabelFor(this.state.year)} · ${this.phaseLabelShort()}`);
+    if (target === 'off' && this.state.ncaaDone) this.openOffseason();
+  },
+  closeAppMenu() {
+    const menu = document.getElementById('appMenu');
+    const btn = document.getElementById('appMenuBtn');
+    if (menu) menu.classList.remove('open');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  },
+  renderSkipMenu() {
+    const el = typeof document !== 'undefined' && document.getElementById('skipMenu');
+    if (!el) return;
+    el.innerHTML = this.SKIP_TARGETS.map(t => {
+      const ok = this.canSkipTo(t.key);
+      return `<button role="menuitem" ${ok ? '' : 'disabled'} onclick="SimEngine.closeAppMenu(); SimEngine.skipTo('${t.key}')">${t.label}</button>`;
+    }).join('');
   },
 
   // The header's main button: simulate, or once the season is over,
@@ -4294,15 +4599,20 @@ window.SimEngine = {
     // different school next season, that move is authored, not random.
     const scripted = this.applyScriptedTransfers();
 
+    // The coaching carousel: jobs change hands, and a few players follow
+    // the coach who recruited them.
+    const followers = this.runCoachingCarousel().filter(f => !scripted.some(t => t.id === f.player.id));
+    this.applyTransfers(followers);
+
     // Then the random portal, which skips anyone already moved.
-    const transfers = this.computeTransfers(new Set(scripted.map(t => t.id)));
+    const transfers = followers.concat(this.computeTransfers(new Set(scripted.map(t => t.id).concat(followers.map(f => f.player.id)))));
     this.state.lastTransfers = scripted.concat(transfers.map(t => ({
       id: t.player.id, name: t.player.name, pos: t.player.pos, class: t.player.class,
       rating: parseFloat(t.player.rating) || 0,
       ppg: t.player.stats ? t.player.stats.ppg : '0.0',
       from: t.from, to: t.to, reason: t.reason
     })));
-    this.applyTransfers(transfers);
+    this.applyTransfers(transfers.slice(followers.length));   // followers already moved
 
     // Every move is kept (the recruiting page's Transfer Portal reads the
     // full history), labelled with the season the player transfers into.
@@ -4379,6 +4689,7 @@ window.SimEngine = {
     this.refreshRecruitPool();
     this.filterActiveData();
     this.enforceRosterLimits();
+    this.refreshPrestige();
     this.backfillRosters();
     this.filterActiveData();
 
@@ -4414,12 +4725,14 @@ window.SimEngine = {
   },
 
   syncUI() {
+    if (this._skipping) return;           // drawn once when the skip ends
     const yrElem = document.getElementById('currentYearDisplay');
     if (yrElem) yrElem.innerText = `${this.state.year}-${(this.state.year + 1).toString().slice(2)}`;
 
     const phaseElem = document.getElementById('currentPhaseDisplay');
     if (phaseElem) phaseElem.innerText = this.phaseText();
     this.renderSeasonTrack();
+    this.renderSkipMenu();
 
     // Mirror phase/year into the always-visible toolbar.
     const tbPhase = document.getElementById('toolbarPhase');
@@ -4833,7 +5146,7 @@ window.SimEngine = {
           <div class="conf-table-wrap">
             <table class="data-table">
               <thead>
-                <tr><th>Rank</th><th>Team</th><th>Conf W-L</th><th>Overall</th></tr>
+                <tr><th>#</th><th>Team</th><th>Conf</th><th>Overall</th></tr>
               </thead>
               <tbody>`;
 
@@ -4843,15 +5156,15 @@ window.SimEngine = {
         const rankClass = isApRanked ? 'ap-ranked-row' : '';
         const rowClasses = [hiddenClass, rankClass].filter(Boolean).join(' ');
         const rowStyle = idx >= 5 ? 'style="display:none;"' : '';
-        const apTag = isApRanked ? ` <span class="ap-rank-tag">(#${t.apRank})</span>` : '';
+        const apTag = isApRanked ? `<span class="ap-rank-tag">No. ${t.apRank}</span>` : '';
 
         confsHtml += `
           <tr class="${rowClasses}" ${rowStyle}>
             <td class="bold-sub-text">${idx+1}</td>
             <td>
               <div class="team-cell-wrap clickable-school" onclick="SimEngine.openTeamModal('${t.school.replace(/'/g, "\\'")}')">
-                <img src="${this.getTeamLogo(t.school)}" class="sm-logo">
-                <span class="team-name-cell">${t.school}</span>${apTag}
+                <img src="${this.getTeamLogo(t.school)}" class="sm-logo" alt="">
+                <span class="conf-team-name"><span class="team-name-cell" title="${this.esc(t.school)}">${this.esc(t.school)}</span>${apTag}</span>
               </div>
             </td>
             <td class="bold-text">${t.simData.confWins}-${t.simData.confLosses}</td>
@@ -7094,14 +7407,16 @@ window.SimEngine = {
       ${team.coach ? `<div class="coach-card mb-1-5">
         <div class="coach-head">
           <span class="coach-label">Head Coach</span>
-          <span class="coach-name">${team.coach.name}</span>
+          <span class="coach-name">${this.esc(team.coach.name)}</span>
+          <span class="coach-meta">${this.coachMetaLine(team)}</span>
         </div>
         ${team.coachTags && team.coachTags.length ? `<div class="coach-tags">${team.coachTags.map(t => `<span class="coach-tag">${t}</span>`).join('')}</div>` : ''}
         ${team.coach.style ? `<p class="coach-style">${team.coach.style}</p>` : ''}
       </div>` : ''}
 
-      <div class="team-stats-grid mb-1-5">
+      <div class="team-stats-grid mb-1-5${team.prestige != null ? ' five' : ''}">
         <div class="stat-box"><span class="stat-label">RECORD</span><span class="stat-value">${team.simData.wins}-${team.simData.losses}</span><span class="sub-text-sm">(${team.simData.confWins}-${team.simData.confLosses} conf)</span></div>
+        ${team.prestige != null ? `<div class="stat-box"><span class="stat-label">PRESTIGE</span><span class="stat-value">${team.prestige}</span><span class="sub-text-sm">${Prestige.label(team.prestige, team.prestigeHistory)}${team.prestigeHistory != null && Math.abs(team.prestige - team.prestigeHistory) >= 3 ? ` (${team.prestige > team.prestigeHistory ? '▲' : '▼'} from ${team.prestigeHistory})` : ''}</span></div>` : ''}
         <div class="stat-box"><span class="stat-label">PRESEASON</span><span class="stat-value">${team.preseasonRank ? '#' + team.preseasonRank : '—'}</span><span class="sub-text-sm">roster strength</span></div>
         <div class="stat-box"><span class="stat-label">SOS</span><span class="stat-value">${team.sosRank ? this.ordinal(team.sosRank) : '—'}</span><span class="sub-text-sm">of ${this.state.teams.length}</span></div>
         <div class="stat-box"><span class="stat-label">GAMES</span><span class="stat-value">${st.gp}</span><span class="sub-text-sm">played</span></div>
@@ -7901,6 +8216,7 @@ window.SimEngine = {
     const from = HSCore.reclassFrom(r);
     const reclassNote = from ? (cls === Number(r.recClassYear) ? `Reclassified from the class of ${from}.` : '') : '';
     return `<div class="recruit-card">
+      <div class="pp-top"><button class="nav-back-btn" onclick="SimEngine.closePlayerPage()">&larr; Back</button></div>
       <div class="rc-head card">
         <div class="rc-rank"><small>${cls} rank</small><b>${e.rank ? '#' + e.rank : (e.intl ? 'INTL' : 'NR')}</b>${move}</div>
         <div class="rc-id">
@@ -7924,6 +8240,7 @@ window.SimEngine = {
   // Several in a row queue up; nothing shows over a live broadcast.
   spotlight(card, opts = {}) {
     if (typeof document === 'undefined' || !document.body) return;
+    if (this._skipping) return;
     if (window.__BTR_NO_CUTSCENES && !opts.force) return;
     if (!opts.force && this.holdForLive(() => this.spotlight(card))) return;
     this._spotQueue = this._spotQueue || [];
@@ -8406,7 +8723,15 @@ window.SimEngine = {
     if (transfers.length === 0) {
       return `<p class="empty-table-msg">No transfers yet — the portal opens when you advance the offseason.</p>`;
     }
-    return `<p class="sub-text mb-1">${transfers.length} players changed schools. Producing well against a weak schedule pulls players upward; highly-rated players who underperformed or barely played look for a new situation.</p>
+    const changes = (this.state.lastCoachChanges || []).filter(c => c.kind === 'hired');
+    const carousel = changes.length ? `<div class="card mb-1-5"><div class="section-head"><h3 class="section-title">Coaching carousel</h3><span class="sub-text-sm">${changes.length} new head coach${changes.length === 1 ? '' : 'es'}</span></div>
+      <div class="table-scroll"><table class="data-table"><thead><tr><th>School</th><th>New coach</th><th>Coming from</th></tr></thead><tbody>
+      ${changes.sort((a, b) => ((this.findTeam(b.school) || {}).prestige || 0) - ((this.findTeam(a.school) || {}).prestige || 0)).map(c => `<tr>
+        <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(c.school)}" class="xs-logo" alt=""><span>${this.esc(c.school)}</span></div></td>
+        <td class="bold-text">${this.esc(c.coach)}</td>
+        <td>${c.from ? `<div class="team-cell-wrap"><img src="${this.getTeamLogo(c.from)}" class="xs-logo" alt=""><span>${this.esc(c.from)}</span></div>` : '<span class="sub-text-sm">First head job</span>'}</td>
+      </tr>`).join('')}</tbody></table></div></div>` : '';
+    return `${carousel}<p class="sub-text mb-1">${transfers.length} players changed schools. Producing well against a weak schedule pulls players upward; highly-rated players who underperformed or barely played look for a new situation.</p>
       <div class="table-scroll"><table class="data-table">
         <thead><tr><th>Player</th><th>Pos</th><th>Cl</th><th>PPG</th><th>From</th><th></th><th>To</th><th>Reason</th></tr></thead><tbody>
         ${transfers.map(t => `<tr>
@@ -8534,6 +8859,7 @@ window.SimEngine = {
 
   toast(title, sub, ms = 4200) {
     if (typeof document === 'undefined') return;
+    if (this._skipping) return;
     if (this.holdForLive(() => this.toast(title, sub, ms))) return;
     let wrap = document.querySelector('.rp-toast-wrap');
     if (!wrap) { wrap = document.createElement('div'); wrap.className = 'rp-toast-wrap'; document.body.appendChild(wrap); }

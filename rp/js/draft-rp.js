@@ -100,7 +100,7 @@ const DraftRP = {
   // ---------- Loading ----------
 
   async init() {
-    if (typeof Cloud !== 'undefined') Cloud.onChange(u => { if (u) this.syncBoardsFromCloud(); });
+    if (typeof Cloud !== 'undefined') Cloud.onChange(() => this.syncBoardsFromCloud());
     this.initTheme();
     document.querySelectorAll('[data-cutscene-toggle]').forEach(el => { if (window.Cutscene) Cutscene.renderToggle(el); });
     const [official, local] = await Promise.all([this.loadOfficial(), this.loadLocal()]);
@@ -808,41 +808,86 @@ const DraftRP = {
     return `${this.CUSTOM_BOARD_KEY}-${src}${this.state.draftYear}`;
   },
 
+  // Where this person's board lives in this browser. Signed in, it's a
+  // copy of the account's board kept per account, so someone else using
+  // the same browser (or you, signed out) never sees it.
+  boardStorageKey() {
+    const uid = typeof Cloud !== 'undefined' && Cloud.user ? Cloud.user.uid : '';
+    return uid ? `${this.customBoardKey()}@${uid}` : this.customBoardKey();
+  },
+
   loadCustomBoard() {
-    try {
-      const raw = localStorage.getItem(this.customBoardKey());
-      const ids = raw ? JSON.parse(raw) : [];
-      const valid = new Set(this.state.prospects.map(p => p.player.id));
-      this.state.customOrder = ids.filter(id => valid.has(id));
-      this.state.hiddenBoardIds = ids.filter(id => !valid.has(id));
-    } catch (e) {
-      this.state.customOrder = [];
-      this.state.hiddenBoardIds = [];
+    let ids = [];
+    const acct = this.state.accountBoards;
+    if (acct && Array.isArray(acct[this.customBoardKey()])) ids = acct[this.customBoardKey()];
+    else {
+      try { const raw = localStorage.getItem(this.boardStorageKey()); ids = raw ? JSON.parse(raw) : []; } catch (e) { ids = []; }
     }
+    const valid = new Set((this.state.prospects || []).map(p => p.player.id));
+    this.state.customOrder = ids.filter(id => valid.has(id));
+    this.state.hiddenBoardIds = ids.filter(id => !valid.has(id));
   },
 
   saveCustomBoard() {
     const hidden = (this.state.hiddenBoardIds || []).filter(id => !this.state.customOrder.includes(id));
     const ids = this.state.customOrder.concat(hidden);
     try {
-      localStorage.setItem(this.customBoardKey(), JSON.stringify(ids));
-    } catch (e) { /* storage blocked — board just won't persist */ }
-    // Signed in, the board follows the account.
-    if (typeof Cloud !== 'undefined' && Cloud.user) Cloud.setBoard(this.customBoardKey(), ids).catch(() => {});
+      localStorage.setItem(this.boardStorageKey(), JSON.stringify(ids));
+    } catch (e) { /* storage blocked: the account copy (if signed in) still holds it */ }
+    // Signed in, the account is where the board lives.
+    if (typeof Cloud !== 'undefined' && Cloud.user) {
+      if (this.state.accountBoards) this.state.accountBoards[this.customBoardKey()] = ids;
+      this.setBoardStatus('saving');
+      Cloud.setBoard(this.customBoardKey(), ids)
+        .then(() => this.setBoardStatus('saved'))
+        .catch(e => { console.warn('Saving your board to your account:', e); this.setBoardStatus('error'); });
+    }
   },
 
-  // On sign-in, boards saved to the account come down into this browser
-  // (the account's copy wins), and boards made here before signing in go up.
+  // The line under "My Big Board" saying where it's kept.
+  boardStatusText() {
+    const signedIn = typeof Cloud !== 'undefined' && Cloud.enabled && Cloud.user;
+    const st = this.state.boardStatus;
+    if (!signedIn) {
+      return typeof Cloud !== 'undefined' && Cloud.enabled
+        ? 'Saved in this browser. Sign in (top right) to keep your boards with your account.'
+        : 'Saved automatically to this browser.';
+    }
+    if (st === 'saving') return `Saving to your account (${Cloud.user.email})…`;
+    if (st === 'error') return 'Couldn\'t reach your account just now; it\'s kept in this browser and will go up with your next change.';
+    return `Saved to your account (${Cloud.user.email}), on any device you sign in on.`;
+  },
+  setBoardStatus(st) {
+    this.state.boardStatus = st;
+    const el = typeof document !== 'undefined' && document.getElementById('boardStatus');
+    if (el) el.textContent = this.boardStatusText();
+  },
+
+  // Signing in: the account's boards become this browser's. A board made
+  // here before signing in goes up if the account has none for that draft.
+  // Signing out: back to this browser's own board.
   async syncBoardsFromCloud() {
-    if (typeof Cloud === 'undefined' || !Cloud.user) return;
-    try {
-      const data = await Cloud.getUserData();
-      const boards = data.boards || {};
-      Object.keys(boards).forEach(k => { try { localStorage.setItem(k, JSON.stringify(boards[k])); } catch (e) { /* storage blocked */ } });
-      const mine = this.customBoardKey();
-      if (!boards[mine] && (this.state.customOrder || []).length) this.saveCustomBoard();
-      if (this.state.prospects && this.state.prospects.length) { this.loadCustomBoard(); this.render(); }
-    } catch (e) { console.warn('Draft boards from your account:', e); }
+    if (typeof Cloud === 'undefined') return;
+    if (!Cloud.user) {
+      this.state.accountBoards = null;
+    } else {
+      try {
+        const data = await Cloud.getUserData();
+        this.state.accountBoards = { ...(data.boards || {}) };
+        const key = this.customBoardKey();
+        if (!Array.isArray(this.state.accountBoards[key])) {
+          let local = [];
+          try { local = JSON.parse(localStorage.getItem(this.customBoardKey()) || '[]'); } catch (e) { local = []; }
+          if (local.length) { this.state.accountBoards[key] = local; Cloud.setBoard(key, local).catch(() => {}); }
+        }
+        this.state.boardStatus = 'saved';
+      } catch (e) {
+        console.warn('Draft boards from your account:', e);
+        this.state.accountBoards = null;
+        this.state.boardStatus = 'error';
+      }
+    }
+    if (this.state.prospects && this.state.prospects.length) { this.loadCustomBoard(); this.render(); }
   },
 
   addToBoard(id) {
@@ -1247,7 +1292,7 @@ const DraftRP = {
       <div class="draft-section-head">
         <div>
           <h2 class="draft-section-title">My Big Board</h2>
-          <p class="sub-text">${this.state.customOrder.length} ranked · saved automatically to this browser.</p>
+          <p class="sub-text">${this.state.customOrder.length} ranked · <span id="boardStatus">${this.esc(this.boardStatusText())}</span></p>
         </div>
         <div class="board-actions">
           ${this.statToggle()}

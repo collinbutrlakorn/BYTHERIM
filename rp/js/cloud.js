@@ -283,7 +283,7 @@
         <button type="button" class="account-avatar" onclick="this.parentNode.classList.toggle('open')" aria-label="Your account">${u.photoURL ? `<img src="${esc(u.photoURL)}" alt="" referrerpolicy="no-referrer">` : initial}</button>
         <div class="account-menu">
           <b>${esc(u.displayName || 'Signed in')}</b><small>${esc(u.email)}</small>
-          ${this.admin ? '<span class="account-admin">Admin</span><button type="button" onclick="Cloud.openAdmins()">Manage admins</button>' : ''}
+          ${this.admin ? '<span class="account-admin">Admin</span><button type="button" onclick="location.href=\'/rp/admin.html\'">Admin page</button><button type="button" onclick="Cloud.openAdmins()">Manage admins</button>' : ''}
           <button type="button" onclick="Cloud.signOut()">Sign out</button>
         </div></div>`;
     },
