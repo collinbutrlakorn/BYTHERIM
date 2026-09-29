@@ -221,6 +221,36 @@
       await this.db.doc(`users/${this.user.uid}`).set({ boards: { [key]: ids } }, { merge: true });
     },
 
+    // ---------- the site's own content (the home page hero, pinned posts) ----------
+    // site/<page> holds the text; each hero image is its own document
+    // under site/<page>/images, kept under Firestore's 1 MB limit when
+    // it's uploaded. Everyone reads; only admins write.
+    async getSite(name = 'home') {
+      if (!this.db) return null;
+      const snap = await this.db.doc(`site/${name}`).get();
+      return snap.exists ? snap.data() : null;
+    },
+    async saveSite(data, name = 'home') {
+      if (!this.admin) throw new Error('Only an admin can change the site.');
+      const doc = { ...data, updatedAt: Date.now(), by: this.user.email };
+      await this.db.doc(`site/${name}`).set(doc);
+      return doc;
+    },
+    async getSiteImage(id, name = 'home') {
+      if (!this.db || !id) return null;
+      const snap = await this.db.doc(`site/${name}/images/${id}`).get();
+      return snap.exists ? snap.data().d : null;
+    },
+    async putSiteImage(id, dataUrl, name = 'home') {
+      if (!this.admin) throw new Error('Only an admin can change the site.');
+      if (dataUrl.length > 1000000) throw new Error('That image is still too large after shrinking it. Try a smaller one.');
+      await this.db.doc(`site/${name}/images/${id}`).set({ d: dataUrl });
+    },
+    async deleteSiteImage(id, name = 'home') {
+      if (!this.admin || !id) return;
+      await this.db.doc(`site/${name}/images/${id}`).delete().catch(() => {});
+    },
+
     // ---------- the official universe ----------
     async publishUniverse(json) {
       if (!this.admin) throw new Error('Only an admin can publish.');
@@ -293,7 +323,7 @@
         <button type="button" class="account-avatar" onclick="this.parentNode.classList.toggle('open')" aria-label="Your account">${u.photoURL ? `<img src="${esc(u.photoURL)}" alt="" referrerpolicy="no-referrer">` : initial}</button>
         <div class="account-menu">
           <b>${esc(u.displayName || 'Signed in')}</b><small>${esc(u.email)}</small>
-          ${this.admin ? '<span class="account-admin">Admin</span><button type="button" onclick="location.href=\'/rp/admin.html\'">Admin page</button><button type="button" onclick="Cloud.openAdmins()">Manage admins</button>' : ''}
+          ${this.admin ? '<span class="account-admin">Admin</span><button type="button" onclick="location.href=\'/admin.html\'">Site admin</button><button type="button" onclick="location.href=\'/rp/admin.html\'">RP admin</button><button type="button" onclick="Cloud.openAdmins()">Manage admins</button>' : ''}
           <button type="button" onclick="Cloud.signOut()">Sign out</button>
         </div></div>`;
     },

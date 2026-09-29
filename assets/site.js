@@ -411,6 +411,8 @@
     x(el, theme, height) {
       const handle = handleOf('x');
       const posts = CONFIG.xPosts || [];
+      // data-only-posts: shown only when there are posts to pin.
+      if (el.hasAttribute('data-only-posts')) { el.hidden = !posts.length; if (!posts.length) return; }
       el.innerHTML = embedHead('x', 'On X') + `
         <div class="x-feed-body${posts.length ? ' x-feed-posts' : ''}" style="min-height:${Math.min(height, 240)}px">${
           posts.length
@@ -498,6 +500,8 @@
       document.querySelectorAll('[data-social]').forEach(el => {
         el.innerHTML = socialButtons(el.dataset.social.split(','), el.hasAttribute('data-labels'));
       });
+      const cachedSite = readCache(SITE_KEY);
+      if (cachedSite) applyPosts(cachedSite);   // before the embeds draw, so they draw once
       document.querySelectorAll('[data-x-feed]').forEach(xFeed);
       document.querySelectorAll('[data-embed]').forEach(socialEmbed);
       document.querySelectorAll('[data-yt]').forEach(videoFacade);
@@ -511,15 +515,175 @@
 
   // Google sign-in lives in the header on every page. The RP pages load
   // the account scripts themselves; everywhere else they're added here.
+  let accountsLoaded = null;
   function loadAccounts() {
-    if (window.Cloud || document.querySelector('script[src$="rp/js/cloud.js"], script[src$="js/cloud.js"]')) return;
-    const add = src => new Promise(res => {
-      const s = document.createElement('script');
-      s.src = src; s.onload = res; s.onerror = res;
-      document.head.appendChild(s);
+    if (accountsLoaded) return accountsLoaded;
+    if (window.Cloud || document.querySelector('script[src$="rp/js/cloud.js"], script[src$="js/cloud.js"]')) {
+      accountsLoaded = Promise.resolve();
+    } else {
+      const add = src => new Promise(res => {
+        const s = document.createElement('script');
+        s.src = src; s.onload = res; s.onerror = res;
+        document.head.appendChild(s);
+      });
+      const dir = (BASE === '/' ? '/' : BASE) + 'rp/js/';
+      accountsLoaded = add(dir + 'cloud-config.js').then(() => add(dir + 'cloud.js'));
+    }
+    applySiteContent();
+    return accountsLoaded;
+  }
+
+  // Resolves to the started Cloud (accounts + database), or null when it
+  // isn't available. Never waits more than a few seconds.
+  let cloudReady = null;
+  function cloud() {
+    if (cloudReady) return cloudReady;
+    const timeout = new Promise(res => setTimeout(() => res(null), 9000));
+    cloudReady = Promise.race([timeout, (accountsLoaded || loadAccounts()).then(async () => {
+      if (!window.Cloud) return null;
+      try { return (await window.Cloud.init()) ? window.Cloud : null; } catch (e) { return null; }
+    })]);
+    return cloudReady;
+  }
+
+  // ---------------------------------------------------------------- live site content
+  // What an admin edits on the admin page: the home page hero slides and
+  // the X / Instagram posts to embed. Kept in the database (site/home),
+  // cached in this browser so the page draws it straight away next time.
+  const SITE_KEY = 'btr-site-home';
+  const readCache = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };
+  const writeCache = (k, v) => { try { localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v)); return true; } catch (e) { return false; } };
+  const sameList = (a, b) => JSON.stringify(a || []) === JSON.stringify(b || []);
+
+  // Pinned posts from the admin page replace the ones in CONFIG, and any
+  // embed already drawn with the old list is drawn again.
+  function applyPosts(site) {
+    if (!site) return;
+    const next = { x: (site.xPosts || []).filter(Boolean), instagram: (site.instagramPosts || []).filter(Boolean) };
+    const changed = [];
+    if (!sameList(next.x, CONFIG.xPosts)) { CONFIG.xPosts = next.x; changed.push('x'); }
+    if (!sameList(next.instagram, CONFIG.instagramPosts)) { CONFIG.instagramPosts = next.instagram; changed.push('instagram'); }
+    document.querySelectorAll('[data-embed]').forEach(el => {
+      if (changed.includes(el.dataset.embed || 'x') && (el.classList.contains('x-feed') || el.hasAttribute('data-only-posts'))) socialEmbed(el);
     });
-    const dir = (BASE === '/' ? '/' : BASE) + 'rp/js/';
-    add(dir + 'cloud-config.js').then(() => add(dir + 'cloud.js'));
+  }
+
+  let siteApplied = false;
+  function applySiteContent() {
+    if (siteApplied) return;
+    siteApplied = true;
+    const cached = readCache(SITE_KEY);
+    if (cached) { applyPosts(cached); heroRotator(cached); }
+    cloud().then(async c => {
+      if (!c || !c.getSite) return;
+      let site = null;
+      try { site = await c.getSite('home'); } catch (e) { return; }
+      if (!site) return;
+      writeCache(SITE_KEY, site);
+      if (cached && cached.updatedAt === site.updatedAt) return;
+      applyPosts(site);
+      heroRotator(site);
+    });
+  }
+
+  // Hero images live in the database, one document each; once fetched
+  // they're kept in this browser (ids never change, so no refetching).
+  const imgCache = {};
+  async function heroImage(id) {
+    if (!id) return null;
+    if (imgCache[id]) return imgCache[id];
+    const hit = (() => { try { return localStorage.getItem('btr-img-' + id); } catch (e) { return null; } })();
+    if (hit) return (imgCache[id] = hit);
+    const c = await cloud();
+    if (!c || !c.getSiteImage) return null;
+    try {
+      const d = await c.getSiteImage(id);
+      if (d) { imgCache[id] = d; writeCache('btr-img-' + id, d); }
+      return d;
+    } catch (e) { return null; }
+  }
+  function pruneImages(keep) {
+    try {
+      Object.keys(localStorage).filter(k => k.startsWith('btr-img-') && !keep.has(k.slice(8))).forEach(k => localStorage.removeItem(k));
+    } catch (e) { /* storage blocked */ }
+  }
+
+  const safeLink = u => {
+    const v = String(u || '').trim();
+    if (/^https?:\/\//i.test(v)) return v;
+    if (/^[a-z0-9./#?=&_-]+$/i.test(v) && !/^\/\//.test(v)) return v;
+    return '';
+  };
+  const external = u => /^https?:\/\//i.test(u) && !/^https?:\/\/(www\.)?bytherim\.com/i.test(u);
+
+  function slideHTML(sl, bg) {
+    const link = safeLink(sl.link);
+    const ext = external(link);
+    return `<section class="hero hero-slide" data-slide="${esc(sl.id)}" style="${bg ? `background-image:url('${bg}');` : ''}background-position:${sl.focus === 'left' ? 'left' : sl.focus === 'right' ? 'right' : 'center'} center;">
+      <div class="container"><div class="hero-copy">
+        ${sl.eyebrow ? `<span class="eyebrow">${esc(sl.eyebrow)}</span>` : ''}
+        ${sl.title ? `<h2 class="hero-title">${esc(sl.title)}</h2>` : ''}
+        ${sl.caption ? `<p>${esc(sl.caption)}</p>` : ''}
+        ${link ? `<div class="hero-actions"><a class="btn btn-primary" href="${esc(link)}"${ext ? ' target="_blank" rel="noopener"' : ''}>${esc(sl.linkLabel || 'Take a look')}</a></div>` : ''}
+      </div></div>
+    </section>`;
+  }
+
+  // The home page hero: the newest slides from the admin page, fading one
+  // into the next, with the original hero kept as a slide unless it's
+  // been switched off.
+  let rot = null;
+  async function heroRotator(site) {
+    const wrap = document.querySelector('[data-hero-slides]');
+    if (!wrap || !site) return;
+    const slides = (site.slides || []).filter(s => s && !s.hidden).slice(0, 8);
+    const def = wrap.querySelector('.hero[data-default]');
+    if (rot) { clearInterval(rot.timer); rot = null; }
+    wrap.querySelectorAll('.hero-slide:not([data-default]), .hero-dots').forEach(n => n.remove());
+    if (def) def.hidden = site.showDefault === false && slides.length > 0;
+    if (!slides.length) { if (def) def.classList.add('is-active'); return; }
+    pruneImages(new Set(slides.map(s => s.img).filter(Boolean)));
+
+    // Newest first, then the original.
+    const first = await heroImage(slides[0].img);
+    wrap.insertAdjacentHTML('afterbegin', slides.map((s, i) => slideHTML(s, i === 0 ? first : null)).join(''));
+    const all = [...wrap.querySelectorAll('.hero')].filter(n => !n.hidden);
+    all.forEach(n => n.classList.remove('is-active'));
+    all[0].classList.add('is-active');
+    if (all.length < 2) return;
+
+    wrap.insertAdjacentHTML('beforeend', `<div class="hero-dots" role="tablist" aria-label="Featured">${all.map((n, i) =>
+      `<button type="button" role="tab" aria-label="Slide ${i + 1}" aria-selected="${i === 0}" data-go="${i}"></button>`).join('')}</div>`);
+    const dots = [...wrap.querySelectorAll('.hero-dots button')];
+    const load = async i => {
+      const n = all[i];
+      const id = n.dataset.slide && (slides.find(s => s.id === n.dataset.slide) || {}).img;
+      if (id && !n.style.backgroundImage) { const d = await heroImage(id); if (d) n.style.backgroundImage = `url('${d}')`; }
+    };
+    const state = { i: 0, timer: null, paused: false };
+    rot = state;
+    const show = async i => {
+      i = (i + all.length) % all.length;
+      await load(i);
+      all[state.i].classList.remove('is-active');
+      all[i].classList.add('is-active');
+      dots.forEach((d, k) => d.setAttribute('aria-selected', String(k === i)));
+      state.i = i;
+      load((i + 1) % all.length);          // the next one is ready before it's needed
+    };
+    load(1);
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const start = () => { clearInterval(state.timer); if (!reduce) state.timer = setInterval(() => { if (!state.paused && !document.hidden) show(state.i + 1); }, 7000); };
+    dots.forEach(d => d.addEventListener('click', () => { show(+d.dataset.go); start(); }));
+    if (!wrap.dataset.wired) {
+      wrap.dataset.wired = '1';
+      const pause = v => () => { if (rot) rot.paused = v; };
+      wrap.addEventListener('mouseenter', pause(true));
+      wrap.addEventListener('mouseleave', pause(false));
+      wrap.addEventListener('focusin', pause(true));
+      wrap.addEventListener('focusout', pause(false));
+    }
+    start();
   }
 
   // Swaps a YouTube placeholder for the real player on the first press.
@@ -549,6 +713,7 @@
 
   window.BTR = {
     CONFIG, mount, toggleTheme, icon, esc, stripHtml, truncate, fmtDate, fmtDuration,
-    fetchFeed, loadPosts, parseCSV, schoolLogo, schoolKey, initialsBadge, socialButtons, postCard, hydrateIcons, xFeed, socialEmbed
+    fetchFeed, loadPosts, parseCSV, schoolLogo, schoolKey, initialsBadge, socialButtons, postCard, hydrateIcons, xFeed, socialEmbed,
+    cloud, slideHTML, heroRotator
   };
 })();

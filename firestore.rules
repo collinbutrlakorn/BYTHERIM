@@ -21,6 +21,13 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // The site's own content (home page hero slides and images, pinned
+    // posts): everyone reads, admins edit from the admin page.
+    match /site/{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // The admin list: only admins can see or change it (anyone else's
     // check simply fails, which the site reads as "not an admin"). The
     // first admin is added by hand in the Firebase console.

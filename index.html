@@ -114,7 +114,10 @@
 <body>
 <script>BTR.mount('home')</script>
 
-<section class="hero" style="background-image: url('assets/hero-home-banner.jpg');">
+<!-- Slides added on the admin page fade in ahead of this one (see
+     heroRotator in assets/site.js); this is the hero until they load. -->
+<div class="hero-rotator" data-hero-slides>
+<section class="hero is-active" data-default style="background-image: url('assets/hero-home-banner.jpg');">
   <div class="container">
     <div class="hero-copy">
       <span class="eyebrow">Unbiased basketball coverage</span>
@@ -127,6 +130,7 @@
     </div>
   </div>
 </section>
+</div>
 
 <main>
   <section class="section">
@@ -187,12 +191,13 @@
   <section class="section">
     <div class="container">
       <div class="section-head">
-        <div><h2>Follow along</h2><p>Clips and breakdowns on TikTok and Instagram.</p></div>
+        <div><h2>Follow along</h2><p>Clips, breakdowns and the latest posts.</p></div>
       </div>
       <div class="social-split">
         <div class="card side-card" data-embed="tiktok"></div>
         <div class="social-side">
           <div class="card side-card" data-embed="instagram"></div>
+          <div class="card side-card" data-embed="x" data-only-posts hidden></div>
           <div class="card side-card">
             <h3 class="more-social-title">Everywhere else</h3>
             <div class="social-row" data-social="x,youtube" data-labels></div>

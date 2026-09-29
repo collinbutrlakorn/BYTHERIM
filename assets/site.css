@@ -1039,3 +1039,20 @@ a.card:hover { border-color: var(--border-strong); transform: translateY(-2px); 
 
 /* RP pages: fiction notice under the copyright line */
 .footer-fiction { display: block; margin-top: 0.35rem; font-size: 0.8rem; }
+
+/* ---------------------------------------------------------------- home hero slides */
+/* Every slide is a full .hero stacked in one grid cell, so the tallest
+   sets the height and they cross-fade in place. */
+.hero-rotator { display: grid; position: relative; background: var(--navy); }
+.hero-rotator > .hero { grid-area: 1 / 1; opacity: 0; visibility: hidden; transition: opacity 0.9s ease, visibility 0s linear 0.9s; }
+.hero-rotator > .hero.is-active { opacity: 1; visibility: visible; transition: opacity 0.9s ease; z-index: 1; }
+.hero-rotator > .hero[hidden] { display: none; }
+.hero .hero-title { font-size: clamp(2.3rem, 5vw, 3.6rem); text-transform: uppercase; margin: 0.5rem 0 0.9rem; line-height: 1.02; }
+.hero-dots { position: absolute; z-index: 2; left: 50%; bottom: 1rem; transform: translateX(-50%); display: flex; gap: 0.5rem; }
+.hero-dots button { width: 10px; height: 10px; border-radius: 50%; border: 0; padding: 0; cursor: pointer; background: rgba(255, 255, 255, 0.35); transition: background 0.2s ease, width 0.2s ease; }
+.hero-dots button[aria-selected="true"] { background: #fff; width: 26px; border-radius: 999px; }
+@media (max-width: 620px) {
+  .hero-rotator > .hero { padding-bottom: 2.9rem; }
+  .hero-dots { bottom: 0.9rem; }
+}
+@media (prefers-reduced-motion: reduce) { .hero-rotator > .hero { transition: none; } }
