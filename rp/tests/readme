@@ -121,6 +121,30 @@ cards, tier names and the tier guide, and past boards: the year switcher
 (which skips tabs that are still a copy of the current board), the Drafted
 column, team logos from names or abbreviations, and year-aware links.
 
+**hs-season.js** — the high-school calendar: rankings shifting through the
+year, commitments spreading out, reclassifications, star counts by rank, and
+the McDonald's All-American, Jordan Brand Classic and Nike Hoop Summit
+rosters.
+
+**prestige.js** — program prestige (history tiers, recent seasons, the
+coach), prestige setting the level programs sign at, the coaching carousel
+(firings, hires, players following their coach), and skipping ahead.
+
+**autosave.js** — the loading screen on a new save, and account autosave:
+right after a milestone, throttled otherwise, never mid-sim, and never over
+a newer save from another device.
+
+**admin-page.js** — the RP admin page: overalls by source, conference and
+prestige, teams, rosters, players and coaches.
+
+**cloud.js** — accounts against a fake Firebase: sign-in, admins, saves
+split across documents and restored exactly, uploads that can't leave a
+half-written save, draft boards, and publishing the universe.
+
+**site-content.js** — the site admin page and the home page: hero slides
+fading in ahead of the original, banners cached, pinned X and Instagram
+posts (pasted links cleaned up), and Publish uploading in a safe order.
+
 **stats-updater.js** — runs `tools/update-stats.mjs` (the daily job that
 pulls last season's college stats from Barttorvik into `data/stats.json`)
 against a fake sheet and a fake Barttorvik file, with no network. Checks

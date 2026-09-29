@@ -15,15 +15,9 @@ service cloud.firestore {
       allow read, write: if signedIn() && request.auth.uid == uid;
     }
 
-    // The official universe: everyone reads, admins publish.
+    // The official universe and the site's own content (home page hero,
+    // pinned posts): everyone reads, admins publish.
     match /official/{document=**} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    // The site's own content (home page hero slides and images, pinned
-    // posts): everyone reads, admins edit from the admin page.
-    match /site/{document=**} {
       allow read: if true;
       allow write: if isAdmin();
     }

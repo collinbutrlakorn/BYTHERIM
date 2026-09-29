@@ -1,6 +1,6 @@
 // The site admin page (admin.html): the home page's hero slides and the X
 // and Instagram posts pinned on the site, edited here and stored in the
-// database (site/home) instead of in the repo. Nothing changes on the live
+// database (official/site_home) instead of in the repo. Nothing changes on the live
 // site until Publish. The RP has its own admin page (rp/admin.html).
 (function (root) {
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -19,8 +19,36 @@
     ['https://collindunks.substack.com', 'Substack']
   ];
   const DEFAULT_LABEL = { 'podcast.html': 'Listen now', 'draft.html': 'See the board', 'rp/': 'Enter the RP', 'rp/ncaa.html': 'Open the NCAA RP', 'rp/draft.html': 'Open the Draft RP', 'recruiting/': 'See the rankings' };
-  const X_RE = /^https:\/\/(www\.)?(x|twitter)\.com\/[A-Za-z0-9_]+\/status\/\d+/;
-  const IG_RE = /^https:\/\/(www\.)?instagram\.com\/(p|reel|tv)\/[A-Za-z0-9_-]+/;
+  const X_RE = /^https:\/\/x\.com\/[A-Za-z0-9_]+\/status\/\d+$/;
+  const IG_RE = /^https:\/\/www\.instagram\.com\/(p|reel|tv)\/[A-Za-z0-9_-]+\/$/;
+  // Pasted links come in many shapes (the share button, the app, a phone
+  // browser). They're all turned into the one form each embed expects.
+  function cleanPost(raw) {
+    let u = String(raw || '').trim().replace(/^<|>$/g, '');
+    if (!u) return '';
+    if (!/^https?:\/\//i.test(u)) u = 'https://' + u.replace(/^\/+/, '');
+    let url;
+    try { url = new URL(u); } catch (e) { return raw.trim(); }
+    const host = url.hostname.toLowerCase().replace(/^(www|mobile|m)\./, '');
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (['x.com', 'twitter.com', 'fxtwitter.com', 'vxtwitter.com', 'fixupx.com'].includes(host)) {
+      const i = parts.findIndex(p => p === 'status' || p === 'statuses');
+      if (i >= 0 && /^\d+$/.test(parts[i + 1] || '')) return `https://x.com/${i > 0 && parts[i - 1] !== 'web' ? parts[i - 1] : 'i'}/status/${parts[i + 1]}`;
+    }
+    if (host === 'instagram.com' || host === 'instagr.am') {
+      const i = parts.findIndex(p => ['p', 'reel', 'reels', 'tv'].includes(p));
+      if (i >= 0 && parts[i + 1]) return `https://www.instagram.com/${parts[i] === 'reels' ? 'reel' : parts[i]}/${parts[i + 1]}/`;
+    }
+    return raw.trim();
+  }
+  // Firebase's errors, in words that say what to do.
+  function explain(e) {
+    const m = String((e && (e.code || e.message)) || e || '');
+    if (/permission|insufficient/i.test(m)) return 'the database refused it (your account may not be on the admin list, or the database rules are out of date).';
+    if (/unavailable|network|offline|failed to fetch/i.test(m)) return 'couldn\'t reach the database. Check your connection and try again.';
+    if (/quota|resource-exhausted/i.test(m)) return 'the database is over its daily limit. Try again tomorrow.';
+    return (e && e.message) || m;
+  }
   const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   // The site's root folder, for previews and the original hero's image.
   const siteRoot = () => new URL('./', location.href).href;
@@ -40,7 +68,7 @@
       try {
         this.site = (root.Cloud && root.Cloud.getSite) ? await root.Cloud.getSite('home') : null;
       } catch (e) {
-        this.status = `Couldn't read the site content: ${e.message || e}. If this is the first time, the database rules may need the "site" section (see firestore.rules).`;
+        this.status = `Couldn't read the site content: ${explain(e)}`;
       }
       this.loading = false;
       this.draft = JSON.parse(JSON.stringify(this.site || { slides: [], showDefault: true, xPosts: [], instagramPosts: [] }));
@@ -125,7 +153,7 @@
       return bad.length ? `Doesn't look like a post link: ${esc(bad[0])}` : `${list.length} post${list.length === 1 ? '' : 's'}`;
     },
     setPosts(key, text) {
-      this.draft[key] = text.split(/\s+/).map(s => s.trim().replace(/[?#].*$/, '')).filter(Boolean);
+      this.draft[key] = text.split(/[\s,]+/).map(cleanPost).filter(Boolean);
       // Updated in place: redrawing here would swallow a click on Publish
       // made straight after typing.
       const hint = document.querySelector(`[data-posts-hint="${key}"]`);
@@ -300,7 +328,8 @@
         this.draft = JSON.parse(JSON.stringify(saved));
         this.status = 'Published. The home page shows it on the next visit.';
       } catch (e) {
-        this.status = `Couldn't publish: ${e.message || e}`;
+        console.error('Publishing the site:', e);
+        this.status = `Couldn't publish: ${explain(e)}`;
       }
       this.rerender();
     },

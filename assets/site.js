@@ -548,7 +548,7 @@
 
   // ---------------------------------------------------------------- live site content
   // What an admin edits on the admin page: the home page hero slides and
-  // the X / Instagram posts to embed. Kept in the database (site/home),
+  // the X / Instagram posts to embed. Kept in the database (official/site_home),
   // cached in this browser so the page draws it straight away next time.
   const SITE_KEY = 'btr-site-home';
   const readCache = k => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } };

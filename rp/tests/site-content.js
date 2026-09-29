@@ -126,6 +126,12 @@ async function home(store, storage) {
   S.remove(S.draft.slides.findIndex(s => s.id === 's4'));
   S.setPosts('xPosts', 'https://x.com/collinbutr/status/999?s=20\nhttps://x.com/collinbutr/status/123');
   ok(S.draft.xPosts[0] === 'https://x.com/collinbutr/status/999', 'post links are cleaned of tracking bits');
+  S.setPosts('xPosts', 'twitter.com/collinbutr/status/555?t=abc  https://mobile.x.com/collinbutr/status/556/photo/1');
+  ok(S.draft.xPosts.join() === 'https://x.com/collinbutr/status/555,https://x.com/collinbutr/status/556', 'X links from the app, a phone or twitter.com all work');
+  S.setPosts('instagramPosts', 'https://www.instagram.com/reels/C9abc_1/?igsh=xyz\ninstagram.com/bytherimhoops/p/D1xyz/');
+  ok(S.draft.instagramPosts.join() === 'https://www.instagram.com/reel/C9abc_1/,https://www.instagram.com/p/D1xyz/', 'Instagram share links, reels and profile-style links all work');
+  S.setPosts('instagramPosts', '');
+  S.setPosts('xPosts', 'https://x.com/collinbutr/status/999?s=20\nhttps://x.com/collinbutr/status/123');
   ok(/Unpublished changes/.test((S.render(aw.document.getElementById('admBody')), aw.document.body.textContent)), 'changes wait for Publish');
   await S.publish();
   ok(astore.site.slides[0].title === 'Episode 40' && astore.images.new1 === IMG + 'new', 'Publish uploads the new banner and the slides');

@@ -87,7 +87,7 @@ PAGES.forEach(p => {
   const nf = read('404.html');
   ok(nf.includes("BTR.mount('', { base: '/' })") && nf.includes('href="/assets/site.css"') && !/(href|src)="(?!\/|https?:|#)[^"]/.test(nf), '404: every link is absolute, so it works at any broken address');
   ok(/goatcounter: ''/.test(siteJs), 'visitor counting is off until a GoatCounter code is added');
-  const big = ['logo.png', 'favicon.png', 'assets/hero-home-banner.jpg', 'assets/hero-rp-banner.jpg', 'assets/hero-about-banner.jpg', 'assets/logo-header.png']
+  const big = ['favicon.ico', 'assets/hero-home-banner.jpg', 'assets/hero-rp-banner.jpg', 'assets/hero-about-banner.jpg', 'assets/logo-header.png']
     .filter(f => fs.statSync(path.join(ROOT, f)).size > 400 * 1024);
   ok(big.length === 0, 'header logo, favicon and hero banners are each under 400 KB' + (big.length ? ': ' + big.join(', ') : ''));
 }

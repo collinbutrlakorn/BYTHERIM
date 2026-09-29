@@ -4,7 +4,7 @@
 
 **[bytherim.com](https://bytherim.com)** — unbiased basketball coverage: an NBA draft big board, film breakdowns, the podcast, and **BYTHERIM RP**, a full college basketball universe with its own recruiting, season simulation and NBA draft.
 
-The whole site is plain HTML, CSS and JavaScript served by GitHub Pages. There's no build step and no server: content comes from Google Sheets and public feeds, and two small data files in `data/` tie everything together.
+The whole site is plain HTML, CSS and JavaScript served by GitHub Pages. There's no build step and no server of our own: content comes from Google Sheets and public feeds, and Firebase (Google sign-in plus a small database) holds accounts, saves and what admins publish.
 
 ## The site
 
@@ -45,7 +45,7 @@ flowchart LR
   recruits --> sim
   recruits --> rec["Recruiting"]
   roster --> rec
-  sim -- "Publish Universe" --> universe["data/universe.json"]
+  sim -- "Publish Universe" --> universe["Firebase: official universe"]
   universe --> rec
   universe --> draftrp["Draft RP"]
   universe --> hub["RP Hub"]
@@ -53,7 +53,8 @@ flowchart LR
 
 - **The big board** is a Google Sheet published to the web. Each tab named like `2026 Board` becomes a past board on the site automatically.
 - **College and pro stats** are pulled every morning by a GitHub Action ([`update-stats.yml`](.github/workflows/update-stats.yml)) from Barttorvik and, for players with a Basketball-Reference link, Basketball-Reference. It respects both sites' crawl delays, and a failed download never erases numbers that are already saved.
-- **The RP universe** runs in the browser. Each save lives in the visitor's own browser storage. The official season is run by BYTHERIM and published with **Publish Universe** in the sim's menu, which downloads `universe.json`. Uploading it to `data/` updates the Draft RP, the recruiting portal and the RP Hub for everyone.
+- **The RP universe** runs in the browser. Each save lives in the visitor's browser and, when they sign in with Google, autosaves to their account. The official season is run by BYTHERIM and published with **Publish Universe** in the sim's menu (admins only), which updates the Draft RP, the recruiting portal and the RP Hub for everyone. `data/universe.json` is only the fallback if nothing has been published.
+- **Admin pages** (admins only, linked from the account menu): [`admin.html`](admin.html) edits the home page hero slides and pinned X / Instagram posts; [`rp/admin.html`](rp/admin.html) shows every team, player overall and coach in the RP save. The admin list and database rules are in [`firestore.rules`](firestore.rules), which is pasted into the Firebase console.
 - **The draft happens in the Draft RP.** When a season ends, the NCAA RP waits at its *NBA Draft* step while the Draft RP runs the combine, lottery, team workouts, withdrawal deadline and draft night against the same save (the shared logic is [`rp/js/draft-cycle.js`](rp/js/draft-cycle.js)). Combine testing is built from each player's measurements, the sheet's Attributes and Athleticism columns, and the recruiting database's scouting report; workouts depend on each NBA team's workout style and the prospect's personality.
 - **Scripted storylines** come straight from the roster sheet: a player listed at a new school in the next season's rows transfers there, and a Draft value like `2029 R:1 P:5` makes him the fifth pick of the 2029 draft.
 
@@ -65,14 +66,17 @@ index.html, draft.html, podcast.html, nba.html, about.html   main site
 assets/                     shared design (site.css, site.js), big board code (board.js),
                             RP header/footer (chrome.css), share images, icons
 data/stats.json             college + pro stats for the big board (written by the daily job)
-data/universe.json          the published RP universe (uploaded after "Publish Universe")
-rp/                         RP Hub, guide, NCAA Simulation (ncaa.html + js/) and Draft RP
+admin.html                  site admin: home page hero slides and pinned posts
+rp/                         RP Hub, guide, NCAA Simulation (ncaa.html + js/), Draft RP, RP admin
+rp/js/cloud.js              accounts, saves and publishing (Firebase); config in cloud-config.js
+firestore.rules             database rules, pasted into the Firebase console
 recruiting/                 recruiting rankings, profiles and the transfer portal
-2028/ … 2040/               recruit photos, by class
+2028/ … 2040/               recruit photos, by class (file names must match the recruiting sheet's Avatar column exactly)
 schoollogos/ nbalogos/ conferencelogos/                     logos
 tools/update-stats.mjs      the daily stats job
 tools/page-meta.py          writes share-preview and icon tags into every page
 rp/tests/                   automated checks (see rp/tests/readme)
+ncaa/                       redirect from the sim's old address
 CNAME, sitemap.xml, robots.txt, site.webmanifest            domain, search and "Add to Home Screen"
 ```
 

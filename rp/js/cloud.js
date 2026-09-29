@@ -222,33 +222,35 @@
     },
 
     // ---------- the site's own content (the home page hero, pinned posts) ----------
-    // site/<page> holds the text; each hero image is its own document
-    // under site/<page>/images, kept under Firestore's 1 MB limit when
-    // it's uploaded. Everyone reads; only admins write.
+    // official/site_<page> holds the text; each hero image is its own
+    // document under official/site_<page>/images, kept under Firestore's
+    // 1 MB limit when it's uploaded. It sits beside the official universe,
+    // which the database rules already let everyone read and only admins
+    // write, so no rules change is needed for it.
     async getSite(name = 'home') {
       if (!this.db) return null;
-      const snap = await this.db.doc(`site/${name}`).get();
+      const snap = await this.db.doc(`official/site_${name}`).get();
       return snap.exists ? snap.data() : null;
     },
     async saveSite(data, name = 'home') {
       if (!this.admin) throw new Error('Only an admin can change the site.');
       const doc = { ...data, updatedAt: Date.now(), by: this.user.email };
-      await this.db.doc(`site/${name}`).set(doc);
+      await this.db.doc(`official/site_${name}`).set(doc);
       return doc;
     },
     async getSiteImage(id, name = 'home') {
       if (!this.db || !id) return null;
-      const snap = await this.db.doc(`site/${name}/images/${id}`).get();
+      const snap = await this.db.doc(`official/site_${name}/images/${id}`).get();
       return snap.exists ? snap.data().d : null;
     },
     async putSiteImage(id, dataUrl, name = 'home') {
       if (!this.admin) throw new Error('Only an admin can change the site.');
       if (dataUrl.length > 1000000) throw new Error('That image is still too large after shrinking it. Try a smaller one.');
-      await this.db.doc(`site/${name}/images/${id}`).set({ d: dataUrl });
+      await this.db.doc(`official/site_${name}/images/${id}`).set({ d: dataUrl });
     },
     async deleteSiteImage(id, name = 'home') {
       if (!this.admin || !id) return;
-      await this.db.doc(`site/${name}/images/${id}`).delete().catch(() => {});
+      await this.db.doc(`official/site_${name}/images/${id}`).delete().catch(() => {});
     },
 
     // ---------- the official universe ----------
