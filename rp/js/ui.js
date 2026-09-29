@@ -86,14 +86,19 @@ window.UIController = {
     if (simWeekBtn) {
       simWeekBtn.addEventListener('click', async () => {
         if (!window.SimEngine) return;
+        // One simulation at a time: extra clicks while one is running are
+        // ignored rather than queued up behind it.
+        if (SimEngine.isSimBusy()) return;
         if (SimEngine.state.ncaaDone) { SimEngine.openOffseason(); return; }
         // Spinner first, then yield a frame so it actually paints before
         // the simulation blocks the thread.
         SimEngine.showSimSpinner('Simulating…');
         await new Promise(r => setTimeout(r, 30));
+        SimEngine._simBusy = true;
         try {
           await SimEngine.simButtonAction();
         } finally {
+          SimEngine._simBusy = false;
           await SimEngine.hideSimSpinner();
         }
       });

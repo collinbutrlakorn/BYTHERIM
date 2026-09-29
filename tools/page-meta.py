@@ -36,6 +36,13 @@ BRAND_PROFILES = [
     'https://collindunks.substack.com',
     'https://github.com/collinbutrlakorn/BYTHERIM',
 ]
+# The RP apps each have their own icon and home-screen app: (icon prefix
+# relative to the page, manifest relative to the page, app title).
+APP_ICONS = {
+    'rp/ncaa.html':          ('icons/ncaa',       'ncaa.webmanifest',       'NCAA RP'),
+    'rp/draft.html':         ('icons/draft',      'draft.webmanifest',      'Draft RP'),
+    'recruiting/index.html': ('icons/recruiting', 'recruiting.webmanifest', 'Recruiting'),
+}
 PERSON_PROFILES = ['https://x.com/collinbutr', 'https://collindunks.substack.com']
 PAGE_TYPES = {'about.html': 'AboutPage', 'draft.html': 'CollectionPage', 'podcast.html': 'CollectionPage'}
 
@@ -65,7 +72,7 @@ def structured_data(rel, url, title, desc, card_url):
     return '<script type="application/ld+json">\n' + data.replace('</', '<\\/') + '\n</script>'
 
 START, END = '<!-- share + icons -->', '<!-- /share + icons -->'
-STRIP = re.compile(r'^\s*<(?:meta (?:property="og:[^"]*"|name="twitter:[^"]*"|name="theme-color")|link rel="(?:icon|canonical|manifest|apple-touch-icon|shortcut icon)")[^>]*>\s*\n', re.M)
+STRIP = re.compile(r'^\s*<(?:meta (?:property="og:[^"]*"|name="twitter:[^"]*"|name="theme-color"|name="apple-mobile-web-app-title")|link rel="(?:icon|canonical|manifest|apple-touch-icon|shortcut icon)")[^>]*>\s*\n', re.M)
 
 def attr(v): return html.escape(html.unescape(v), quote=True)
 
@@ -102,10 +109,21 @@ for rel, (path, card, fallback) in PAGES.items():
         f'<meta name="twitter:description" content="{attr(desc)}">',
         f'<meta name="twitter:image" content="{card_url}">',
         '<meta name="theme-color" content="#06070a">',
-        f'<link rel="icon" type="image/png" sizes="32x32" href="{base}assets/icons/favicon-32.png">',
-        f'<link rel="apple-touch-icon" href="{base}assets/icons/apple-touch-icon.png">',
-        f'<link rel="manifest" href="{base}site.webmanifest">',
     ]
+    if rel in APP_ICONS:
+        icon, manifest, app = APP_ICONS[rel]
+        lines += [
+            f'<link rel="icon" type="image/png" sizes="32x32" href="{icon}-favicon-32.png">',
+            f'<link rel="apple-touch-icon" href="{icon}-apple-touch-icon.png">',
+            f'<link rel="manifest" href="{manifest}">',
+            f'<meta name="apple-mobile-web-app-title" content="{app}">',
+        ]
+    else:
+        lines += [
+            f'<link rel="icon" type="image/png" sizes="32x32" href="{base}assets/icons/favicon-32.png">',
+            f'<link rel="apple-touch-icon" href="{base}assets/icons/apple-touch-icon.png">',
+            f'<link rel="manifest" href="{base}site.webmanifest">',
+        ]
     if path:
         lines += structured_data(rel, url, title, desc, card_url).split('\n')
     lines.append(END)

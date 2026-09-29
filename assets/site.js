@@ -295,7 +295,7 @@
       <a href="${BASE}rp/" class="nav-rp${active === 'rp' ? ' active" aria-current="page' : ''}">BYTHERIM RP</a>
     </nav>
     <div class="header-tools">
-      ${active === 'rp' ? '<div id="accountSlot" class="account-slot"></div>' : ''}
+      <div id="accountSlot" class="account-slot"></div>
       <button class="icon-btn" type="button" data-action="theme" aria-label="Switch between light and dark" title="Light / dark">${icon('theme')}</button>
       <button class="icon-btn nav-toggle" type="button" data-action="menu" aria-label="Open menu" aria-expanded="false" aria-controls="siteNav">
         <span></span><span></span><span></span>
@@ -501,11 +501,25 @@
       document.querySelectorAll('[data-x-feed]').forEach(xFeed);
       document.querySelectorAll('[data-embed]').forEach(socialEmbed);
       document.querySelectorAll('[data-yt]').forEach(videoFacade);
+      loadAccounts();   // after parsing, so a page's own account scripts have run
     };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addFooter);
     else addFooter();
     wireChrome();
     countVisit();
+  }
+
+  // Google sign-in lives in the header on every page. The RP pages load
+  // the account scripts themselves; everywhere else they're added here.
+  function loadAccounts() {
+    if (window.Cloud || document.querySelector('script[src$="rp/js/cloud.js"], script[src$="js/cloud.js"]')) return;
+    const add = src => new Promise(res => {
+      const s = document.createElement('script');
+      s.src = src; s.onload = res; s.onerror = res;
+      document.head.appendChild(s);
+    });
+    const dir = (BASE === '/' ? '/' : BASE) + 'rp/js/';
+    add(dir + 'cloud-config.js').then(() => add(dir + 'cloud.js'));
   }
 
   // Swaps a YouTube placeholder for the real player on the first press.

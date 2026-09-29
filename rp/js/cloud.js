@@ -35,6 +35,10 @@
   const within = (promise, ms, fallback) => Promise.race([promise, new Promise(r => setTimeout(() => r(fallback), ms))]);
 
   // ---------- bytes <-> text ----------
+  // Chunk document ids: "<generation>-<n>", or plain "<n>" for blobs
+  // written before generations existed.
+  const chunkId = (meta, i) => (meta && meta.gen ? `${meta.gen}-${i}` : String(i));
+
   async function gzip(text) {
     if (typeof CompressionStream === 'undefined') return { bytes: new TextEncoder().encode(text), gz: false };
     const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
@@ -144,11 +148,17 @@
       const n = Math.max(1, Math.ceil(b64.length / CHUNK));
       const metaRef = this.db.doc(path);
       const before = await metaRef.get();
-      const oldN = before.exists ? (before.data().chunks || 0) : 0;
-      for (let i = 0; i < n; i++) await this.db.doc(`${path}/chunks/${i}`).set({ d: b64.slice(i * CHUNK, (i + 1) * CHUNK) });
-      for (let i = n; i < oldN; i++) await this.db.doc(`${path}/chunks/${i}`).delete().catch(() => {});
-      const meta = { chunks: n, bytes: bytes.length, gz, updatedAt: Date.now(), ...extra };
+      const old = before.exists ? before.data() : null;
+      // A new generation of chunks is written first and the pointer moves
+      // to it last, so an upload cut off halfway (a closed tab during an
+      // autosave) leaves the previous save whole instead of half-replaced.
+      const gen = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      for (let i = 0; i < n; i++) await this.db.doc(`${path}/chunks/${gen}-${i}`).set({ d: b64.slice(i * CHUNK, (i + 1) * CHUNK) });
+      const meta = { chunks: n, gen, bytes: bytes.length, gz, updatedAt: Date.now(), ...extra };
       await metaRef.set(meta);
+      if (old && old.chunks) {
+        for (let i = 0; i < old.chunks; i++) await this.db.doc(`${path}/chunks/${chunkId(old, i)}`).delete().catch(() => {});
+      }
       return meta;
     },
     async getMeta(path) {
@@ -160,7 +170,7 @@
       if (!meta || !meta.chunks) return null;
       let b64 = '';
       for (let i = 0; i < meta.chunks; i++) {
-        const c = await this.db.doc(`${path}/chunks/${i}`).get();
+        const c = await this.db.doc(`${path}/chunks/${chunkId(meta, i)}`).get();
         if (!c.exists) throw new Error('A piece of the saved file is missing.');
         b64 += c.data().d;
       }

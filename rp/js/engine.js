@@ -81,7 +81,11 @@ window.SimEngine = {
   },
 
   async init() {
-    if (typeof Cloud !== 'undefined') Cloud.onChange(u => { this.renderCloudMenu(); if (u && this.state.teams.length) this.offerCloudSave(); });
+    if (typeof Cloud !== 'undefined') Cloud.onChange(u => {
+      this._autosaveCleared = false; this._autosaveBlocked = false;
+      this.renderCloudMenu();
+      if (u && this.state.teams.length) this.offerCloudSave();
+    });
     await this.setupHomeScreen();
   },
 
@@ -119,9 +123,64 @@ window.SimEngine = {
     }
 
     this.resetStateToDefaults();
+    this.showLoader('Building your universe', 'Pulling rosters and recruiting classes…');
     this.enterSimUI();
-    await this.fetchData();
+    try {
+      await this.fetchData();
+    } finally {
+      await this.hideLoader();
+    }
     this.playSeasonIntro();
+  },
+
+  // ---------- Loading screen ----------
+  // Shown while a new universe is built (or a save is read), so nobody
+  // lands on an empty dashboard wondering where the players are.
+  showLoader(title, step) {
+    if (typeof document === 'undefined' || !document.body) return;
+    let el = document.getElementById('rpLoader');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'rpLoader';
+      el.className = 'rp-loader';
+      el.setAttribute('role', 'status');
+      el.setAttribute('aria-live', 'polite');
+      el.innerHTML = `<div class="rp-loader-card">
+        <img src="ncaarplogo.png" alt="" class="rp-loader-logo">
+        <h2 class="rp-loader-title"></h2>
+        <div class="rp-loader-bar"><span></span></div>
+        <p class="rp-loader-step"></p>
+      </div>`;
+      document.body.appendChild(el);
+    }
+    el.querySelector('.rp-loader-title').textContent = title;
+    el.classList.remove('done');
+    el.classList.add('active');
+    this._loaderShownAt = Date.now();
+    this.setLoaderStep(step || '', 0.06);
+  },
+  setLoaderStep(text, frac) {
+    const el = typeof document !== 'undefined' && document.getElementById('rpLoader');
+    if (!el) return;
+    if (text != null) el.querySelector('.rp-loader-step').textContent = text;
+    if (frac != null) el.querySelector('.rp-loader-bar span').style.width = `${Math.round(Math.max(0, Math.min(1, frac)) * 100)}%`;
+  },
+  // Sets the step and lets the browser paint it before the next block of
+  // synchronous work starts.
+  async loaderStep(text, frac) {
+    if (typeof document === 'undefined' || !document.getElementById('rpLoader')) return;
+    this.setLoaderStep(text, frac);
+    await new Promise(r => setTimeout(r, 30));
+  },
+  async hideLoader() {
+    const el = typeof document !== 'undefined' && document.getElementById('rpLoader');
+    if (!el || !el.classList.contains('active')) return;
+    this.setLoaderStep(null, 1);
+    const shown = Date.now() - (this._loaderShownAt || 0);
+    if (shown < 700) await new Promise(r => setTimeout(r, 700 - shown));
+    el.classList.add('done');
+    await new Promise(r => setTimeout(r, 280));
+    el.classList.remove('active', 'done');
   },
 
   async continueGame() {
@@ -130,8 +189,13 @@ window.SimEngine = {
       alert("No existing save found. Start a New Save instead.");
       return;
     }
+    this.showLoader('Loading your save', 'Reading teams and players…');
     this.enterSimUI();
-    await this.loadSavedGame();
+    try {
+      await this.loadSavedGame();
+    } finally {
+      await this.hideLoader();
+    }
     // Mid-offseason (for instance, back from draft night in the Draft RP):
     // pick up right where the offseason left off.
     if (this.state.ncaaDone) this.openOffseason();
@@ -550,6 +614,7 @@ window.SimEngine = {
             return r.rows.length ? { ok: true, rows: r.rows } : { ok: false };
           })
         : this.fetchWithRetry(rostersUrl).then(async res => (res.ok ? { ok: true, rows: this.parseCSV(await res.text()) } : { ok: false }));
+      await this.loaderStep('Pulling rosters and recruiting classes from the database…', 0.12);
       const [recruitLoad, rostersRes] = await Promise.all([
         RecruitSheet.load(t => this.parseCSV(t), { yearKey: 'classyear', nameKey: 'name' }),
         loadRosters
@@ -602,7 +667,9 @@ window.SimEngine = {
     // promote. refreshRecruitPool() re-derives the active classes each year.
     const maxClassYear = this.state.year + 1;
     // Coaches load after the critical sheets, in their own error boundary.
+    await this.loaderStep('Loading head coaches…', 0.45);
     await this.loadCoaches();
+    await this.loaderStep('Signing recruiting classes…', 0.55);
 
     this.state.recruits = rawRecruits
       .filter(r => this.rowHasPlayerName(r))
@@ -615,6 +682,7 @@ window.SimEngine = {
       });
     this.state.allRecruits = [...this.state.recruits];
     this.refreshRecruitPool();
+    await this.loaderStep('Building every Division I program…', 0.62);
     this.buildFullD1Universe(Object.values(realTeamsMap));
 
     if (this.state.teams.length === 0) {
@@ -622,11 +690,14 @@ window.SimEngine = {
       return;
     }
 
+    await this.loaderStep('Setting the schedule and the preseason poll…', 0.74);
     this.initSeasonData();
     this.refreshProPool();
     this.updateProSeasons();
     this.advanceHsCalendar();
+    await this.loaderStep('Filling in the dashboard…', 0.86);
     this.syncUI();
+    await this.loaderStep('Saving your universe…', 0.93);
     await this.saveStateToDB();
     const realCount = Object.keys(realTeamsMap).length;
     const realPlayerCount = Object.values(realTeamsMap).reduce((n, t) => n + t.roster.length, 0);
@@ -4307,9 +4378,22 @@ window.SimEngine = {
     if (target === 'off') return !!s.ncaaDone;
     return true;
   },
+  // From the season track: a quick confirm, since a click there is easy
+  // to make by accident and a skip can't be undone.
+  confirmSkip(target) {
+    const t = this.SKIP_TARGETS.find(x => x.key === target);
+    if (!t || !this.canSkipTo(target)) return;
+    if (typeof confirm === 'function' && !confirm(`Skip ahead to ${t.label.toLowerCase()}? Every game until then will be simulated.`)) return;
+    this.skipTo(target);
+  },
+  isSimBusy() { return !!(this._simBusy || this._skipping || this._watching); },
+  // Whether the season hasn't reached this point yet (what the menus show).
+  skipAvailable(target) {
+    return !!this.state.teams.length && !this.skipReached(target);
+  },
+  // ...and whether a skip can start right now.
   canSkipTo(target) {
-    if (!this.state.teams.length || this._skipping || this._watching) return false;
-    return !this.skipReached(target);
+    return this.skipAvailable(target) && !this.isSimBusy();
   },
   async skipTo(target) {
     const t = this.SKIP_TARGETS.find(x => x.key === target);
@@ -4353,12 +4437,44 @@ window.SimEngine = {
     if (btn) btn.setAttribute('aria-expanded', 'false');
   },
   renderSkipMenu() {
-    const el = typeof document !== 'undefined' && document.getElementById('skipMenu');
-    if (!el) return;
-    el.innerHTML = this.SKIP_TARGETS.map(t => {
-      const ok = this.canSkipTo(t.key);
-      return `<button role="menuitem" ${ok ? '' : 'disabled'} onclick="SimEngine.closeAppMenu(); SimEngine.skipTo('${t.key}')">${t.label}</button>`;
+    if (typeof document === 'undefined') return;
+    const items = this.SKIP_TARGETS.map(t => {
+      const ok = this.skipAvailable(t.key);
+      return `<button role="menuitem" ${ok ? '' : 'disabled'} onclick="SimEngine.closeAppMenu(); SimEngine.closeSkipPop(); SimEngine.skipTo('${t.key}')">${t.label}</button>`;
     }).join('');
+    const menu = document.getElementById('skipMenu');
+    if (menu) menu.innerHTML = items;
+    const pop = document.getElementById('skipPop');
+    if (pop) pop.innerHTML = `<span class="skip-pop-label">Skip ahead to</span>${items}`;
+    const wrap = document.getElementById('skipWrap');
+    if (wrap) wrap.style.display = this.SKIP_TARGETS.some(t => this.skipAvailable(t.key)) ? '' : 'none';
+  },
+  toggleSkipPop(ev) {
+    if (ev) ev.stopPropagation();
+    const pop = document.getElementById('skipPop');
+    const btn = document.getElementById('skipBtn');
+    if (!pop) return;
+    const open = !pop.classList.contains('open');
+    this.renderSkipMenu();
+    pop.classList.toggle('open', open);
+    if (btn) btn.setAttribute('aria-expanded', String(open));
+    if (open && !this._skipPopWired) {
+      this._skipPopWired = true;
+      document.addEventListener('click', e => { if (!e.target.closest || !e.target.closest('.skip-wrap')) this.closeSkipPop(); });
+      document.addEventListener('keydown', e => { if (e.key === 'Escape') this.closeSkipPop(); });
+    }
+  },
+  closeSkipPop() {
+    const pop = document.getElementById('skipPop');
+    const btn = document.getElementById('skipBtn');
+    if (pop) pop.classList.remove('open');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  },
+  // Season-track steps ahead of where the season is are skip targets too.
+  trackSkipTarget(stepKey) {
+    const map = { conf: 'conf', confT: 'confT', ncaa: 'ncaa', off: 'off' };
+    const t = map[stepKey];
+    return t && this.skipAvailable(t) ? t : null;
   },
 
   // The header's main button: simulate, or once the season is over,
@@ -7082,7 +7198,7 @@ window.SimEngine = {
   // Plays the slate once, then opens each chosen game from the tip in
   // tip-time order, with an "up next" card between them.
   async watchGames(refs) {
-    if (typeof GameCenter === 'undefined' || this._watching || !refs || !refs.length) return;
+    if (typeof GameCenter === 'undefined' || this.isSimBusy() || !refs || !refs.length) return;
     const slate = this.upcomingSlate();
     const live = refs.filter(r => slate.some(x => this.sameGame(x, r)));
     if (!live.length) {
@@ -8034,11 +8150,17 @@ window.SimEngine = {
     if (!Cloud.enabled) { if (group) group.style.display = 'none'; if (pub) pub.style.display = ''; return; }
     if (group) group.style.display = '';
     if (pub) pub.style.display = Cloud.admin ? '' : 'none';
-    if (how && Cloud.admin) how.textContent = 'You\'re an admin: publishing puts this save on the Draft RP, Recruiting page and RP Hub for everyone.';
+    if (how && Cloud.admin) how.textContent = 'Makes this save the official BYTHERIM universe: the Draft RP, Recruiting page and RP Hub show its players, rankings, draft and transfers to every visitor. Other people\'s NCAA RP saves aren\'t touched.';
     ['cloudSaveBtn', 'cloudLoadBtn'].forEach(id => { const b = document.getElementById(id); if (b) b.style.display = Cloud.user ? '' : 'none'; });
-    if (note) note.innerHTML = Cloud.user
-      ? `Signed in as <b>${this.esc(Cloud.user.email)}</b>. Your save follows you to any device.`
+    const auto = this.autosaveOn();
+    const last = this._lastAutosave ? new Date(this._lastAutosave).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : null;
+    if (note && Cloud.user && auto && this._autosaveBlocked) {
+      note.innerHTML = `Signed in as <b>${this.esc(Cloud.user.email)}</b>. Your account has a newer save from another device, so autosave is paused. Load it, or use Save to my account to replace it with this one.`;
+    } else if (note) note.innerHTML = Cloud.user
+      ? `Signed in as <b>${this.esc(Cloud.user.email)}</b>. ${auto ? `Autosave is on${last ? `: last saved to your account at ${last}` : ''}.` : 'Autosave is off; use Save to my account.'}`
       : 'Sign in with Google (top right) to keep your save and draft boards in your account.';
+    const tog = document.getElementById('autosaveToggle');
+    if (tog) { tog.style.display = Cloud.user ? '' : 'none'; tog.textContent = `Autosave: ${auto ? 'On' : 'Off'}`; }
   },
 
   async cloudSave(quiet) {
@@ -8048,6 +8170,11 @@ window.SimEngine = {
       if (!quiet && note) note.textContent = 'Saving to your account…';
       await this.saveStateToDB();
       await Cloud.uploadSave(db, this.cloudSummary());
+      this._lastAutosave = Date.now();
+      this._cloudDirty = false;
+      this._autosaveCleared = true;
+      this._autosaveBlocked = false;
+      this._autosaveMark = this.autosaveMilestone();
       if (note) note.innerHTML = `Saved to your account (${this.esc(this.cloudSummary())}).`;
     } catch (e) {
       if (note) note.textContent = `Couldn't save to your account: ${e.message || e}`;
@@ -8073,16 +8200,88 @@ window.SimEngine = {
       if (!meta || meta.updatedAt <= Cloud.lastSynced()) return;
       this.spotlight({ kicker: 'Your account', title: 'Pick up where you left off?', sub: `Your account has a save from ${new Date(meta.updatedAt).toLocaleString()}${meta.summary ? ` (${meta.summary})` : ''}.`,
         actions: [{ label: 'Load it', primary: true, fn: async () => { this.showSimSpinner('Loading your save…'); await Cloud.downloadSave(db); location.reload(); } },
-          { label: 'Keep this browser\'s save' }] }, { force: true });
+          { label: 'Keep this browser\'s save', fn: () => { this._autosaveCleared = true; this._autosaveBlocked = false; this.renderCloudMenu(); this.scheduleCloudSync(true); } }] }, { force: true });
     } catch (e) { /* offline or no access: nothing to offer */ }
   },
 
-  // Signed in, the save goes up to the account a few minutes after the
-  // last change, so a session is never lost to a cleared browser.
-  scheduleCloudSync() {
-    if (typeof Cloud === 'undefined' || !Cloud.user) return;
+  // ---------- Account autosave ----------
+  // Signed in, the save goes up to the account on its own: right away at
+  // the big moments (the end of the regular season, Selection Sunday, the
+  // title game, a new season), otherwise at most every few minutes while
+  // you play, and when you leave the page. Never in the middle of a sim.
+  AUTOSAVE_EVERY_MS: 3 * 60 * 1000,
+  autosaveOn() {
+    try { return localStorage.getItem('btr-autosave') !== 'off'; } catch (e) { return true; }
+  },
+  setAutosave(on) {
+    try { localStorage.setItem('btr-autosave', on ? 'on' : 'off'); } catch (e) { /* storage blocked */ }
+    this.renderCloudMenu();
+    if (on) this.scheduleCloudSync(true);
+  },
+  autosaveMilestone() {
+    const s = this.state;
+    return `${s.year}|${s.regularSeasonDone ? 1 : 0}${s.confChampsDone ? 1 : 0}${s.ncaaDone ? 1 : 0}|${s.offseasonStageIndex || 0}`;
+  },
+  scheduleCloudSync(soon) {
+    if (typeof Cloud === 'undefined' || !Cloud.user || !this.autosaveOn() || !this.state.teams.length) return;
+    this._cloudDirty = true;
+    this.wireAutosaveOnLeave();
+    const since = Date.now() - (this._lastAutosave || 0);
+    const milestone = this._autosaveMark !== this.autosaveMilestone();
+    const wait = soon || milestone ? 1500 : Math.max(1500, this.AUTOSAVE_EVERY_MS - since);
+    if (this._cloudTimer && this._cloudDue && this._cloudDue <= Date.now() + wait) return;   // one's already coming sooner
     clearTimeout(this._cloudTimer);
-    this._cloudTimer = setTimeout(() => this.cloudSave(true), 3 * 60 * 1000);
+    this._cloudDue = Date.now() + wait;
+    this._cloudTimer = setTimeout(() => this.runAutosave(), wait);
+  },
+  async runAutosave() {
+    this._cloudTimer = null;
+    this._cloudDue = 0;
+    if (!this._cloudDirty || typeof Cloud === 'undefined' || !Cloud.user || !this.autosaveOn() || typeof db === 'undefined') return;
+    // Wait out a simulation or an upload already under way.
+    if (this.isSimBusy() || this._autosaving) { this._cloudDue = Date.now() + 4000; this._cloudTimer = setTimeout(() => this.runAutosave(), 4000); return; }
+    const note = document.getElementById('cloudNote');
+    this._autosaving = true;
+    try {
+      // Never overwrite a newer save made on another device: until this
+      // browser has loaded it (or you choose Save to my account), autosave
+      // holds off.
+      if (!this._autosaveCleared) {
+        const meta = await Cloud.getMeta(Cloud.savePath());
+        if (meta && meta.updatedAt > Cloud.lastSynced()) {
+          this._autosaveBlocked = true;
+          this.renderCloudMenu();
+          return;
+        }
+        this._autosaveCleared = true;
+        this._autosaveBlocked = false;
+      }
+      this._cloudDirty = false;
+      const mark = this.autosaveMilestone();
+      await Cloud.uploadSave(db, this.cloudSummary());
+      this._lastAutosave = Date.now();
+      this._autosaveMark = mark;
+      this.state.lastAutosave = { at: this._lastAutosave, summary: this.cloudSummary() };
+      this.renderCloudMenu();
+    } catch (e) {
+      this._cloudDirty = true;
+      console.warn('Autosave to your account:', e.message || e);
+      if (note) note.textContent = `Autosave couldn't reach your account (${e.message || e}). It will try again.`;
+      this._cloudDue = Date.now() + 60000;
+      this._cloudTimer = setTimeout(() => this.runAutosave(), 60000);
+    } finally {
+      this._autosaving = false;
+    }
+  },
+  // Leaving the page (closing the tab, switching apps on a phone) sends
+  // anything not yet saved. Uploads are all-or-nothing, so one cut off by
+  // the page closing leaves the previous account save intact.
+  wireAutosaveOnLeave() {
+    if (this._autosaveWired || typeof document === 'undefined') return;
+    this._autosaveWired = true;
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden' && this._cloudDirty) this.runAutosave();
+    });
   },
 
   // Permanently retires a player from the college universe.
@@ -8846,7 +9045,7 @@ window.SimEngine = {
         off: s.ncaaDone ? (this.OFFSEASON_STAGES[s.offseasonStageIndex || 0] || { label: 'Rosters' }).label : 'Draft & portal'
       };
       el.innerHTML = this.SEASON_STEPS.map((st, i) => `
-        <li class="${i < at ? 'done' : i === at ? 'current' : ''}" ${st.key === 'off' && s.ncaaDone ? 'onclick="SimEngine.openOffseason()" role="button" tabindex="0"' : ''}>
+        <li class="${i < at ? 'done' : i === at ? 'current' : ''}${i > at && this.trackSkipTarget(st.key) ? ' skippable' : ''}" ${st.key === 'off' && s.ncaaDone ? 'onclick="SimEngine.openOffseason()" role="button" tabindex="0"' : (i > at && this.trackSkipTarget(st.key) ? `onclick="SimEngine.confirmSkip('${this.trackSkipTarget(st.key)}')" role="button" tabindex="0" title="Skip ahead to ${st.label}"` : '')}>
           <span class="stage-dot">${i < at ? '✓' : i + 1}</span>
           <span><b>${st.label}</b><small>${sub[st.key]}</small></span>
         </li>`).join('');
@@ -9141,10 +9340,11 @@ window.SimEngine = {
   // The overlay's Continue button.
   async advanceFromOffseason() {
     const btn = document.getElementById('offseasonAdvanceBtn');
-    if (btn && btn.disabled) return;
+    if ((btn && btn.disabled) || this.isSimBusy()) return;
     if (btn) btn.disabled = true;
+    this._simBusy = true;
     try { await this.runOffseason(); }
-    finally { if (btn) btn.disabled = false; this.renderOffseasonOverlay(); }
+    finally { this._simBusy = false; if (btn) btn.disabled = false; this.renderOffseasonOverlay(); }
   },
 
   renderOffseasonDraft() {

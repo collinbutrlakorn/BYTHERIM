@@ -442,7 +442,7 @@ h3.section-title { font-size: 1.02rem; }
 /* The title-screen court sits lower and quieter behind the text. */
 .home-court { top: 64%; opacity: 0.16; }
 /* The open "…" menu has to sit above the sticky tabs. */
-.app-header-card:has(.app-menu.open) { z-index: 45; }
+.app-header-card:has(.app-menu.open), .app-header-card:has(.skip-pop.open) { z-index: 45; }
 
 @media (max-width: 640px) {
   /* Leaders scroll sideways instead of squeezing five columns. */
@@ -963,3 +963,40 @@ a.outline-btn { text-decoration: none; display: inline-flex; align-items: center
 /* Coach record line */
 .coach-meta { font-size: 0.78rem; color: var(--text-muted); }
 @media (min-width: 641px) { .ncaa-app .team-stats-grid.five { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+
+/* Loading screen (new save / continue) */
+.rp-loader { position: fixed; inset: 0; z-index: 12000; display: none; align-items: center; justify-content: center; padding: 16px;
+  background: radial-gradient(ellipse at 30% 20%, rgba(74, 168, 255, 0.18), transparent 60%), var(--bg-color, #06070a); }
+.rp-loader.active { display: flex; animation: rpLoaderIn 0.25s ease; }
+.rp-loader.done { opacity: 0; transition: opacity 0.26s ease; }
+.rp-loader-card { width: min(420px, 100%); text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.9rem; }
+.rp-loader-logo { width: 150px; height: auto; animation: rpLoaderPulse 1.6s ease-in-out infinite; }
+.rp-loader-title { font-family: 'Oswald', sans-serif; font-size: 1.6rem; letter-spacing: 0.5px; text-transform: uppercase; margin: 0; color: var(--text-main); }
+.rp-loader-bar { width: 100%; height: 6px; border-radius: 999px; background: var(--border, #232833); overflow: hidden; }
+.rp-loader-bar span { display: block; height: 100%; width: 6%; border-radius: inherit; background: var(--accent, #4aa8ff); transition: width 0.45s ease; }
+.rp-loader-step { margin: 0; min-height: 1.3em; color: var(--text-muted); font-size: 0.95rem; }
+@keyframes rpLoaderIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes rpLoaderPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+@media (prefers-reduced-motion: reduce) { .rp-loader-logo { animation: none; } }
+
+/* Skip ahead: header button + popover, and skippable season-track steps */
+.skip-wrap { position: relative; }
+.sim-btn.sim-skip { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.85rem 1.1rem; font-size: 1rem; letter-spacing: 0.04em;
+  background: transparent; color: var(--accent); border: 1px solid var(--accent); box-shadow: none; }
+.sim-btn.sim-skip:hover:not(:disabled) { background: var(--accent-soft); }
+.skip-pop { position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; min-width: 240px; padding: 0.4rem; display: none;
+  background: var(--card-bg, var(--bg-elevated, #10131a)); border: 1px solid var(--border); border-radius: var(--r-md, 12px); box-shadow: 0 18px 40px rgba(0,0,0,0.45); }
+.skip-pop.open { display: block; }
+.skip-pop-label { display: block; padding: 0.45rem 0.7rem 0.3rem; font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
+.skip-pop button { display: block; width: 100%; text-align: left; padding: 0.6rem 0.7rem; border: 0; background: none; color: var(--text-main); font: inherit; font-size: 1rem; border-radius: 8px; cursor: pointer; }
+.skip-pop button:hover:not(:disabled) { background: var(--accent-soft); color: var(--accent); }
+.skip-pop button:disabled { opacity: 0.4; cursor: default; }
+.season-track li.skippable { cursor: pointer; position: relative; }
+.season-track li.skippable:hover { border-color: var(--accent); border-style: dashed; }
+.season-track li.skippable::after { content: '⏩'; position: absolute; top: 6px; right: 8px; font-size: 0.7rem; opacity: 0; transition: opacity 0.2s ease; }
+.season-track li.skippable:hover::after { opacity: 0.8; }
+@media (max-width: 640px) {
+  .sim-btn.sim-skip { padding: 0.85rem 0.9rem; }
+  .sim-btn.sim-skip span { display: none; }
+  .skip-pop { left: 0; right: auto; }
+}

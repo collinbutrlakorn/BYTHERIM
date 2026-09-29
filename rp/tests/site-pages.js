@@ -52,7 +52,16 @@ PAGES.forEach(p => {
     ok(img && exists(img) && html.includes(`<meta name="twitter:image" content="https://bytherim.com/${img}">`), `${f}: share image exists (${img})`);
     ok(/<meta name="description" content="[^"]{40,}">/.test(html), `${f}: has a real description`);
     const base = f.includes('/') ? '../' : '';
-    ok(html.includes(`href="${base}site.webmanifest"`) && html.includes(`href="${base}assets/icons/apple-touch-icon.png"`) && html.includes('name="theme-color"'), `${f}: home-screen icon, manifest and theme colour`);
+    const app = { 'rp/ncaa.html': ['icons/ncaa', 'ncaa.webmanifest'], 'rp/draft.html': ['icons/draft', 'draft.webmanifest'], 'recruiting/index.html': ['icons/recruiting', 'recruiting.webmanifest'] }[f];
+    if (app) {
+      const dir = f.slice(0, f.lastIndexOf('/') + 1);
+      const m = JSON.parse(read(dir + app[1]));
+      ok(html.includes(`href="${app[0]}-favicon-32.png"`) && exists(dir + app[0] + '-favicon-32.png') && html.includes(`href="${app[0]}-apple-touch-icon.png"`) && exists(dir + app[0] + '-apple-touch-icon.png')
+        && html.includes(`href="${app[1]}"`) && m.icons.every(i => exists(i.src.slice(1))) && m.icons.some(i => i.purpose === 'maskable') && html.includes('name="theme-color"'),
+        `${f}: its own favicon, home-screen icon and app manifest (${m.short_name})`);
+    } else {
+      ok(html.includes(`href="${base}site.webmanifest"`) && html.includes(`href="${base}assets/icons/apple-touch-icon.png"`) && html.includes('name="theme-color"'), `${f}: home-screen icon, manifest and theme colour`);
+    }
     ok(!html.includes('github.io'), `${f}: no github.io links left`);
     ok((html.match(/rel="icon"/g) || []).length === 1, `${f}: exactly one favicon`);
   });

@@ -80,7 +80,20 @@ function fakeFirebase() {
   const back = await Cloud.getBlob('users/u1/saves/main');
   ok(back && back.text === big, 'and comes back exactly');
   await Cloud.putBlob('users/u1/saves/main', 'small', {});
-  ok(!fb.store.has('users/u1/saves/main/chunks/1'), 'a smaller save clears the old pieces');
+  const pieces = [...fb.store.keys()].filter(k => k.startsWith('users/u1/saves/main/chunks/'));
+  ok(pieces.length === 1 && !pieces.some(k => k.includes(meta.gen)), 'a new save clears the old pieces');
+  ok((await Cloud.getBlob('users/u1/saves/main')).text === 'small', 'and reads back');
+
+  // An upload cut off before it finishes leaves the last save whole.
+  const prevMeta = fb.store.get('users/u1/saves/main');
+  fb.store.set('users/u1/saves/main/chunks/zzz-0', { d: 'garbage' });   // a half-written new generation
+  ok((await Cloud.getBlob('users/u1/saves/main')).text === 'small' && fb.store.get('users/u1/saves/main') === prevMeta, 'an interrupted upload never corrupts the saved copy');
+  // Saves written before generations existed still load.
+  const legacy = await Cloud.putBlob('users/u1/saves/legacy', 'old save', {});
+  const lm = { ...fb.store.get('users/u1/saves/legacy') }; delete lm.gen;
+  fb.store.set('users/u1/saves/legacy', lm);
+  fb.store.set('users/u1/saves/legacy/chunks/0', fb.store.get(`users/u1/saves/legacy/chunks/${legacy.gen}-0`));
+  ok((await Cloud.getBlob('users/u1/saves/legacy')).text === 'old save', 'saves from before read back too');
 
   // The whole browser save, round-tripped.
   const table = rows => ({ rows: rows.slice(), async toArray() { return this.rows.slice(); }, async clear() { this.rows = []; }, async bulkPut(r) { this.rows.push(...r); } });
