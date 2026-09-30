@@ -274,6 +274,22 @@ window.onload = () => {
           rimMidRatio: String(row[`${tier}_rimMidRatio`] || "0.00"), fga3: parseFloat(row[`${tier}_fga3`]) || 0, fta: parseFloat(row[`${tier}_fta`]) || 0
         });
 
+        // The schools in a player's final list: the "finalList" column
+        // (older tabs called it "finalListSchools"). If that header is ever
+        // mistyped, the column right after "finalListTitle" is used, which
+        // is where the list always sits.
+        const finalListOf = row => {
+          let schools = row.finalList || row.finalListSchools;
+          if (!schools) {
+            const keys = Object.keys(row);
+            const i = keys.indexOf('finalListTitle');
+            const next = i >= 0 ? keys[i + 1] : null;
+            if (next && next !== 'accolades' && next !== 'offers') schools = row[next];
+          }
+          const list = parseArray(schools);
+          return list.length ? { title: String(row.finalListTitle || "Final List"), schools: list } : null;
+        };
+
         recruits = results.data.map(row => ({
           id: String(row.id || Math.random().toString(36).substr(2, 9)),
           rank: (row.rank && !isNaN(parseInt(row.rank))) ? parseInt(row.rank) : "N/A",
@@ -294,10 +310,7 @@ window.onload = () => {
           committedSchool: row.committedSchool ? String(row.committedSchool) : null,
           commitLogo: formatImagePath(row.commitLogo),
           accolades: parseArray(row.accolades),
-          finalList: row.finalListSchools ? {
-            title: String(row.finalListTitle || "Final List"),
-            schools: parseArray(row.finalListSchools)
-          } : null,
+          finalList: finalListOf(row),
           offers: parseArray(row.offers),
           scouting: String(row.scouting || "No description available."),
           strengths: parseArray(row.strengths),
