@@ -571,7 +571,7 @@ function fitMinutes(boxes, total = 200, cap = 40) {
 // per-player box score for everyone who played, reconciled so each
 // team's total points exactly equals its final score.
 function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
-  const { homeCourtEdge = 3.0, marginScale = 0.85, marginVarianceStd = 11, paceBase = 147, paceVarianceStd = 9 } = opts;
+  const { homeCourtEdge = 3.0, marginScale = 0.85, marginVarianceStd = 11, paceBase = 146, paceVarianceStd = 9 } = opts;
 
   const homeOvr = homeTeam.simData.teamOvr;
   const awayOvr = awayTeam.simData.teamOvr;

@@ -135,6 +135,12 @@ rosters.
 coach), prestige setting the level programs sign at, the coaching carousel
 (firings, hires, players following their coach), and skipping ahead.
 
+**recruit-gen.js** — generated recruits: every class filled to a top 250
+around the sheet, sheet order kept, no shared names or ranks, bios, offers,
+final lists and stats, commitments only in classes the sheet has committed
+(top prospects to bigger programs), the same players on every page, and a
+new sheet player never renaming a generated one.
+
 **autosave.js** — the loading screen on a new save, and account autosave:
 right after a milestone, throttled otherwise, never mid-sim, and never over
 a newer save from another device.

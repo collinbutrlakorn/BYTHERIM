@@ -640,7 +640,7 @@ function buildFullUniverse(masterTeamList, existingTeams, opts = {}) {
     // otherwise a draw from its conference tier's range.
     const level = opts.programLevelFor ? opts.programLevelFor(masterEntry.name, masterEntry.conference) : null;
     let teamBaseline;
-    if (level != null) teamBaseline = level + (rng() - 0.5) * 8;
+    if (level != null) teamBaseline = level + (rng() - 0.5) * 12;   // programs of a level still vary, and some years are loaded
     else {
       const [lo, hi] = TIER_RANGES[getConferenceTier(masterEntry.conference)];
       teamBaseline = lo + rng() * (hi - lo);
@@ -708,7 +708,7 @@ function buildFullUniverse(masterTeamList, existingTeams, opts = {}) {
 
 const RosterGen = {
   FIRST_NAMES, LAST_NAMES, INTERNATIONAL, generateIdentity, HOMETOWNS, CONFERENCE_TIERS, TIER_RANGES,
-  getConferenceTier, normalizeSchoolKey, buildSchoolAliasIndex, generateHighSchool, pickHometown,
+  getConferenceTier, normalizeSchoolKey, buildSchoolAliasIndex, generateHighSchool, pickHometown, americanIdentity,
   POSITION_BUILD, generateBuild, pickJersey, POPULAR_JERSEYS, RARE_JERSEYS, generatePlayerName, generateFillerPlayer, nextNeededPosition, buildFullUniverse
 };
 

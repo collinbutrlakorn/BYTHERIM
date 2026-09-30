@@ -78,9 +78,14 @@ let activeAccolade = null;
 // ============================================================
 let rankIndex = {};
 
+// Not from the United States: the state column holds a country or
+// province code ("INT", "CAN", "ON", "SN"). The same test the NCAA RP and
+// the generated classes use, so every page agrees who is international.
+const US_STATE_CODES = new Set(('AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM ' +
+  'NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY').split(' '));
 function isInternational(p) {
-  const st = String(p && p.state || '').toUpperCase();
-  return st === 'INT' || st === 'INTL';
+  const st = String(p && p.state || '').trim().toUpperCase();
+  return !!st && st !== 'ALL' && !US_STATE_CODES.has(st);
 }
 
 // Author's sheet rank first; unranked players fall in behind by rating.
@@ -335,6 +340,8 @@ window.onload = () => {
           commitLogo: formatImagePath(row.commitLogo),
           accolades: parseArray(row.accolades),
           finalList: finalListOf(row),
+          generated: /^true$/i.test(String(row.generated || '')),
+          sheetRank: row.sheetRank ? parseInt(row.sheetRank, 10) || null : null,
           offers: parseArray(row.offers),
           scouting: String(row.scouting || "No description available."),
           strengths: parseArray(row.strengths),
@@ -808,7 +815,7 @@ function filterRecruits() {
     if (!includeIntl && isInternational(r)) return false;
     const matchesSearch = !query || String(r.name || "").toLowerCase().includes(query) || String(r.hs || "").toLowerCase().includes(query);
     const matchesClass = overall ? true : (r.classYear === classYr);
-    const matchesState = state === 'ALL' || r.state === state;
+    const matchesState = state === 'ALL' || (state === 'INT' ? isInternational(r) : r.state === state);
     const matchesPos = pos === 'ALL' || r.pos === pos;
     const matchesStar = star === 'ALL' || r.stars.toString() === star;
     const committed = !!commitSchoolOf(r);
@@ -1174,10 +1181,11 @@ function renderProfile(p) {
   const posRank = ri.pos != null ? `#${ri.pos}${ri.intl ? ' (INTL)' : ''}` : 'N/A';
   const stateRank = ri.intl ? `#${ri.intlRank} (INTL)` : (ri.state != null ? `#${ri.state} (${ri.stateLabel})` : 'N/A');
 
-  const statusHTML = p.commitLogo ? `
+  const committedTo = commitSchoolOf(p);
+  const statusHTML = committedTo ? `
     <div class="commit-standout-box">
       <div class="commit-label">Committed To</div>
-      <div class="commit-main-info"><img src="${p.commitLogo}" class="commit-standout-logo" onerror="this.style.display='none';"><span class="commit-school-name">${p.committedSchool}</span></div>
+      <div class="commit-main-info"><img src="${p.commitLogo || getSchoolLogoPath(committedTo)}" class="commit-standout-logo" onerror="schoolLogoFallback(this, '${escAttr(committedTo)}')"><span class="commit-school-name">${committedTo}</span></div>
     </div>` : `
     <div class="uncommitted-box">
       <div class="commit-label" style="margin-bottom: 4px;">Status</div>

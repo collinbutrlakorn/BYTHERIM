@@ -4,5 +4,6 @@ Disallow: /rp/tests/
 Disallow: /tools/
 Disallow: /admin.html
 Disallow: /rp/admin.html
+Disallow: /recruiting/admin.html
 
 Sitemap: https://bytherim.com/sitemap.xml

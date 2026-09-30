@@ -261,7 +261,10 @@ window.SimEngine = {
           this.state.postseasonHonors = savedState.postseasonHonors || null;
           this.state.draftDeclarations = savedState.draftDeclarations || [];
           this.state.seasonHistory = savedState.seasonHistory || [];
-          this.state.allRecruits = savedState.allRecruits || [];
+          this.state.allRecruits = (savedState.allRecruits || []).map(r => {
+            if (!r.stats) { r.stats = this.getZeroStats(); r.statsFull = this.getZeroStats(); r.statsConf = this.getZeroStats(); }
+            return r;
+          });
           this.state.departedNames = new Set(savedState.departedNames || []);
           this.state.departedArchive = savedState.departedArchive || [];
           this.state.seasonInitialized = savedState.seasonInitialized || false;
@@ -390,7 +393,14 @@ window.SimEngine = {
           postseasonHonors: this.state.postseasonHonors || null,
           draftDeclarations: this.state.draftDeclarations,
           seasonHistory: this.state.seasonHistory,
-          allRecruits: this.state.allRecruits,
+          // Recruits who haven't played carry three all-zero stat blocks;
+          // those are left out of the save (about 10 MB with every class
+          // filled to 250) and rebuilt on load.
+          allRecruits: (this.state.allRecruits || []).map(r => {
+            if ((r.stats && r.stats.gp) || (r.statsFull && r.statsFull.gp)) return r;
+            const { stats, statsFull, statsConf, ...slim } = r;
+            return slim;
+          }),
           departedNames: Array.from(this.state.departedNames || []),
           departedArchive: this.state.departedArchive,
           seasonInitialized: this.state.seasonInitialized,
@@ -1445,6 +1455,8 @@ window.SimEngine = {
       playstyle: this.buildPlaystyleProfile(raw, getVal),
       rating: rating,
       isRecruit: isRecruit,
+      // Generated to fill out the class (see recruit-gen.js).
+      genRecruit: isRecruit && /^true$/i.test(String(getVal(['generated'], ''))),
       recClassYear: this.parseClassYear(getVal(['classyear', 'recclass'], ''), this.state.year),
       gameLog: [],
       accolades: [],
@@ -1492,7 +1504,14 @@ window.SimEngine = {
       const team = this.state.teams.find(t => t.school.toLowerCase() === rec.school.toLowerCase());
       if (!team) { stillPending.push(rec); return; } // committed school not in the universe
 
-      const existing = team.roster.find(p => p.name === rec.name);
+      let existing = team.roster.find(p => p.name === rec.name);
+      // A generated recruit who happens to share a name with a generated
+      // filler player is a different person: the filler takes a new name.
+      if (existing && rec.genRecruit && existing.isGenerated && typeof RosterGen !== 'undefined') {
+        const used = new Set(team.roster.map(p => p.name));
+        existing.name = RosterGen.generatePlayerName(used);
+        existing = null;
+      }
       if (existing) {
         this.mergeRecruitIntoPlayer(existing, rec);
         // existing is already in `players` from the roster scan above —
@@ -2827,7 +2846,7 @@ window.SimEngine = {
     let ppg = Math.max(0.4, (2.2 + Math.max(4, r - 38) * 0.228) * scoringUsage);
     // Genuine stars get a little extra: go-to scorers take the late-clock
     // and late-game shots, which is what separates a 20-point season.
-    ppg += Math.max(0, r - 84) * 0.22 * Math.max(1, scoringUsage);
+    ppg += Math.max(0, r - 80) * 0.22 * Math.max(1, scoringUsage);
 
     // Interior finishers get a volume floor proportional to their minutes.
     // Lobs, dump-offs and put-backs happen regardless of how small a

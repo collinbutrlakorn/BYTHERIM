@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BYTHERIM | Recruiting Admin</title>
+<meta name="description" content="Recruiting admin: every class's sheet and generated prospects, and rows ready to paste into the recruiting sheet.">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#06070a">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/recruiting-favicon-32.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Asap+Condensed:wght@400;500;600;700&family=Oswald:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/chrome.css">
+<link rel="stylesheet" href="../rp/css/ncaa-styles.css">
+<link rel="stylesheet" href="../rp/css/admin.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+<script src="../assets/site.js"></script>
+</head>
+<body>
+<script>BTR.mount('rp', { base: '../' })</script>
+<script src="../rp/js/cloud-config.js"></script>
+<script src="../rp/js/cloud.js"></script>
+
+<main class="adm">
+  <header class="adm-head">
+    <div>
+      <h1>Recruiting Admin</h1>
+      <p id="admSummary" class="adm-sub">Checking your account…</p>
+    </div>
+    <div class="adm-head-actions">
+      <a href="./" class="sim-btn sim-btn-secondary btn-sm">Recruiting</a>
+      <a href="../rp/admin.html" class="sim-btn sim-btn-secondary btn-sm">RP admin</a>
+    </div>
+  </header>
+  <section id="admBody"><p class="adm-empty">Loading…</p></section>
+</main>
+
+<script src="../rp/js/teams-master.js"></script>
+<script src="../rp/js/roster-gen.js"></script>
+<script src="../rp/js/prestige.js"></script>
+<script src="../rp/js/recruit-gen.js"></script>
+<script src="../rp/js/recruit-sheet.js"></script>
+<script src="admin.js"></script>
+</body>
+</html>

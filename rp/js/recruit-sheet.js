@@ -88,7 +88,15 @@
         byKey.set(key, row);
       });
     });
-    return { rows: [...byKey.values()], tabs: list, failed };
+    let rows = [...byKey.values()];
+    // Every class filled out to a top 250 with generated prospects (see
+    // recruit-gen.js), unless the caller asks for the sheet alone.
+    if (root.RecruitGen && opts.generate !== false) {
+      const keys = opts.keys || (yearKey === yearKey.toLowerCase() ? 'lower' : 'camel');
+      const classes = list.filter((t, k) => /^\d{4}$/.test(t.name) && texts[k] != null).map(t => t.name);
+      rows = root.RecruitGen.augment(rows, { keys, classes });
+    }
+    return { rows, tabs: list, failed };
   }
 
   root.RecruitSheet = { BASE, KNOWN_TABS, csvUrl, parseTabs, tabs, load };
