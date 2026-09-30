@@ -392,6 +392,42 @@ function getSchoolLogoPath(schoolName) {
   return ASSET_BASE_PATH + `schoollogos/${file}.png`;
 }
 
+// A school's colour, read from its logo: the most common strong colour in
+// the image, skipping near-white, near-black and see-through pixels. Set on
+// the logo's card as --school-color. Cached per logo.
+const LOGO_COLOR = {};
+function tintFromLogo(img) {
+  const card = img.closest('.final-school-card, .offer-pill');
+  if (!card) return;
+  const key = img.src;
+  const apply = c => { if (c) card.style.setProperty('--school-color', c); };
+  if (key in LOGO_COLOR) { apply(LOGO_COLOR[key]); return; }
+  let color = null;
+  try {
+    const n = 32, cv = document.createElement('canvas');
+    cv.width = n; cv.height = n;
+    const ctx = cv.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, n, n);
+    const d = ctx.getImageData(0, 0, n, n).data;
+    const bins = {};
+    for (let i = 0; i < d.length; i += 4) {
+      const [r, g, b, a] = [d[i], d[i + 1], d[i + 2], d[i + 3]];
+      if (a < 200) continue;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      if (max > 235 && min > 215) continue;         // white
+      if (max < 28) continue;                        // black
+      if (max - min < 24 && max > 60 && max < 200) continue;   // grey
+      const k = `${r >> 4},${g >> 4},${b >> 4}`;
+      const e = bins[k] || (bins[k] = { n: 0, r: 0, g: 0, b: 0 });
+      e.n++; e.r += r; e.g += g; e.b += b;
+    }
+    const top = Object.values(bins).sort((a, b) => b.n - a.n)[0];
+    if (top && top.n >= 6) color = `rgb(${Math.round(top.r / top.n)}, ${Math.round(top.g / top.n)}, ${Math.round(top.b / top.n)})`;
+  } catch (e) { /* a generated badge or a blocked canvas: no colour */ }
+  LOGO_COLOR[key] = color;
+  apply(color);
+}
+
 // Used in <img onerror> so a missing file falls back to a badge.
 function schoolLogoFallback(img, schoolName) {
   img.onerror = null;
@@ -1030,8 +1066,9 @@ function renderProfile(p) {
       <div style="font-weight: 700; color: var(--text-main); font-size: 1rem;">Uncommitted</div>
     </div>`;
 
-  const finalListHTML = p.finalList ? p.finalList.schools.map(s => `<div class="final-school-card ${s === p.committedSchool ? 'is-commit' : ''}">${s}</div>`).join('') : '';
-  const offersHTML = p.offers ? p.offers.map(o => `<div class="offer-pill">${o}</div>`).join('') : '';
+  const schoolImg = (s, cls) => `<img src="${getSchoolLogoPath(s)}" class="${cls}" alt="" loading="lazy" onload="tintFromLogo(this)" onerror="schoolLogoFallback(this, '${escAttr(s)}')">`;
+  const finalListHTML = p.finalList ? p.finalList.schools.map(s => `<div class="final-school-card ${s === p.committedSchool ? 'is-commit' : ''}">${schoolImg(s, 'final-school-logo')}<span>${s}</span></div>`).join('') : '';
+  const offersHTML = p.offers ? p.offers.map(o => `<div class="offer-pill">${schoolImg(o, 'offer-logo')}<span>${o}</span></div>`).join('') : '';
   const accoladesHTML = p.accolades && p.accolades.length > 0 ? p.accolades.map(acc => {
     const logo = ACCOLADE_MAP[acc] ? ASSET_BASE_PATH + ACCOLADE_MAP[acc] : '';
     return `<div class="accolade-pill" onclick="openAccoladeRoster('${String(acc).replace(/'/g, "\\'")}')">${logo ? `<img src="${logo}" class="accolade-logo">` : ''}<span>${acc}</span></div>`;
