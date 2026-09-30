@@ -87,7 +87,15 @@
   function rankClass(members, cp) {
     const ranked = members.filter(r => Number(r.rsci) > 0);
     const w = clamp(1 - cp, 0, 1);
-    const scored = ranked.map(r => ({ r, s: Number(r.rsci) + rankOffset(r) * w * 2 }));
+    // A breakout summer (engine: runSummerCircuit) moves a player up while
+    // the class is still moving, a quiet one down; never past the #1.
+    const summer = r => { const b = Number(r.summerBuzz) || 0; return b ? -b * (1.5 + (Number(r.rsci) || 150) * 0.06) * w * 2 : 0; };
+    const scored = ranked.map(r => {
+      const sh = summer(r);
+      let s = Number(r.rsci) + rankOffset(r) * w * 2 + sh;
+      if (sh < 0 && Number(r.rsci) > 1) s = Math.max(s, 1.5);
+      return { r, s };
+    });
     scored.sort((a, b) => a.s - b.s || Number(a.r.rsci) - Number(b.r.rsci));
     // Numbered by position while the class is still moving (a player who
     // hasn't reclassified in yet leaves no hole); once it's final, the

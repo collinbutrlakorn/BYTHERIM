@@ -99,6 +99,32 @@ const RL = require('../js/recruit-live.js');
   ok(t && t.live && !t.s && t.d === target.liveDecommitFrom && t.l.length, 'with lists, commitments and decommitments');
   ok(snap.players.some(x => x.live && x.s && x.o), 'including who a commit picked his school over');
 
+  // An admin resets generated classes: the save swaps in the new players
+  // for classes nobody is recruiting yet, and keeps the rest.
+  {
+    const RG = w.RecruitGen;
+    const classes = Array.from({ length: 14 }, (_, i) => String(2028 + i));
+    const loader = async o => {
+      RG.setResets(o.resets);
+      const rows = Sim.parseCSV(recruits).map(r => ({ ...r, __tab: String(r.classyear) }));
+      return { rows: RG.augment(rows, { keys: 'lower', classes }) };
+    };
+    const gen = y => S.allRecruits.filter(r => r.genRecruit && Number(r.recClassYear) === y);
+    const namesOf = y => gen(y).map(r => r.name).sort().join('|');
+    const first = Sim.resettableFrom();
+    const liveYear = year + 2, openYear = first + 1;
+    const before = { live: namesOf(liveYear), open: namesOf(openYear), n: gen(openYear).length };
+    const sheetBefore = S.allRecruits.filter(r => !r.genRecruit).length;
+    const done = await Sim.applyGeneratedResets({ [liveYear]: 1, [openYear]: 2 }, loader);
+    ok(done.join() === String(openYear), `only classes not yet being recruited are reset (${done.join()})`);
+    ok(namesOf(openYear) !== before.open && Math.abs(gen(openYear).length - before.n) <= 8, `the class of ${openYear} has new generated players`);
+    ok(namesOf(liveYear) === before.live, `the class of ${liveYear}, already being recruited, keeps its players`);
+    ok(S.allRecruits.filter(r => !r.genRecruit).length === sheetBefore, 'sheet players are untouched');
+    ok(S.genResets[openYear] === 2 && !S.genResets[liveYear] && gen(openYear).filter(r => Sim.isLiveRecruit(r)).every(r => r.liveInit && r.liveList), 'the save remembers the reset, and the new players are ready to be recruited');
+    ok(gen(openYear).every(r => Number(r.recRating || r.rating) <= 95), 'and none of them is rated above 95');
+    ok((await Sim.applyGeneratedResets({ [liveYear]: 1, [openYear]: 2 }, loader)).length === 0, 'the same reset isn\'t applied twice');
+  }
+
   console.log('\nLive recruiting OK.');
   process.exit(0);
 

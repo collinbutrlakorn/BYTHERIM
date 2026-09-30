@@ -1000,3 +1000,31 @@ a.outline-btn { text-decoration: none; display: inline-flex; align-items: center
   .sim-btn.sim-skip span { display: none; }
   .skip-pop { left: 0; right: auto; }
 }
+
+/* ---------- Summer circuit (offseason page, recruit cards, Recruits tab) ---------- */
+.summer-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.9rem; }
+@media (max-width: 900px) { .summer-grid { grid-template-columns: 1fr; } }
+.summer-card { display: flex; flex-direction: column; gap: 0.5rem; min-width: 0; }
+.summer-card details summary { cursor: pointer; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); }
+.summer-card details table { margin-top: 0.4rem; }
+.summer-event { display: flex; flex-direction: column; gap: 0.35rem; }
+.summer-event > small { font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.summer-final { display: flex; flex-direction: column; gap: 2px; font-size: 0.95rem; }
+.summer-final span { display: flex; justify-content: space-between; color: var(--text-muted); }
+.summer-final span.won { color: var(--text-main); font-weight: 700; }
+.summer-final b { font-family: 'Oswald', sans-serif; font-size: 1.1rem; }
+.summer-medals { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0; }
+.summer-medal { font-weight: 700; font-size: 0.9rem; }
+.summer-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; font-size: 0.85rem; margin-top: 0.4rem; }
+.summer-groups ol { margin: 0.2rem 0 0; padding-left: 1.2rem; }
+.summer-breakouts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.summer-breakouts li { cursor: pointer; display: flex; flex-wrap: wrap; gap: 0.2rem 0.5rem; align-items: baseline; font-size: 0.9rem; }
+.summer-breakouts li small { color: var(--text-muted); }
+.summer-breakouts li span { flex-basis: 100%; font-size: 0.8rem; color: var(--text-muted); }
+.summer-up { color: var(--win); }
+.summer-down { color: var(--loss); }
+.summer-honors { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.88rem; }
+.summer-honors li { display: flex; gap: 0.5rem; }
+.summer-honors .hs-when { min-width: 3rem; }
+.summer-strip { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; align-items: baseline; font-size: 0.85rem; margin-bottom: 0.9rem; }
+.summer-strip b { font-weight: 700; }

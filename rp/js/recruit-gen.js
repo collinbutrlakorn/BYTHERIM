@@ -22,6 +22,16 @@
   // Changing the generation resets every generated player (new names,
   // new pools); the sheet is untouched.
   const GEN = 'g2';
+  // A class can also be reset on its own from the recruiting admin: each
+  // reset is counted per class (official/recruit_gen in Firestore), and
+  // the count goes into that class's seed.
+  let RESETS = {};
+  function setResets(map) {
+    RESETS = {};
+    Object.entries(map || {}).forEach(([y, n]) => { if (/^\d{4}$/.test(y) && Number(n) > 0) RESETS[y] = Math.floor(Number(n)); });
+  }
+  const getResets = () => ({ ...RESETS });
+  const genOf = year => (RESETS[String(year)] ? `${GEN}.${RESETS[String(year)]}` : GEN);
 
   function hash(str) {
     let h = 2166136261;
@@ -39,6 +49,9 @@
     };
   }
   const gauss = rng => (rng() + rng() + rng() - 1.5) / 0.5;
+  // No generated player is rated above 95: anything higher is the sheet's
+  // to hand out.
+  const GEN_MAX = 95;
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const pick = (arr, rng) => arr[Math.floor(rng() * arr.length) % arr.length];
   const r1 = v => Math.round(v * 10) / 10;
@@ -68,7 +81,7 @@
   // once in a long while.
   //   99 generational · 98 can't-miss · 97 All-NBA · 96 All-Star · 95 potential All-Star · 94 strong starter
   function classTop(year) {
-    const x = rngFor(`${GEN}|class-top|${year}`)();
+    const x = rngFor(`${genOf(year)}|class-top|${year}`)();
     return x < 0.04 ? 99 : x < 0.17 ? 98 : x < 0.45 ? 97 : x < 0.75 ? 96 : x < 0.93 ? 95 : 94;
   }
   const PROJECTIONS = [
@@ -145,8 +158,48 @@
     return 'SF';
   }
 
-  const AAU_A = ['Elite', 'Select', 'Stars', 'Express', 'Heat', 'Hoopers', 'Warriors', 'Legends', 'Fire', 'Ballers', 'Rise', 'Academy'];
-  const AAU_TEAM = ['Team Takeover', 'Mokan Elite', 'Expressions', 'Team Thad', 'Nightrydas', 'Wildcats Select', 'Team Loaded', 'Atlanta Xpress', 'Oakland Soldiers', 'Houston Hoops', 'Indy Heat', 'Florida Rebels'];
+  // ---------- the AAU circuits ----------
+  // Every prospect plays his spring and summer ball for a program on one of
+  // three shoe-company circuits, near home. The summer circuit (see
+  // rp/js/summer-core.js) is played between these programs.
+  const CIRCUITS = [
+    { key: 'EYBL', name: 'Nike EYBL', event: 'Peach Jam' },
+    { key: '3SSB', name: 'Adidas 3SSB', event: '3SSB Championship' },
+    { key: 'UAA', name: 'Under Armour Association', event: 'UAA Finals' }
+  ];
+  const REGIONS = {
+    NE: 'ME NH VT MA RI CT NY NJ PA', MA: 'DE MD DC VA WV NC', SE: 'SC GA FL AL TN KY MS',
+    MW: 'OH MI IN IL WI MN IA MO', SW: 'TX LA AR OK KS NE', W: 'CA NV AZ UT CO NM OR WA ID MT WY AK HI ND SD'
+  };
+  const regionOf = st => Object.keys(REGIONS).find(k => REGIONS[k].split(' ').includes(String(st || '').toUpperCase())) || 'SE';
+  const AAU_PROGRAMS = [
+    ['Team Takeover', 'EYBL', 'MA'], ['Expressions', 'EYBL', 'NE'], ['Nightrydas', 'EYBL', 'SE'], ['Mokan Elite', 'EYBL', 'MW'],
+    ['Team Thad', 'EYBL', 'SE'], ['Oakland Soldiers', 'EYBL', 'W'], ['Houston Hoops', 'EYBL', 'SW'], ['Indy Heat', 'EYBL', 'MW'],
+    ['Garden State Warriors', 'EYBL', 'NE'], ['Philly Pride', 'EYBL', 'NE'], ['Motor City Rise', 'EYBL', 'MW'], ['SoCal Legacy', 'EYBL', 'W'],
+    ['Lone Star Legends', 'EYBL', 'SW'], ['Peach State Fire', 'EYBL', 'SE'], ['Keystone Stars', 'EYBL', 'NE'], ['Emerald City Legends', 'EYBL', 'W'],
+    ['Team Loaded', '3SSB', 'MA'], ['Florida Rebels', '3SSB', 'SE'], ['Wildcats Select', '3SSB', 'MW'], ['Atlanta Xpress', '3SSB', 'SE'],
+    ['Empire State Kings', '3SSB', 'NE'], ['Chi-Town Select', '3SSB', 'MW'], ['Buckeye Express', '3SSB', 'MW'], ['Queen City Stars', '3SSB', 'MA'],
+    ['Bayou Elite', '3SSB', 'SW'], ['Gulf Coast Heat', '3SSB', 'SE'], ['Desert Hoopers', '3SSB', 'W'], ['Golden State Rise', '3SSB', 'W'],
+    ['Show-Me Select', '3SSB', 'MW'], ['Capital City Kings', '3SSB', 'W'], ['Bluegrass Ballers', '3SSB', 'SE'], ['Sierra Elite', '3SSB', 'W'],
+    ['Twin Cities Elite', 'UAA', 'MW'], ['Rocky Mountain Select', 'UAA', 'W'], ['Magnolia Elite', 'UAA', 'SE'], ['Heartland Hoopers', 'UAA', 'SW'],
+    ['Sun Coast Rise', 'UAA', 'SE'], ['Valley Legends', 'UAA', 'W'], ['New England Stars', 'UAA', 'NE'], ['Steel City Select', 'UAA', 'NE'],
+    ['Carolina Heat', 'UAA', 'SE'], ['Old Dominion Elite', 'UAA', 'MA'], ['Big Apple Ballers', 'UAA', 'NE'], ['Metroplex Hoopers', 'UAA', 'SW'],
+    ['Hill Country Elite', 'UAA', 'SW'], ['Pacific Northwest Legends', 'UAA', 'W'], ['Great Lakes Select', 'UAA', 'MW'], ['Palmetto Stars', 'UAA', 'SE']
+  ].map(([name, circuit, region]) => ({ name, circuit, region }));
+  // His program: one near home; the best prospects lean toward the EYBL,
+  // and a few travel to play for a program elsewhere. a, b: two draws.
+  // counts: players each program already has in the class, so rosters
+  // come out even.
+  function aauProgramFor(state, slot, a, b, counts = {}) {
+    const home = AAU_PROGRAMS.filter(p => p.region === regionOf(state));
+    let pool = a < 0.08 ? AAU_PROGRAMS : home;
+    const eybl = home.filter(p => p.circuit === 'EYBL');
+    if (slot && slot <= 60 && a >= 0.08 && a < 0.4 && eybl.length) pool = eybl;
+    const open = pool.slice().sort((x, y) => (counts[x.name] || 0) - (counts[y.name] || 0)).slice(0, 3);
+    const name = open[Math.floor(b * open.length) % open.length].name;
+    counts[name] = (counts[name] || 0) + 1;
+    return name;
+  }
 
   // ---------- scouting text ----------
   const STRENGTHS = {
@@ -275,8 +328,8 @@
   // ---------- one generated prospect ----------
   // Identity, build and talent order depend only on the class year and
   // his place in the pool.
-  function identity(key, year, taken, intl) {
-    const rng = rngFor(`${GEN}|recruit|${key}`);
+  function identity(key, year, taken, intl, gen = genOf(year)) {
+    const rng = rngFor(`${gen}|recruit|${key}`);
     let who = intl ? internationalWho(rng, taken) : null;
     for (let tries = 0; !who && tries < 12; tries++) {
       const w = root.RosterGen && root.RosterGen.americanIdentity ? root.RosterGen.americanIdentity(null, rng) : { name: `Prospect ${key}`, hometown: 'Atlanta, GA' };
@@ -376,11 +429,12 @@
     const sheetAt = {};
     ordered.forEach(r => { sheetAt[r.__slot] = num(get(r, 'rating')); });
     let j = 0, above = null;
+    const aauCounts = {};
     for (let slot = 1; slot <= SLOTS && j < POOL; slot++) {
       if (taken.has(slot)) { if (sheetAt[slot] != null) above = sheetAt[slot]; continue; }
       // About one in forty is from overseas, playing his high-school ball
       // in the States: ranked with everyone else.
-      const intl = rngFor(`${GEN}|intl|${year}|${j}`)() < 0.02;
+      const intl = rngFor(`${genOf(year)}|intl|${year}|${j}`)() < 0.02;
       const id = identity(`${year}|${j}`, year, allNames, intl);
       const rng = id.rng;
       id.hs = schoolFor(rng, slot, id.hs);
@@ -388,7 +442,7 @@
       // is from abroad (hometown, country) but listed where his school is.
       if (id.country) id.state = pick(['FL', 'TX', 'CA', 'GA', 'NC', 'VA', 'MD', 'AZ', 'UT', 'NV', 'KS', 'MO', 'NH', 'CT', 'PA', 'IN', 'NJ'], rng);
       // Never rated above a sheet player ranked ahead of him.
-      let rating = Math.round(clamp(T(slot) + id.jitter, 60, 99));
+      let rating = Math.round(clamp(T(slot) + id.jitter, 60, GEN_MAX));
       if (above != null) rating = Math.min(rating, Math.round(above));
       const text = profileText(rng, id.pos);
       // Recruitment: offers from schools around his level, a final list,
@@ -420,7 +474,8 @@
       put('finalList', finalList.join(', '));
       put('accolades', '');
       put('scouting', text.scouting); put('strengths', text.strengths); put('weaknesses', text.weaknesses);
-      const levels = [['hs', id.hs], ['aau', rng() < 0.5 ? pick(AAU_TEAM, rng) : `${id.hometown.split(',')[0]} ${pick(AAU_A, rng)}`]];
+      const aauA = rng(), aauB = rng();
+      const levels = [['hs', id.hs], ['aau', aauProgramFor(id.state, slot, aauA, aauB, aauCounts)]];
       if (id.country) levels.push(['fiba', `${id.country} ${rng() < 0.5 ? 'U17' : 'U18'}`]);
       else if (rating >= 91 && rng() < 0.6) levels.push(['fiba', rng() < 0.5 ? 'USA U17' : 'USA U18']);
       levels.forEach(([lvl, team]) => {
@@ -443,14 +498,14 @@
   // pro, and are in the draft pool when they're old enough.
   function overseas(year, K, allNames, T, commits, counts) {
     const set = (r, k, v) => { r[K(k)] = v; };
-    const cr = rngFor(`${GEN}|overseas|${year}`);
+    const cr = rngFor(`${genOf(year)}|overseas|${year}`);
     const n = 8 + Math.floor(cr() * 6);
     const out = [];
     for (let k = 0; k < n; k++) {
       const id = identity(`${year}|intl|${k}`, year, allNames, true);
       const rng = id.rng;
       const eq = 1 + Math.floor(250 * Math.pow(rng(), 0.7));        // the rank his talent would earn
-      const rating = Math.round(clamp(T(eq) + id.jitter, 72, 99));
+      const rating = Math.round(clamp(T(eq) + id.jitter, 72, GEN_MAX));
       const club = clubFor(id.country, rng);
       const text = profileText(rng, id.pos);
       let school = '', offers = [];
@@ -498,13 +553,13 @@
     // A player with his basics filled in only gets any missing measurements.
     if (!blank('pos') && !blank('rating')) {
       if (!['height', 'weight', 'wingspan'].some(blank)) return;
-      const id = identity(`fill|${year}|${String(get('name')).toLowerCase()}`, year, new Set());
+      const id = identity(`fill|${year}|${String(get('name')).toLowerCase()}`, year, new Set(), false, GEN);
       const put = (k, v) => { if (blank(k)) r[K(k)] = v; };
       put('height', id.height); put('weight', id.weight); put('wingspan', id.wingspan);
       return;
     }
-    const id = identity(`fill|${year}|${String(get('name')).toLowerCase()}`, year, new Set());
-    const rating = Math.round(clamp(curve(r.__slot || 100), 60, 99));
+    const id = identity(`fill|${year}|${String(get('name')).toLowerCase()}`, year, new Set(), false, GEN);
+    const rating = Math.round(clamp(curve(r.__slot || 100), 60, GEN_MAX));
     set('pos', id.pos); set('height', id.height); set('weight', id.weight); set('wingspan', id.wingspan);
     set('hometown', id.hometown); set('state', id.state); set('hs', id.hs); set('dob', id.dob);
     set('rating', String(rating)); set('stars', String(starsFor(rating)));
@@ -550,7 +605,7 @@
     return out;
   }
 
-  const api = { SLOTS, POOL, quotaFor, curve, curveFor, classTop, starsFor, projectionFor, statLine, buildClass, augment, hash, rngFor, ACADEMIES };
+  const api = { SLOTS, POOL, GEN_MAX, CIRCUITS, AAU_PROGRAMS, REGIONS, regionOf, aauProgramFor, setResets, getResets, genOf, quotaFor, curve, curveFor, classTop, starsFor, projectionFor, statLine, buildClass, augment, hash, rngFor, ACADEMIES };
   root.RecruitGen = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

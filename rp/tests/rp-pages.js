@@ -145,7 +145,9 @@ function bootRecruiting(universe) {
   {
     const { d, ev } = await bootRecruiting(null);
     const navs = [...d.querySelectorAll('.nav-btn')].map(b => b.textContent.trim());
-    ok(navs.join() === 'Class Rankings,School Rankings,Statistics,Transfer Portal', 'recruiting: Transfer Portal tab in the nav');
+    ok(navs.join() === 'Class Rankings,School Rankings,Statistics,Transfer Portal,Summer Circuit', 'recruiting: Transfer Portal and Summer Circuit tabs in the nav');
+    ev("switchTab('summer')");
+    ok(/No summer has been played yet/.test(d.getElementById('summerContainer').textContent), 'recruiting: without a published summer the tab says so');
     ok(ev("Portal.sheet.some(t => t.name === 'DaRon Drew' && t.from === 'Ohio' && t.to === 'Illinois' && t.season === '2028-29')"), 'recruiting: a "T - Ohio" note is a scheduled transfer into 2028-29');
     ok(ev("Portal.sheet.some(t => t.name === 'Lewis Pope' && t.from === 'Missouri' && t.to === 'Arkansas' && t.season === '2029-30')"), 'recruiting: a player listed at a new school next Year is a scheduled transfer');
     ok(ev("!Portal.sheet.some(t => t.name === 'Elijah Williams')"), 'recruiting: two players sharing a name in one Year are not treated as a transfer');
@@ -201,6 +203,33 @@ function bootRecruiting(universe) {
     ok(/Joining teammate/.test(d.getElementById('profileContainer').textContent), 'recruiting: the profile notes a teammate he joined');
     ev(`openRecruitProfile(recruits.find(r => r.name === ${JSON.stringify(names[1])}))`);
     ok(/coaching change at Kansas/.test(d.getElementById('profileContainer').textContent), 'recruiting: and a recruitment reopened by a coaching change');
+  }
+
+  // ---- Recruiting: the summer circuit from the published universe ----
+  {
+    const names = RECRUITS.filter(r => String(r.classYear) === '2029').slice(10, 12).map(r => r.name);
+    const line = (ppg) => ({ gp: 14, mpg: 26.1, ppg, rpg: 6.2, apg: 3.1, spg: 1.2, bpg: 0.6, topg: 2.1, fg: '48.0%', fg2: '53.0%', fg3: '36.0%', ft: '75.0%', bpm: 6.1, obpm: 4, dbpm: 2.1, ts: '58.0%', rts: '4.0%', efg: '53.0%', oreb: '5.0%', dreb: '15.0%', trb: '10.0%', ast: '18.0%', tov: '12.0%', stl: '2.0%', blk: '1.5%', usg: '26.0%', ftr: '.350', p3ar: '.380', ortg: 118.2, drtg: 99.5, fga2: 8, rimFga: 4, rimPct: '63.0%', shortMidFga: 2.2, shortMidPct: '45.0%', longMidFga: 1.8, longMidPct: '41.0%', rimMidRatio: '1.00', fga3: 5, fta: 5 });
+    const u = clone(UNIVERSE);
+    u.summer = { season: 2029,
+      circuits: [{ key: 'EYBL', name: 'Nike EYBL', event: 'Peach Jam', champion: 'Team Takeover', runnerUp: 'Expressions', final: { home: 'Team Takeover', away: 'Expressions', hs: 71, as: 66 }, mvp: names[0], eventMvp: names[0], standings: [['Team Takeover', 11, 1], ['Expressions', 9, 3]], firstTeam: names }],
+      fiba: { name: 'FIBA U19 World Cup', medals: { gold: 'USA', silver: 'France', bronze: 'Canada' }, final: { home: 'USA', away: 'France', hs: 88, as: 72 }, mvp: `${names[1]} (USA)`, allStar: [`${names[1]} (USA)`] },
+      history: [{ season: 2028, champions: [{ event: 'Peach Jam', team: 'Nightrydas' }], fiba: { name: 'FIBA U17 World Cup', medals: { gold: 'USA' } } }],
+      players: [
+        { n: names[0], c: 2029, t: 'Team Takeover', ci: 'EYBL', aau: line(24.6), b: 3, h: ['2029 Peach Jam champion', '2029 Peach Jam MVP', '2029 Nike EYBL MVP'] },
+        { n: names[1], c: 2029, t: 'Expressions', ci: 'EYBL', na: 'USA', aau: line(18.2), fiba: line(15.1), h: ['2029 FIBA U19 World Cup gold'] }
+      ] };
+    const { d, ev } = await bootRecruiting(u);
+    const r0 = ev(`(() => { const r = recruits.find(r => r.name === ${JSON.stringify(names[0])}); return { ppg: r.stats.aau.ppg, team: r.stats.aau.team, net: r.stats.aau.net, acc: r.accolades }; })()`);
+    ok(r0.ppg === 24.6 && /Team Takeover/.test(r0.team) && r0.net === '18.7', 'recruiting: a player\'s summer is his AAU line');
+    ok(r0.acc.includes('Peach Jam Champion') && r0.acc.includes('Nike EYBL MVP'), 'recruiting: and his honors are accolades');
+    const r1 = ev(`(() => { const r = recruits.find(r => r.name === ${JSON.stringify(names[1])}); return { fiba: r.stats.fiba.ppg, team: r.stats.fiba.team }; })()`);
+    ok(r1.fiba === 15.1 && r1.team === 'USA U19', 'recruiting: FIBA lines too');
+    ev("switchTab('summer')");
+    const txt = d.getElementById('summerContainer').textContent;
+    ok(/Peach Jam/.test(txt) && /Team Takeover/.test(txt) && /FIBA U19 World Cup/.test(txt) && /Scoring leaders/.test(txt) && /2028/.test(txt), 'recruiting: the Summer Circuit tab shows champions, medals, leaders and past summers');
+    ok(d.querySelectorAll('.nav-btn')[4].classList.contains('active') && ev('location.hash') === '#/summer', 'recruiting: the tab has its own address');
+    ev(`openRecruitProfile(recruits.find(r => r.name === ${JSON.stringify(names[0])}))`);
+    ok(/Peach Jam Champion/.test(d.getElementById('profileContainer').textContent), 'recruiting: the profile lists his summer honors');
   }
 
   // ---- RP hub: card status lines follow the universe ----

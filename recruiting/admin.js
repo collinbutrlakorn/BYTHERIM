@@ -8,6 +8,7 @@
 
   const RecruitAdmin = {
     rows: [], headers: {}, year: null, source: '', q: '', sort: ['rank', 1],
+    openFrom: null, resetNote: '',
 
     async start(opts = {}) {
       const sum = document.getElementById('admSummary');
@@ -40,6 +41,13 @@
         }, { yearKey: 'classYear', nameKey: 'name' });
         rows = res.rows;
         this.headers = headers;
+        // Classes the published universe is already recruiting (or has in
+        // college) keep their generated players; later ones can be reset.
+        try {
+          const u = root.Cloud && root.Cloud.universe ? await root.Cloud.universe() : null;
+          const live = u && u.recruitingLive;
+          this.openFrom = live && live.openFrom ? live.openFrom : u && u.season && u.season.year ? u.season.year + 3 : null;
+        } catch (e) { this.openFrom = null; }
       }
       this.rows = rows.filter(r => /^\d{4}$/.test(String(r.__tab || '')));
       const years = [...new Set(this.rows.map(r => String(r.classYear)))].sort();
@@ -80,6 +88,7 @@
           <div class="adm-card"><span class="adm-card-label">From the sheet</span><b>${cls.filter(r => !r.generated).length}</b><span>${cls.filter(r => r.__filled).length} filled in from a name only</span></div>
           <div class="adm-card"><span class="adm-card-label">Generated</span><b>${cls.filter(r => r.generated).length}</b><span>${inTop(25)} in the top 25 · ${inTop(100)} in the top 100</span></div>
         </div>
+        ${this.resetPanel()}
         <p class="adm-note">Ranks are where each player lands once the class is filled out; "Sheet rank" is the sheet's own. To keep a generated player for good, copy his row and paste it into the class's tab (at the first empty row). He becomes a sheet player you can edit, and the generated player in that spot is replaced by the next one in the pool.</p>
         <div class="card"><div class="table-scroll"><table class="data-table adm-table">
           <thead><tr>${th('rank', 'Rank')}<th>Sheet rank</th>${th('name', 'Player')}${th('pos', 'Pos')}${th('rating', 'Rating')}<th>Stars</th>${th('committedSchool', 'School')}${th('kind', 'Source')}<th></th></tr></thead>
@@ -92,6 +101,38 @@
             <td>${r.generated ? `<button class="outline-btn btn-sm" data-name="${esc(r.name)}" onclick="RecruitAdmin.copyRow(this)">Copy row</button>` : ''}</td>
           </tr>`).join('')}</tbody></table></div></div>
         <button class="sim-btn sim-btn-secondary btn-sm" onclick="RecruitAdmin.downloadClass()">Download the class's generated players</button>`;
+    },
+
+    // Resetting: new generated players for a class (or every class not yet
+    // being recruited). The sheet's players never change.
+    canReset(y) { return !this.openFrom || Number(y) >= this.openFrom; },
+    resetPanel() {
+      const years = [...new Set(this.rows.map(r => String(r.classYear)))].sort();
+      const open = years.filter(y => this.canReset(y));
+      const here = this.canReset(this.year);
+      const why = this.openFrom ? `The published universe is recruiting the classes before ${this.openFrom} (or has them in college), so theirs are fixed.` : 'No universe has been published, so every class can be reset.';
+      return `<div class="card adm-reset">
+          <div><b>Reset generated players</b><p class="sub-text-sm">Gives a class brand-new generated players: new names, ratings, bios and stats. Sheet players stay exactly as they are, and a player you've copied into the sheet is kept. The NCAA RP picks up the new players the next time a save is opened. ${why}</p>
+          ${this.resetNote ? `<p class="adm-reset-note">${esc(this.resetNote)}</p>` : ''}</div>
+          <div class="adm-reset-btns">
+            <button class="outline-btn btn-sm" ${here ? '' : 'disabled title="This class is already being recruited in the published universe"'} onclick="RecruitAdmin.reset([RecruitAdmin.year])">Reset the class of ${esc(this.year)}</button>
+            <button class="outline-btn btn-sm danger" ${open.length ? '' : 'disabled'} onclick="RecruitAdmin.reset(${esc(JSON.stringify(open))})">Reset every open class${open.length ? ` (${open.length})` : ''}</button>
+          </div>
+        </div>`;
+    },
+    async reset(years) {
+      years = (years || []).map(String).filter(y => this.canReset(y));
+      if (!years.length || !root.Cloud || !root.Cloud.resetGeneratedClasses) return;
+      const label = years.length === 1 ? `the class of ${years[0]}` : `${years.length} classes (${years[0]}-${years[years.length - 1]})`;
+      if (typeof confirm === 'function' && !confirm(`Reset the generated players in ${label}? Everyone sees the new players right away, and there's no undo.`)) return;
+      try {
+        await root.Cloud.resetGeneratedClasses(years);
+        this.resetNote = `Reset ${label}.`;
+        await this.load();
+      } catch (e) {
+        this.resetNote = `Couldn't reset: ${e.message || e}`;
+        this.render();
+      }
     },
 
     set(key, v, keepFocus) {

@@ -34,6 +34,9 @@ const lowR = build(sheet(60, [{ __tab: '2030', rank: '61', classYear: '2030', na
 ok(lowR.rank === '' && !lowR.stars, 'a player rated under 70 is unranked');
 const tops = Array.from({ length: 200 }, (_, i) => G.classTop(2028 + i));
 ok(Math.min(...tops) >= 94 && Math.max(...tops) === 99 && tops.filter(t => t === 99).length < 20 && tops.filter(t => t <= 95).length > 20, `some classes are stronger than others (#1 rated ${Math.min(...tops)}-${Math.max(...tops)}, a 99 in ${tops.filter(t => t === 99).length} of 200)`);
+const empty = y => G.augment([], { keys: 'camel', classes: [String(y)] }).filter(r => r.generated);
+const genTop = Math.max(...[2050, 2051, 2052, 2053, 2054, 2055].flatMap(y => empty(y).map(r => Number(r.rating))));
+ok(genTop === 95, `no generated player is rated above 95, even in the strongest classes (${genTop})`);
 ok(G.projectionFor(99) === 'Generational talent' && /All-NBA/.test(G.projectionFor(97)) && /All-Star/.test(G.projectionFor(96)), 'ratings read as projections');
 // Prep schools and academies at the top of the class.
 let top5 = 0, top5Prep = 0, back = 0, backPrep = 0;

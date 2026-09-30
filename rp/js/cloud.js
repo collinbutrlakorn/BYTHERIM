@@ -253,6 +253,28 @@
       await this.db.doc(`official/site_${name}/images/${id}`).delete().catch(() => {});
     },
 
+    // ---------- generated recruits ----------
+    // official/recruit_gen: { resets: { "2033": 1, ... } }, how many times
+    // each class's generated players have been reset (recruit-gen.js).
+    // Read by every page that builds the classes; {} when unavailable.
+    async recruitGen() {
+      await within(this.init(), 2500, false);
+      if (!this.enabled || !this.db) return {};
+      try {
+        const snap = await within(this.db.doc('official/recruit_gen').get(), 4000, null);
+        return snap && snap.exists ? (snap.data().resets || {}) : {};
+      } catch (e) { return {}; }
+    },
+    async resetGeneratedClasses(years) {
+      if (!this.admin) throw new Error('Only an admin can reset generated players.');
+      const ref = this.db.doc('official/recruit_gen');
+      const snap = await ref.get();
+      const resets = { ...((snap.exists && snap.data().resets) || {}) };
+      years.forEach(y => { resets[String(y)] = (Number(resets[String(y)]) || 0) + 1; });
+      await ref.set({ resets, updatedAt: Date.now(), by: this.user.email });
+      return resets;
+    },
+
     // ---------- the official universe ----------
     async publishUniverse(json) {
       if (!this.admin) throw new Error('Only an admin can publish.');

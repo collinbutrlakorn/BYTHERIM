@@ -428,7 +428,7 @@ function assignStableIds(list) {
   });
 }
 
-const TAB_ROUTES = { rankings: '', schoolRankings: 'schools', stats: 'stats', portal: 'portal' };
+const TAB_ROUTES = { rankings: '', schoolRankings: 'schools', stats: 'stats', portal: 'portal', summer: 'summer' };
 let routing = false;          // true while the page is following the address, so it doesn't write it back
 
 function currentRoute() {
@@ -648,6 +648,10 @@ function switchTab(tabName, isBack = false) {
     document.getElementById('portal-tab').classList.add('active');
     if (document.querySelectorAll('.nav-btn')[3]) document.querySelectorAll('.nav-btn')[3].classList.add('active');
     if (typeof renderPortal === 'function') renderPortal();
+  } else if (tabName === 'summer') {
+    document.getElementById('summer-tab').classList.add('active');
+    if (document.querySelectorAll('.nav-btn')[4]) document.querySelectorAll('.nav-btn')[4].classList.add('active');
+    if (typeof renderSummer === 'function') renderSummer();
   } else if (tabName === 'profile') {
     document.getElementById('profile-tab').classList.add('active');
   } else if (tabName === 'accoladeDetail') {

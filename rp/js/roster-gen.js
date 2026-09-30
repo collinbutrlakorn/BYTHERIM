@@ -508,6 +508,16 @@ function internationalIdentity(rng) {
   return { name: `${first} ${last}`, hometown };
 }
 
+// Someone from a particular country (national-team depth at FIBA
+// events): its own name pools, or the American ones for a country without.
+function identityFrom(country, rng = Math.random) {
+  const c = INTERNATIONAL.find(x => x.country === country);
+  if (!c) return americanIdentity(null, rng);
+  const city = pick(c.cities, rng);
+  const hometown = /,/.test(city) ? city : `${city}, ${c.country}`;
+  return { name: `${pickCommon(c.first || US_FIRST, rng)} ${pickCommon(c.last || US_LAST, rng)}`, hometown };
+}
+
 // A generated player's name and hometown, decided together so they match.
 function generateIdentity(conference, usedNames, rng = Math.random) {
   let who, attempts = 0;
@@ -708,7 +718,7 @@ function buildFullUniverse(masterTeamList, existingTeams, opts = {}) {
 
 const RosterGen = {
   FIRST_NAMES, LAST_NAMES, INTERNATIONAL, generateIdentity, HOMETOWNS, CONFERENCE_TIERS, TIER_RANGES,
-  getConferenceTier, normalizeSchoolKey, buildSchoolAliasIndex, generateHighSchool, pickHometown, americanIdentity, internationalIdentity,
+  getConferenceTier, normalizeSchoolKey, buildSchoolAliasIndex, generateHighSchool, pickHometown, americanIdentity, internationalIdentity, identityFrom,
   POSITION_BUILD, generateBuild, pickJersey, POPULAR_JERSEYS, RARE_JERSEYS, generatePlayerName, generateFillerPlayer, nextNeededPosition, buildFullUniverse
 };
 

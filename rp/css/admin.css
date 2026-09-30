@@ -48,3 +48,10 @@ body { background: var(--bg-color); color: var(--text-main); }
 .adm-changes { list-style: none; padding: 0; margin: 0; columns: 2 320px; font-size: 0.9rem; }
 .adm-changes li { break-inside: avoid; padding: 0.2rem 0; }
 .adm-roster { border-color: var(--accent); }
+.adm-reset { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: center; justify-content: space-between; padding: 0.9rem 1rem; }
+.adm-reset > div:first-child { flex: 1 1 360px; }
+.adm-reset p { margin: 0.25rem 0 0; }
+.adm-reset-note { color: var(--win); font-weight: 700; font-size: 0.88rem; }
+.adm-reset-btns { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.adm-reset-btns .danger:not(:disabled) { color: var(--loss); border-color: var(--loss); }
+.adm-reset-btns button:disabled { opacity: 0.45; cursor: not-allowed; }

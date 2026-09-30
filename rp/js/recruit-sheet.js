@@ -60,6 +60,10 @@
   // name. A player on both a class tab and "Others" keeps the class row.
   async function load(parse, opts = {}) {
     const yearKey = opts.yearKey || 'classYear', nameKey = opts.nameKey || 'name';
+    // Which classes an admin has reset (opts.resets, else the site's
+    // setting), read alongside the tabs.
+    const resetsP = opts.resets ? Promise.resolve(opts.resets)
+      : root.Cloud && root.Cloud.recruitGen ? root.Cloud.recruitGen().catch(() => ({})) : Promise.resolve({});
     const list = await tabs();
     const texts = new Array(list.length);
     // A few at a time: firing every tab at once can get requests throttled.
@@ -94,6 +98,7 @@
     if (root.RecruitGen && opts.generate !== false) {
       const keys = opts.keys || (yearKey === yearKey.toLowerCase() ? 'lower' : 'camel');
       const classes = list.filter((t, k) => /^\d{4}$/.test(t.name) && texts[k] != null).map(t => t.name);
+      if (root.RecruitGen.setResets) root.RecruitGen.setResets(await resetsP);
       rows = root.RecruitGen.augment(rows, { keys, classes });
     }
     return { rows, tabs: list, failed };

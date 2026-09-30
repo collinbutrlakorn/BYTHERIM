@@ -210,6 +210,9 @@ window.SimEngine = {
 
   resetStateToDefaults() {
     this.state.hsCalendar = null;
+    this.state.summer = null;
+    this.state.summerHistory = [];
+    this.state.pendingWire = [];
     this.state.proPlayers = [];
     this.state.recruitsClassView = 'incoming';
     this.state.year = 2028;
@@ -272,11 +275,16 @@ window.SimEngine = {
           this.state.lastDeclarations = savedState.lastDeclarations || [];
           this.state.offseasonStageIndex = savedState.offseasonStageIndex || 0;
           // Saves from before the draft moved to the Draft RP had seven
-          // offseason steps; map them onto today's four.
-          if (savedState.ncaaDone && savedState.offseasonSteps !== 4) {
+          // offseason steps; map them onto today's five. (Saves with four
+          // steps, from before the summer circuit, line up as they are: a
+          // save waiting on "Final Rosters" plays the summer first.)
+          if (savedState.ncaaDone && savedState.offseasonSteps !== 4 && savedState.offseasonSteps !== 5) {
             const old = this.state.offseasonStageIndex;
             this.state.offseasonStageIndex = old === 0 ? 0 : old <= 4 ? 1 : old === 5 ? 2 : 3;
           }
+          this.state.summer = savedState.summer || null;
+          this.state.summerHistory = savedState.summerHistory || [];
+          this.state.pendingWire = savedState.pendingWire || [];
           this.state.portalYear = savedState.portalYear || null;
           this.state.carouselYear = savedState.carouselYear || null;
           this.state.recruitFlips = savedState.recruitFlips || [];
@@ -296,6 +304,10 @@ window.SimEngine = {
           this.state.scheduleViewWeek = savedState.scheduleViewWeek || 1;
           this.state.hsCalendar = savedState.hsCalendar || null;
           this.state.proPlayers = savedState.proPlayers || [];
+          // The generated classes this save was built with (see
+          // applyGeneratedResets for classes an admin has reset since).
+          this.state.genResets = savedState.genResets || {};
+          if (typeof RecruitGen !== 'undefined' && RecruitGen.setResets) RecruitGen.setResets(this.state.genResets);
 
           const savedTeams = await db.teams.toArray();
           const savedPlayers = await db.players.toArray();
@@ -325,6 +337,7 @@ window.SimEngine = {
             this.advanceHsCalendar();
             this.syncUI();
             this.logNews(`Loaded Season ${this.state.year} (${this.state.teams.length} teams, ${this.state.activePlayers.length} players).`);
+            setTimeout(() => this.checkGeneratedResets().catch(e => console.warn('Checking generated classes:', e)), 0);
             return;
           }
         }
@@ -408,7 +421,10 @@ window.SimEngine = {
           lastTransfers: this.state.lastTransfers,
           lastDeclarations: this.state.lastDeclarations,
           offseasonStageIndex: this.state.offseasonStageIndex,
-          offseasonSteps: 4,
+          offseasonSteps: 5,
+          summer: this.state.summer || null,
+          summerHistory: this.state.summerHistory || [],
+          pendingWire: this.state.pendingWire || [],
           portalYear: this.state.portalYear || null,
           carouselYear: this.state.carouselYear || null,
           recruitFlips: this.state.recruitFlips || [],
@@ -427,7 +443,8 @@ window.SimEngine = {
           returningPlayers: this.state.returningPlayers,
           scheduleViewWeek: this.state.scheduleViewWeek,
           hsCalendar: this.state.hsCalendar || null,
-          proPlayers: this.state.proPlayers || []
+          proPlayers: this.state.proPlayers || [],
+          genResets: this.state.genResets || {}
         });
         await db.teams.clear();
         // Teams are stored WITHOUT their rosters: team.roster holds the same
@@ -633,6 +650,7 @@ window.SimEngine = {
       ]);
       const recruitsOk = recruitLoad.rows.length > 0;
       rawRecruits = recruitLoad.rows;
+      this.state.genResets = typeof RecruitGen !== 'undefined' && RecruitGen.getResets ? RecruitGen.getResets() : {};
       if (recruitLoad.failed.length) console.warn('Recruiting tabs that failed to load:', recruitLoad.failed.join(', '));
       if (rostersRes.ok) {
         const rawRosters = rostersRes.rows;
@@ -1463,6 +1481,7 @@ window.SimEngine = {
       // whether the recruiting sheet itself committed him (those never move).
       offers: isRecruit ? String(getVal(['offers'], '') || '').split(',').map(x => x.trim()).filter(Boolean) : undefined,
       aauTeam: isRecruit ? String(getVal(['aauteam'], '') || '').trim() : undefined,
+      country: isRecruit ? String(getVal(['country', 'nation'], '') || '').trim() : undefined,
       sheetCommitted: isRecruit && !/^true$/i.test(String(getVal(['generated'], ''))) && !!school && !/^(uncommitted|uncommited|undecided|free agent|n\/a|none|tbd|-)$/i.test(String(school).trim()),
       recClassYear: this.parseClassYear(getVal(['classyear', 'recclass'], ''), this.state.year),
       gameLog: [],
@@ -1613,7 +1632,8 @@ window.SimEngine = {
       r.committedSchool = '';
     });
     const sc = RecruitLive.schoolContext(s.teams);
-    const rec = r => ({ ...r, rating: r.recRating || r.rating });
+    // A breakout summer lifts the level he's recruited at; a poor one lowers it.
+    const rec = r => ({ ...r, rating: (Number(r.recRating || r.rating) || 76) + (r.summerBuzz || 0) * 1.5 });
     const count = {};
     all.forEach(r => { const c = HSCore.committedTo(r); if (c) count[`${r.recClassYear}|${c}`] = (count[`${r.recClassYear}|${c}`] || 0) + 1; });
     const mates = RecruitLive.teammateIndex(all.filter(r => Number(r.recClassYear) >= year), r => HSCore.committedTo(r));
@@ -1691,8 +1711,344 @@ window.SimEngine = {
       r.liveCommitted = null;
       out.push(r);
       this.logNews(`${r.name} reopens his recruitment after ${school}'s coaching change`);
+      this.queueWire({ kind: 'decommit', id: r.id, rank: Number(r.rsci) || null, text: `${r.name} (${c}) reopens his recruitment after ${school}'s coaching change` });
     });
     return out;
+  },
+
+  // ---------- The summer circuit (see summer-core.js) ----------
+  // Between the transfer portal and the new season, the high-school
+  // classes play their summer: the AAU circuits (the rising seniors and
+  // juniors, on their programs) and the FIBA youth World Cup. Every game is
+  // played with the college engine. What a player does there shows up on
+  // his profile (a season line, honors), and a breakout summer moves him
+  // up the rankings and brings new offers; a poor one costs him a little.
+
+  // The summer after a season: the calendar year the season ends in.
+  summerSeason() { return this.state.year + 1; },
+  currentSummer() { return this.state.summer || null; },
+
+  // His country, for FIBA: the sheet's Country, else where he's from.
+  nationOf(r) {
+    if (r.country) return String(r.country).trim();
+    const US = HSCore.US_STATES;
+    const CAN = new Set(['ON', 'QC', 'BC', 'AB', 'MB', 'SK', 'NS', 'NB', 'NL', 'PE']);
+    const tail = String(r.hometown || '').split(',').pop().trim();
+    if (tail && US.has(tail.toUpperCase())) return 'USA';
+    if (tail && CAN.has(tail.toUpperCase())) return 'Canada';
+    if (/^(usa|united states|us)$/i.test(tail)) return 'USA';
+    if (tail && tail.length > 2) return tail;
+    return US.has(String(r.state || '').toUpperCase()) ? 'USA' : '';
+  },
+
+  // Young enough for this summer's FIBA event: by birth year where the
+  // sheet has one, else by class.
+  fibaEligible(r, season, age) {
+    // By class first: the U19 is for this spring's graduates and the two
+    // classes behind them, the U17 for the three classes still in high
+    // school. A birth date, where there is one, has the last word on age.
+    const c = Number(r.recClassYear);
+    const inClass = age >= 19 ? c >= season && c <= season + 2 : c >= season + 1 && c <= season + 3;
+    if (!inClass) return false;
+    const m = String(r.dob || '').match(/(\d{4})\s*$/) || String(r.dob || '').match(/^(\d{4})-/);
+    return m ? Number(m[1]) >= season - age : true;
+  },
+
+  runSummerCircuit() {
+    if (typeof SummerCore === 'undefined' || !this.hsReady() || typeof GameCore === 'undefined') return null;
+    const s = this.state, year = s.year, season = this.summerSeason();
+    if (s.summer && s.summer.season === season) return s.summer;
+    const departed = s.departedNames || new Set();
+    const all = (s.allRecruits || []).filter(r => !r.fromOthers && r.recClassYear && !departed.has(r.name));
+    const byId = new Map(all.map(r => [r.id, r]));
+    const overseas = r => String(r.state || '').toUpperCase() === 'INT';
+    const aauPlayers = all.filter(r => [year + 2, year + 3].includes(Number(r.recClassYear)) && !overseas(r))
+      .map(r => ({ id: r.id, name: r.name, aauTeam: r.aauTeam || '', state: r.state, rank: Number(r.rsci) || null, rating: Number(r.recRating) || 0, sheet: !r.genRecruit }));
+    const ev = SummerCore.fibaEvent(season);
+    const fibaEligible = all.filter(r => Number(r.recClassYear) > year && this.fibaEligible(r, season, ev.age))
+      .map(r => ({ id: r.id, name: r.name, nation: this.nationOf(r), rank: Number(r.rsci) || null, rating: Number(r.recRating) || 0, pos: r.pos }))
+      .filter(p => p.nation);
+    const talent = r => HSCore.proTalent(r);
+    // Teams are built once per event (AAU and FIBA separately: a program
+    // and a country can't share a cache entry).
+    const cache = new Map();
+    const MINS = [26, 25, 24, 22, 21, 19, 17, 15, 12, 9, 6, 4];
+    const build = (t, kind) => {
+      const key = `${kind}|${t.name}`;
+      if (cache.has(key)) return cache.get(key);
+      const players = (t.roster || []).map(x => {
+        if (x && typeof x === 'object' && x.depth) return { id: x.id, name: x.name, pos: x.pos, ht: x.ht, wt: x.wt, rating: x.rating, depth: true };
+        const r = byId.get(x && typeof x === 'object' ? x.id : x);
+        return r ? { ...r, rating: talent(r) } : null;
+      }).filter(Boolean).map(p => ({ ...p, school: t.name, class: 'FR', role: '' }))
+        .sort((a, b) => (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0));
+      const top = players.slice(0, 8);
+      const ovr = top.reduce((n, p) => n + (parseFloat(p.rating) || 70), 0) / Math.max(1, top.length);
+      const team = { school: t.name, conference: '', roster: players, usageReference: ovr };
+      const total = MINS.slice(0, players.length).reduce((n, m) => n + m, 0) || 1;
+      players.forEach((p, i) => { p.expectedStats = this.buildBaseStatExpectations(p, (MINS[i] || 0) * 200 / total, team); });
+      team.simData = { teamOvr: ovr, rosterRef: players };
+      team.coachProfile = kind === 'fiba' ? { pace: 0.95, defense: 1.05 } : { pace: 1.08, defense: 0.95 };
+      cache.set(key, team);
+      return team;
+    };
+    const lines = boxes => boxes.map(({ player, box }, i) => ({ ...box, id: player.id, name: player.name, pos: player.pos, jersey: player.jersey || '', started: i < 5 }));
+    const play = (a, b, meta) => {
+      const kind = meta.kind === 'fiba' ? 'fiba' : 'aau';
+      const H = build(a, kind), A = build(b, kind);
+      // Among teenagers the talent gaps show more than in college.
+      const res = GameCore.simulateSingleGame(H, A, { homeCourtEdge: 0, paceBase: kind === 'fiba' ? 146 : 140, marginScale: 1.2, marginVarianceStd: 11 });
+      let hs = res.homeScore, as = res.awayScore;
+      if (hs === as) hs++;   // no ties in a bracket
+      return { homeScore: hs, awayScore: as, homeLines: lines(res.homePlayerBoxes), awayLines: lines(res.awayPlayerBoxes) };
+    };
+    const ratingOf = id => { const r = byId.get(id); return r ? talent(r) : null; };
+    const res = SummerCore.runSummer(season, { aauPlayers, fibaEligible, play, ratingOf, posOf: id => (byId.get(id) || {}).pos });
+
+    // Onto each player: his summer, and his honors over the years.
+    const breakouts = [];
+    res.players.forEach((e, id) => {
+      const r = byId.get(id);
+      if (!r) return;
+      r.summer = { season, team: e.team || '', circuit: e.circuit || '', nation: e.nation || '', aau: e.aau || null, fiba: e.fiba || null, honors: e.honors, buzz: e.buzz || 0 };
+      r.summerBuzz = e.buzz || 0;
+      if (e.honors.length) r.summerHonors = (r.summerHonors || []).filter(h => h.season !== season).concat(e.honors.map(h => ({ season, text: h })));
+      if (e.buzz >= 2) breakouts.push(r);
+    });
+    // Anyone who didn't play this summer carries no summer buzz forward.
+    all.forEach(r => { if (!res.players.has(r.id) && r.summerBuzz) r.summerBuzz = 0; });
+
+    const fin = g => g && g.lines ? { ...g, lines: { home: g.lines.home.map(this.slimLine), away: g.lines.away.map(this.slimLine) } } : g;
+    s.summer = {
+      season, aau: { circuits: res.aau.circuits.map(c => ({ ...c, final: fin(c.final) })), programs: res.aau.programs },
+      fiba: res.fiba ? { ...res.fiba, final: fin(res.fiba.final) } : null,
+      breakouts: breakouts.sort((a, b) => (b.summerBuzz - a.summerBuzz) || (Number(a.rsci) || 999) - (Number(b.rsci) || 999)).slice(0, 12).map(r => r.id),
+      seen: {}
+    };
+    s.summerHistory = (s.summerHistory || []).filter(h => h.season !== season).concat([{
+      season,
+      champions: s.summer.aau.circuits.map(c => ({ event: c.event, circuit: c.key, team: c.champion, mvp: c.mvp && c.mvp.name })),
+      fiba: s.summer.fiba ? { name: s.summer.fiba.name, medals: s.summer.fiba.medals, mvp: s.summer.fiba.mvp && s.summer.fiba.mvp.name } : null
+    }]).slice(-20);
+
+    const offers = this.applySummerOffers(breakouts);
+    // The news doesn't give away the finals: they're there to be watched.
+    const finals = s.summer.aau.circuits.map(c => c.event).concat(s.summer.fiba ? [`the ${s.summer.fiba.short}`] : []);
+    this.logNews(`The summer circuit is in the books: the ${finals.slice(0, -1).join(', ')} and ${finals.slice(-1)[0]} finals are ready to watch`);
+    const spoiler = /champion|Peach Jam|Finals|Championship|World Cup/;
+    breakouts.slice(0, 5).forEach(r => {
+      const o = offers.get(r);
+      const hon = r.summer.honors.filter(h => !spoiler.test(h)).slice(0, 2);
+      const text = `Breakout summer: ${r.name} (${r.recClassYear}) — ${hon.join(', ') || (r.summer.aau ? `${r.summer.aau.ppg} ppg on the ${r.summer.circuit}` : 'a standout summer')}${o && o.length ? `; new offers from ${o.join(' and ')}` : ''}`;
+      this.logNews(text);
+      this.queueWire({ kind: 'summer', id: r.id, rank: Number(r.rsci) || null, when: `Summer ${season}`, text });
+    });
+    s.summer.aau.circuits.forEach(c => this.queueWire({ kind: 'summer', when: `Summer ${season}`, text: `${c.champion} win the ${c.event}` }));
+    if (s.summer.fiba) this.queueWire({ kind: 'summer', when: `Summer ${season}`, text: `${s.summer.fiba.medals.gold} win the ${s.summer.fiba.name}` });
+    return s.summer;
+  },
+
+  // A final's box score, just what the broadcast and the recap need.
+  slimLine(l) {
+    const { id, name, pos, jersey, started, min, pts, reb, oreb, dreb, ast, stl, blk, tov, pf, fgm, fga, twoPm, twoPa, threePm, threePa, ftm, fta } = l;
+    return { id, name, pos, jersey, started, min, pts, reb, oreb, dreb, ast, stl, blk, tov, pf, fgm, fga, twoPm, twoPa, threePm, threePa, ftm, fta };
+  },
+
+  // Programs above where he was being recruited take notice of a breakout
+  // summer: up to two new offers, and they go straight onto his list.
+  applySummerOffers(players) {
+    const out = new Map();
+    if (typeof RecruitLive === 'undefined' || !this.state.teams.length) return out;
+    const sc = RecruitLive.schoolContext(this.state.teams);
+    players.forEach(r => {
+      if (!this.isLiveRecruit(r) || HSCore.committedTo(r)) return;
+      const bump = (r.summerBuzz || 0) * 2.5;
+      const T = RecruitLive.targetLevel((Number(r.recRating) || 80) + bump);
+      const have = new Set((r.liveList || []).concat(r.offers || []));
+      const fresh = Object.keys(sc).filter(x => !have.has(x) && sc[x].pull >= T - 6)
+        .sort((a, b) => Math.abs(sc[a].pull - T) - Math.abs(sc[b].pull - T) || RecruitLive.affinity(r.name, b) - RecruitLive.affinity(r.name, a))
+        .slice(0, 6).filter(x => RecruitLive.affinity(r.name, x) > 0.85).slice(0, 2);
+      if (!fresh.length) return;
+      r.offers = (r.offers || []).concat(fresh);
+      r.liveList = fresh.concat(r.liveList || []).slice(0, 12);
+      out.set(r, fresh);
+    });
+    return out;
+  },
+
+  // Offseason stories for the recruiting wire, shown when the new season's
+  // calendar opens.
+  queueWire(item) {
+    const s = this.state;
+    s.pendingWire = (s.pendingWire || []).concat([{ when: 'Offseason', ...item, year: s.year + 1 }]).slice(-40);
+  },
+
+  // A player's summer on his card: where he played, the line, the honors.
+  summerCardHTML(r) {
+    const sm = r.summer, hon = (r.summerHonors || []).slice().sort((a, b) => b.season - a.season);
+    if (!sm && !hon.length) return '';
+    const ln = (label, x) => x ? `<tr><td>${this.esc(label)}</td><td>${x.gp}</td><td>${x.ppg}</td><td>${x.rpg}</td><td>${x.apg}</td><td>${x.fg}</td><td>${x.fg3}</td><td>${x.bpm > 0 ? '+' : ''}${x.bpm}</td></tr>` : '';
+    const fe = sm && sm.fiba && this.state.summer && this.state.summer.season === sm.season && this.state.summer.fiba ? this.state.summer.fiba.short : 'FIBA';
+    return `<div class="card rc-block"><h3 class="section-title">Summer circuit</h3>
+      ${sm ? `<p class="sub-text-sm">${sm.season}${sm.team ? ` · ${this.esc(sm.team)} (${this.esc(sm.circuit)})` : ''}${sm.nation && sm.fiba ? ` · ${this.esc(sm.nation)} at the ${this.esc(fe)}` : ''}${sm.buzz >= 2 ? ' · <b class="summer-up">Breakout summer</b>' : sm.buzz <= -1 ? ' · <span class="summer-down">Quiet summer</span>' : ''}</p>
+      ${sm.aau || sm.fiba ? `<div class="table-scroll"><table class="data-table compact"><thead><tr><th></th><th>GP</th><th>PPG</th><th>RPG</th><th>APG</th><th>FG%</th><th>3P%</th><th>BPM</th></tr></thead><tbody>${ln(sm.circuit || 'AAU', sm.aau)}${ln(fe, sm.fiba)}</tbody></table></div>` : ''}` : ''}
+      ${hon.length ? `<ul class="summer-honors">${hon.map(h => `<li><span class="hs-when">${h.season}</span>${this.esc(h.text)}</li>`).join('')}</ul>` : ''}
+    </div>`;
+  },
+
+  // ---- The offseason's Summer Circuit page ----
+  renderOffseasonSummer() {
+    const sm = this.currentSummer();
+    if (!sm || sm.season !== this.summerSeason() && sm.season !== this.state.year) {
+      return `<p class="empty-table-msg">The summer circuit tips off after the transfer portal: the AAU circuits for the rising seniors and juniors, and the ${typeof SummerCore !== 'undefined' ? SummerCore.fibaEvent(this.summerSeason()).name : 'FIBA youth World Cup'}.</p>`;
+    }
+    const byId = new Map((this.state.allRecruits || []).map(r => [r.id, r]));
+    const who = x => x ? `<a class="text-link" onclick="SimEngine.openPlayerModal('${String(x.id).replace(/'/g, "\\'")}')">${this.esc(x.name)}</a>` : '';
+    const scoreRow = g => `<div class="summer-final"><span class="${g.winner === g.home ? 'won' : ''}">${this.esc(g.home)} <b>${g.hs}</b></span><span class="${g.winner === g.away ? 'won' : ''}">${this.esc(g.away)} <b>${g.as}</b></span></div>`;
+    const circuits = sm.aau.circuits.map(c => {
+      const prog = sm.aau.programs.filter(p => p.circuit === c.key);
+      const champ = prog.find(p => p.name === c.champion);
+      const stars = champ ? champ.roster.map(id => byId.get(id)).filter(Boolean).sort((a, b) => (Number(a.rsci) || 999) - (Number(b.rsci) || 999)).slice(0, 3) : [];
+      const f = c.final, seen = sm.seen && sm.seen[c.key];
+      return `<div class="card summer-card">
+        <div class="section-head"><h3 class="section-title">${this.esc(c.name)}</h3><span class="sub-text-sm">${prog.length} programs</span></div>
+        <div class="summer-event"><small>${this.esc(c.event)} final</small>
+          ${seen ? scoreRow({ ...f, winner: c.champion }) : `<div class="hs-actions"><button type="button" class="hs-btn primary" onclick="SimEngine.watchSummerFinal('${c.key}')">&#9654; Watch the final</button><button type="button" class="hs-btn" onclick="SimEngine.revealSummerFinal('${c.key}')">Show result</button></div>`}
+        </div>
+        ${seen ? `<p class="sub-text-sm"><b>${this.esc(c.champion)}</b> champions${stars.length ? ` · led by ${stars.map(r => this.esc(r.name)).join(', ')}` : ''}${c.eventMvp ? ` · ${this.esc(c.event)} MVP ${who(c.eventMvp)} (${this.esc(c.eventMvp.line)})` : ''}</p>` : ''}
+        <p class="sub-text-sm">${c.mvp ? `Circuit MVP: ${who(c.mvp)} (${this.esc(c.mvp.team)}, ${this.esc(c.mvp.line)})` : ''}${c.scoringLeader ? ` · Scoring leader: ${who(c.scoringLeader)} (${c.scoringLeader.ppg} ppg)` : ''}</p>
+        <details><summary>Standings</summary><table class="data-table compact"><thead><tr><th>Program</th><th>W-L</th><th>+/-</th></tr></thead><tbody>
+          ${c.standings.map((t, i) => `<tr class="${i < 8 ? '' : 'sub-text'}"><td>${this.esc(t.team)}</td><td>${t.w}-${t.l}</td><td>${t.pf - t.pa > 0 ? '+' : ''}${t.pf - t.pa}</td></tr>`).join('')}
+        </tbody></table></details>
+      </div>`;
+    }).join('');
+    let fiba = '';
+    if (sm.fiba) {
+      const f = sm.fiba, seen = sm.seen && sm.seen.fiba;
+      const medal = (m, n) => `<span class="summer-medal ${m}">${m === 'gold' ? '🥇' : m === 'silver' ? '🥈' : '🥉'} ${this.esc(n)}</span>`;
+      const usa = (f.rosters || []).find(t => t.name === 'USA');
+      fiba = `<div class="card summer-card">
+        <div class="section-head"><h3 class="section-title">${this.esc(f.name)}</h3><span class="sub-text-sm">16 nations</span></div>
+        <div class="summer-event"><small>Gold medal game</small>
+          ${seen ? scoreRow({ ...f.final, winner: f.medals.gold }) : `<div class="hs-actions"><button type="button" class="hs-btn primary" onclick="SimEngine.watchSummerFinal('fiba')">&#9654; Watch the final</button><button type="button" class="hs-btn" onclick="SimEngine.revealSummerFinal('fiba')">Show result</button></div>`}
+        </div>
+        ${seen ? `<p class="summer-medals">${medal('gold', f.medals.gold)}${medal('silver', f.medals.silver)}${medal('bronze', f.medals.bronze)}</p>
+        ${f.mvp ? `<p class="sub-text-sm">MVP: ${f.mvp.depth ? this.esc(f.mvp.name) : who(f.mvp)} (${this.esc(f.mvp.nation)}, ${this.esc(f.mvp.line)})</p>` : ''}
+        <p class="sub-text-sm">All-Star Five: ${(f.allStar || []).map(x => `${x.depth ? this.esc(x.name) : who(x)} (${this.esc(x.nation)})`).join(', ')}</p>` : ''}
+        ${usa ? `<details><summary>Team USA</summary><p class="sub-text-sm">${usa.players.filter(p => !p.depth).map(p => who(p)).join(', ')}</p></details>` : ''}
+        <details><summary>Groups</summary><div class="summer-groups">${f.groups.map(g => `<div><b>Group ${g.name}</b><ol>${g.standings.map(t => `<li>${this.esc(t.team)} <small>${t.w}-${t.l}</small></li>`).join('')}</ol></div>`).join('')}</div></details>
+      </div>`;
+    }
+    const breakouts = (sm.breakouts || []).map(id => byId.get(id)).filter(Boolean);
+    const bo = breakouts.length ? `<div class="card summer-card"><div class="section-head"><h3 class="section-title">Breakout summers</h3><span class="sub-text-sm">Rising up the boards</span></div>
+      <ul class="summer-breakouts">${breakouts.map(r => `<li onclick="SimEngine.openPlayerModal('${String(r.id).replace(/'/g, "\\'")}')"><b>${this.esc(r.name)}</b> <small>${r.recClassYear} · #${r.rsci || 'NR'} · ${this.esc(r.pos || '')}</small><span>${this.esc(r.summer.honors.filter(h => !/champion|Peach Jam|Finals|Championship|World Cup/.test(h)).slice(0, 2).join(' · ') || `${r.summer.aau ? r.summer.aau.ppg + ' ppg on the ' + r.summer.circuit : ''}`)}</span></li>`).join('')}</ul></div>` : '';
+    return `<p class="sub-text mb-1">The summer of ${sm.season}: the rising seniors and juniors on the AAU circuits${sm.fiba ? `, and the ${this.esc(sm.fiba.name)}` : ''}. Every line is on the players' recruiting profiles.</p>
+      <div class="summer-grid">${circuits}${fiba}${bo}</div>`;
+  },
+
+  watchSummerFinal(key) {
+    const game = this.summerLiveGame(key);
+    if (!game || typeof GameCenter === 'undefined') { this.revealSummerFinal(key); return; }
+    const sm = this.state.summer;
+    sm.seen = sm.seen || {};
+    sm.seen[key] = true;
+    GameCenter.open(game, { mode: 'live', onClose: () => this.renderOffseasonOverlay() });
+  },
+  revealSummerFinal(key) {
+    const sm = this.state.summer;
+    if (!sm) return;
+    sm.seen = sm.seen || {};
+    sm.seen[key] = true;
+    this.renderOffseasonOverlay();
+  },
+  summerLiveGame(key) {
+    const sm = this.state.summer;
+    if (!sm || typeof LiveCore === 'undefined') return null;
+    const c = key === 'fiba' ? null : sm.aau.circuits.find(x => x.key === key);
+    const f = key === 'fiba' ? sm.fiba && sm.fiba.final : c && c.final;
+    if (!f || !f.lines) return null;
+    const label = key === 'fiba' ? `${sm.fiba.name} Final` : `${c.event} Final`;
+    return LiveCore.build({
+      key: `summer|${sm.season}|${key}`, label, neutral: true, big: true,
+      home: { school: f.home, record: key === 'fiba' ? sm.fiba.team : c.name },
+      away: { school: f.away, record: key === 'fiba' ? sm.fiba.team : c.name },
+      spread: 0, homeScore: f.hs, awayScore: f.as, note: ''
+    }, { home: f.lines.home, away: f.lines.away });
+  },
+
+  // For the recruiting page: this summer's events and every player's lines.
+  summerSnapshot() {
+    const sm = this.state.summer;
+    if (!sm) return null;
+    const players = [];
+    (this.state.allRecruits || []).forEach(r => {
+      if (!r.summer && !(r.summerHonors || []).length) return;
+      const x = { n: r.name, c: Number(r.recClassYear) };
+      if (r.summer && r.summer.season === sm.season) {
+        if (r.summer.team) x.t = r.summer.team;
+        if (r.summer.circuit) x.ci = r.summer.circuit;
+        if (r.summer.nation && r.summer.fiba) x.na = r.summer.nation;
+        if (r.summer.aau) x.aau = r.summer.aau;
+        if (r.summer.fiba) x.fiba = r.summer.fiba;
+        if (r.summer.buzz) x.b = r.summer.buzz;
+      }
+      if ((r.summerHonors || []).length) x.h = r.summerHonors.map(h => `${h.season} ${h.text}`);
+      players.push(x);
+    });
+    const strip = g => g ? { home: g.home, away: g.away, hs: g.hs, as: g.as } : null;
+    return {
+      season: sm.season,
+      circuits: sm.aau.circuits.map(c => ({ key: c.key, name: c.name, event: c.event, champion: c.champion, runnerUp: c.runnerUp, final: strip(c.final),
+        mvp: c.mvp && c.mvp.name, eventMvp: c.eventMvp && c.eventMvp.name, standings: c.standings.map(t => [t.team, t.w, t.l]),
+        firstTeam: (c.firstTeam || []).map(t => t.name) })),
+      fiba: sm.fiba ? { name: sm.fiba.name, medals: sm.fiba.medals, final: strip(sm.fiba.final), mvp: sm.fiba.mvp && `${sm.fiba.mvp.name} (${sm.fiba.mvp.nation})`,
+        allStar: (sm.fiba.allStar || []).map(t => `${t.name} (${t.nation})`) } : null,
+      history: this.state.summerHistory || [],
+      players
+    };
+  },
+
+  // ---------- Resetting generated classes ----------
+  // An admin can reset a class's generated players from the recruiting
+  // admin (Cloud.resetGeneratedClasses). A save picks that up for classes
+  // nobody has started recruiting yet (three or more years out): their
+  // generated players are replaced with the new ones. Classes already
+  // being recruited, or in college, keep the players they have.
+  async checkGeneratedResets() {
+    if (typeof Cloud === 'undefined' || !Cloud.recruitGen || !this.state.teams.length) return [];
+    return this.applyGeneratedResets(await Cloud.recruitGen());
+  },
+  resettableFrom() { return this.state.year + 3; },
+  async applyGeneratedResets(want, loader) {
+    if (typeof RecruitGen === 'undefined' || !RecruitGen.setResets) return [];
+    const s = this.state, have = s.genResets || {};
+    const n = (m, y) => Number((m || {})[y]) || 0;
+    const years = [...new Set(Object.keys(want || {}).concat(Object.keys(have)))]
+      .filter(y => /^\d{4}$/.test(y) && Number(y) >= this.resettableFrom() && n(want, y) !== n(have, y)).sort();
+    if (!years.length) return [];
+    const merged = { ...have };
+    years.forEach(y => { merged[y] = n(want, y); });
+    const load = loader || (o => RecruitSheet.load(t => this.parseCSV(t), o));
+    let res;
+    try { res = await load({ yearKey: 'classyear', nameKey: 'name', resets: merged }); }
+    finally { RecruitGen.setResets(s.genResets || {}); }
+    const pick = new Set(years);
+    const fresh = ((res && res.rows) || [])
+      .filter(r => /^true$/i.test(String(r.generated || '')) && pick.has(String(r.classyear || r.__tab)))
+      .map(r => this.normalizePlayerObj(r, true));
+    if (!fresh.length) return [];
+    const stale = r => r.genRecruit && pick.has(String(r.recClassYear));
+    s.allRecruits = (s.allRecruits || []).filter(r => !stale(r)).concat(fresh);
+    s.genResets = merged;
+    RecruitGen.setResets(merged);
+    this.refreshRecruitPool();
+    this.runLiveRecruiting();
+    const label = years.length > 2 ? `${years[0]}-${years[years.length - 1]}` : years.join(' and ');
+    this.logNews(`Generated players reset for the class${years.length > 1 ? 'es' : ''} of ${label}`);
+    this.toast(`New generated players for the class${years.length > 1 ? 'es' : ''} of ${label}`, 'An admin reset them. Classes already being recruited keep theirs.');
+    this.syncUI();
+    await this.saveStateToDB();
+    return years.map(Number);
   },
 
   // ---------- Recruiting quotas ----------
@@ -2408,7 +2764,10 @@ window.SimEngine = {
     // and the ones whose time has come pick again right away.
     const shaken = new Set(changes.filter(c => c.kind === 'hired').map(c => c.school).concat(changes.filter(c => c.kind === 'hired' && c.from).map(c => c.from)));
     if (this.reopenAfterCoachChanges(shaken).length) {
-      this.runLiveRecruiting().forEach(r => this.logNews(`${r.name} recommits to ${HSCore.committedTo(r)} after reopening`));
+      this.runLiveRecruiting().forEach(r => {
+        this.logNews(`${r.name} recommits to ${HSCore.committedTo(r)} after reopening`);
+        this.queueWire({ kind: 'commit', id: r.id, school: HSCore.committedTo(r), rank: Number(r.rsci) || null, text: `${r.name} recommits to ${HSCore.committedTo(r)} after reopening` });
+      });
     }
     this.state.coachChanges = (this.state.coachChanges || []).concat(changes).slice(-600);
     changes.filter(c => c.kind !== 'hired' || c.from).slice(0, 12).forEach(c => this.logNews(c.text));
@@ -4520,14 +4879,16 @@ window.SimEngine = {
   // Early entrants can withdraw and return to school. Seniors and players
   // out of eligibility are locked in. The withdrawal odds stand in for a
   // combine result until the Draft RP page exists to supply a real one.
-  // The offseason, in four steps. The whole NBA draft cycle — combine,
+  // The offseason, in five steps. The whole NBA draft cycle — combine,
   // lottery, workouts, the withdrawal deadline and draft night — happens
   // in the Draft RP, and the NCAA RP waits at the "NBA Draft" step until
-  // draft night is over. Only then do the portal and roster moves run.
+  // draft night is over. Only then do the portal, the high-school summer
+  // circuit (AAU and FIBA) and the roster moves run.
   OFFSEASON_STAGES: [
     { key: 'summary', label: 'Season Wrap-Up' },
     { key: 'draft',   label: 'NBA Draft' },
     { key: 'portal',  label: 'Transfer Portal' },
+    { key: 'summer',  label: 'Summer Circuit' },
     { key: 'rosters', label: 'Final Rosters' }
   ],
 
@@ -4588,6 +4949,7 @@ window.SimEngine = {
   stageToView(key) {
     if (key === 'summary' || key === 'draft') return 'draft';
     if (key === 'portal' || key === 'rosters') return 'transfers';
+    if (key === 'summer') return 'summer';
     return 'champion';
   },
 
@@ -4729,6 +5091,9 @@ window.SimEngine = {
         break;
       case 'portal':
         this.runTransferPortal();
+        break;
+      case 'summer':
+        this.runSummerCircuit();
         break;
       case 'rosters':
         break;
@@ -8336,6 +8701,7 @@ window.SimEngine = {
       // The high-school classes as the sim has them today: ranks, grades,
       // commitments and the lists still being decided (see recruit-live.js).
       recruitingLive: this.liveRecruitingSnapshot(),
+      summer: this.summerSnapshot(),
       champions: (this.state.seasonHistory || []).map(h => ({
         year: h.year, season: this.seasonLabelFor(h.year),
         champion: h.champion && (h.champion.school || h.champion), runnerUp: h.runnerUp && (h.runnerUp.school || h.runnerUp),
@@ -8619,6 +8985,7 @@ window.SimEngine = {
         let now = cp >= 1 || !curve ? fin : Math.max(60, Math.min(99, Math.round(fin + curve(ranks.get(r)) - curve(Number(r.rsci) || ranks.get(r)))));
         // Mid-year, nobody is graded above a player ranked ahead of him.
         if (cp < 1) { now = Math.min(now, prevGrade); prevGrade = now; }
+        if (r.genRecruit) now = Math.min(now, RG.GEN_MAX || 95);
         gradeOf.set(r, now);
         starOf.set(r, RG.starsFor(now));
         return;
@@ -8678,10 +9045,13 @@ window.SimEngine = {
           <h2>${this.esc(r.name)}</h2>
           <div>${e.stars ? star(e.stars) : ''}</div>
           ${reclassNote ? `<span class="rec-tag">${reclassNote}</span>` : ''}
+          ${r.liveDecommitFrom ? `<span class="rec-tag">Reopened his recruitment after ${this.esc(r.liveDecommitFrom)}'s coaching change</span>` : ''}
+          ${e.school && r.liveWith ? `<span class="rec-tag">Joining teammate ${this.esc(r.liveWith)}</span>` : ''}
         </div>
         ${commit}
       </div>
       <div class="rc-facts card">${fact('Height', r.ht)}${fact('Weight', r.wt ? r.wt + ' lb' : '')}${fact('Wingspan', r.wingspan)}${fact('Hometown', r.hometown && r.hometown !== 'N/A' ? r.hometown : '')}${fact('High school', r.hs)}</div>
+      ${this.summerCardHTML(r)}
       ${picked.length ? `<div class="card rc-block"><h3 class="section-title">All-star games</h3><ul>${picked.map(x => `<li>${this.esc(x)}</li>`).join('')}</ul></div>` : ''}
       ${sc.strengths || sc.weaknesses || sc.scouting ? `<div class="card rc-block"><h3 class="section-title">Scouting report</h3>
         ${sc.scouting ? `<p>${this.esc(sc.scouting)}</p>` : ''}
@@ -8740,7 +9110,12 @@ window.SimEngine = {
   advanceHsCalendar() {
     if (!this.hsReady() || !this.state.teams.length) return;
     const s = this.state, year = s.year, p = this.seasonProgress();
-    if (!s.hsCalendar || s.hsCalendar.year !== year) s.hsCalendar = { year, lastP: p, events: {}, wire: [] };
+    // A new season's wire opens with what happened over the offseason
+    // (the summer circuit, recruitments reopened by coaching changes).
+    if (!s.hsCalendar || s.hsCalendar.year !== year) {
+      s.hsCalendar = { year, lastP: p, events: {}, wire: (s.pendingWire || []).slice().reverse().slice(0, 30) };
+      s.pendingWire = [];
+    }
     const cal = s.hsCalendar;
     const prev = cal.lastP;
     const incoming = year + 1;
@@ -8900,7 +9275,10 @@ window.SimEngine = {
     const el = document.getElementById('hsEvents');
     if (!el) return;
     const s = this.state, cal = s.hsCalendar && s.hsCalendar.year === s.year ? s.hsCalendar : null;
-    if (!this.hsReady() || !cal || classYear !== s.year + 1) { el.innerHTML = ''; return; }
+    // Last summer's champions, above both classes.
+    const sm = s.summer && (s.summer.season === s.year || s.summer.season === s.year + 1) ? s.summer : null;
+    const strip = sm ? `<div class="card summer-strip"><b>Summer ${sm.season}</b>${sm.aau.circuits.map(c => `<span>${this.esc(c.event)}: <b>${this.esc(c.champion)}</b></span>`).join('')}${sm.fiba ? `<span>${this.esc(sm.fiba.short)}: <b>${this.esc(sm.fiba.medals.gold)}</b></span>` : ''}</div>` : '';
+    if (!this.hsReady() || !cal || classYear !== s.year + 1) { el.innerHTML = strip; return; }
     const byId = new Map((s.allRecruits || []).map(r => [r.id, r]));
     const card = key => {
       const ev = HSCore.EVENTS[key], e = cal.events[key];
@@ -8927,7 +9305,7 @@ window.SimEngine = {
         <button type="button" class="hs-link" onclick="SimEngine.toggleHsRoster('${key}')">${open ? 'Hide rosters' : 'Rosters'}</button>${roster}</div>`;
     };
     const wire = (cal.wire || []).slice(0, 8).map(w => `<li class="wire-${w.kind}"><span class="hs-when">${this.esc(w.when || '')}</span>${w.school ? `<img src="${this.getTeamLogo(w.school)}" class="xs-logo" alt="">` : ''}${w.id ? `<a onclick="SimEngine.openPlayerModal('${String(w.id).replace(/'/g, "\\'")}')">${this.esc(w.text)}</a>` : this.esc(w.text)}</li>`).join('');
-    el.innerHTML = `<div class="hs-grid">${Object.keys(HSCore.EVENTS).map(card).join('')}</div>
+    el.innerHTML = `${strip}<div class="hs-grid">${Object.keys(HSCore.EVENTS).map(card).join('')}</div>
       ${wire ? `<div class="card hs-wire"><h3 class="section-title">Recruiting wire</h3><ul>${wire}</ul></div>` : ''}`;
   },
 
@@ -9534,14 +9912,15 @@ window.SimEngine = {
 
   defaultOffseasonView() {
     const idx = this.state.offseasonStageIndex || 0;
-    return ['champion', 'draft', 'transfers', 'transfers'][idx] || 'champion';
+    return ['champion', 'draft', 'transfers', 'transfers', 'summer'][idx] || 'champion';
   },
 
   OFFSEASON_VIEWS: [
     { key: 'champion', label: 'Season Wrap-Up', stage: 0 },
     { key: 'draft', label: 'NBA Draft', stage: 1 },
     { key: 'transfers', label: 'Transfer Portal', stage: 2 },
-    { key: 'rosters', label: 'Final Rosters', stage: 3 }
+    { key: 'summer', label: 'Summer Circuit', stage: 3 },
+    { key: 'rosters', label: 'Final Rosters', stage: 4 }
   ],
 
   renderOffseasonOverlay() {
@@ -9554,20 +9933,23 @@ window.SimEngine = {
     const yearEl = document.getElementById('offseasonYear');
     if (yearEl) {
       const y = s.ncaaDone ? s.year : ((s.seasonHistory || []).slice(-1)[0] || { year: s.year }).year;
-      yearEl.innerText = `${y}-${(y + 1).toString().slice(2)} · ${idx < this.OFFSEASON_STAGES.length ? 'Step ' + Math.min(idx + 1, 4) + ' of 4' : 'Complete'}`;
+      const n = this.OFFSEASON_STAGES.length;
+      yearEl.innerText = `${y}-${(y + 1).toString().slice(2)} · ${idx < n ? 'Step ' + Math.min(idx + 1, n) + ' of ' + n : 'Complete'}`;
     }
 
     const track = document.getElementById('offseasonTrack');
     if (track) {
       const done = k => k < idx;
+      const sum = this.currentSummer();
       const subs = [
         s.ncaaTournament && s.ncaaTournament.champion ? `${s.ncaaTournament.champion.school} champions` : 'Champions & awards',
         this.isDraftComplete() ? `${(s.draftResults || []).length} picks made` : 'In the Draft RP',
         (s.lastTransfers || []).length && idx >= 3 ? `${s.lastTransfers.length} moves` : 'Players on the move',
+        sum && sum.season === this.summerSeason() ? `${sum.aau.programs.length} programs${sum.fiba ? ' · ' + sum.fiba.short : ''}` : 'AAU & FIBA',
         'New season'
       ];
       track.innerHTML = this.OFFSEASON_VIEWS.map((v, i) => `
-        <li class="${done(i) ? 'done' : i === idx ? 'current' : ''} ${view === v.key || (v.key === 'rosters' && view === 'transfers' && idx >= 3) ? 'viewing' : ''}"
+        <li class="${done(i) ? 'done' : i === idx ? 'current' : ''} ${view === v.key ? 'viewing' : ''}"
             ${done(i) || i === idx ? `onclick="SimEngine.setOffseasonStage('${v.key === 'rosters' ? 'transfers' : v.key}')" role="button" tabindex="0"` : ''}>
           <span class="stage-dot">${done(i) ? '✓' : i + 1}</span>
           <span><b>${v.label}</b><small>${subs[i]}</small></span>
@@ -9585,11 +9967,13 @@ window.SimEngine = {
         : idx === 0 ? 'Continue to the NBA Draft'
         : next.key === 'draft' ? 'Continue to the Transfer Portal'
         : next.key === 'portal' ? 'Open the Transfer Portal'
+        : next.key === 'summer' ? 'Tip off the summer circuit'
         : 'Set rosters & start next season';
     }
 
     const body = view === 'draft' ? this.renderOffseasonDraft()
       : view === 'transfers' ? this.renderOffseasonTransfers()
+      : view === 'summer' ? this.renderOffseasonSummer()
       : this.renderOffseasonChampion();
     el.innerHTML = `<div class="rp-rise">${body}</div>`;
   },
@@ -9775,6 +10159,16 @@ window.SimEngine = {
         moves.length ? { ms: 4600, html: C.heading('Biggest names') + `<div class="cs-list">${moves.slice(0, 6).map((t, i) => `<div class="cs-row cs-item" style="--d:${i * 170}ms">${logo(t.from)}<span class="cs-arrow">&rarr;</span>${logo(t.to)}<span class="cs-name">${this.esc(t.name)}</span><span class="cs-meta">${t.pos} · ${t.ppg} ppg · ${this.esc(t.reason || '')}</span></div>`).join('')}</div>` } : null,
         { ms: 0, html: C.titleCard('', '<span class="small">Every move is in</span>') }
       ], actions: [{ label: 'See every transfer', primary: true }] });
+    } else if (key === 'summer') {
+      const sm = s.summer;
+      if (!sm) return;
+      const champs = sm.aau.circuits;
+      C.play({ id: 'summerShow', label: 'Summer circuit', scenes: [
+        { ms: 2600, html: C.titleCard(`Summer ${sm.season}`, 'The Summer<br>Circuit', `${sm.aau.programs.length} AAU programs${sm.fiba ? ` and the ${this.esc(sm.fiba.name)}` : ''}.`) },
+        // The finals, not the winners: those are for watching.
+        { ms: 4200, html: C.heading('The finals') + `<div class="cs-list">${champs.map((c, i) => `<div class="cs-row cs-item" style="--d:${i * 170}ms"><span class="cs-name">${this.esc(c.final.home)} vs ${this.esc(c.final.away)}</span><span class="cs-meta">${this.esc(c.event)}</span></div>`).join('')}${sm.fiba ? `<div class="cs-row cs-item" style="--d:${champs.length * 170}ms"><span class="cs-name">${this.esc(sm.fiba.final.home)} vs ${this.esc(sm.fiba.final.away)}</span><span class="cs-meta">${this.esc(sm.fiba.name)} gold medal game</span></div>` : ''}</div>` },
+        { ms: 0, html: C.titleCard('', '<span class="small">Watch the finals, or skip to the results</span>') }
+      ], actions: [{ label: 'See the summer', primary: true }] });
     }
   },
 

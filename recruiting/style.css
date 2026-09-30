@@ -1366,3 +1366,40 @@ a.query-btn { text-decoration: none; display: inline-flex; align-items: center; 
 
 .bio-badge-sub { display: block; font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; line-height: 1.2; }
 .commit-flip-note { font-size: 0.75rem; color: var(--text-muted); margin-top: 6px; }
+
+/* ==========================================================================
+   Summer Circuit tab (AAU and FIBA, from the NCAA RP)
+   ========================================================================== */
+.summer-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.summer-card {
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: 0.6rem; min-width: 0;
+}
+.summer-wide { grid-column: 1 / -1; }
+.summer-head { display: flex; flex-direction: column; gap: 0.1rem; }
+.summer-head h3 { margin: 0; font-size: 1.15rem; color: var(--text-main); }
+.summer-kicker { font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); }
+.summer-champ { font-size: 1rem; color: var(--text-main); }
+.summer-champ small { color: var(--text-muted); }
+.summer-medals { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; font-weight: 700; color: var(--text-main); }
+.summer-score { display: flex; flex-direction: column; gap: 2px; font-size: 0.9rem; }
+.summer-score span { display: flex; justify-content: space-between; color: var(--text-muted); }
+.summer-score span.won { color: var(--text-main); font-weight: 700; }
+.summer-awards { display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 0.8rem; margin: 0; font-size: 0.85rem; }
+.summer-awards dt { color: var(--text-muted); font-weight: 600; }
+.summer-awards dd { margin: 0; color: var(--text-main); }
+.summer-player { color: var(--text-main); text-decoration: underline; text-decoration-color: var(--border); cursor: pointer; }
+.summer-player:hover { color: var(--accent); }
+.summer-card details summary { cursor: pointer; color: var(--text-muted); font-size: 0.8rem; font-weight: 700; }
+.summer-standings { margin: 0.4rem 0 0; padding-left: 1.3rem; font-size: 0.85rem; columns: 2; column-gap: 1.2rem; }
+.summer-standings li { break-inside: avoid; }
+.summer-standings li span { color: var(--text-main); }
+.summer-standings li small { color: var(--text-muted); margin-left: 0.4rem; }
+.summer-table td small { color: var(--text-muted); }
+.summer-hot { color: var(--heat-good-text); font-size: 0.75rem; }
+.summer-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.85rem; color: var(--text-muted); }
+.summer-history b { color: var(--text-main); margin-right: 0.4rem; }
+@media (max-width: 800px) {
+  .summer-grid { grid-template-columns: 1fr; }
+  .summer-standings { columns: 1; }
+}

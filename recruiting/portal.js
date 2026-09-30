@@ -190,7 +190,8 @@ function loadPortalData() {
 function applyRecruitFlips() {
   const flips = (Portal.universe && Portal.universe.recruitFlips) || [];
   const live = Portal.universe && Portal.universe.recruitingLive;
-  if (!flips.length && !live) return;
+  const summer = Portal.universe && Portal.universe.summer;
+  if (!flips.length && !live && !summer) return;
   if (typeof recruits === 'undefined' || !recruits.length) { Portal.flipsPending = true; return; }
   let moved = 0;
   flips.forEach(f => {
@@ -204,12 +205,14 @@ function applyRecruitFlips() {
   });
   Portal.flipsPending = false;
   moved += applyLiveRecruiting();
+  moved += applySummer();
   if (moved && typeof filterRecruits === 'function') {
     if (typeof buildRankIndex === 'function') buildRankIndex();
     filterRecruits();
     if (typeof renderSchoolRankings === 'function') renderSchoolRankings();
     if (typeof currentActiveTab !== 'undefined' && currentActiveTab === 'profile' && typeof activeRecruit !== 'undefined' && activeRecruit) renderProfile(activeRecruit);
   }
+  if (typeof currentActiveTab !== 'undefined' && currentActiveTab === 'summer') renderSummer();
 }
 
 // The high-school classes as the NCAA RP has them now (recruit-live.js):
@@ -249,6 +252,97 @@ function applyLiveRecruiting() {
     });
   }
   return n;
+}
+
+// ---------- The summer circuit (AAU and FIBA, from the NCAA RP) ----------
+//
+// Each summer the NCAA RP plays the AAU circuits (Nike EYBL, Adidas 3SSB,
+// Under Armour Association) and the FIBA youth World Cup. A player's most
+// recent summer becomes his AAU / FIBA line on his profile, and his honors
+// join his accolades.
+const SUMMER_PCT = ['fg', 'fg2', 'fg3', 'ft', 'ts', 'rts', 'efg', 'oreb', 'dreb', 'trb', 'ast', 'tov', 'stl', 'blk', 'usg', 'rimPct', 'shortMidPct', 'longMidPct'];
+function summerTier(line, team) {
+  const t = { ...line, team: team || 'N/A' };
+  ['bpm', 'obpm', 'dbpm', 'ortg', 'drtg'].forEach(k => { t[k] = String(line[k] != null ? line[k] : '0.0'); });
+  t.net = String(Math.round(((parseFloat(line.ortg) || 0) - (parseFloat(line.drtg) || 0)) * 10) / 10);
+  SUMMER_PCT.forEach(k => { if (t[k] == null) t[k] = '0.0%'; });
+  return t;
+}
+// "2029 Peach Jam champion" -> "Peach Jam Champion": one accolade per honor.
+const summerAccolade = h => String(h).replace(/^\d{4}\s+/, '').replace(/\b(champion|gold|silver|bronze|first team|scoring leader|all-star five)\b/gi, m => m.replace(/\b\w/g, c => c.toUpperCase()));
+
+function applySummer() {
+  const sm = Portal.universe && Portal.universe.summer;
+  if (!sm || typeof recruits === 'undefined' || !recruits.length) return 0;
+  const byKey = new Map();
+  recruits.forEach(r => byKey.set(`${portalKey(r.name)}|${r.classYear}`, r));
+  const fibaTeam = (sm.fiba && sm.fiba.name.match(/U\d+/)) ? sm.fiba.name.match(/U\d+/)[0] : 'U19';
+  let n = 0;
+  (sm.players || []).forEach(x => {
+    const r = byKey.get(`${portalKey(x.n)}|${x.c}`);
+    if (!r) return;
+    r.stats = r.stats || {};
+    if (x.aau) r.stats.aau = summerTier(x.aau, x.t ? `${x.t}${x.ci ? ` (${x.ci})` : ''}` : '');
+    if (x.fiba) r.stats.fiba = summerTier(x.fiba, x.na ? `${x.na} ${fibaTeam}` : '');
+    if (x.h && x.h.length) {
+      r.summerHonors = x.h;
+      r.accolades = [...new Set((r.accolades || []).concat(x.h.map(summerAccolade)))];
+    }
+    if (x.b) r.summerBuzz = x.b;
+    n++;
+  });
+  return n;
+}
+
+function renderSummer() {
+  const el = document.getElementById('summerContainer');
+  if (!el) return;
+  const sm = Portal.universe && Portal.universe.summer;
+  if (!sm && !Portal.ready.universe) { el.innerHTML = '<p class="portal-empty">Loading the summer circuit…</p>'; return; }
+  if (!sm) {
+    el.innerHTML = `<p class="portal-empty">No summer has been played yet. The NCAA RP plays the AAU circuits and the FIBA youth World Cup between the transfer portal and the new season; the results show here once the universe is published.</p>`;
+    return;
+  }
+  const byKey = new Map((typeof recruits !== 'undefined' ? recruits : []).map(r => [portalKey(r.name), r]));
+  const who = name => {
+    const bare = String(name || '').replace(/\s*\([^)]*\)\s*$/, '');
+    const r = byKey.get(portalKey(bare));
+    return r ? `<a class="summer-player" onclick="openPortalPlayer('${escAttr(r.name)}')">${portalEsc(name)}</a>` : portalEsc(name);
+  };
+  const score = f => f ? `<div class="summer-score"><span class="${f.hs > f.as ? 'won' : ''}">${portalEsc(f.home)} <b>${f.hs}</b></span><span class="${f.as > f.hs ? 'won' : ''}">${portalEsc(f.away)} <b>${f.as}</b></span></div>` : '';
+  const circuits = (sm.circuits || []).map(c => `<section class="summer-card">
+      <div class="summer-head"><span class="summer-kicker">${portalEsc(c.name)}</span><h3>${portalEsc(c.event)}</h3></div>
+      <div class="summer-champ">🏆 <b>${portalEsc(c.champion)}</b> <small>over ${portalEsc(c.runnerUp)}</small></div>
+      ${score(c.final)}
+      <dl class="summer-awards">
+        ${c.eventMvp ? `<dt>${portalEsc(c.event)} MVP</dt><dd>${who(c.eventMvp)}</dd>` : ''}
+        ${c.mvp ? `<dt>Circuit MVP</dt><dd>${who(c.mvp)}</dd>` : ''}
+        ${(c.firstTeam || []).length ? `<dt>All-${portalEsc(c.key)} First Team</dt><dd>${c.firstTeam.map(who).join(', ')}</dd>` : ''}
+      </dl>
+      <details><summary>League standings</summary><ol class="summer-standings">${(c.standings || []).map(([t, w, l]) => `<li><span>${portalEsc(t)}</span><small>${w}-${l}</small></li>`).join('')}</ol></details>
+    </section>`).join('');
+  const f = sm.fiba;
+  const fiba = f ? `<section class="summer-card">
+      <div class="summer-head"><span class="summer-kicker">FIBA</span><h3>${portalEsc(f.name)}</h3></div>
+      <div class="summer-medals"><span>🥇 ${portalEsc(f.medals.gold)}</span><span>🥈 ${portalEsc(f.medals.silver)}</span><span>🥉 ${portalEsc(f.medals.bronze)}</span></div>
+      ${score(f.final)}
+      <dl class="summer-awards">
+        ${f.mvp ? `<dt>MVP</dt><dd>${who(f.mvp)}</dd>` : ''}
+        ${(f.allStar || []).length ? `<dt>All-Star Five</dt><dd>${f.allStar.map(who).join(', ')}</dd>` : ''}
+      </dl>
+    </section>` : '';
+  // The circuit's best, by scoring (at least 8 games).
+  const top = (sm.players || []).filter(x => x.aau && x.aau.gp >= 8).sort((a, b) => b.aau.ppg - a.aau.ppg).slice(0, 25);
+  const leaders = top.length ? `<section class="summer-card summer-wide">
+      <div class="summer-head"><span class="summer-kicker">AAU</span><h3>Scoring leaders</h3></div>
+      <div class="table-container"><table class="portal-table summer-table"><thead><tr><th style="text-align:left">Player</th><th>Class</th><th style="text-align:left">Program</th><th>GP</th><th>PPG</th><th>RPG</th><th>APG</th><th>TS%</th></tr></thead><tbody>
+      ${top.map(x => `<tr class="portal-row has-profile" onclick="openPortalPlayer('${escAttr(x.n)}')"><td style="text-align:left"><b>${portalEsc(x.n)}</b>${x.b >= 2 ? ' <span class="summer-hot" title="Breakout summer">▲</span>' : ''}</td><td>${x.c}</td><td style="text-align:left">${portalEsc(x.t || '')} <small>${portalEsc(x.ci || '')}</small></td><td>${x.aau.gp}</td><td><b>${x.aau.ppg}</b></td><td>${x.aau.rpg}</td><td>${x.aau.apg}</td><td>${portalEsc(x.aau.ts)}</td></tr>`).join('')}
+      </tbody></table></div></section>` : '';
+  const past = (sm.history || []).filter(h => h.season !== sm.season).slice().reverse();
+  const history = past.length ? `<section class="summer-card summer-wide"><div class="summer-head"><span class="summer-kicker">Past summers</span><h3>Champions</h3></div>
+      <ul class="summer-history">${past.map(h => `<li><b>${h.season}</b> ${(h.champions || []).map(c => `${portalEsc(c.event)}: ${portalEsc(c.team)}`).join(' · ')}${h.fiba ? ` · ${portalEsc(h.fiba.name)}: ${portalEsc(h.fiba.medals.gold)}` : ''}</li>`).join('')}</ul></section>` : '';
+  el.innerHTML = `<div class="portal-summary"><b>Summer ${sm.season}</b><span>The AAU circuits for the rising seniors and juniors${f ? `, and the ${portalEsc(f.name)}` : ''}, played in the NCAA RP.</span></div>
+    <div class="summer-grid">${circuits}${fiba}${leaders}${history}</div>`;
 }
 
 // ---------- Transfer Portal tab ----------

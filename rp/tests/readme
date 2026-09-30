@@ -155,6 +155,15 @@ landing through a season with top prospects at stronger programs, a
 coaching change reopening a commitment, and the live classes published
 for the recruiting page.
 
+**summer-circuit.js** — the summer between seasons: AAU programs filled
+evenly (a sheet player's own team kept), the U17/U19 World Cup by year, and
+in the sim the summer step after the portal, three circuits with leagues and
+championships, only players of age at FIBA, Team USA built from the
+universe, every AAU player's line in the recruiting page's columns, honors,
+breakouts climbing the rankings (never past the #1) and reaching the
+recruiting wire, finals to watch or reveal, the recruit card, and the
+published summer.
+
 **autosave.js** — the loading screen on a new save, and account autosave:
 right after a milestone, throttled otherwise, never mid-sim, and never over
 a newer save from another device.
