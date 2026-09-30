@@ -19,6 +19,9 @@
 // ============================================================
 (function (root) {
   const SLOTS = 250, POOL = 250;
+  // Changing the generation resets every generated player (new names,
+  // new pools); the sheet is untouched.
+  const GEN = 'g2';
 
   function hash(str) {
     let h = 2166136261;
@@ -65,7 +68,7 @@
   // once in a long while.
   //   99 generational · 98 can't-miss · 97 All-NBA · 96 All-Star · 95 potential All-Star · 94 strong starter
   function classTop(year) {
-    const x = rngFor(`class-top|${year}`)();
+    const x = rngFor(`${GEN}|class-top|${year}`)();
     return x < 0.04 ? 99 : x < 0.17 ? 98 : x < 0.45 ? 97 : x < 0.75 ? 96 : x < 0.93 ? 95 : 94;
   }
   const PROJECTIONS = [
@@ -273,7 +276,7 @@
   // Identity, build and talent order depend only on the class year and
   // his place in the pool.
   function identity(key, year, taken, intl) {
-    const rng = rngFor(`recruit|${key}`);
+    const rng = rngFor(`${GEN}|recruit|${key}`);
     let who = intl ? internationalWho(rng, taken) : null;
     for (let tries = 0; !who && tries < 12; tries++) {
       const w = root.RosterGen && root.RosterGen.americanIdentity ? root.RosterGen.americanIdentity(null, rng) : { name: `Prospect ${key}`, hometown: 'Atlanta, GA' };
@@ -324,7 +327,10 @@
     const get = (r, k) => r[K(k)];
     const set = (r, k, v) => { r[K(k)] = v; };
     const num = v => { const n = parseFloat(String(v == null ? '' : v).replace('%', '')); return isNaN(n) ? null : n; };
-    const T = curveFor(classTop(year));      // some classes are stronger than others
+    // Some classes are stronger than others. When the sheet has a #1, the
+    // class is built down from him; otherwise its #1 is drawn (classTop).
+    const sheetOne = sheetRows.find(r => num(get(r, 'rank')) === 1 && num(get(r, 'rating')) != null);
+    const T = curveFor(sheetOne ? num(get(sheetOne, 'rating')) : classTop(year));
 
     // Sheet players first, in the sheet's own order, each placed where his
     // rating belongs (never ahead of a player the sheet ranks above him).
@@ -347,6 +353,8 @@
         // sheet's #1 stays in the top two, its #20 in the top 27.
         const authored = num(get(r, 'rank'));
         if (authored) slot = Math.max(prev + 1, Math.min(slot, Math.ceil(authored * 1.3) + 1));
+        // The sheet's #1 is the class's #1.
+        if (authored === 1) slot = 1;
       } else {
         slot = Math.max(prev + 1, num(get(r, 'rank')) || prev + 1);
       }
@@ -372,7 +380,7 @@
       if (taken.has(slot)) { if (sheetAt[slot] != null) above = sheetAt[slot]; continue; }
       // About one in forty is from overseas, playing his high-school ball
       // in the States: ranked with everyone else.
-      const intl = rngFor(`intl|${year}|${j}`)() < 0.02;
+      const intl = rngFor(`${GEN}|intl|${year}|${j}`)() < 0.02;
       const id = identity(`${year}|${j}`, year, allNames, intl);
       const rng = id.rng;
       id.hs = schoolFor(rng, slot, id.hs);
@@ -435,7 +443,7 @@
   // pro, and are in the draft pool when they're old enough.
   function overseas(year, K, allNames, T, commits, counts) {
     const set = (r, k, v) => { r[K(k)] = v; };
-    const cr = rngFor(`overseas|${year}`);
+    const cr = rngFor(`${GEN}|overseas|${year}`);
     const n = 8 + Math.floor(cr() * 6);
     const out = [];
     for (let k = 0; k < n; k++) {

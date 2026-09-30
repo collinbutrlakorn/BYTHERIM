@@ -1204,6 +1204,8 @@ function renderProfile(p) {
       <div class="commit-label">Committed To</div>
       <div class="commit-main-info"><img src="${p.commitLogo || getSchoolLogoPath(committedTo)}" class="commit-standout-logo" onerror="schoolLogoFallback(this, '${escAttr(committedTo)}')"><span class="commit-school-name">${committedTo}</span></div>
       ${p.flippedFrom ? `<div class="commit-flip-note">Flipped from ${p.flippedFrom}</div>` : ''}
+      ${p.decommittedFrom ? `<div class="commit-flip-note">Recommitted after a coaching change at ${p.decommittedFrom}</div>` : ''}
+      ${p.commitWith ? `<div class="commit-flip-note">Joining teammate ${p.commitWith}</div>` : ''}
     </div>` : p.proClub ? `
     <div class="uncommitted-box">
       <div class="commit-label" style="margin-bottom: 4px;">Playing Pro</div>
@@ -1212,6 +1214,7 @@ function renderProfile(p) {
     <div class="uncommitted-box">
       <div class="commit-label" style="margin-bottom: 4px;">Status</div>
       <div style="font-weight: 700; color: var(--text-main); font-size: 1rem;">Uncommitted</div>
+      ${p.decommittedFrom ? `<div class="commit-flip-note">Reopened after a coaching change at ${p.decommittedFrom}</div>` : ''}
     </div>`;
 
   const schoolImg = (s, cls) => `<img src="${getSchoolLogoPath(s)}" class="${cls}" alt="" loading="lazy" onload="tintFromLogo(this)" onerror="schoolLogoFallback(this, '${escAttr(s)}')">`;

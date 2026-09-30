@@ -1459,6 +1459,11 @@ window.SimEngine = {
       isRecruit: isRecruit,
       // Generated to fill out the class (see recruit-gen.js).
       genRecruit: isRecruit && /^true$/i.test(String(getVal(['generated'], ''))),
+      // Live recruiting (recruit-live.js): his offers, his AAU team, and
+      // whether the recruiting sheet itself committed him (those never move).
+      offers: isRecruit ? String(getVal(['offers'], '') || '').split(',').map(x => x.trim()).filter(Boolean) : undefined,
+      aauTeam: isRecruit ? String(getVal(['aauteam'], '') || '').trim() : undefined,
+      sheetCommitted: isRecruit && !/^true$/i.test(String(getVal(['generated'], ''))) && !!school && !/^(uncommitted|uncommited|undecided|free agent|n\/a|none|tbd|-)$/i.test(String(school).trim()),
       recClassYear: this.parseClassYear(getVal(['classyear', 'recclass'], ''), this.state.year),
       gameLog: [],
       accolades: [],
@@ -1564,6 +1569,132 @@ window.SimEngine = {
   // supplies overwrites the roster sheet's version, since the recruiting
   // database is the more detailed and authoritative source for a
   // player's scouting profile.
+
+  // ---------- Live recruiting (see recruit-live.js) ----------
+  // Who is recruited as the seasons play: every high-school prospect the
+  // recruiting sheet hasn't committed (generated players, and sheet players
+  // left uncommitted). Overseas prospects who aren't ranked in a class
+  // follow their own path (college or a club) and aren't recruited here.
+  isLiveRecruit(r) {
+    if (!r || r.fromOthers || !r.recClassYear || Number(r.recClassYear) <= this.state.year) return false;
+    if (r.sheetCommitted === true) return false;
+    if (r.sheetCommitted === undefined && !r.genRecruit && HSCore.committedTo(r)) return false;   // saves from before
+    if (HSCore.isInternational(r) && !(Number(r.rsci) > 0)) return false;
+    return true;
+  },
+  liveQuota(school) {
+    const t = this.findTeam(school);
+    const pres = t && t.prestige != null ? t.prestige : 50;
+    return typeof RecruitGen !== 'undefined' && RecruitGen.quotaFor ? RecruitGen.quotaFor(pres) : 4;
+  },
+  // Offers for a prospect who has none on file: programs around his level.
+  liveOffersFor(r, sc) {
+    const T = RecruitLive.targetLevel(r.rating ? (r.recRating || r.rating) : 80);
+    return Object.keys(sc).sort((a, b) => Math.abs(sc[a].pull - T) - Math.abs(sc[b].pull - T) || RecruitLive.affinity(r.name, b) - RecruitLive.affinity(r.name, a))
+      .slice(0, 16).filter(x => RecruitLive.affinity(r.name, x) > 0.95).slice(0, 8);
+  },
+  // One pass: lists shrink to where the class is in its cycle, and anyone
+  // whose commitment date has come picks a school. Returns the new commits.
+  runLiveRecruiting() {
+    if (typeof RecruitLive === 'undefined' || !this.hsReady() || !this.state.teams.length) return [];
+    const s = this.state, year = s.year, p = this.seasonProgress();
+    const all = (s.allRecruits || []).filter(r => !r.fromOthers && r.recClassYear);
+    const live = all.filter(r => this.isLiveRecruit(r));
+    if (!live.length) return [];
+    // The sheet's (or the generator's) commitment is where he was headed
+    // before the sim began; from here on, it's earned. Everyone is opened
+    // up before anyone is scored, so nobody follows a teammate to a school
+    // that teammate was only headed to.
+    live.forEach(r => {
+      if (r.liveInit) return;
+      r.liveInit = true;
+      r.destiny = HSCore.committedTo(r) || '';
+      r.school = 'Uncommitted';
+      r.committedSchool = '';
+    });
+    const sc = RecruitLive.schoolContext(s.teams);
+    const rec = r => ({ ...r, rating: r.recRating || r.rating });
+    const count = {};
+    all.forEach(r => { const c = HSCore.committedTo(r); if (c) count[`${r.recClassYear}|${c}`] = (count[`${r.recClassYear}|${c}`] || 0) + 1; });
+    const mates = RecruitLive.teammateIndex(all.filter(r => Number(r.recClassYear) >= year), r => HSCore.committedTo(r));
+    const made = [];
+    live.forEach(r => {
+      const c = Number(r.recClassYear);
+      if (!r.liveList) {
+        const offers = (r.offers || []).filter(x => sc[x]);
+        r.liveList = [...new Set((offers.length >= 3 ? offers : offers.concat(this.liveOffersFor(r, sc))))].slice(0, 12);
+      }
+      if (HSCore.committedTo(r)) return;
+      const cp = HSCore.classProgress(c, year, p);
+      if (cp <= 0 || !r.liveList.length) return;
+      const scored = r.liveList.map(school => ({
+        school,
+        mates: mates(r, school),
+        v: RecruitLive.interest(rec(r), school, sc, { friends: mates(r, school).length, full: (count[`${c}|${school}`] || 0) >= this.liveQuota(school) })
+      })).sort((a, b) => b.v - a.v);
+      const size = RecruitLive.listSize(cp);
+      const keep = scored.slice(0, size);
+      r.liveList = keep.map(x => x.school);
+      if (cp >= 1 || cp >= HSCore.commitAt(r)) {
+        const pick = RecruitLive.choose(keep);
+        if (!pick) return;
+        const x = keep.find(y => y.school === pick);
+        r.school = pick;
+        r.committedSchool = pick;
+        r.liveOver = keep.map(y => y.school).filter(y => y !== pick).slice(0, 2);
+        r.liveWith = x && x.mates.length ? x.mates[0].name : null;
+        r.liveCommitted = { year, week: s.week };
+        count[`${c}|${pick}`] = (count[`${c}|${pick}`] || 0) + 1;
+        made.push(r);
+      }
+    });
+    return made;
+  },
+  // For the recruiting page: the two classes in high school now, as the
+  // Recruits tab shows them, plus where the lists of the undecided stand.
+  // Classes after those haven't been recruited yet: generated players
+  // there are uncommitted (openFrom).
+  liveRecruitingSnapshot() {
+    if (!this.hsReady() || !this.state.teams.length) return null;
+    const year = this.state.year;
+    const out = { season: year, classes: [year + 1, year + 2], openFrom: year + 3, players: [] };
+    out.classes.forEach(c => {
+      this.hsClassView(c).forEach(e => {
+        const r = e.r, live = this.isLiveRecruit(r);
+        const x = { n: r.name, c, rk: e.rank || null, g: e.grade || null, st: e.stars || 0, s: e.school || '' };
+        if (live && !e.school && (r.liveList || []).length) x.l = r.liveList;
+        if (live && e.school && (r.liveOver || []).length) x.o = r.liveOver;
+        if (r.liveWith) x.w = r.liveWith;
+        if (r.liveDecommitFrom) x.d = r.liveDecommitFrom;
+        if (live) x.live = 1;
+        out.players.push(x);
+      });
+    });
+    return out;
+  },
+
+  // A coach leaving shakes his commitments loose: some of the prospects he
+  // landed reopen their recruitment (and some of those pick again at once).
+  reopenAfterCoachChanges(schools) {
+    if (!schools || !schools.size) return [];
+    const year = this.state.year;
+    const out = [];
+    (this.state.allRecruits || []).forEach(r => {
+      if (!r.liveCommitted || !this.isLiveRecruit(r)) return;
+      const c = Number(r.recClassYear), school = HSCore.committedTo(r);
+      if (!schools.has(school) || c > year + 2) return;
+      if (Math.random() > (c === year + 1 ? 0.25 : 0.35)) return;
+      r.liveDecommitFrom = school;
+      r.liveList = [...new Set((r.liveOver || []).concat(school))].slice(0, 4);
+      r.school = 'Uncommitted';
+      r.committedSchool = '';
+      r.liveCommitted = null;
+      out.push(r);
+      this.logNews(`${r.name} reopens his recruitment after ${school}'s coaching change`);
+    });
+    return out;
+  },
+
   // ---------- Recruiting quotas ----------
   // Each offseason, every program's commitments for next year's class are
   // measured against the room it will actually have: scholarships held by
@@ -2273,6 +2404,12 @@ window.SimEngine = {
     this.refreshPrestige();
 
     this.state.lastCoachChanges = changes;
+    // Prospects committed to a program whose coach just left may reopen,
+    // and the ones whose time has come pick again right away.
+    const shaken = new Set(changes.filter(c => c.kind === 'hired').map(c => c.school).concat(changes.filter(c => c.kind === 'hired' && c.from).map(c => c.from)));
+    if (this.reopenAfterCoachChanges(shaken).length) {
+      this.runLiveRecruiting().forEach(r => this.logNews(`${r.name} recommits to ${HSCore.committedTo(r)} after reopening`));
+    }
     this.state.coachChanges = (this.state.coachChanges || []).concat(changes).slice(-600);
     changes.filter(c => c.kind !== 'hired' || c.from).slice(0, 12).forEach(c => this.logNews(c.text));
     return followers;
@@ -8196,6 +8333,9 @@ window.SimEngine = {
       // Recruits whose commitment the sim moved (a program ran out of
       // scholarships), so the recruiting page shows where they really went.
       recruitFlips: (this.state.recruitFlips || []).map(f => ({ name: f.name, classYear: f.classYear, from: f.from, to: f.to, year: f.year })),
+      // The high-school classes as the sim has them today: ranks, grades,
+      // commitments and the lists still being decided (see recruit-live.js).
+      recruitingLive: this.liveRecruitingSnapshot(),
       champions: (this.state.seasonHistory || []).map(h => ({
         year: h.year, season: this.seasonLabelFor(h.year),
         champion: h.champion && (h.champion.school || h.champion), runnerUp: h.runnerUp && (h.runnerUp.school || h.runnerUp),
@@ -8490,7 +8630,7 @@ window.SimEngine = {
     return members.map(r => {
       const rank = ranks.get(r) || null, was = start.get(r) || null;
       const pro = HSCore.turnsPro(r, isD1);
-      const decided = HSCore.commitVisible(r, cp);
+      const decided = HSCore.commitVisible(r, cp) || !!r.liveCommitted;
       const stars = starOf.has(r) ? starOf.get(r) : (Number(r.stars) || 0);
       const from = HSCore.reclassFrom(r);
       return {
@@ -8607,6 +8747,8 @@ window.SimEngine = {
     const isD1 = n => this.isD1School(n);
     const wire = [];
     const when = this.phaseLabelShort ? this.phaseLabelShort() : `Week ${s.week}`;
+    // Recruiting moves with the calendar: lists shrink, commitments land.
+    this.runLiveRecruiting();
     if (p > prev) {
       // Rank as it stands today, per class, for the headlines.
       const nowRank = new Map();
@@ -8623,7 +8765,7 @@ window.SimEngine = {
         const top = rk && rk <= 60;
         if (at > a && at <= b && (top || HSCore.isInternational(r))) {
           if (HSCore.turnsPro(r, isD1)) wire.push({ kind: 'pro', id: r.id, rank: rk, text: `${r.name} signs with ${HSCore.clubFor(r, isD1)} and turns pro` });
-          else if (HSCore.committedTo(r)) wire.push({ kind: 'commit', id: r.id, rank: rk, school: HSCore.committedTo(r), text: `${rk ? '#' + rk + ' ' : ''}${r.name} commits to ${HSCore.committedTo(r)}` });
+          else if (HSCore.committedTo(r)) wire.push({ kind: 'commit', id: r.id, rank: rk, school: HSCore.committedTo(r), text: `${rk ? '#' + rk + ' ' : ''}${r.name} commits to ${HSCore.committedTo(r)}${r.liveOver && r.liveOver.length ? ` over ${r.liveOver.join(' and ')}` : ''}${r.liveWith ? `, joining teammate ${r.liveWith}` : ''}` });
         }
         const from = HSCore.reclassFrom(r);
         if (from && c === incoming) {

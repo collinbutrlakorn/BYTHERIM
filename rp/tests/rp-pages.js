@@ -183,6 +183,26 @@ function bootRecruiting(universe) {
     ok(/Transfers/.test(pope) && /Arkansas/.test(pope), 'recruiting: a transfer shows on the player\'s college record');
   }
 
+  // ---- Recruiting: live recruiting from the published universe ----
+  {
+    const names = RECRUITS.filter(r => String(r.classYear) === '2029').slice(40, 43).map(r => r.name);
+    const u = clone(UNIVERSE);
+    u.recruitingLive = { season: 2029, classes: [2030, 2029], openFrom: 2032, players: [
+      { n: names[0], c: 2029, rk: 12, g: 91, st: 5, s: 'Gonzaga', o: ['Duke', 'Arizona'], w: names[1], live: 1 },
+      { n: names[1], c: 2029, rk: 30, g: 86, st: 4, s: '', l: ['Gonzaga', 'Baylor', 'Iowa', 'Purdue', 'Xavier'], d: 'Kansas', live: 1 }
+    ] };
+    const { d, ev } = await bootRecruiting(u);
+    const r0 = ev(`(() => { const r = recruits.find(r => r.name === ${JSON.stringify(names[0])}); return { s: r.committedSchool, fl: r.finalList, rank: r.rank, stars: r.stars, w: r.commitWith }; })()`);
+    ok(r0.s === 'Gonzaga' && r0.rank === 12 && r0.stars === 5 && r0.w === names[1], 'recruiting: a live commitment, rank and grade come from the sim');
+    ok(r0.fl.title === 'Final 3' && r0.fl.schools.join() === 'Gonzaga,Duke,Arizona', 'recruiting: with the schools he picked it over');
+    const r1 = ev(`(() => { const r = recruits.find(r => r.name === ${JSON.stringify(names[1])}); return { s: r.committedSchool, fl: r.finalList, dec: r.decommittedFrom }; })()`);
+    ok(!r1.s && r1.fl.title === 'Top 5' && r1.fl.schools.length === 5 && r1.dec === 'Kansas', 'recruiting: an undecided prospect shows his list as it stands, and a reopened one where he left');
+    ev(`openRecruitProfile(recruits.find(r => r.name === ${JSON.stringify(names[0])}))`);
+    ok(/Joining teammate/.test(d.getElementById('profileContainer').textContent), 'recruiting: the profile notes a teammate he joined');
+    ev(`openRecruitProfile(recruits.find(r => r.name === ${JSON.stringify(names[1])}))`);
+    ok(/coaching change at Kansas/.test(d.getElementById('profileContainer').textContent), 'recruiting: and a recruitment reopened by a coaching change');
+  }
+
   // ---- RP hub: card status lines follow the universe ----
   {
     const dom = new JSDOM(fs.readFileSync(path.join(ROOT, 'rp/index.html'), 'utf8'), {

@@ -189,7 +189,9 @@ function loadPortalData() {
 // recruit is shown where he actually signed.
 function applyRecruitFlips() {
   const flips = (Portal.universe && Portal.universe.recruitFlips) || [];
-  if (!flips.length || typeof recruits === 'undefined' || !recruits.length) { Portal.flipsPending = flips.length > 0; return; }
+  const live = Portal.universe && Portal.universe.recruitingLive;
+  if (!flips.length && !live) return;
+  if (typeof recruits === 'undefined' || !recruits.length) { Portal.flipsPending = true; return; }
   let moved = 0;
   flips.forEach(f => {
     const r = recruits.find(x => portalKey(x.name) === portalKey(f.name) && String(x.classYear) === String(f.classYear));
@@ -201,7 +203,52 @@ function applyRecruitFlips() {
     moved++;
   });
   Portal.flipsPending = false;
-  if (moved && typeof filterRecruits === 'function') { filterRecruits(); if (typeof renderSchoolRankings === 'function') renderSchoolRankings(); }
+  moved += applyLiveRecruiting();
+  if (moved && typeof filterRecruits === 'function') {
+    if (typeof buildRankIndex === 'function') buildRankIndex();
+    filterRecruits();
+    if (typeof renderSchoolRankings === 'function') renderSchoolRankings();
+    if (typeof currentActiveTab !== 'undefined' && currentActiveTab === 'profile' && typeof activeRecruit !== 'undefined' && activeRecruit) renderProfile(activeRecruit);
+  }
+}
+
+// The high-school classes as the NCAA RP has them now (recruit-live.js):
+// today's ranks and grades, the commitments made so far, and the shrinking
+// lists of the players still deciding. Classes the sim hasn't reached yet
+// show their generated players uncommitted.
+function applyLiveRecruiting() {
+  const live = Portal.universe && Portal.universe.recruitingLive;
+  if (!live || typeof recruits === 'undefined' || !recruits.length) return 0;
+  const byKey = new Map();
+  recruits.forEach(r => byKey.set(`${portalKey(r.name)}|${r.classYear}`, r));
+  let n = 0;
+  (live.players || []).forEach(x => {
+    const r = byKey.get(`${portalKey(x.n)}|${x.c}`);
+    if (!r) return;
+    if (x.rk) r.rank = x.rk;
+    if (x.g) { r.rating = x.g; r.stars = x.g >= 90 ? 5 : x.g >= 80 ? 4 : x.g >= 70 ? 3 : 0; }
+    if (x.live) {
+      if (x.s) {
+        r.committedSchool = x.s; r.status = `Committed to ${x.s}`; r.commitLogo = '';
+        const list = [x.s].concat(x.o || []);
+        r.finalList = { title: `Final ${list.length}`, schools: list };
+      } else {
+        r.committedSchool = null; r.status = 'Uncommitted'; r.commitLogo = '';
+        if (x.l && x.l.length) r.finalList = { title: x.l.length <= 5 ? `Top ${x.l.length}` : `Top ${x.l.length} list`, schools: x.l };
+      }
+      if (x.d) r.decommittedFrom = x.d;
+    }
+    if (x.w) r.commitWith = x.w;
+    n++;
+  });
+  if (live.openFrom) {
+    recruits.forEach(r => {
+      if (r.generated && Number(r.classYear) >= live.openFrom && r.committedSchool) {
+        r.committedSchool = null; r.status = 'Uncommitted'; r.commitLogo = ''; n++;
+      }
+    });
+  }
+  return n;
 }
 
 // ---------- Transfer Portal tab ----------

@@ -147,6 +147,14 @@ an over-committed program keeps its best commits, the rest flip to programs
 of similar standing, sheet commitments never move, and flips are published
 for the recruiting page.
 
+**recruit-live.js** — live recruiting: school pull (prestige, how a program
+is trending, the coach), lists shrinking 12 → 8 → 5 → 3, teammates drawing
+each other, full classes losing their pull; in the sim, sheet commitments
+and each class's sheet #1 untouched, later classes wide open, commitments
+landing through a season with top prospects at stronger programs, a
+coaching change reopening a commitment, and the live classes published
+for the recruiting page.
+
 **autosave.js** — the loading screen on a new save, and account autosave:
 right after a milestone, throttled otherwise, never mid-sim, and never over
 a newer save from another device.
