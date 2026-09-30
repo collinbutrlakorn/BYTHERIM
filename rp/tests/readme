@@ -101,6 +101,11 @@ school marks render uncropped while player avatars stay circular. Like the
 suite above, it reads `../../recruiting`, and takes the main-site nav from
 `../../assets/site.js`.
 
+**recruiting-mobile.js** — the recruiting page's rankings rows on phones,
+school rankings (star counts, the class score, players turning pro left
+out), the school pop-up, the commit filter and class summary, stable
+addresses for profiles and tabs, and the stats heat map.
+
 **site-pages.js** — covers the main site (home, podcast, draft, NBA, about).
 Every page declares UTF-8, loads the shared `assets/site.css` and
 `assets/site.js`, mounts the header first thing in `<body>`, and carries no

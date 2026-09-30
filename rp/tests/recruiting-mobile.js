@@ -7,7 +7,7 @@
 //  - every row carries position and state (or INTL) ranks
 //  - rows carry the stacked mobile lines and show only a logo for commits
 //  - school rankings show 5/4/3-star counts, and a school opens a pop-up
-//    with its team ranking, class grade and commits as ranking rows
+//    with its team ranking, class score and commits as ranking rows
 //  - heat-map text colours come from theme variables (light-mode contrast)
 const fs=require("fs"),vm=require("vm"),path=require("path");const {JSDOM}=require("jsdom");
 function ok(c,m){if(!c)throw new Error("FAILED: "+m);console.log("OK: "+m);}
@@ -115,7 +115,7 @@ ok(modal&&modal.classList.contains('open'),'clicking a school opens a pop-up');
 ok(w.document.body.classList.contains('modal-open'),'page scroll locked behind it');
 const txt=modal.textContent;
 ok(/Team Ranking/.test(txt)&&/#1/.test(modal.querySelector('.school-stat-val').textContent),'pop-up shows the team ranking: '+modal.querySelector('.school-stat-val').textContent);
-ok(/Class Grade/.test(txt),'pop-up shows the class grade');
+ok(/Class Score/.test(txt),'pop-up shows the class score');
 ok(modal.querySelectorAll('tr.recruit-row').length===data[0].c,'commits listed as ranking rows ('+modal.querySelectorAll('tr.recruit-row').length+')');
 ok(modal.querySelector('.rank-sub'),'pop-up rows carry position/state ranks like the rankings page');
 // jsdom (outside-only) doesn't run inline handler attributes, so run the
@@ -137,6 +137,27 @@ ok(!modal.classList.contains('open')&&$('#profile-tab').classList.contains('acti
 const intlP=ev('recruits.find(r=>r.name==="Intl 2").id');
 ev(`renderProfile(recruits.find(r=>r.id==="${intlP}"))`);
 ok(/INTL/.test($('#profileContainer').textContent),'international profile shows an INTL rank');
+
+// ---------- links, class score, profile extras ----------
+const ids=JSON.parse(ev('JSON.stringify(recruits.map(r=>r.id))'));
+ok(ids.every(i=>/^\d{4}-[a-z0-9-]+$/.test(i))&&new Set(ids).size===ids.length,'every recruit has a stable, unique id');
+const firstId=ids.find(i=>i.startsWith('2029'));
+ev(`openRecruitProfile(recruits.find(r=>r.id==="${firstId}"))`);
+ok(w.location.hash==='#/player/'+firstId,'a profile has its own address: '+w.location.hash);
+ok($('.profile-nav')&&/of \d+ · Class of 2029/.test($('.profile-nav').textContent),'profile shows where he sits in his class with prev / next');
+ev('switchTab("rankings")');
+w.history.replaceState(null,'','#/player/'+firstId); ev('applyRoute()');
+ok($('#profile-tab').classList.contains('active')&&ev('activeRecruit.id')===firstId,'opening that address opens the profile');
+w.history.replaceState(null,'','#/schools'); ev('applyRoute()');
+ok($('#schoolRankings-tab').classList.contains('active'),'tabs have addresses too');
+const sc=JSON.parse(ev('JSON.stringify([classScore([{rating:95},{rating:94}]),classScore([{rating:95}]),classScore([{rating:95},{rating:80},{rating:80}])])'));
+ok(sc[0]>sc[1]&&sc[2]>sc[0]*0.9,'class score rewards depth but leans on the best commits: '+sc.map(x=>x.toFixed(1)).join(', '));
+ok(!JSON.parse(ev('JSON.stringify(getSchoolRankingsData("ALL").map(s=>s.name))')).some(n=>/^pro$/i.test(n)),'players turning pro are not ranked as a school');
+$('#classFilter').value='2029'; $('#commitFilter').value='UNCOMMITTED'; ev('filterRecruits()');
+const unc=[...w.document.querySelectorAll('#recruitsTableBody tr.recruit-row')].length;
+ok(unc===JSON.parse(ev('JSON.stringify(recruits.filter(r=>r.classYear==="2029"&&!isInternational(r)&&!commitSchoolOf(r)).length)')),'the commit filter shows only uncommitted players ('+unc+')');
+ok($('#classSummary')&&!$('#classSummary').hidden&&/committed/.test($('#classSummary').textContent),'the class summary shows above the list');
+$('#commitFilter').value='ALL'; ev('filterRecruits()');
 
 // ---------- heat map contrast ----------
 const style=ev('getPercentileStyle(95,"ppg")')+'|'+ev('getPercentileStyle(5,"ppg")')+'|'+ev('getPercentileStyle(50,"ppg")');

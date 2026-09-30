@@ -64,6 +64,7 @@ let statsSortKey = 'ppg';
 let statsSortDir = 'desc';
 let recruits = [];
 let activeRecruit = null;
+let activeAccolade = null;
 
 // ============================================================
 // Shared ranking index.
@@ -251,7 +252,21 @@ window.onload = () => {
         }
         const parseArray = (str) => typeof str === 'string' && str ? str.split(',').map(s => s.trim()).filter(Boolean) : [];
         
-        const buildStatTier = (row, tier) => ({
+        // Impossible numbers (a percentage over 100, a count that's really a
+        // percentage) are typos in the sheet: they show as blank rather than
+        // as a 1150% free-throw rate. The first few are listed in the console.
+        const pctOk = v => { const n = parseFloat(String(v).replace('%', '')); return !(n > 100 || n < 0); };
+        const guardTier = t => {
+          const bad = [];
+          ['fg', 'fg2', 'fg3', 'ft', 'ts', 'efg', 'rimPct', 'shortMidPct', 'longMidPct', 'usg', 'tov', 'ast', 'stl', 'blk', 'oreb', 'dreb', 'trb'].forEach(k => {
+            if (t[k] && !pctOk(t[k])) { bad.push(k); t[k] = 'N/A'; }
+          });
+          const limits = { ppg: 80, rpg: 40, apg: 30, spg: 15, bpg: 15, topg: 15, mpg: 48 };
+          Object.entries(limits).forEach(([k, max]) => { if (t[k] > max || t[k] < 0) { bad.push(k); t[k] = 0; } });
+          return bad;
+        };
+        const sheetIssues = [];
+        const buildStatTierRaw = (row, tier) => ({
           team: String(row[`${tier}_team`] || "N/A"),
           gp: parseInt(row[`${tier}_gp`]) || 0,
           mpg: parseFloat(row[`${tier}_mpg`]) || 0,
@@ -273,6 +288,15 @@ window.onload = () => {
           longMidFga: parseFloat(row[`${tier}_longMidFga`]) || 0, longMidPct: String(row[`${tier}_longMidPct`] || "0.0%"),
           rimMidRatio: String(row[`${tier}_rimMidRatio`] || "0.00"), fga3: parseFloat(row[`${tier}_fga3`]) || 0, fta: parseFloat(row[`${tier}_fta`]) || 0
         });
+        const buildStatTier = (row, tier) => {
+          const t = buildStatTierRaw(row, tier);
+          const bad = t.gp ? guardTier(t) : [];
+          // A turnover count that reads like a percentage means the row slid
+          // one column over in the sheet from there on.
+          if (t.gp && /%/.test(String(row[`${tier}_topg`] || ''))) { t.misaligned = true; bad.push('row shifted from TOV on'); }
+          if (bad.length) sheetIssues.push(`${row.classYear} ${row.name} (${tier}): ${bad.join(', ')}`);
+          return t;
+        };
 
         // The schools in a player's final list: the "finalList" column
         // (older tabs called it "finalListSchools"). If that header is ever
@@ -291,7 +315,7 @@ window.onload = () => {
         };
 
         recruits = results.data.map(row => ({
-          id: String(row.id || Math.random().toString(36).substr(2, 9)),
+          id: String(row.id || ''),
           rank: (row.rank && !isNaN(parseInt(row.rank))) ? parseInt(row.rank) : "N/A",
           classYear: String(row.classYear || "2028"),
           name: String(row.name || "Unknown Player"),
@@ -318,6 +342,8 @@ window.onload = () => {
           stats: { hs: buildStatTier(row, 'hs'), aau: buildStatTier(row, 'aau'), fiba: buildStatTier(row, 'fiba'), intl: buildStatTier(row, 'intl') }
         }));
 
+        assignStableIds(recruits);
+        if (sheetIssues.length) console.warn(`Recruiting sheet: ${sheetIssues.length} stat lines with impossible values (shown blank):\n` + sheetIssues.slice(0, 40).join('\n'));
         buildRankIndex();
 
         if (recruits.length > 0) {
@@ -329,6 +355,7 @@ window.onload = () => {
         renderQueryRulesUI();
         renderStatsDashboard();
         clearLoadState();
+        if (location.hash && location.hash !== '#/') applyRoute();
       } catch (error) {
         console.error("Website UI Rendering Error:", error);
         showLoadState('Something went wrong building the recruiting page: ' +
@@ -351,6 +378,110 @@ window.onload = () => {
     Papa.parse(GOOGLE_SHEET_CSV_URL, { download: true, header: true, skipEmptyLines: true, ...handlers });
   }
 };
+
+
+// ============================================================
+// Stable ids and links.
+//
+// Every recruit gets an id from his class and name ("2029-cameron-grant"),
+// with his high school added when two players in a class share a name. It
+// stays the same from visit to visit, so a profile, a school's class or a
+// tab can be linked to and shared, and the browser's Back button works.
+// ============================================================
+const slugify = v => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+function assignStableIds(list) {
+  const count = {};
+  list.forEach(r => { const k = `${r.classYear}-${slugify(r.name)}`; count[k] = (count[k] || 0) + 1; });
+  const used = new Set();
+  list.forEach(r => {
+    let id = `${r.classYear}-${slugify(r.name)}`;
+    if (count[id] > 1) id += `-${slugify(r.hs) || 'x'}`;
+    let n = 2, base = id;
+    while (used.has(id)) id = `${base}-${n++}`;
+    used.add(id);
+    r.id = id;
+  });
+}
+
+const TAB_ROUTES = { rankings: '', schoolRankings: 'schools', stats: 'stats', portal: 'portal' };
+let routing = false;          // true while the page is following the address, so it doesn't write it back
+
+function currentRoute() {
+  if (currentActiveTab === 'profile' && activeRecruit) return `#/player/${activeRecruit.id}`;
+  if (currentActiveTab === 'accoladeDetail' && activeAccolade) return `#/event/${slugify(activeAccolade)}`;
+  const t = TAB_ROUTES[currentActiveTab];
+  return t ? `#/${t}` : (currentActiveTab === 'rankings' ? '#/' : '');
+}
+function pushRoute(hash) {
+  if (routing || !hash || typeof history === 'undefined' || !history.pushState) return;
+  if (location.hash === hash || (hash === '#/' && !location.hash)) return;
+  history.pushState({ btr: true }, '', hash);
+}
+
+// Reads the address and shows what it names. Used on load and when the
+// browser goes back or forward.
+function applyRoute() {
+  const h = decodeURIComponent(location.hash || '').replace(/^#\/?/, '');
+  const [kind, rest] = [h.split('/')[0], h.split('/').slice(1).join('/')];
+  routing = true;
+  try {
+    if (kind !== 'school') closeSchoolModal(true);
+    if (kind === 'player') {
+      const p = recruits.find(r => r.id === rest);
+      if (p) { activeRecruit = p; renderProfile(p); switchTab('profile', true); window.scrollTo(0, 0); }
+      else switchTab('rankings', true);
+    } else if (kind === 'school') {
+      const [name, year] = rest.split('/');
+      const school = getSchoolRankingsData('ALL').find(x => slugify(x.name) === name);
+      if (school) openSchoolModal(school.name, year || document.getElementById('schoolRankingsYearFilter')?.value || 'ALL', true);
+    } else if (kind === 'event') {
+      const acc = Object.keys(ACCOLADE_MAP).concat([...new Set(recruits.flatMap(r => r.accolades || []))]).find(a => slugify(a) === rest);
+      if (acc) { renderAccoladeDetail(acc, activeRecruit ? activeRecruit.classYear : '2028'); activeAccolade = acc; switchTab('accoladeDetail', true); }
+    } else {
+      const tab = Object.keys(TAB_ROUTES).find(k => TAB_ROUTES[k] === kind) || 'rankings';
+      switchTab(tab, true);
+    }
+  } finally { routing = false; }
+  updateBackButton();
+}
+window.addEventListener('popstate', () => { if (recruits.length) applyRoute(); });
+
+// ============================================================
+// Class score.
+//
+// Like the big recruiting services: every commit adds points for his
+// rating, the best commit counts most and each one after counts a little
+// less, so a deep class of good players can beat a thin class with one
+// star, but only just. Players turning pro aren't a school.
+// ============================================================
+const NOT_A_SCHOOL = /^(pro|professional|overseas|g league|nba g league|overtime elite|ote|undecided|n\/a|none)$/i;
+
+function classScore(list) {
+  const sorted = [...list].sort((a, b) => b.rating - a.rating);
+  return sorted.reduce((sum, r, i) => sum + Math.max(0, r.rating - 60) * 2.5 * Math.exp(-(i * i) / (2 * 9 * 9)), 0);
+}
+
+// ============================================================
+// Profile helpers.
+// ============================================================
+// The next and previous player in the same class ranking.
+function classNeighbours(p) {
+  const ri = rankIndex[p.id] || {};
+  const pool = recruits.filter(r => r.classYear === p.classYear && isInternational(r) === isInternational(p))
+    .sort((a, b) => { const x = rankIndex[a.id] || {}, y = rankIndex[b.id] || {}; return (x.national || x.intlRank || 9e4) - (y.national || y.intlRank || 9e4); });
+  const i = pool.findIndex(r => r.id === p.id);
+  return { prev: i > 0 ? pool[i - 1] : null, next: i >= 0 && i < pool.length - 1 ? pool[i + 1] : null, at: i + 1, of: pool.length, intl: !!ri.intl };
+}
+
+// Colours the profile header with the committed school's colour once its
+// logo has loaded.
+function tintProfileFromLogo(img) {
+  tintFromLogo(img);
+  const card = img.closest('.profile-header');
+  const c = LOGO_COLOR[img.src];
+  if (card && c) card.style.setProperty('--school-color', c);
+}
 
 // Filenames in /schoollogos don't always match a school's common name —
 // "Texas Christian" is tcu.png, "Georgia Tech" is gtech.png. These mirror
@@ -397,7 +528,7 @@ function getSchoolLogoPath(schoolName) {
 // the logo's card as --school-color. Cached per logo.
 const LOGO_COLOR = {};
 function tintFromLogo(img) {
-  const card = img.closest('.final-school-card, .offer-pill');
+  const card = img.closest('.final-school-card, .offer-pill, .profile-commit-chip');
   if (!card) return;
   const key = img.src;
   const apply = c => { if (c) card.style.setProperty('--school-color', c); };
@@ -495,19 +626,23 @@ function switchTab(tabName, isBack = false) {
     if (typeof renderPortal === 'function') renderPortal();
   } else if (tabName === 'profile') {
     document.getElementById('profile-tab').classList.add('active');
-  } else if (tabName === 'schoolDetail') {
-    document.getElementById('schoolDetail-tab').classList.add('active');
   } else if (tabName === 'accoladeDetail') {
     document.getElementById('accoladeDetail-tab').classList.add('active');
   }
   
+  pushRoute(currentRoute());
+  updateBackButton();
+}
+
+function updateBackButton() {
   const backBtn = document.getElementById('globalBackBtn');
-  if (backBtn) {
-    backBtn.style.display = tabHistory.length > 0 ? 'inline-flex' : 'none';
-  }
+  if (backBtn) backBtn.style.display = currentActiveTab !== 'rankings' || tabHistory.length > 0 ? 'inline-flex' : 'none';
 }
 
 function goBack() {
+  // When the page itself put entries in the browser history, Back follows it.
+  if (history.state && history.state.btr) { history.back(); return; }
+  if (tabHistory.length === 0 && currentActiveTab !== 'rankings') { switchTab('rankings'); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
   if (tabHistory.length > 0) {
     const prevTab = tabHistory.pop();
     switchTab(prevTab, true);
@@ -659,7 +794,9 @@ function filterRecruits() {
   const state = document.getElementById('stateFilter').value;
   const pos = document.getElementById('posFilter').value;
   const star = document.getElementById('starFilter').value;
+  const commit = (document.getElementById('commitFilter') || {}).value || 'ALL';
   const overall = classYr === 'OVERALL';
+  renderClassSummary(overall ? null : classYr);
 
   // International prospects have their own pool. They stay out of a
   // class's national list unless the International region is chosen, or
@@ -674,7 +811,9 @@ function filterRecruits() {
     const matchesState = state === 'ALL' || r.state === state;
     const matchesPos = pos === 'ALL' || r.pos === pos;
     const matchesStar = star === 'ALL' || r.stars.toString() === star;
-    return matchesSearch && matchesClass && matchesState && matchesPos && matchesStar;
+    const committed = !!commitSchoolOf(r);
+    const matchesCommit = commit === 'ALL' || (commit === 'COMMITTED' ? committed : !committed);
+    return matchesSearch && matchesClass && matchesState && matchesPos && matchesStar && matchesCommit;
   });
 
   if (overall) {
@@ -684,6 +823,28 @@ function filterRecruits() {
     filtered.sort((a, b) => key(a) - key(b));
   }
   renderRankingsTable(filtered, overall);
+}
+
+// A strip over the class list: how big the class is, how many five-stars,
+// how many have committed, and the school with the top class so far.
+function renderClassSummary(classYr) {
+  const el = document.getElementById('classSummary');
+  if (!el) return;
+  if (!classYr) { el.innerHTML = ''; el.hidden = true; return; }
+  const list = recruits.filter(r => r.classYear === classYr && !isInternational(r));
+  if (!list.length) { el.innerHTML = ''; el.hidden = true; return; }
+  const five = list.filter(r => r.stars === 5).length, four = list.filter(r => r.stars === 4).length;
+  const committed = list.filter(r => commitSchoolOf(r)).length;
+  const top = getSchoolRankingsData(classYr)[0];
+  const intl = recruits.filter(r => r.classYear === classYr && isInternational(r)).length;
+  el.hidden = false;
+  el.innerHTML = `
+    <div class="cs-item"><b>${list.length}</b><span>ranked${intl ? ` <em>+ ${intl} international</em>` : ''}</span></div>
+    <div class="cs-item"><b class="stars-5">${five}</b><span>five-stars</span></div>
+    <div class="cs-item"><b class="stars-4">${four}</b><span>four-stars</span></div>
+    <div class="cs-item cs-bar"><b>${Math.round(committed / list.length * 100)}%</b><span>committed</span><i style="width:${committed / list.length * 100}%"></i></div>
+    ${top ? `<button class="cs-item cs-top" onclick="openSchoolModal('${escAttr(top.name)}', '${classYr}')">
+      <img src="${top.logo}" alt="" onerror="schoolLogoFallback(this, '${escAttr(top.name)}')"><span><small>Top class</small><b>${top.name}</b></span></button>` : ''}`;
 }
 
 function renderRankingsTable(data, isOverall = false) {
@@ -710,7 +871,7 @@ function getSchoolRankingsData(yearFilter = 'ALL') {
 
   filteredRecruits.forEach(r => {
     const schoolName = commitSchoolOf(r);
-    if (schoolName) {
+    if (schoolName && !NOT_A_SCHOOL.test(schoolName)) {
       if (!schoolMap[schoolName]) schoolMap[schoolName] = { name: schoolName, logo: (r.commitLogo && r.commitLogo.trim()) ? r.commitLogo : getSchoolLogoPath(schoolName), recruits: [] };
       schoolMap[schoolName].recruits.push(r);
     }
@@ -722,10 +883,11 @@ function getSchoolRankingsData(yearFilter = 'ALL') {
     s.recruits.forEach((r) => { let impact = (r.rating / 100) * weight; currentScore = currentScore + ((100 - currentScore) * impact); weight *= 0.8; });
     const starCounts = { 5: 0, 4: 0, 3: 0 };
     s.recruits.forEach(r => { if (starCounts[r.stars] !== undefined) starCounts[r.stars] += 1; });
-    return { ...s, recruitCount: s.recruits.length, starCounts, overallGrade: parseFloat(currentScore.toFixed(2)) };
+    const avg = s.recruits.reduce((n, r) => n + (r.rating || 0), 0) / s.recruits.length;
+    return { ...s, recruitCount: s.recruits.length, starCounts, overallGrade: parseFloat(currentScore.toFixed(2)), score: Math.round(classScore(s.recruits) * 10) / 10, avgRating: Math.round(avg * 10) / 10 };
   });
 
-  schoolList.sort((a, b) => b.overallGrade - a.overallGrade || b.recruitCount - a.recruitCount);
+  schoolList.sort((a, b) => b.score - a.score || b.recruitCount - a.recruitCount);
   return schoolList;
 }
 
@@ -758,7 +920,7 @@ function renderSchoolRankings() {
       </td>
       <td class="col-commits">${s.recruitCount}</td>
       <td class="col-breakdown">${starBreakdownHTML(s.starCounts)}</td>
-      <td class="col-sgrade"><span class="rating-pill grade-pill">${s.overallGrade}<span class="grade-max desktop-only"> / 100</span></span></td>
+      <td class="col-sgrade"><span class="rating-pill grade-pill">${s.score.toFixed(1)}</span><span class="grade-avg desktop-only">avg ${s.avgRating.toFixed(1)}</span></td>
     `;
     tbody.appendChild(row);
   });
@@ -784,7 +946,7 @@ function availableClassYears() {
   return [...new Set(recruits.map(r => String(r.classYear)))].filter(Boolean).sort();
 }
 
-function openSchoolModal(schoolName, year) {
+function openSchoolModal(schoolName, year, fromRoute) {
   let modal = document.getElementById('schoolModal');
   if (!modal) {
     modal = document.createElement('div');
@@ -798,13 +960,19 @@ function openSchoolModal(schoolName, year) {
   renderSchoolModal(schoolName, year || 'ALL');
   modal.classList.add('open');
   document.body.classList.add('modal-open');
+  if (!fromRoute) pushRoute(`#/school/${slugify(schoolName)}${year && year !== 'ALL' ? '/' + year : ''}`);
 }
 
-function closeSchoolModal() {
+function closeSchoolModal(fromRoute) {
   const modal = document.getElementById('schoolModal');
   if (!modal || !modal.classList.contains('open')) return;
   modal.classList.remove('open');
   document.body.classList.remove('modal-open');
+  // Closing it by hand takes the address back to where it was.
+  if (!fromRoute && /^#\/school\//.test(location.hash)) {
+    if (history.state && history.state.btr) history.back();
+    else history.replaceState(null, '', currentRoute() || '#/');
+  }
 }
 
 function renderSchoolModal(schoolName, year) {
@@ -844,8 +1012,8 @@ function renderSchoolModal(schoolName, year) {
           <div class="school-stat-lbl">Team Ranking${data ? ` <span class="of-n">of ${list.length}</span>` : ''}</div>
         </div>
         <div class="school-stat-card">
-          <div class="school-stat-val">${data ? data.overallGrade : '—'}</div>
-          <div class="school-stat-lbl">Class Grade</div>
+          <div class="school-stat-val">${data ? data.score.toFixed(1) : '—'}</div>
+          <div class="school-stat-lbl">Class Score${data ? ` <span class="of-n">avg ${data.avgRating.toFixed(1)}</span>` : ''}</div>
         </div>
         <div class="school-stat-card">
           <div class="school-stat-val">${commits.length}</div>
@@ -868,72 +1036,14 @@ function renderSchoolModal(schoolName, year) {
   if (tbody) {
     commits.forEach(p => tbody.appendChild(buildRecruitRow(p, {
       showClass,
-      onOpen: (rec) => { closeSchoolModal(); openRecruitProfile(rec); }
+      onOpen: (rec) => { closeSchoolModal(true); history.replaceState({ btr: true }, '', `#/player/${rec.id}`); openRecruitProfile(rec); }
     })));
   }
 }
 
 function selectSchool(schoolName, defaultYear = 'ALL') { openSchoolModal(schoolName, defaultYear); }
 
-function renderSchoolDetail(schoolName, selectedYear = '2028') {
-  const container = document.getElementById('schoolDetailContainer');
-  const allTimeSchoolList = getSchoolRankingsData('ALL');
-  const schoolIndex = allTimeSchoolList.findIndex(s => s.name === schoolName);
-  const schoolData = allTimeSchoolList[schoolIndex];
-  const safeSchoolName = String(schoolName).replace(/'/g, "\\'"); 
-
-  if (!schoolData) { container.innerHTML = `<div style="color: var(--text-muted); padding: 2rem;">School details not found.</div>`; return; }
-
-  const filteredCommits = schoolData.recruits.filter(r => selectedYear === 'ALL' || r.classYear === selectedYear);
-  let displayAvgGrade = schoolData.overallGrade;
-  if (selectedYear !== 'ALL' && filteredCommits.length > 0) {
-    let currentScore = 0; let weight = 1.0;
-    const sortedFiltered = [...filteredCommits].sort((a, b) => b.rating - a.rating);
-    sortedFiltered.forEach((r) => { let impact = (r.rating / 100) * weight; currentScore = currentScore + ((100 - currentScore) * impact); weight *= 0.8; });
-    displayAvgGrade = currentScore.toFixed(2);
-  } else if (selectedYear !== 'ALL') { displayAvgGrade = "0.00"; }
-
-  const commitsGridHTML = filteredCommits.length === 0 ? `<div style="color: var(--text-muted); padding: 2rem; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border-color); width: 100%;">No committed recruits found for Class of ${selectedYear}.</div>` : 
-    filteredCommits.map(r => `<div class="commit-player-card" onclick="activeRecruit = recruits.find(p => p.id === '${r.id}'); renderProfile(activeRecruit); switchTab('profile');"><img src="${r.pfp && r.pfp.trim() !== '' ? r.pfp : EMPTY_PFP}" class="player-avatar-sm" loading="lazy" decoding="async" style="width: 50px; height: 50px;" onerror="this.src='${EMPTY_PFP}';"><div style="flex: 1;"><div style="font-weight: 700; font-size: 0.95rem;">${r.name}</div><div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">'${r.classYear.slice(-2)} | ${r.pos} | ${r.height} / ${r.weight}</div><div style="display: flex; gap: 8px; align-items: center; margin-top: 6px;"><div>${r.stars === 5 ? `<span class="stars-5">★★★★★</span>` : (r.stars === 4 ? `<span class="stars-4">★★★★☆</span>` : `<span class="stars-3">★★★☆☆</span>`)}</div><span class="rating-pill" style="font-size: 0.75rem; padding: 2px 6px;">${r.rating}</span></div></div></div>`).join('');
-
-  container.innerHTML = `
-    <div class="school-detail-header">
-      <div class="school-detail-brand">
-        <img src="${schoolData.logo || getSchoolLogoPath(schoolName)}" class="school-detail-logo" onerror="schoolLogoFallback(this, '${String(schoolName).replace(/'/g, "\\'")}')">
-        <div><h1 style="font-size: 1.8rem;">${schoolName.toUpperCase()}</h1><div style="color: var(--text-muted); font-size: 0.85rem; margin-top: 4px;">RECRUITING CLASS DASHBOARD</div></div>
-      </div>
-      <div class="school-detail-stats">
-        <div class="school-stat-card"><div class="school-stat-val">${displayAvgGrade}</div><div class="school-stat-lbl">${selectedYear === 'ALL' ? 'Overall Grade' : 'Class Grade'}</div></div>
-        <div class="school-stat-card"><div class="school-stat-val">${filteredCommits.length}</div><div class="school-stat-lbl">Commits (${selectedYear})</div></div>
-      </div>
-    </div>
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px;">
-      <h2 style="font-size: 1.1rem;">Committed Recruits</h2>
-      <div style="display: flex; align-items: center; gap: 10px;">
-        <label for="schoolClassFilter" style="font-size: 0.8rem; color: var(--text-muted);">Filter Class:</label>
-        <select id="schoolClassFilter" class="select-input" onchange="renderSchoolDetail('${safeSchoolName}', this.value)">
-          <option value="ALL" ${selectedYear === 'ALL' ? 'selected' : ''}>All Classes</option>
-          <option value="2028" ${selectedYear === '2028' ? 'selected' : ''}>Class of 2028</option>
-          <option value="2029" ${selectedYear === '2029' ? 'selected' : ''}>Class of 2029</option>
-          <option value="2030" ${selectedYear === '2030' ? 'selected' : ''}>Class of 2030</option>
-          <option value="2031" ${selectedYear === '2031' ? 'selected' : ''}>Class of 2031</option>
-          <option value="2032" ${selectedYear === '2032' ? 'selected' : ''}>Class of 2032</option>
-          <option value="2033" ${selectedYear === '2033' ? 'selected' : ''}>Class of 2033</option>
-          <option value="2034" ${selectedYear === '2034' ? 'selected' : ''}>Class of 2034</option>
-          <option value="2035" ${selectedYear === '2035' ? 'selected' : ''}>Class of 2035</option>
-          <option value="2036" ${selectedYear === '2036' ? 'selected' : ''}>Class of 2036</option>
-          <option value="2037" ${selectedYear === '2037' ? 'selected' : ''}>Class of 2037</option>
-          <option value="2038" ${selectedYear === '2038' ? 'selected' : ''}>Class of 2038</option>
-          <option value="2039" ${selectedYear === '2039' ? 'selected' : ''}>Class of 2039</option>
-          <option value="2040" ${selectedYear === '2040' ? 'selected' : ''}>Class of 2040</option>
-        </select>
-      </div>
-    </div>
-    <div class="school-commits-grid">${commitsGridHTML}</div>
-  `;
-}
-
-function openAccoladeRoster(accoladeName, selectedYear = '2028') { renderAccoladeDetail(accoladeName, selectedYear); switchTab('accoladeDetail'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+function openAccoladeRoster(accoladeName, selectedYear = '2028') { activeAccolade = accoladeName; renderAccoladeDetail(accoladeName, selectedYear); switchTab('accoladeDetail'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
 
 function renderAccoladeDetail(accoladeName, selectedYear = '2028') {
   const container = document.getElementById('accoladeDetailContainer');
@@ -1043,6 +1153,14 @@ function renderStatsDashboard() {
   });
 }
 
+function copyProfileLink(btn) {
+  const url = location.href.split('#')[0] + (activeRecruit ? `#/player/${activeRecruit.id}` : '');
+  const done = () => { if (btn) { const t = btn.textContent; btn.textContent = 'Link copied'; setTimeout(() => { btn.textContent = t; }, 1600); } };
+  if (navigator.share && /Mobi/i.test(navigator.userAgent)) { navigator.share({ title: activeRecruit ? activeRecruit.name : 'BYTHERIM Recruiting', url }).catch(() => {}); return; }
+  if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, () => prompt('Copy this link:', url));
+  else prompt('Copy this link:', url);
+}
+
 function renderProfile(p) {
   if(!p) return;
   const container = document.getElementById('profileContainer');
@@ -1080,6 +1198,7 @@ function renderProfile(p) {
     if (!st || st.gp === 0) return '';
     return `
       <h4 style="font-size: 0.85rem; margin-top: 1.2rem; margin-bottom: 0.5rem; color: var(--text-main);">${lvl.label} <span style="color: var(--text-muted); font-weight: 400;">(${st.team})</span></h4>
+      ${st.misaligned ? '<div class="stat-warn">Some of these numbers look shifted by a column in the database, so they may be in the wrong places.</div>' : ''}
       <div class="profile-stats-table-wrapper">
         <table class="profile-stats-table">
           <tr><th>GP</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th><th>FG%</th><th>3FG%</th><th>FT%</th></tr>
@@ -1090,7 +1209,20 @@ function renderProfile(p) {
 
   if (!statsTablesHTML) statsTablesHTML = '<div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 1rem;">No statistics available.</div>';
 
+  const commitName = commitSchoolOf(p);
+  const commitChip = commitName && !NOT_A_SCHOOL.test(commitName) ? `<button class="profile-commit-chip" onclick="openSchoolModal('${escAttr(commitName)}', '${p.classYear}')" title="${escAttr(commitName)}'s ${p.classYear} class">
+      <img src="${getSchoolLogoPath(commitName)}" alt="" onload="tintProfileFromLogo(this)" onerror="schoolLogoFallback(this, '${escAttr(commitName)}')"><span>${commitName}</span></button>`
+    : `<span class="profile-commit-chip open">${commitName && NOT_A_SCHOOL.test(commitName) ? 'Turning pro' : 'Uncommitted'}</span>`;
+  const nb = classNeighbours(p);
+  const navBtn = (r, dir) => r ? `<button class="profile-nav-btn" onclick="openRecruitProfile(recruits.find(x => x.id === '${r.id}'))" title="${escAttr(r.name)}">${dir < 0 ? '&larr;' : ''} <span>${dir < 0 ? 'Prev' : 'Next'}</span> ${dir > 0 ? '&rarr;' : ''}</button>` : '<span></span>';
+  const profileNav = `<div class="profile-nav">
+      ${navBtn(nb.prev, -1)}
+      <span class="profile-nav-pos">${nb.intl ? 'International' : 'No.'} ${nb.at} of ${nb.of} · Class of ${p.classYear}</span>
+      <span class="profile-nav-right">${navBtn(nb.next, 1)}<button class="profile-nav-btn" onclick="copyProfileLink(this)" title="Copy a link to this profile">Share</button></span>
+    </div>`;
+
   container.innerHTML = `
+    ${profileNav}
     <div class="profile-header">
       <div class="profile-header-left">
         <img src="${p.pfp && p.pfp.trim() !== '' ? p.pfp : EMPTY_PFP}" class="player-avatar-lg" onerror="this.src='${EMPTY_PFP}';">
@@ -1098,6 +1230,7 @@ function renderProfile(p) {
           <div class="profile-name-row">
             <h1>${p.name}</h1>
             <div>${starDisplay}</div>
+            ${commitChip}
           </div>
           
           <div class="bio-sub-info">

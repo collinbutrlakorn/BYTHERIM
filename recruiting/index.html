@@ -197,9 +197,16 @@
             <option value="ALL">All Star Ratings</option>
             <option value="5">5-Star Prospects</option>
             <option value="4">4-Star Prospects</option>
+            <option value="3">3-Star Prospects</option>
+          </select>
+          <select id="commitFilter" class="select-input" onchange="filterRecruits()">
+            <option value="ALL">Any Commit Status</option>
+            <option value="COMMITTED">Committed</option>
+            <option value="UNCOMMITTED">Uncommitted</option>
           </select>
         </div>
       </div>
+      <div id="classSummary" class="class-summary" hidden></div>
       <div class="table-container">
         <table id="rankingsTable" class="recruit-table">
           <thead>
@@ -250,7 +257,7 @@
               <th class="col-school" style="text-align: left;">School</th>
               <th class="col-commits">Commits</th>
               <th class="col-breakdown">5★ / 4★ / 3★</th>
-              <th class="col-sgrade">Class Grade</th>
+              <th class="col-sgrade" title="Points for every commit's rating, the best counting most">Class Score</th>
             </tr>
           </thead>
           <tbody id="schoolRankingsTableBody"></tbody>
@@ -359,10 +366,6 @@
 
     <div id="profile-tab" class="tab-content">
       <div id="profileContainer" class="profile-card"></div>
-    </div>
-
-    <div id="schoolDetail-tab" class="tab-content">
-      <div id="schoolDetailContainer"></div>
     </div>
 
     <div id="accoladeDetail-tab" class="tab-content">
