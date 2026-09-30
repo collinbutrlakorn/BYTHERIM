@@ -279,6 +279,7 @@ window.SimEngine = {
           }
           this.state.portalYear = savedState.portalYear || null;
           this.state.carouselYear = savedState.carouselYear || null;
+          this.state.recruitFlips = savedState.recruitFlips || [];
           this.state.coachChanges = savedState.coachChanges || [];
           this.state.lastCoachChanges = savedState.lastCoachChanges || [];
           this.state.formerCoaches = savedState.formerCoaches || [];
@@ -410,6 +411,7 @@ window.SimEngine = {
           offseasonSteps: 4,
           portalYear: this.state.portalYear || null,
           carouselYear: this.state.carouselYear || null,
+          recruitFlips: this.state.recruitFlips || [],
           coachChanges: this.state.coachChanges || [],
           lastCoachChanges: this.state.lastCoachChanges || [],
           formerCoaches: this.state.formerCoaches || [],
@@ -1525,9 +1527,21 @@ window.SimEngine = {
         rec.conference = team.conference;
         rec.class = 'FR';
         rec.enrolled = true;      // now a college player, not a pending recruit
-        // A full roster can't take another body.
-        if ((team.roster || []).length >= this.ROSTER_LIMIT) { stillPending.push(rec); return; }
-        team.roster.push(rec);
+        // A full roster can't take another body. A generated recruit whose
+        // school has no scholarship left (the portal filled it) flips to a
+        // program of about the same standing that still has room.
+        let dest = team;
+        if ((team.roster || []).length >= this.ROSTER_LIMIT) {
+          dest = rec.genRecruit ? this.flipDestination(rec, team) : null;
+          if (!dest) { stillPending.push(rec); return; }
+          this.state.recruitFlips = (this.state.recruitFlips || []).concat({ year: this.state.year, classYear: Number(rec.recClassYear) || this.state.year, name: rec.name, from: team.school, to: dest.school, reason: 'roster full' }).slice(-400);
+          this.logNews(`${rec.name} flips from ${team.school} to ${dest.school} after ${team.school}'s roster filled up`);
+          rec.school = dest.school;
+          rec.school_logo = this.getTeamLogo(dest.school);
+          rec.conference = dest.conference;
+          rec.committedSchool = dest.school;
+        }
+        dest.roster.push(rec);
         players.push(rec);
       }
       // Enrolled either way — no longer a pending recruit, so it drops out
@@ -1550,6 +1564,67 @@ window.SimEngine = {
   // supplies overwrites the roster sheet's version, since the recruiting
   // database is the more detailed and authoritative source for a
   // player's scouting profile.
+  // ---------- Recruiting quotas ----------
+  // Each offseason, every program's commitments for next year's class are
+  // measured against the room it will actually have: scholarships held by
+  // players who aren't seniors, less what the portal already brought in.
+  // A program with more commits than room loses its lowest-rated generated
+  // commits to programs of similar standing that still need players.
+  // Sheet commitments are never moved.
+  projectedRoom(team) {
+    const staying = (team.roster || []).filter(p => !['SR', 'GR'].includes(this.normalizeClassStanding(p.class))).length;
+    return Math.max(1, this.ROSTER_TARGET - staying + 1);   // +1: a spot usually opens in the portal
+  },
+  rebalanceRecruitCommits(classYear) {
+    const pending = (this.state.recruits || []).filter(r => r.genRecruit && !r.fromOthers && Number(r.recClassYear) === Number(classYear)
+      && r.school && r.school !== 'Uncommitted' && r.school !== 'Free Agent');
+    if (!pending.length) return [];
+    const all = (this.state.recruits || []).filter(r => Number(r.recClassYear) === Number(classYear) && r.school && r.school !== 'Uncommitted' && r.school !== 'Free Agent');
+    const commits = {};
+    all.forEach(r => { commits[r.school] = (commits[r.school] || 0) + 1; });
+    const room = {};
+    this.state.teams.forEach(t => { room[t.school] = this.projectedRoom(t); });
+    const flips = [];
+    this.state.teams.forEach(team => {
+      let over = (commits[team.school] || 0) - room[team.school];
+      if (over <= 0) return;
+      const movable = pending.filter(r => r.school === team.school).sort((a, b) => (parseFloat(a.recRating) || 0) - (parseFloat(b.recRating) || 0));
+      for (const rec of movable) {
+        if (over <= 0) break;
+        const base = team.prestige != null ? team.prestige : 50;
+        const open = this.state.teams.filter(t => t !== team && (commits[t.school] || 0) < room[t.school]
+          && Math.abs((t.prestige != null ? t.prestige : 50) - base) <= 15);
+        if (!open.length) break;
+        const w = open.map(t => ({ t, w: Math.exp(((t.prestige || 50) - base) / 12) * (room[t.school] - (commits[t.school] || 0)) }));
+        let x = Math.random() * w.reduce((n, y) => n + y.w, 0), dest = w[w.length - 1].t;
+        for (const y of w) { x -= y.w; if (x <= 0) { dest = y.t; break; } }
+        commits[team.school]--; commits[dest.school] = (commits[dest.school] || 0) + 1; over--;
+        flips.push({ year: this.state.year, classYear: Number(classYear), name: rec.name, from: team.school, to: dest.school, reason: 'roster full' });
+        rec.school = dest.school;
+        rec.committedSchool = dest.school;
+      }
+    });
+    if (flips.length) {
+      this.state.recruitFlips = (this.state.recruitFlips || []).concat(flips).slice(-400);
+      flips.slice(0, 6).forEach(f => this.logNews(`${f.name} (class of ${f.classYear}) flips from ${f.from} to ${f.to}: ${f.from} is out of scholarships`));
+    }
+    return flips;
+  },
+
+  // Where a recruit goes when the school he signed with has no room: a
+  // program within about fifteen points of prestige with at least two
+  // open scholarships, the better programs more likely.
+  flipDestination(rec, team) {
+    const base = team.prestige != null ? team.prestige : 50;
+    const open = this.state.teams.filter(t => t !== team && (t.roster || []).length <= this.ROSTER_LIMIT - 2
+      && Math.abs((t.prestige != null ? t.prestige : 50) - base) <= 15);
+    if (!open.length) return null;
+    const w = open.map(t => ({ t, w: Math.exp(((t.prestige || 50) - base) / 12) * (this.ROSTER_LIMIT - t.roster.length) }));
+    let r = Math.random() * w.reduce((n, x) => n + x.w, 0);
+    for (const x of w) { r -= x.w; if (r <= 0) return x.t; }
+    return w[w.length - 1].t;
+  },
+
   mergeRecruitIntoPlayer(existingPlayer, recruit) {
     // The roster sheet is the authority on a player's current ability —
     // it reflects where he actually is now, whereas a recruiting rating
@@ -4841,6 +4916,9 @@ window.SimEngine = {
       this.filterActiveData();
     }
 
+    // Next year's class, measured against the room each program will have.
+    this.rebalanceRecruitCommits(this.state.year + 1);
+
     this.initSeasonData();
     this.refreshProPool();
     this.updateProSeasons();
@@ -8115,6 +8193,9 @@ window.SimEngine = {
         from: t.from, to: t.to, season: t.season, scheduled: !!t.scheduled, reason: t.reason
       })),
       alumni,
+      // Recruits whose commitment the sim moved (a program ran out of
+      // scholarships), so the recruiting page shows where they really went.
+      recruitFlips: (this.state.recruitFlips || []).map(f => ({ name: f.name, classYear: f.classYear, from: f.from, to: f.to, year: f.year })),
       champions: (this.state.seasonHistory || []).map(h => ({
         year: h.year, season: this.seasonLabelFor(h.year),
         champion: h.champion && (h.champion.school || h.champion), runnerUp: h.runnerUp && (h.runnerUp.school || h.runnerUp),
@@ -8384,9 +8465,24 @@ window.SimEngine = {
     // The final class (reclassifiers included) sets the star counts; today's
     // members get them in today's order.
     const finalMembers = (this.state.allRecruits || []).filter(r => !r.fromOthers && Number(r.recClassYear) === Number(classYear));
+    // Stars follow the rating: 90+ five, 80+ four, 70+ three. While the
+    // class is still moving, a player's rating moves with his ranking
+    // (the class curve between where he is now and where he finishes).
     const q = HSCore.starQuota(finalMembers, cp, classYear);
-    const starOf = new Map();
+    const starOf = new Map(), gradeOf = new Map();
+    const RG = typeof RecruitGen !== 'undefined' ? RecruitGen : null;
+    const curve = RG ? RG.curveFor(RG.classTop(Number(classYear))) : null;
+    let prevGrade = 99;
     members.filter(r => ranks.get(r)).sort((a, b) => ranks.get(a) - ranks.get(b)).forEach((r, i) => {
+      const fin = parseFloat(r.recRating);
+      if (RG && !isNaN(fin)) {
+        let now = cp >= 1 || !curve ? fin : Math.max(60, Math.min(99, Math.round(fin + curve(ranks.get(r)) - curve(Number(r.rsci) || ranks.get(r)))));
+        // Mid-year, nobody is graded above a player ranked ahead of him.
+        if (cp < 1) { now = Math.min(now, prevGrade); prevGrade = now; }
+        gradeOf.set(r, now);
+        starOf.set(r, RG.starsFor(now));
+        return;
+      }
       starOf.set(r, cp >= 1 && Number(r.stars) ? Number(r.stars) : i < q.five ? 5 : i < q.fourPlus ? 4 : 3);
     });
     const start = HSCore.rankClass(this.hsClassMembers(classYear, 0), HSCore.classProgress(classYear, year, 0));
@@ -8395,12 +8491,12 @@ window.SimEngine = {
       const rank = ranks.get(r) || null, was = start.get(r) || null;
       const pro = HSCore.turnsPro(r, isD1);
       const decided = HSCore.commitVisible(r, cp);
-      const stars = starOf.get(r) || Number(r.stars) || 0;
+      const stars = starOf.has(r) ? starOf.get(r) : (Number(r.stars) || 0);
       const from = HSCore.reclassFrom(r);
       return {
         r, rank, delta: rank && was ? was - rank : 0, arrived: !!(rank && !was),
         school: !pro && decided ? HSCore.committedTo(r) : '', pro, club: pro && decided ? HSCore.clubFor(r, isD1) : '',
-        stars, intl: HSCore.isInternational(r),
+        stars, grade: gradeOf.get(r) || null, intl: HSCore.isInternational(r),
         reclassed: from && Number(r.recClassYear) === Number(classYear) ? from : null
       };
     }).sort((a, b) => (a.rank || 9999) - (b.rank || 9999) || (Number(b.r.rating) || 0) - (Number(a.r.rating) || 0));

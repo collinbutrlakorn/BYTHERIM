@@ -44,17 +44,96 @@
   const US = new Set(('AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM ' +
     'NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY').split(' '));
 
-  // Recruiting-scale rating by final rank: where a normal class sits.
-  const CURVE = [[1, 97], [5, 94.5], [25, 89.5], [50, 86.5], [100, 83], [250, 76.5]];
-  function curve(rank) {
-    const x = Math.log(Math.max(1, rank));
-    for (let i = 1; i < CURVE.length; i++) {
-      const [r0, v0] = CURVE[i - 1], [r1_, v1] = CURVE[i];
-      if (rank <= r1_) return v0 + (v1 - v0) * (x - Math.log(r0)) / (Math.log(r1_) - Math.log(r0));
-    }
-    return CURVE[CURVE.length - 1][1] - (rank - 250) * 0.03;
+  // Recruiting-scale rating by final rank: where a normal class sits, with
+  // its #1 at `top`. How good a class's best player is sets the whole top
+  // of the class; the back of the top 250 looks the same every year.
+  function curveFor(top) {
+    const pts = [[1, top], [5, top - 2.6], [25, 89.5 + (top - 97) * 0.45], [50, 86.5 + (top - 97) * 0.25], [100, 83 + (top - 97) * 0.1], [250, 76.5]];
+    return rank => {
+      const x = Math.log(Math.max(1, rank));
+      for (let i = 1; i < pts.length; i++) {
+        const [r0, v0] = pts[i - 1], [r1_, v1] = pts[i];
+        if (rank <= r1_) return v0 + (v1 - v0) * (x - Math.log(r0)) / (Math.log(r1_) - Math.log(r0));
+      }
+      return pts[pts.length - 1][1] - (rank - 250) * 0.03;
+    };
   }
-  const starsFor = rating => rating >= 90.5 ? 5 : rating >= 81.5 ? 4 : 3;
+  const curve = curveFor(97);
+
+  // A class's #1: what the ranking committee projects the best player in
+  // the class to be. Most classes top out at 96 or 97; a 99 comes along
+  // once in a long while.
+  //   99 generational · 98 can't-miss · 97 All-NBA · 96 All-Star · 95 potential All-Star · 94 strong starter
+  function classTop(year) {
+    const x = rngFor(`class-top|${year}`)();
+    return x < 0.04 ? 99 : x < 0.17 ? 98 : x < 0.45 ? 97 : x < 0.75 ? 96 : x < 0.93 ? 95 : 94;
+  }
+  const PROJECTIONS = [
+    [99, 'Generational talent'], [98, "Can't-miss talent"], [97, 'Projects as an All-NBA player'], [96, 'All-Star projection'],
+    [95, 'Potential All-Star'], [94, 'Projects as a strong NBA starter'], [92, 'NBA rotation projection'], [90, 'NBA prospect'],
+    [86, 'High-major starter'], [80, 'High-major contributor'], [75, 'Mid-major starter'], [70, 'Low-major contributor']
+  ];
+  function projectionFor(rating) {
+    const r = Math.round(Number(rating));
+    if (!r) return '';
+    const hit = PROJECTIONS.find(([min]) => r >= min);
+    return hit ? hit[1] : '';
+  }
+
+  // Stars come from the rating, never from chance: 90+ is a 5-star, 80+ a
+  // 4-star, 70+ a 3-star. Below 70 a player is unranked.
+  const starsFor = rating => { const r = Math.round(Number(rating)); return r >= 90 ? 5 : r >= 80 ? 4 : r >= 70 ? 3 : 0; };
+
+  // Where he plays his senior year. The best prospects are at national
+  // prep schools and academies; public high schools only become common
+  // further down the list.
+  const ACADEMIES = ['IMG Academy', 'Montverde Academy', 'Oak Hill Academy', 'Sierra Canyon', 'Prolific Prep', 'La Lumiere',
+    'Link Academy', 'Brewster Academy', 'Sunrise Christian Academy', 'AZ Compass Prep', 'Wasatch Academy', 'Dream City Christian',
+    'Southern California Academy', 'Perkiomen School', 'The Patrick School', 'Paul VI', 'DeMatha Catholic', 'Bishop Gorman',
+    'Huntington Prep', 'Combine Academy', 'Hillcrest Prep', 'Putnam Science Academy', 'Notre Dame Prep', 'Wasatch Academy',
+    'Legacy Early College', 'Grace Christian', 'Arizona Compass Prep', 'Overtime Elite', 'Word of God Christian', 'Napa Christian',
+    'Bella Vista Prep', "St. Benedict's Prep", 'Gonzaga College HS', 'Findlay Prep', 'Brookwood Prep', 'Greensboro Day'];
+  function schoolFor(rng, slot, publicHs) {
+    const prep = slot <= 5 ? 0.95 : slot <= 25 ? 0.85 : slot <= 100 ? 0.68 : slot <= 175 ? 0.42 : 0.28;
+    return rng() < prep ? pick(ACADEMIES, rng) : publicHs;
+  }
+
+  // ---------- international prospects ----------
+  const COUNTRY = {
+    Canada: 'CAN', Nigeria: 'NGR', Australia: 'AUS', Serbia: 'SRB', France: 'FRA', Germany: 'GER', Senegal: 'SEN', Lithuania: 'LTU',
+    Spain: 'ESP', Cameroon: 'CMR', Croatia: 'CRO', Mali: 'MLI', 'South Sudan': 'SSD', 'Dominican Republic': 'DOM', 'Puerto Rico': 'PUR',
+    Slovenia: 'SLO', Latvia: 'LAT', Italy: 'ITA', Greece: 'GRE', Turkey: 'TUR', Finland: 'FIN', Sweden: 'SWE', England: 'GBR',
+    Brazil: 'BRA', Netherlands: 'NED', Belgium: 'BEL', Argentina: 'ARG', Israel: 'ISR', 'DR Congo': 'COD'
+  };
+  const PROVINCE = /,\s*(ON|QC|BC|AB|MB|NS|SK)$/;
+  function countryOf(hometown) {
+    if (PROVINCE.test(hometown)) return 'Canada';
+    if (/, AUS$/.test(hometown)) return 'Australia';
+    const m = hometown.match(/,\s*([^,]+)$/);
+    return m ? m[1].trim() : '';
+  }
+  // Pro clubs and youth programmes an overseas prospect plays for.
+  const CLUBS = {
+    Serbia: ['Partizan', 'Crvena Zvezda', 'Mega Basket'], Croatia: ['Cibona', 'Split'], Slovenia: ['Cedevita Olimpija', 'Krka'],
+    Spain: ['Real Madrid', 'FC Barcelona', 'Joventut Badalona', 'Valencia Basket'], France: ['ASVEL', 'Paris Basketball', 'AS Monaco', 'Cholet Basket'],
+    Germany: ['Bayern Munich', 'Alba Berlin', 'ratiopharm Ulm'], Lithuania: ['Zalgiris Kaunas', 'Rytas Vilnius'], Latvia: ['VEF Riga'],
+    Turkey: ['Fenerbahce', 'Anadolu Efes'], Greece: ['Olympiacos', 'Panathinaikos'], Italy: ['Olimpia Milano', 'Virtus Bologna'],
+    Australia: ['NBL Next Stars'], Finland: ['Helsinki Seagulls'], Sweden: ['Sodertalje Kings'], Israel: ['Maccabi Tel Aviv', 'Hapoel Jerusalem'],
+    Argentina: ['San Lorenzo'], Brazil: ['Flamengo', 'Franca'], Belgium: ['Filou Oostende'], Netherlands: ['ZZ Leiden'], England: ['London Lions'],
+    Canada: ['Overtime Elite'], Nigeria: ['NBA Academy Africa'], Senegal: ['NBA Academy Africa'], Mali: ['NBA Academy Africa'],
+    Cameroon: ['NBA Academy Africa'], 'South Sudan': ['NBA Academy Africa'], 'DR Congo': ['NBA Academy Africa'],
+    'Dominican Republic': ['Overtime Elite'], 'Puerto Rico': ['Overtime Elite']
+  };
+  const YOUTH = { France: 'INSEP', Spain: 'Real Madrid Youth', Serbia: 'Mega Basket Youth', Australia: 'NBA Global Academy', Germany: 'Bayern Munich Youth',
+    Lithuania: 'Zalgiris Academy', Turkey: 'Fenerbahce Youth', Italy: 'Stella Azzurra', Greece: 'Panathinaikos Youth', Israel: 'Maccabi Youth' };
+  const clubFor = (country, rng) => pick(CLUBS[country] || ['Overtime Elite', 'Real Madrid', 'ASVEL'], rng);
+  function internationalWho(rng, taken) {
+    for (let tries = 0; tries < 12; tries++) {
+      const w = root.RosterGen && root.RosterGen.internationalIdentity ? root.RosterGen.internationalIdentity(rng) : null;
+      if (w && !taken.has(w.name.toLowerCase())) { taken.add(w.name.toLowerCase()); return w; }
+    }
+    return null;
+  }
 
   const POSITIONS = [['PG', 0.17], ['CG', 0.10], ['SG', 0.17], ['SF', 0.22], ['PF', 0.19], ['C', 0.15]];
   function pickPos(rng) {
@@ -163,13 +242,22 @@
   }
   // Weighted pick of schools near the prestige a player of this rating
   // draws. Blue bloods pull the best; the rest spread down the ladder.
+  // How many high-school signees a program takes in a class. Most rosters
+  // now fill as much from the transfer portal as from high school.
+  function quotaFor(prestige) {
+    return prestige >= 90 ? 5 : prestige >= 74 ? 4 : prestige >= 55 ? 3 : 2;
+  }
   function schoolWeights(rating, counts, spread) {
     // Top-100 prospects go almost entirely to high majors; the back of the
     // top 250 spreads into the mid-majors.
     const target = clamp(44 + (rating - 76) * 3.4, 30, 106);
     return schools().map(s => {
       const d = s.prestige - target;
-      const full = (counts[s.name] || 0) >= 7 ? 0.02 : 1 / (1 + (counts[s.name] || 0) * 0.35);
+      // Each school signs about as many as it has room for: a class of four
+      // or five at the blue bloods, two or three further down. A school at
+      // its number takes someone else only rarely.
+      const have = counts[s.name] || 0;
+      const full = have >= quotaFor(s.prestige) ? 0.02 : 1 / (1 + have * 0.35);
       return { s, w: Math.exp(-(d * d) / (2 * spread * spread)) * (0.6 + s.prestige / 100) * full };
     });
   }
@@ -184,10 +272,10 @@
   // ---------- one generated prospect ----------
   // Identity, build and talent order depend only on the class year and
   // his place in the pool.
-  function identity(key, year, taken) {
+  function identity(key, year, taken, intl) {
     const rng = rngFor(`recruit|${key}`);
-    let who = null;
-    for (let tries = 0; tries < 12; tries++) {
+    let who = intl ? internationalWho(rng, taken) : null;
+    for (let tries = 0; !who && tries < 12; tries++) {
       const w = root.RosterGen && root.RosterGen.americanIdentity ? root.RosterGen.americanIdentity(null, rng) : { name: `Prospect ${key}`, hometown: 'Atlanta, GA' };
       // Domestic prospects only: the international pool is the sheet's.
       const st = (w.hometown.match(/,\s*([A-Z]{2})$/) || [])[1] || '';
@@ -196,14 +284,18 @@
     }
     who = who || { name: `Prospect ${key}`, hometown: 'Atlanta, GA' };
     taken.add(who.name.toLowerCase());
+    const country = intl ? countryOf(who.hometown) : '';
     const pos = pickPos(rng);
     const build = root.RosterGen ? root.RosterGen.generateBuild(pos, rng) : { ht: "6'5", wt: '195', heightInches: 77 };
     const wing = build.heightInches + Math.round(1 + rng() * 4 + (rng() < 0.15 ? 2 : 0));
     const born = new Date(Date.UTC(year - 19, 8, 1) + Math.floor(rng() * 364) * 86400000);
-    const st = (who.hometown.match(/,\s*([A-Z]{2})$/) || [])[1] || '';
-    const hs = root.RosterGen ? root.RosterGen.generateHighSchool(rng) : 'Prep Academy';
+    const st = intl ? (COUNTRY[country] || 'INT') : (who.hometown.match(/,\s*([A-Z]{2})$/) || [])[1] || '';
+    // A public or local high school; national academies are handed out by
+    // rank (schoolFor) once his place in the class is known.
+    let hs = 'Central High';
+    for (let i = 0; i < 6; i++) { hs = root.RosterGen ? root.RosterGen.generateHighSchool(rng) : 'Central High'; if (!ACADEMIES.includes(hs)) break; }
     return {
-      rng, name: who.name, hometown: who.hometown, state: st, pos, hs,
+      rng, name: who.name, hometown: who.hometown, state: st, pos, hs, country,
       height: `${Math.floor(build.heightInches / 12)}'${build.heightInches % 12}"`, weight: build.wt,
       wingspan: `${Math.floor(wing / 12)}'${wing % 12}"`,
       dob: `${born.getUTCMonth() + 1}/${born.getUTCDate()}/${born.getUTCFullYear()}`,
@@ -232,12 +324,17 @@
     const get = (r, k) => r[K(k)];
     const set = (r, k, v) => { r[K(k)] = v; };
     const num = v => { const n = parseFloat(String(v == null ? '' : v).replace('%', '')); return isNaN(n) ? null : n; };
-    const off = (rngFor(`class-strength|${year}`)() - 0.5) * 2;      // some classes are deeper than others
-    const T = rank => curve(rank) + off;
+    const T = curveFor(classTop(year));      // some classes are stronger than others
 
     // Sheet players first, in the sheet's own order, each placed where his
     // rating belongs (never ahead of a player the sheet ranks above him).
-    const ordered = sheetRows.slice().sort((a, b) => (num(get(a, 'rank')) || 9e4) - (num(get(b, 'rank')) || 9e4) || (num(get(b, 'rating')) || 0) - (num(get(a, 'rating')) || 0));
+    // Rated under 70: unranked, and no stars.
+    sheetRows.forEach(r => {
+      const rt = num(get(r, 'rating'));
+      if (rt != null) set(r, 'stars', starsFor(rt) ? String(starsFor(rt)) : '');
+      if (rt != null && rt < 70) { set(r, 'sheetRank', get(r, 'rank')); set(r, 'rank', ''); r.__unranked = true; }
+    });
+    const ordered = sheetRows.filter(r => !r.__unranked).sort((a, b) => (num(get(a, 'rank')) || 9e4) - (num(get(b, 'rank')) || 9e4) || (num(get(b, 'rating')) || 0) - (num(get(a, 'rating')) || 0));
     const taken = new Set();
     let prev = 0;
     ordered.forEach(r => {
@@ -261,18 +358,27 @@
     });
 
     // Generated prospects fill the open places, best first.
-    const committedShare = sheetRows.length >= 10 ? sheetRows.filter(r => String(get(r, 'committedSchool') || '').trim()).length / sheetRows.length : 0;
+    const NO = /^(uncommitted|uncommited|undecided|open|tbd|n\/a|none|-)$/i;
+    const commitOf = r => { const c = String(get(r, 'committedSchool') || '').trim(); return c && !NO.test(c) ? c : ''; };
+    const committedShare = sheetRows.length >= 10 ? sheetRows.filter(commitOf).length / sheetRows.length : 0;
     const commits = committedShare >= 0.5;
     const counts = {};
-    sheetRows.forEach(r => { const c = String(get(r, 'committedSchool') || '').trim(); if (c) counts[c] = (counts[c] || 0) + 1; });
+    sheetRows.forEach(r => { const c = commitOf(r); if (c) counts[c] = (counts[c] || 0) + 1; });
     const out = [];
     const sheetAt = {};
     ordered.forEach(r => { sheetAt[r.__slot] = num(get(r, 'rating')); });
     let j = 0, above = null;
     for (let slot = 1; slot <= SLOTS && j < POOL; slot++) {
       if (taken.has(slot)) { if (sheetAt[slot] != null) above = sheetAt[slot]; continue; }
-      const id = identity(`${year}|${j}`, year, allNames);
+      // About one in forty is from overseas, playing his high-school ball
+      // in the States: ranked with everyone else.
+      const intl = rngFor(`intl|${year}|${j}`)() < 0.02;
+      const id = identity(`${year}|${j}`, year, allNames, intl);
       const rng = id.rng;
+      id.hs = schoolFor(rng, slot, id.hs);
+      // An international here plays his high-school ball in the States: he
+      // is from abroad (hometown, country) but listed where his school is.
+      if (id.country) id.state = pick(['FL', 'TX', 'CA', 'GA', 'NC', 'VA', 'MD', 'AZ', 'UT', 'NV', 'KS', 'MO', 'NH', 'CT', 'PA', 'IN', 'NJ'], rng);
       // Never rated above a sheet player ranked ahead of him.
       let rating = Math.round(clamp(T(slot) + id.jitter, 60, 99));
       if (above != null) rating = Math.min(rating, Math.round(above));
@@ -298,6 +404,7 @@
       put('rank', String(slot)); put('classYear', String(year)); put('name', id.name); put('dob', id.dob);
       put('hs', id.hs); put('pos', id.pos); put('height', id.height); put('weight', id.weight); put('wingspan', id.wingspan);
       put('hometown', id.hometown); put('state', id.state); put('stars', String(starsFor(rating))); put('rating', String(rating));
+      if (id.country) put('country', id.country);
       put('committedSchool', school); put('status', school ? `Committed to ${school}` : 'Uncommitted');
       put('commitLogo', ''); put('avatar', '');
       put('offers', offerList.join(', '));
@@ -306,7 +413,8 @@
       put('accolades', '');
       put('scouting', text.scouting); put('strengths', text.strengths); put('weaknesses', text.weaknesses);
       const levels = [['hs', id.hs], ['aau', rng() < 0.5 ? pick(AAU_TEAM, rng) : `${id.hometown.split(',')[0]} ${pick(AAU_A, rng)}`]];
-      if (rating >= 91 && rng() < 0.6) levels.push(['fiba', rng() < 0.5 ? 'USA U17' : 'USA U18']);
+      if (id.country) levels.push(['fiba', `${id.country} ${rng() < 0.5 ? 'U17' : 'U18'}`]);
+      else if (rating >= 91 && rng() < 0.6) levels.push(['fiba', rng() < 0.5 ? 'USA U17' : 'USA U18']);
       levels.forEach(([lvl, team]) => {
         const line = statLine(rng, id.pos, rating, lvl);
         put(`${lvl}_team`, team);
@@ -319,6 +427,56 @@
       out.push(row);
       j++;
     }
+    return out.concat(overseas(year, K, allNames, T, commits, counts));
+  }
+
+  // Overseas prospects on the radar: playing for a club or academy abroad,
+  // unranked in the national list. Some commit to a college; the rest stay
+  // pro, and are in the draft pool when they're old enough.
+  function overseas(year, K, allNames, T, commits, counts) {
+    const set = (r, k, v) => { r[K(k)] = v; };
+    const cr = rngFor(`overseas|${year}`);
+    const n = 8 + Math.floor(cr() * 6);
+    const out = [];
+    for (let k = 0; k < n; k++) {
+      const id = identity(`${year}|intl|${k}`, year, allNames, true);
+      const rng = id.rng;
+      const eq = 1 + Math.floor(250 * Math.pow(rng(), 0.7));        // the rank his talent would earn
+      const rating = Math.round(clamp(T(eq) + id.jitter, 72, 99));
+      const club = clubFor(id.country, rng);
+      const text = profileText(rng, id.pos);
+      let school = '', offers = [];
+      if (rng() < 0.45) {
+        const wts = schoolWeights(rating, counts, 10);
+        const n2 = Math.round(clamp(2 + (rating - 76) * 0.25 + rng() * 3, 2, 9));
+        const o = new Set();
+        while (o.size < n2) { const s = drawSchool(rng, wts, o); if (!s) break; o.add(s); }
+        offers = [...o];
+        if (commits && offers.length && rng() < 0.75) { school = offers[0]; counts[school] = (counts[school] || 0) + 1; }
+      }
+      const row = {};
+      const put = (kk, v) => set(row, kk, v);
+      put('rank', ''); put('classYear', String(year)); put('name', id.name); put('dob', id.dob);
+      put('hs', YOUTH[id.country] || club); put('pos', id.pos); put('height', id.height); put('weight', id.weight); put('wingspan', id.wingspan);
+      put('hometown', id.hometown); put('state', 'INT'); put('country', id.country);
+      put('stars', String(starsFor(rating))); put('rating', String(rating));
+      put('committedSchool', school); put('status', school ? `Committed to ${school}` : commits ? `Playing pro: ${club}` : 'Uncommitted');
+      put('proClub', school ? '' : club);
+      put('commitLogo', ''); put('avatar', ''); put('offers', offers.join(', '));
+      put('finalListTitle', offers.length ? `Top ${Math.min(3, offers.length)}` : ''); put('finalList', offers.slice(0, 3).join(', '));
+      put('accolades', '');
+      put('scouting', text.scouting); put('strengths', text.strengths); put('weaknesses', text.weaknesses);
+      [['intl', club], ['fiba', `${id.country} ${rng() < 0.5 ? 'U17' : 'U18'}`]].forEach(([lvl, team]) => {
+        const line = statLine(rng, id.pos, rating - 3, lvl === 'intl' ? 'fiba' : 'fiba');
+        put(`${lvl}_team`, team);
+        Object.entries(line).forEach(([kk, v]) => put(`${lvl}_${kk}`, String(v)));
+      });
+      put('generated', 'TRUE');
+      row.__tab = String(year);
+      row.__generated = true;
+      row.__overseas = true;
+      out.push(row);
+    }
     return out;
   }
 
@@ -328,7 +486,15 @@
   function fillBlanks(r, year, K) {
     const get = k => r[K(k)];
     const set = (k, v) => { if (!String(get(k) || '').trim()) r[K(k)] = v; };
-    if (String(get('pos') || '').trim() && String(get('rating') || '').trim()) return;
+    const blank = k => !String(get(k) || '').trim() || /^n\/a$/i.test(String(get(k)).trim());
+    // A player with his basics filled in only gets any missing measurements.
+    if (!blank('pos') && !blank('rating')) {
+      if (!['height', 'weight', 'wingspan'].some(blank)) return;
+      const id = identity(`fill|${year}|${String(get('name')).toLowerCase()}`, year, new Set());
+      const put = (k, v) => { if (blank(k)) r[K(k)] = v; };
+      put('height', id.height); put('weight', id.weight); put('wingspan', id.wingspan);
+      return;
+    }
     const id = identity(`fill|${year}|${String(get('name')).toLowerCase()}`, year, new Set());
     const rating = Math.round(clamp(curve(r.__slot || 100), 60, 99));
     set('pos', id.pos); set('height', id.height); set('weight', id.weight); set('wingspan', id.wingspan);
@@ -344,12 +510,18 @@
     const lower = opts.keys === 'lower';
     const K = k => (lower ? k.toLowerCase().replace(/[^a-z0-9]/g, '') : k);
     const allNames = new Set(rows.map(r => String(r[K('name')] || '').trim().toLowerCase()).filter(Boolean));
-    const byClass = {};
+    const byClass = {}, abroad = [];
     rows.forEach(r => {
       if (!/^\d{4}$/.test(String(r.__tab || ''))) return;
+      // Overseas players (listed as INT, or not ranked by the sheet) are
+      // their own pool; an international ranked in the class is ranked here.
       const st = String(r[K('state')] || '').trim().toUpperCase();
-      if (st && !US.has(st)) return;                    // international: their own pool
-      (byClass[r.__tab] = byClass[r.__tab] || []).push(r);
+      const ranked = /^\d+$/.test(String(r[K('rank')] || '').trim());
+      if (st && !US.has(st) && (st === 'INT' || st === 'INTL' || !ranked)) { abroad.push(r); return; }
+      // The class column decides the class; the tab is the fallback.
+      const cy = String(r[K('classYear')] || '').trim();
+      const y = /^\d{4}$/.test(cy) ? cy : r.__tab;
+      (byClass[y] = byClass[y] || []).push(r);
     });
     const years = [...new Set([...(opts.classes || []), ...Object.keys(byClass)].filter(y => /^\d{4}$/.test(String(y))))].sort();
     let out = rows.slice();
@@ -359,10 +531,18 @@
       sheet.forEach(r => fillBlanks(r, Number(y), K));
       out = out.concat(gen);
     });
+    // The sheet's overseas players: stars from their rating, and any
+    // missing measurements filled in.
+    abroad.forEach(r => {
+      const y = Number(String(r[K('classYear')] || r.__tab).trim()) || Number(r.__tab);
+      fillBlanks(r, y, K);
+      const rt = parseFloat(r[K('rating')]);
+      if (!isNaN(rt)) r[K('stars')] = starsFor(rt) ? String(starsFor(rt)) : '';
+    });
     return out;
   }
 
-  const api = { SLOTS, POOL, curve, starsFor, statLine, buildClass, augment, hash, rngFor };
+  const api = { SLOTS, POOL, quotaFor, curve, curveFor, classTop, starsFor, projectionFor, statLine, buildClass, augment, hash, rngFor, ACADEMIES };
   root.RecruitGen = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

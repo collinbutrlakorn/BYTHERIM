@@ -1348,14 +1348,14 @@ a.query-btn { text-decoration: none; display: inline-flex; align-items: center; 
 
 /* ---------- Profile: commit chip, school colour, prev / next ---------- */
 .profile-name-row { flex-wrap: wrap; }
-.profile-commit-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 6px; border-radius: 999px; border: 1px solid var(--school-color, var(--border-color)); background: color-mix(in srgb, var(--school-color, transparent) 18%, transparent); color: var(--text-main); font: 600 0.9rem inherit; cursor: pointer; }
+.profile-commit-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 6px; border-radius: 999px; border: 1px solid var(--school-color, var(--border-color)); background: color-mix(in srgb, var(--school-color, transparent) 18%, transparent); color: var(--text-main); font-family: 'Inter', system-ui, sans-serif; letter-spacing: 0; text-transform: none; font-weight: 600; font-size: 0.9rem; line-height: 1.2; cursor: pointer; }
 .profile-commit-chip img { width: 26px; height: 26px; object-fit: contain; }
-.profile-commit-chip.open { padding: 4px 12px; cursor: default; color: var(--text-muted); font-weight: 500; }
+.profile-commit-chip.open { padding: 4px 12px; cursor: default; color: var(--text-muted); font-weight: 500; font-size: 0.9rem; }
 .profile-header { border-top: 4px solid var(--school-color, transparent); background-image: linear-gradient(120deg, color-mix(in srgb, var(--school-color, transparent) 16%, transparent), transparent 55%); }
 .profile-nav { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin-bottom: 1rem; }
 .profile-nav-pos { font-size: 0.8rem; color: var(--text-muted); text-align: center; }
 .profile-nav-right { display: flex; gap: 0.5rem; }
-.profile-nav-btn { background: transparent; border: 1px solid var(--border-color); color: var(--text-main); border-radius: 999px; padding: 5px 12px; font: 600 0.8rem inherit; cursor: pointer; }
+.profile-nav-btn { background: transparent; border: 1px solid var(--border-color); color: var(--text-main); border-radius: 999px; padding: 5px 12px; font-family: inherit; font-weight: 600; font-size: 0.8rem; cursor: pointer; }
 .profile-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
 @media (max-width: 600px) {
   .profile-nav-pos { display: none; }
@@ -1363,3 +1363,6 @@ a.query-btn { text-decoration: none; display: inline-flex; align-items: center; 
 }
 
 .stat-warn { font-size: 0.75rem; color: #e0a24a; margin: -0.2rem 0 0.5rem; }
+
+.bio-badge-sub { display: block; font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; line-height: 1.2; }
+.commit-flip-note { font-size: 0.75rem; color: var(--text-muted); margin-top: 6px; }

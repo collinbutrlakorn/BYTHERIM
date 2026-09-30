@@ -708,7 +708,7 @@ function buildFullUniverse(masterTeamList, existingTeams, opts = {}) {
 
 const RosterGen = {
   FIRST_NAMES, LAST_NAMES, INTERNATIONAL, generateIdentity, HOMETOWNS, CONFERENCE_TIERS, TIER_RANGES,
-  getConferenceTier, normalizeSchoolKey, buildSchoolAliasIndex, generateHighSchool, pickHometown, americanIdentity,
+  getConferenceTier, normalizeSchoolKey, buildSchoolAliasIndex, generateHighSchool, pickHometown, americanIdentity, internationalIdentity,
   POSITION_BUILD, generateBuild, pickJersey, POPULAR_JERSEYS, RARE_JERSEYS, generatePlayerName, generateFillerPlayer, nextNeededPosition, buildFullUniverse
 };
 

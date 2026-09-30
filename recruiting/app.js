@@ -83,6 +83,14 @@ let rankIndex = {};
 // the generated classes use, so every page agrees who is international.
 const US_STATE_CODES = new Set(('AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM ' +
   'NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY').split(' '));
+// Overseas: an international playing abroad (listed as INT, or not in the
+// class ranking). Internationals at American high schools are ranked with
+// everyone else; overseas prospects have their own list.
+function isOverseas(p) {
+  if (!isInternational(p)) return false;
+  const st = String(p.state || '').trim().toUpperCase();
+  return st === 'INT' || st === 'INTL' || typeof p.rank !== 'number';
+}
 function isInternational(p) {
   const st = String(p && p.state || '').trim().toUpperCase();
   return !!st && st !== 'ALL' && !US_STATE_CODES.has(st);
@@ -102,8 +110,10 @@ function buildRankIndex() {
   recruits.forEach(r => { (byClass[r.classYear] = byClass[r.classYear] || []).push(r); });
 
   Object.values(byClass).forEach(list => {
-    const domestic = list.filter(r => !isInternational(r)).sort(sheetOrder);
-    const intl = list.filter(isInternational).sort(sheetOrder);
+    // Only ranked players get a national rank; overseas prospects are
+    // ranked among themselves.
+    const domestic = list.filter(r => !isOverseas(r) && typeof r.rank === 'number').sort(sheetOrder);
+    const intl = list.filter(isOverseas).sort((a, b) => (b.rating || 0) - (a.rating || 0));
 
     const posCount = {}, stateCount = {};
     domestic.forEach((r, i) => {
@@ -127,8 +137,10 @@ function buildRankIndex() {
   });
 }
 
+const NO_COMMIT = /^(uncommitted|uncommited|undecided|open|tbd|n\/a|none|-)$/i;
 function commitSchoolOf(p) {
-  if (p.committedSchool && String(p.committedSchool).trim()) return String(p.committedSchool).trim();
+  const c = String(p.committedSchool || '').trim();
+  if (c) return NO_COMMIT.test(c) ? null : c;
   const st = String(p.status || '');
   const m = st.match(/(?:committed|signed)\s+(?:to|with)\s+(.+)/i);
   return m ? m[1].trim() : null;
@@ -333,7 +345,10 @@ window.onload = () => {
           hs: String(row.hs || "N/A"),
           state: String(row.state || "ALL"),
           hometown: String(row.hometown || "N/A"),
-          stars: (row.stars !== undefined && row.stars !== "" && !isNaN(parseInt(row.stars))) ? parseInt(row.stars) : 3,
+          // Stars follow the rating (recruit-gen.js sets them): 90+ five,
+          // 80+ four, 70+ three; under 70, none.
+          stars: (() => { const rt = parseInt(row.rating); return isNaN(rt) ? ((row.stars !== undefined && row.stars !== "" && !isNaN(parseInt(row.stars))) ? parseInt(row.stars) : 0) : rt >= 90 ? 5 : rt >= 80 ? 4 : rt >= 70 ? 3 : 0; })(),
+          proClub: String(row.proClub || ''),
           rating: (row.rating !== undefined && row.rating !== "" && !isNaN(parseInt(row.rating))) ? parseInt(row.rating) : 70,
           status: String(row.status || "Uncommitted"),
           committedSchool: row.committedSchool ? String(row.committedSchool) : null,
@@ -362,6 +377,8 @@ window.onload = () => {
         renderQueryRulesUI();
         renderStatsDashboard();
         clearLoadState();
+        // The published universe may have arrived first.
+        if (typeof applyRecruitFlips === 'function' && typeof Portal !== 'undefined' && Portal.flipsPending) applyRecruitFlips();
         if (location.hash && location.hash !== '#/') applyRoute();
       } catch (error) {
         console.error("Website UI Rendering Error:", error);
@@ -462,7 +479,7 @@ window.addEventListener('popstate', () => { if (recruits.length) applyRoute(); }
 // less, so a deep class of good players can beat a thin class with one
 // star, but only just. Players turning pro aren't a school.
 // ============================================================
-const NOT_A_SCHOOL = /^(pro|professional|overseas|g league|nba g league|overtime elite|ote|undecided|n\/a|none)$/i;
+const NOT_A_SCHOOL = /^(pro|professional|overseas|g league|nba g league|overtime elite|ote|undecided|uncommitted|uncommited|tbd|n\/a|none|-)$/i;
 
 function classScore(list) {
   const sorted = [...list].sort((a, b) => b.rating - a.rating);
@@ -475,7 +492,7 @@ function classScore(list) {
 // The next and previous player in the same class ranking.
 function classNeighbours(p) {
   const ri = rankIndex[p.id] || {};
-  const pool = recruits.filter(r => r.classYear === p.classYear && isInternational(r) === isInternational(p))
+  const pool = recruits.filter(r => r.classYear === p.classYear && isOverseas(r) === isOverseas(p) && (isOverseas(p) || rankIndex[r.id] && rankIndex[r.id].national))
     .sort((a, b) => { const x = rankIndex[a.id] || {}, y = rankIndex[b.id] || {}; return (x.national || x.intlRank || 9e4) - (y.national || y.intlRank || 9e4); });
   const i = pool.findIndex(r => r.id === p.id);
   return { prev: i > 0 ? pool[i - 1] : null, next: i >= 0 && i < pool.length - 1 ? pool[i + 1] : null, at: i + 1, of: pool.length, intl: !!ri.intl };
@@ -812,7 +829,7 @@ function filterRecruits() {
   const includeIntl = overall || state === 'INT' || query !== '';
 
   let filtered = recruits.filter(r => {
-    if (!includeIntl && isInternational(r)) return false;
+    if (!includeIntl && isOverseas(r)) return false;
     const matchesSearch = !query || String(r.name || "").toLowerCase().includes(query) || String(r.hs || "").toLowerCase().includes(query);
     const matchesClass = overall ? true : (r.classYear === classYr);
     const matchesState = state === 'ALL' || (state === 'INT' ? isInternational(r) : r.state === state);
@@ -838,12 +855,12 @@ function renderClassSummary(classYr) {
   const el = document.getElementById('classSummary');
   if (!el) return;
   if (!classYr) { el.innerHTML = ''; el.hidden = true; return; }
-  const list = recruits.filter(r => r.classYear === classYr && !isInternational(r));
+  const list = recruits.filter(r => r.classYear === classYr && !isOverseas(r) && typeof r.rank === 'number');
   if (!list.length) { el.innerHTML = ''; el.hidden = true; return; }
   const five = list.filter(r => r.stars === 5).length, four = list.filter(r => r.stars === 4).length;
   const committed = list.filter(r => commitSchoolOf(r)).length;
   const top = getSchoolRankingsData(classYr)[0];
-  const intl = recruits.filter(r => r.classYear === classYr && isInternational(r)).length;
+  const intl = recruits.filter(r => r.classYear === classYr && isOverseas(r)).length;
   el.hidden = false;
   el.innerHTML = `
     <div class="cs-item"><b>${list.length}</b><span>ranked${intl ? ` <em>+ ${intl} international</em>` : ''}</span></div>
@@ -1186,6 +1203,11 @@ function renderProfile(p) {
     <div class="commit-standout-box">
       <div class="commit-label">Committed To</div>
       <div class="commit-main-info"><img src="${p.commitLogo || getSchoolLogoPath(committedTo)}" class="commit-standout-logo" onerror="schoolLogoFallback(this, '${escAttr(committedTo)}')"><span class="commit-school-name">${committedTo}</span></div>
+      ${p.flippedFrom ? `<div class="commit-flip-note">Flipped from ${p.flippedFrom}</div>` : ''}
+    </div>` : p.proClub ? `
+    <div class="uncommitted-box">
+      <div class="commit-label" style="margin-bottom: 4px;">Playing Pro</div>
+      <div class="commit-main-info"><span class="commit-school-name">${p.proClub}</span></div>
     </div>` : `
     <div class="uncommitted-box">
       <div class="commit-label" style="margin-bottom: 4px;">Status</div>
@@ -1220,7 +1242,7 @@ function renderProfile(p) {
   const commitName = commitSchoolOf(p);
   const commitChip = commitName && !NOT_A_SCHOOL.test(commitName) ? `<button class="profile-commit-chip" onclick="openSchoolModal('${escAttr(commitName)}', '${p.classYear}')" title="${escAttr(commitName)}'s ${p.classYear} class">
       <img src="${getSchoolLogoPath(commitName)}" alt="" onload="tintProfileFromLogo(this)" onerror="schoolLogoFallback(this, '${escAttr(commitName)}')"><span>${commitName}</span></button>`
-    : `<span class="profile-commit-chip open">${commitName && NOT_A_SCHOOL.test(commitName) ? 'Turning pro' : 'Uncommitted'}</span>`;
+    : `<span class="profile-commit-chip open">${p.proClub ? `Pro · ${p.proClub}` : commitName && NOT_A_SCHOOL.test(commitName) ? 'Turning pro' : 'Uncommitted'}</span>`;
   const nb = classNeighbours(p);
   const navBtn = (r, dir) => r ? `<button class="profile-nav-btn" onclick="openRecruitProfile(recruits.find(x => x.id === '${r.id}'))" title="${escAttr(r.name)}">${dir < 0 ? '&larr;' : ''} <span>${dir < 0 ? 'Prev' : 'Next'}</span> ${dir > 0 ? '&rarr;' : ''}</button>` : '<span></span>';
   const profileNav = `<div class="profile-nav">
@@ -1259,6 +1281,7 @@ function renderProfile(p) {
             <div class="bio-badge">
               <span class="bio-badge-label">Rating</span>
               <span class="bio-badge-val">${p.rating} OVR</span>
+              ${window.RecruitGen && RecruitGen.projectionFor(p.rating) ? `<span class="bio-badge-sub">${RecruitGen.projectionFor(p.rating)}</span>` : ''}
             </div>
             <div class="bio-badge highlight clickable" onclick="filterAndGoToRankings('${p.classYear}', 'ALL', 'ALL')" title="View National Rankings for ${p.classYear}">
               <span class="bio-badge-label">Natl Rank</span>
@@ -1287,10 +1310,10 @@ function renderProfile(p) {
       </div>
       <div class="recruiting-box">
         ${statusHTML}
-        <div class="recruiting-section-title">${p.finalList ? p.finalList.title : 'Interests'}</div>
-        <div class="final-list-grid">${finalListHTML}</div>
-        <div class="recruiting-section-title">All Offers</div>
-        <div class="offers-flex">${offersHTML}</div>
+        ${finalListHTML ? `<div class="recruiting-section-title">${p.finalList ? p.finalList.title : 'Interests'}</div>
+        <div class="final-list-grid">${finalListHTML}</div>` : ''}
+        ${offersHTML ? `<div class="recruiting-section-title">All Offers</div>
+        <div class="offers-flex">${offersHTML}</div>` : `<div class="recruiting-section-title">Offers</div><div class="sub-text-sm" style="color: var(--text-muted);">None reported yet.</div>`}
       </div>
       <div class="recruiting-box">
         <div style="font-weight: 700; margin-bottom: 1rem; color: var(--text-main); text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px;">Accolades & Events</div>

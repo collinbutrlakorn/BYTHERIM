@@ -180,9 +180,28 @@ function loadPortalData() {
   }
 
   (window.Cloud ? Cloud.universe(UNIVERSE_URL) : fetch(UNIVERSE_URL, { cache: 'no-cache' }).then(r => (r.ok ? r.json() : null)))
-    .then(u => { Portal.universe = u && u.version ? u : null; })
+    .then(u => { Portal.universe = u && u.version ? u : null; applyRecruitFlips(); })
     .catch(() => { Portal.universe = null; })
     .finally(() => { Portal.ready.universe = true; done(); });
+}
+
+// Commitments the NCAA RP moved (a program out of scholarships): the
+// recruit is shown where he actually signed.
+function applyRecruitFlips() {
+  const flips = (Portal.universe && Portal.universe.recruitFlips) || [];
+  if (!flips.length || typeof recruits === 'undefined' || !recruits.length) { Portal.flipsPending = flips.length > 0; return; }
+  let moved = 0;
+  flips.forEach(f => {
+    const r = recruits.find(x => portalKey(x.name) === portalKey(f.name) && String(x.classYear) === String(f.classYear));
+    if (!r || r.committedSchool === f.to) return;
+    r.flippedFrom = f.from;
+    r.committedSchool = f.to;
+    r.status = `Committed to ${f.to}`;
+    r.commitLogo = '';
+    moved++;
+  });
+  Portal.flipsPending = false;
+  if (moved && typeof filterRecruits === 'function') { filterRecruits(); if (typeof renderSchoolRankings === 'function') renderSchoolRankings(); }
 }
 
 // ---------- Transfer Portal tab ----------

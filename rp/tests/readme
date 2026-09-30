@@ -141,6 +141,12 @@ final lists and stats, commitments only in classes the sheet has committed
 (top prospects to bigger programs), the same players on every page, and a
 new sheet player never renaming a generated one.
 
+**recruit-quota.js** — generated recruits in the NCAA RP (overseas ones
+included), and next year's commitments measured against each program's room:
+an over-committed program keeps its best commits, the rest flip to programs
+of similar standing, sheet commitments never move, and flips are published
+for the recruiting page.
+
 **autosave.js** — the loading screen on a new save, and account autosave:
 right after a milestone, throttled otherwise, never mid-sim, and never over
 a newer save from another device.
