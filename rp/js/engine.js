@@ -3183,7 +3183,7 @@ window.SimEngine = {
     this.state.seasonInitialized = true;
     this.state.leagueShootingTotals = { pts: 0, fga: 0, fta: 0 };
     this.state.activePlayers.forEach(p => {
-      p.injuredUntilWeek = null; p.gamesMissed = 0;
+      p.injuredUntilWeek = null; p.gamesMissed = 0; p.startedEarly = false; p.lostSpot = false;
       // Clear the in-season form marker only. Do NOT restore rating from
       // it: reevaluateRotations already unwinds form at the end of every
       // pass, so by this point p.rating is the true, newly-developed
@@ -3374,6 +3374,21 @@ window.SimEngine = {
     }
   },
 
+  // How strongly a player claims a starting spot: his rating (with form,
+  // see reevaluateRotations) plus, for a top recruit in his first season,
+  // the leash coaches give a five-star early on. It fades over his first
+  // dozen games; if he isn't producing, form takes his spot from there.
+  startScore(p) {
+    let v = parseFloat(p.rating) || 70;
+    if (p.class === 'FR') {
+      const rsci = parseFloat(p.rsci) || null;
+      const leash = rsci && rsci <= 5 ? 3.5 : rsci && rsci <= 25 ? 2.5 : rsci && rsci <= 60 ? 1.2 : 0;
+      const gp = (p.stats && p.stats.gp) || 0;
+      v += leash * Math.max(0, 1 - gp / 12);
+    }
+    return v;
+  },
+
   buildRotation(team) {
     const roster = [...(team.roster || [])].sort((a, b) => parseFloat(b.rating) - parseFloat(a.rating));
     const assigned = new Set();
@@ -3390,40 +3405,52 @@ window.SimEngine = {
     const startsByRole = (p) => ['focalpoint', 'focal', 'star', 'starter'].includes((p.role || '').replace(/[^a-z]/g, ''));
     const designated = roster.filter(startsByRole);
 
-    ['C', 'PG', 'PF', 'SG', 'SF'].forEach(slot => {
-      const eligible = this.SLOT_ELIGIBILITY[slot];
-      const pick = roster.find(p => !assigned.has(p.id) && startsByRole(p) && eligible.includes((p.pos || '').toUpperCase()))
-        || roster.find(p => !assigned.has(p.id) && eligible.includes((p.pos || '').toUpperCase()));
-      if (pick) {
-        assigned.add(pick.id);
-        pick.lineupSlot = slot;
-        starters.push(pick);
+    // The best five play, the way coaches actually start their most
+    // talented players: two point guards can start together, so can two
+    // power forwards. The only shape a lineup has to keep is two or three
+    // guards and at least one big (a fourth guard or a fourth big costs
+    // it). A top recruit gets a leash early in the season (see startScore),
+    // and form decides it from there.
+    const groupOf = p => {
+      const pos = (p.pos || '').toUpperCase();
+      if (['PG', 'CG', 'SG', 'G'].includes(pos)) return 'G';
+      if (['PF', 'C', 'F/C'].includes(pos)) return 'B';
+      return 'W';
+    };
+    const score = p => this.startScore(p);
+    const pool = roster.filter(p => !startsByRole(p)).sort((a, b) => score(b) - score(a)).slice(0, 10);
+    const forced = designated.slice(0, 5);
+    const need = 5 - forced.length;
+    let best = null;
+    const shapeCost = five => {
+      const g = five.filter(p => groupOf(p) === 'G').length, bg = five.filter(p => groupOf(p) === 'B').length;
+      let c = 0;
+      if (g === 1) c += 4; else if (g === 0) c += 12;
+      if (g > 3) c += 5 * (g - 3);
+      if (bg === 0) c += 8;
+      if (bg > 3) c += 5 * (bg - 3);
+      return c;
+    };
+    const pick = (start, chosen) => {
+      if (chosen.length === need || start >= pool.length) {
+        if (chosen.length !== Math.min(need, pool.length)) return;
+        const five = forced.concat(chosen);
+        const v = five.reduce((n, p) => n + score(p), 0) - shapeCost(five);
+        if (!best || v > best.v) best = { v, five };
+        return;
       }
-    });
-
-    // Any slot that couldn't be filled by a natural fit goes to the best
-    // player left, playing out of position.
-    while (starters.length < 5 && starters.length < roster.length) {
-      const pick = roster.find(p => !assigned.has(p.id));
-      if (!pick) break;
-      assigned.add(pick.id);
-      pick.lineupSlot = pick.pos;
-      starters.push(pick);
-    }
-
-    // Any designated starter still unseated takes the place of the weakest
-    // UNMARKED player in the lineup, so the sheet's instruction holds even
-    // when two marked players share a position.
-    designated.filter(p => !assigned.has(p.id)).forEach(p => {
-      const weakestUnmarked = starters
-        .filter(x => !startsByRole(x))
-        .sort((x, y) => parseFloat(x.rating) - parseFloat(y.rating))[0];
-      if (!weakestUnmarked) return;
-      const idx = starters.indexOf(weakestUnmarked);
-      p.lineupSlot = weakestUnmarked.lineupSlot;
-      starters[idx] = p;
-      assigned.add(p.id);
-      assigned.delete(weakestUnmarked.id);
+      for (let i = start; i < pool.length; i++) { chosen.push(pool[i]); pick(i + 1, chosen); chosen.pop(); }
+    };
+    pick(0, []);
+    (best ? best.five : forced).forEach(p => { assigned.add(p.id); starters.push(p); });
+    // Spots on the floor, for the record: guards to PG/SG, bigs to C/PF,
+    // wings fill what's left.
+    const open = ['PG', 'SG', 'SF', 'PF', 'C'];
+    const take = (p, prefs) => { const s = prefs.find(x => open.includes(x)); if (s) { open.splice(open.indexOf(s), 1); p.lineupSlot = s; } };
+    starters.slice().sort((a, b) => ({ G: 0, B: 1, W: 2 }[groupOf(a)] - { G: 0, B: 1, W: 2 }[groupOf(b)])).forEach(p => {
+      const g = groupOf(p), pos = (p.pos || '').toUpperCase();
+      take(p, g === 'G' ? (pos === 'PG' || pos === 'CG' ? ['PG', 'SG', 'SF'] : ['SG', 'PG', 'SF']) : g === 'B' ? (pos === 'C' ? ['C', 'PF', 'SF'] : ['PF', 'C', 'SF']) : ['SF', 'SG', 'PF']);
+      if (!p.lineupSlot || !['PG', 'SG', 'SF', 'PF', 'C'].includes(p.lineupSlot)) p.lineupSlot = pos;
     });
 
     const bench = roster.filter(p => !assigned.has(p.id));
@@ -4114,6 +4141,9 @@ window.SimEngine = {
         const cast = (p.role || '').replace(/[^a-z]/g, '');
         const swing = cast ? 3 : 9;
         p.formAdjust = Math.max(-swing, Math.min(swing, bpm * 1.25)) * evidence;
+        // A top recruit's leash: an early slump barely counts; past a dozen
+        // games it counts in full.
+        if (p.class === 'FR' && (parseFloat(p.rsci) || 999) <= 60 && p.formAdjust < 0) p.formAdjust *= Math.min(1, gp / 12);
         p.baseRating = p.baseRating !== undefined ? p.baseRating : parseFloat(p.rating);
         p.rating = p.baseRating + p.formAdjust;
       });
@@ -4122,6 +4152,14 @@ window.SimEngine = {
       // also drive usage creates a feedback loop: a hot player earns more
       // usage, scores more, and is boosted again on the next review.
       this.buildRotation(team);
+      // A freshman who started early and has since lost the job.
+      const starting = new Set(team.starters || []);
+      (team.roster || []).forEach(p => {
+        const gp = (p.stats && p.stats.gp) || 0;
+        if (p.class !== 'FR') return;
+        if (starting.has(p.id) && gp <= 6) p.startedEarly = true;
+        p.lostSpot = !!p.startedEarly && gp >= 12 && !starting.has(p.id);
+      });
       (team.roster || []).forEach(p => {
         if (p.baseRating !== undefined) p.rating = p.baseRating;
       });
@@ -5159,6 +5197,13 @@ window.SimEngine = {
           reason = mpg < 18 ? 'Looking for playing time' : 'Underperformed expectations';
         }
 
+        // A blue-chip freshman who started early, struggled and lost the
+        // job: plenty of them are gone after the season.
+        if (p.lostSpot && (parseFloat(p.rsci) || 999) <= 60) {
+          chance = Math.max(chance, 0.45);
+          reason = 'Lost his starting spot';
+        }
+
         // Buried on the bench anywhere — the single biggest driver of real
         // portal volume, which now runs to well over a thousand players.
         if (mpg < 10) {
@@ -5533,7 +5578,8 @@ window.SimEngine = {
       p.school_logo = '../schoollogos/pro.png';
       p.collegeHistory = [p.club];
       p.proYears = draftYear - (c + 1);
-      p.rating = Math.round(HSCore.proTalent(r));
+      p.breakout = HSCore.proBreakout ? HSCore.proBreakout(r, this.state.year) : 0;
+      p.rating = Math.round(HSCore.proTalent(r) + p.breakout);
       p.rsci = HSCore.proPedigreeRank(r) || p.rsci || null;
       p.class = 'Pro';
       // How the draft board ages him: a first-year pro is as young as a

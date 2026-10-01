@@ -67,6 +67,28 @@ function competitionFactor(conference) {
   return 0.62;
 }
 
+// International pros: teams draft what they might become. Their stat
+// lines against men are modest, so a pedigree that fades with evidence
+// (as it should for a college player) undersold them. Instead they keep a
+// share of it, the younger the more, plus how scouts happen to see him
+// this year (the same for a player all year, leaning toward the upside).
+// A weak class leans on them harder still (see buildBigBoard).
+function scoutHash(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return (h >>> 0) / 4294967296;
+}
+function internationalUpside(player, pedigree, opts) {
+  if (!player.isPro) return 0;
+  const yrs = num(player.proYears, 1);
+  const young = yrs <= 0 ? 4 : yrs === 1 ? 2 : 0;
+  const swing = (scoutHash(`${player.id || player.name}|${opts.draftYear || ''}`) - 0.35) * 7;
+  // His recruiting rating is what scouts project (an 85 is a first-round
+  // flier, a 93 a top-five talent); a breakout season adds to it.
+  const rec = num(player.recRating, 0) || (70 + (num(player.rating, 70) - 70) / 1.15);
+  return 2 + Math.max(0, rec - 80) * 1.4 + num(player.breakout) * 0.5 + young + swing;
+}
+
 function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
   const st = player.stats || {};
   const gp = st.gp || 0;
@@ -151,8 +173,9 @@ function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
   // Reset every season.
   const bigGames = num(player.bigGameStock);
   const upside = POTENTIAL_UPSIDE[player.potentialGrade] || 0;
+  const intl = internationalUpside(player, pedigree, opts);
 
-  return { score: score + stock + bigGames + upside, upside, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree, level, stock, bigGames };
+  return { score: score + stock + bigGames + upside + intl, upside, intl, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree, level, stock, bigGames };
 }
 
 // Ranks a list of players. `winPctFor` maps a school name to that team's
@@ -185,11 +208,26 @@ function buildBigBoard(players, winPctFor, limit = 60, opts = {}) {
       const st = x.player.stats || {};
       const totalMin = num(st.mpg) * (st.gp || 0);
       const hasRole = totalMin >= 250 || num(st.mpg) >= 14;
-      return hasRole || num(x.player.rating, 0) >= 82;
+      // A teenage pro barely plays against men; scouts watch him anyway.
+      return hasRole || num(x.player.rating, 0) >= 82 || (x.player.isPro && num(x.player.recRating, 0) >= 82);
+    })
+    .sort((a, b) => b.score - a.score)
+    .map((x, i, all) => {
+      // In a thin class, teams swing for the international upside.
+      if (i === 0) {
+        const top = all.filter(e => !e.player.isPro).slice(0, 8);
+        const strength = top.reduce((n, e) => n + e.score, 0) / Math.max(1, top.length);
+        all.weakBonus = Math.max(0, Math.min(12, (WEAK_DRAFT_REF - strength) * 0.8));
+      }
+      if (x.player.isPro && all.weakBonus) { x.score += all.weakBonus; x.intl += all.weakBonus; }
+      return x;
     })
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
+// What the domestic top eight of a typical class scores (measured on the
+// live universe): below it, the class is thin.
+const WEAK_DRAFT_REF = 136;
 
 // A short, human-readable read on what drives a prospect's stock. Derived
 // from the same components as the score so it can't contradict the number.
@@ -211,7 +249,7 @@ function scoutingTags(entry) {
   return tags.slice(0, 4);
 }
 
-const DraftCore = { birthYear, ageEligible, PRO_LEVEL, parseHeightInches, scoreProspect, competitionFactor, POWER_SIX, STRONG_MID, buildBigBoard, scoutingTags, CLASS_YOUTH, POS_SIZE_TARGET };
+const DraftCore = { internationalUpside, birthYear, ageEligible, PRO_LEVEL, parseHeightInches, scoreProspect, competitionFactor, POWER_SIX, STRONG_MID, buildBigBoard, scoutingTags, CLASS_YOUTH, POS_SIZE_TARGET };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = DraftCore;
 else if (typeof window !== 'undefined') window.DraftCore = DraftCore;

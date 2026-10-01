@@ -346,9 +346,22 @@
     return Math.max(1, Math.round(Math.pow(Math.max(0, 99 - rec), 1.7) + 1));
   }
 
+  // Some international pros break out: a season (about one in eight) where
+  // he takes a real step, most of which he keeps. The rating-scale boost
+  // for a season, counting the breakouts before it.
+  function proBreakout(r, season) {
+    const from = Number(r.recClassYear) || season;
+    let boost = 0;
+    for (let y = from; y <= season; y++) {
+      const b = rngFor(`${keyOf(r)}|breakout|${y}`);
+      if (b() < 0.13) boost += (y === season ? 1 : 0.65) * (3.5 + b() * 4);
+    }
+    return Math.round(boost * 10) / 10;
+  }
+
   function proLine(r, season, years) {
     const rng = rngFor(`${keyOf(r)}|pro|${season}`);
-    const rt = proTalent(r);
+    const rt = proTalent(r) + proBreakout(r, season);
     const pos = String(r.pos || '').toUpperCase();
     const big = /C|PF|F\/C/.test(pos) && !/G/.test(pos), guard = /G/.test(pos) && !/F/.test(pos);
     const mpg = clamp(8 + (rt - 76) * 0.9 + years * 3 + gauss(rng) * 2.2, 5, 30);
@@ -391,6 +404,6 @@
   root.HSCore = {
     hash, rngFor, isInternational, committedTo, classProgress, rankOffset, rankClass, starQuota, starsByRank,
     commitAt, commitVisible, RECLASS_NAMED, parseDob, reclassFrom, reclassAt, currentClass,
-    EVENTS, TEAM_STYLE, EVENT_LOGO, selectRosters, splitEastWest, splitSnake, clubFor, turnsPro, proTalent, proPedigreeRank, proLine, proStats, US_STATES
+    EVENTS, TEAM_STYLE, EVENT_LOGO, selectRosters, splitEastWest, splitSnake, clubFor, turnsPro, proTalent, proBreakout, proPedigreeRank, proLine, proStats, US_STATES
   };
 })(typeof window !== 'undefined' ? window : globalThis);
