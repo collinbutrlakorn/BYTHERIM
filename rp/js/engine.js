@@ -1391,11 +1391,18 @@ window.SimEngine = {
     return 'connector';
   },
 
+  // A position cell: "PF" or "PF/C" (also "PF-C", "PF, C"). Returns
+  // [position, second position or ''].
+  splitPos(v) {
+    const parts = String(v == null ? '' : v).toUpperCase().split(/\s*[\/,]\s*|\s+-\s+|\s+OR\s+/).map(x => x.trim()).filter(Boolean);
+    return [parts[0] || '', parts[1] && parts[1] !== parts[0] ? parts[1] : ''];
+  },
+
   buildPlaystyleProfile(raw, getVal) {
     const prof = { score: 1, reb: 1, ast: 1, stl: 1, blk: 1, threePar: 1, threePct: 1, ftPct: 1, usage: 1 };
     let found = false;
 
-    const pos = getVal(['pos', 'position'], '');
+    const pos = this.splitPos(getVal(['pos', 'position'], ''))[0];
     const tier = this.readRecruitTier(raw);
 
     if (tier) {
@@ -1504,7 +1511,10 @@ window.SimEngine = {
       school: school,
       conference: getVal(['conf', 'conference', 'league'], 'NCAA'),
       school_logo: this.getTeamLogo(school),
-      pos: getVal(['pos', 'position'], 'G').toUpperCase(),
+      // "SF/PF": the first is his position (what everyone sees); the
+      // second is one he can also play, which only lineups use.
+      pos: this.splitPos(getVal(['pos', 'position'], 'G'))[0] || 'G',
+      pos2: this.splitPos(getVal(['pos', 'position'], ''))[1] || null,
       class: classStanding,
       ht: getVal(['height', 'ht'], "6'4"),
       wt: getVal(['weight', 'wt'], "190"),
@@ -3428,19 +3438,28 @@ window.SimEngine = {
     // guards and at least one big (a fourth guard or a fourth big costs
     // it). A top recruit gets a leash early in the season (see startScore),
     // and form decides it from there.
-    const groupOf = p => {
-      const pos = (p.pos || '').toUpperCase();
+    // A player listed at two positions ("PF/C") can line up at either:
+    // when the best five run short at one spot, his second position covers
+    // it (the lineup's shape is judged with him wherever it fits best).
+    const groupOfPos = pos => {
+      pos = String(pos || '').toUpperCase();
       if (['PG', 'CG', 'SG', 'G'].includes(pos)) return 'G';
-      if (['PF', 'C', 'F/C'].includes(pos)) return 'B';
+      if (['PF', 'C', 'F/C', 'F-C'].includes(pos)) return 'B';
       return 'W';
+    };
+    const groupOf = p => (p.playsAs ? groupOfPos(p.playsAs) : groupOfPos(p.pos));
+    const options = p => {
+      const a = [p.pos];
+      if (p.pos2 && groupOfPos(p.pos2) !== groupOfPos(p.pos)) a.push(p.pos2);
+      return a;
     };
     const score = p => this.startScore(p);
     const pool = roster.filter(p => !startsByRole(p)).sort((a, b) => score(b) - score(a)).slice(0, 10);
     const forced = designated.slice(0, 5);
     const need = 5 - forced.length;
     let best = null;
-    const shapeCost = five => {
-      const g = five.filter(p => groupOf(p) === 'G').length, bg = five.filter(p => groupOf(p) === 'B').length;
+    const costOf = groups => {
+      const g = groups.filter(x => x === 'G').length, bg = groups.filter(x => x === 'B').length;
       let c = 0;
       if (g === 1) c += 4; else if (g === 0) c += 12;
       if (g > 3) c += 5 * (g - 3);
@@ -3448,6 +3467,22 @@ window.SimEngine = {
       if (bg > 3) c += 5 * (bg - 3);
       return c;
     };
+    // The cheapest way the five can line up, each at one of his positions
+    // (his first one wins a tie).
+    const lineUp = five => {
+      let bestC = Infinity, at = null;
+      const walk = (i, chosen, alt) => {
+        if (i === five.length) {
+          const c = costOf(chosen.map(groupOfPos)) + alt * 0.01;
+          if (c < bestC) { bestC = c; at = chosen.slice(); }
+          return;
+        }
+        options(five[i]).forEach((pos, k) => { chosen.push(pos); walk(i + 1, chosen, alt + k); chosen.pop(); });
+      };
+      walk(0, [], 0);
+      return { cost: Math.floor(bestC), at };
+    };
+    const shapeCost = five => lineUp(five).cost;
     const pick = (start, chosen) => {
       if (chosen.length === need || start >= pool.length) {
         if (chosen.length !== Math.min(need, pool.length)) return;
@@ -3459,13 +3494,16 @@ window.SimEngine = {
       for (let i = start; i < pool.length; i++) { chosen.push(pool[i]); pick(i + 1, chosen); chosen.pop(); }
     };
     pick(0, []);
-    (best ? best.five : forced).forEach(p => { assigned.add(p.id); starters.push(p); });
+    roster.forEach(p => { delete p.playsAs; });
+    const five = best ? best.five : forced;
+    const lined = lineUp(five).at || [];
+    five.forEach((p, i) => { assigned.add(p.id); starters.push(p); if (lined[i] && lined[i] !== p.pos) p.playsAs = lined[i]; });
     // Spots on the floor, for the record: guards to PG/SG, bigs to C/PF,
     // wings fill what's left.
     const open = ['PG', 'SG', 'SF', 'PF', 'C'];
     const take = (p, prefs) => { const s = prefs.find(x => open.includes(x)); if (s) { open.splice(open.indexOf(s), 1); p.lineupSlot = s; } };
     starters.slice().sort((a, b) => ({ G: 0, B: 1, W: 2 }[groupOf(a)] - { G: 0, B: 1, W: 2 }[groupOf(b)])).forEach(p => {
-      const g = groupOf(p), pos = (p.pos || '').toUpperCase();
+      const g = groupOf(p), pos = (p.playsAs || p.pos || '').toUpperCase();
       take(p, g === 'G' ? (pos === 'PG' || pos === 'CG' ? ['PG', 'SG', 'SF'] : ['SG', 'PG', 'SF']) : g === 'B' ? (pos === 'C' ? ['C', 'PF', 'SF'] : ['PF', 'C', 'SF']) : ['SF', 'SG', 'PF']);
       if (!p.lineupSlot || !['PG', 'SG', 'SF', 'PF', 'C'].includes(p.lineupSlot)) p.lineupSlot = pos;
     });
@@ -5166,7 +5204,7 @@ window.SimEngine = {
     }
     const cls = this.normalizeClassStanding(getVal(['class', 'yr', 'classstanding'], ''));
     if (cls) p.class = cls;
-    if (filled(['pos', 'position'])) p.pos = String(getVal(['pos', 'position'])).toUpperCase();
+    if (filled(['pos', 'position'])) { const [a, b] = this.splitPos(getVal(['pos', 'position'])); if (a) p.pos = a; p.pos2 = b || null; }
     if (filled(['ht', 'height'])) p.ht = getVal(['ht', 'height']);
     if (filled(['wt', 'weight'])) p.wt = getVal(['wt', 'weight']);
     if (filled(['role', 'playerrole'])) p.role = String(getVal(['role', 'playerrole'])).trim().toLowerCase();

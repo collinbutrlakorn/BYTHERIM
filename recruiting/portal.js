@@ -59,7 +59,7 @@ function normaliseRosterRows(rows) {
     year: parseInt(sheetCell(r, 'year', 'season'), 10) || null,
     rating: sheetCell(r, 'ovr', 'rating'),
     cls: sheetCell(r, 'class'),
-    pos: sheetCell(r, 'pos', 'position'),
+    pos: sheetCell(r, 'pos', 'position').split(/\s*[\/,]\s*/)[0].toUpperCase(),   // "SF/PF": the first is what's shown
     ht: sheetCell(r, 'ht', 'height'),
     from: sheetCell(r, 'from'),
     prev: sheetCell(r, 'previous school', 'previousschool', 'prev school')
@@ -542,11 +542,12 @@ function openSummerBox(id) {
   const name = l => { const r = byId.get(l.id); return r ? `<a class="summer-player" onclick="closeSummerBox(); openRecruitProfile(recruits.find(q => q.id === '${escAttr(r.id)}'))">${esc(r.name)}</a>` : esc((sm.names || {})[l.id] || ''); };
   const pct = (m, a) => (a ? `${m}-${a}` : '0-0');
   const side = (team, pts, lines) => {
-    const ls = lines.map(summerLine);
+    // Starters first, marked; then the bench by minutes.
+    const ls = lines.map(summerLine).sort((a, b) => (b.started - a.started) || (b.min - a.min));
     const tot = k => ls.reduce((n, l) => n + l[k], 0);
     return `<h4 class="summer-subhead">${esc(team)} <b>${pts}</b></h4>
       <div class="table-container"><table class="summer-box"><thead><tr><th style="text-align:left">Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>FG</th><th>3P</th><th>FT</th></tr></thead><tbody>
-      ${ls.map(l => `<tr><td style="text-align:left">${name(l)}${l.started ? '' : ' <small>bench</small>'}</td><td>${l.min}</td><td><b>${l.pts}</b></td><td>${l.reb}</td><td>${l.ast}</td><td>${l.stl}</td><td>${l.blk}</td><td>${l.tov}</td><td>${pct(l.fgm, l.fga)}</td><td>${pct(l.threePm, l.threePa)}</td><td>${pct(l.ftm, l.fta)}</td></tr>`).join('')}
+      ${ls.map((l, i) => `<tr class="${l.started ? 'is-starter' : ''}${i > 0 && !l.started && ls[i - 1].started ? ' bench-start' : ''}"><td style="text-align:left">${l.started ? '<span class="starter-badge" title="Starter" aria-label="Starter">S</span>' : ''}${name(l)}</td><td>${l.min}</td><td><b>${l.pts}</b></td><td>${l.reb}</td><td>${l.ast}</td><td>${l.stl}</td><td>${l.blk}</td><td>${l.tov}</td><td>${pct(l.fgm, l.fga)}</td><td>${pct(l.threePm, l.threePa)}</td><td>${pct(l.ftm, l.fta)}</td></tr>`).join('')}
       <tr class="summer-total"><td style="text-align:left">Team</td><td></td><td><b>${tot('pts')}</b></td><td>${tot('reb')}</td><td>${tot('ast')}</td><td>${tot('stl')}</td><td>${tot('blk')}</td><td>${tot('tov')}</td><td>${pct(tot('fgm'), tot('fga'))}</td><td>${pct(tot('threePm'), tot('threePa'))}</td><td>${pct(tot('ftm'), tot('fta'))}</td></tr>
       </tbody></table></div>`;
   };

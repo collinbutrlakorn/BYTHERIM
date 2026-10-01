@@ -291,6 +291,7 @@ function bootRecruiting(universe) {
     ev("openSummerBox('EYBL|2029|1')");
     const sheet = d.getElementById('summerSheet');
     ok(sheet && new RegExp(two[0].name).test(sheet.textContent) && /8-13/.test(sheet.textContent), 'recruiting: any game opens its box score');
+    ok(sheet.querySelectorAll('.summer-box .starter-badge').length === 2 && sheet.querySelector('.summer-box tr.is-starter'), 'recruiting: box scores mark the starters');
     ev('closeSummerBox()');
     ev("setSummerTab('leaders')");
     ok(/AAU points/.test(txt()) && new RegExp(two[0].name).test(txt()), 'recruiting: summer leaders');

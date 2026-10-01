@@ -338,8 +338,9 @@
           Object.keys(tot).forEach(k => { tot[k] += b[k]; });
           const min = Math.round(p.min * frac);
           const dnp = !p.min;
-          return `<tr class="${i === 5 ? 'gc-bench-start' : ''} ${dnp ? 'gc-dnp' : ''}">
-            <td class="gc-box-name"><span class="clickable-player" onclick="GameCenter.player('${esc(p.id).replace(/'/g, "\\'")}')">${esc(p.name)}</span> <small>${esc(p.pos)}${p.starter ? '' : ''}</small></td>
+          const benchStart = i > 0 && !p.starter && lines[i - 1].starter;
+          return `<tr class="${benchStart ? 'gc-bench-start' : ''} ${p.starter ? 'gc-starter-row' : ''} ${dnp ? 'gc-dnp' : ''}">
+            <td class="gc-box-name">${p.starter ? '<span class="gc-starter" title="Starter" aria-label="Starter">S</span>' : ''}<span class="clickable-player" onclick="GameCenter.player('${esc(p.id).replace(/'/g, "\\'")}')">${esc(p.name)}</span> <small>${esc(p.pos)}</small></td>
             ${dnp ? '<td colspan="11" class="gc-dnp-cell">Did not play</td>' : `<td>${min}</td><td class="gc-pts">${b.pts}</td><td>${b.reb}</td><td>${b.ast}</td><td>${b.stl}</td><td>${b.blk}</td><td>${b.tov}</td>
             <td>${b.fgm}-${b.fga}</td><td>${b.threePm}-${b.threePa}</td><td>${b.ftm}-${b.fta}</td><td>${b.pf}</td>`}</tr>`;
         }).join('');

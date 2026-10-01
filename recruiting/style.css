@@ -1458,3 +1458,9 @@ a.query-btn { text-decoration: none; display: inline-flex; align-items: center; 
 .summer-sim-btn:hover { filter: brightness(1.08); }
 .summer-sim .summer-note { flex-basis: 100%; }
 @media (max-width: 600px) { .summer-source { margin-left: 0; } .summer-sim-btn { flex: 1 1 auto; } }
+
+/* Box scores: starters marked and bold, a rule above the bench. */
+.starter-badge { display: inline-flex; align-items: center; justify-content: center; width: 1.05rem; height: 1.05rem; margin-right: 0.35rem;
+  border-radius: 4px; background: var(--accent, #F0761F); color: var(--accent-contrast, #140a03); font-size: 0.62rem; font-weight: 800; line-height: 1; vertical-align: 1px; }
+.summer-box tr.is-starter td:first-child { font-weight: 700; }
+.summer-box tr.bench-start td { border-top: 1px solid var(--border); }

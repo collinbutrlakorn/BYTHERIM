@@ -38,6 +38,27 @@ const FIX = path.join(__dirname, 'fixtures');
   const intlLive = S.allRecruits.filter(r => r.genRecruit && HS.isInternational(r) && !(Number(r.rsci) > 0) && Sim.isLiveRecruit(r));
   ok(intlLive.length > 10, `generated overseas prospects can be recruited to college (${intlLive.length} in play)`);
 
+  // ---- Two positions ("PF/C") ----
+  ok(Sim.splitPos('PF/C').join() === 'PF,C' && Sim.splitPos('sf / pf').join() === 'SF,PF' && Sim.splitPos('PG').join() === 'PG,', 'a position cell can list a second position');
+  {
+    const mk = (id, pos, pos2, rating) => ({ id, name: id, pos, pos2, rating, class: 'JR', stats: { gp: 10 } });
+    // Four very good forwards and centers can't all start at their listed
+    // spots with one guard... unless one can play somewhere else.
+    const team = { school: 'Test U', roster: [mk('pg', 'PG', null, 88), mk('sg', 'SG', null, 80), mk('f1', 'PF', null, 90), mk('f2', 'PF', null, 89), mk('c1', 'C', null, 89), mk('w1', 'SF', 'SG', 87), mk('b1', 'SG', null, 70), mk('b2', 'SF', null, 70)] };
+    Sim.buildRotation(team);
+    const st = new Set(team.starters);
+    ok(['pg', 'f1', 'f2', 'c1', 'w1'].every(x => st.has(x)), `the best five start (${[...st].join(', ')})`);
+    const w1 = team.roster.find(p => p.id === 'w1');
+    ok(w1.playsAs === 'SG' && w1.pos === 'SF', 'an SF/SG covers the second guard spot, still listed as an SF');
+    const two = { school: 'Test U', roster: [mk('pg', 'PG', null, 88), mk('sg', 'SG', null, 86), mk('f1', 'SF', null, 87), mk('f2', 'PF', 'C', 89), mk('f3', 'PF', null, 85), mk('c1', 'C', null, 70), mk('b1', 'SG', null, 70)] };
+    Sim.buildRotation(two);
+    const big = two.roster.find(p => p.id === 'f2');
+    ok(two.starters.includes('f2') && !two.starters.includes('c1') && !big.playsAs, 'a PF/C plays his first position when the lineup doesn\'t need the second');
+    const ok3 = { school: 'Test U', roster: [mk('pg', 'PG', null, 88), mk('g2', 'PG', null, 87), mk('g3', 'SG', null, 87), mk('g4', 'SG', 'SF', 86), mk('f1', 'PF', null, 84), mk('c1', 'C', null, 70)] };
+    Sim.buildRotation(ok3);
+    ok(ok3.starters.includes('g4') && ok3.roster.find(p => p.id === 'g4').playsAs === 'SF', 'a fourth guard who can play SF starts as the wing');
+  }
+
   // Teams index search.
   Sim.backToTeamIndex();
   Sim.filterTeamIndex('duke');
@@ -52,6 +73,21 @@ const FIX = path.join(__dirname, 'fixtures');
 
   await playSeason(Sim);
   const year = S.year;
+
+  // Box scores mark the starters.
+  {
+    const t = S.teams.find(x => (x.roster || []).some(p => (p.gameLog || []).length));
+    const pl = t.roster.find(p => (p.gameLog || []).length);
+    const g = Sim.gameRefFromLog(t.school, pl.gameLog[0]);
+    Sim.openGame(g);
+    d.querySelector('#gameCenter .gc-tabs [data-tab="box"]').click();
+    const marked = d.querySelectorAll('#gameCenter .gc-starter').length;
+    ok(marked === 10, `box scores mark five starters a side (${marked})`);
+    const first = [...d.querySelectorAll('#gameCenter .gc-box')][0];
+    const flags = [...first.querySelectorAll('tbody tr:not(.gc-total)')].map(r => !!r.querySelector('.gc-starter'));
+    ok(flags.slice(0, 5).every(Boolean) && !flags.slice(5).some(Boolean), 'starters listed first, then the bench');
+    w.GameCenter.close();
+  }
 
   // Player stats search finds anyone, qualified or not, with his place on the board.
   ok(d.getElementById('statsSearch') && d.getElementById('teamStatsSearch'), 'Player Stats and Team Stats have search boxes');

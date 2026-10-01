@@ -39,7 +39,7 @@ overtime in some close games, scoring runs, lead changes, win probability,
 a player of the game and a headline — and the same game always plays out
 the same way.
 
-**team-pages.js** — search boxes on the Teams index (schools and
+**team-pages.js** — two positions ("PF/C": the second covers a lineup gap, the first is what's shown), starters marked first in box scores; search boxes on the Teams index (schools and
 conferences), Team Stats and Player Stats (finding a bench player with his
 board rank); a finished season archived whole and opened as its own team
 page from Team History and from a player's season row, sortable, with Back;

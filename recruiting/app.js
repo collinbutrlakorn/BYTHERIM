@@ -338,7 +338,9 @@ window.onload = () => {
           name: String(row.name || "Unknown Player"),
           dob: String(row.dob || "N/A"),
           pfp: formatImagePath(row.avatar),
-          pos: String(row.pos || "G"),
+          // "SF/PF": he's shown and sorted at the first; the second is for lineups.
+          pos: String(row.pos || "G").split(/\s*[\/,]\s*/)[0].trim().toUpperCase() || "G",
+          pos2: (String(row.pos || "").split(/\s*[\/,]\s*/)[1] || "").trim().toUpperCase(),
           height: String(row.height || "6'0\""),
           weight: String(row.weight || "160 lbs"),
           wingspan: String(row.wingspan || "N/A"),

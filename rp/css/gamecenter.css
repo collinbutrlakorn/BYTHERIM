@@ -242,3 +242,8 @@ body.gc-open { overflow: hidden; }
 }
 
 .gc-final-note { color: var(--gold); margin: -0.4rem 0 1rem; font-weight: 600; }
+
+/* Starters: a small badge and a bold name; a rule above the bench. */
+.gc-starter { display: inline-flex; align-items: center; justify-content: center; width: 1.05rem; height: 1.05rem; margin-right: 0.35rem;
+  border-radius: 4px; background: var(--accent); color: var(--bg-color, #fff); font-size: 0.62rem; font-weight: 800; line-height: 1; vertical-align: 1px; }
+.gc-starter-row .gc-box-name .clickable-player { font-weight: 700; }
