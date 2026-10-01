@@ -26,6 +26,18 @@ const sheetOrder = byRank.filter(r => !r.generated).map(r => r.name);
 ok(sheetOrder.every((nm, i) => nm === `Sheet Player ${i + 1}`), 'sheet players keep their own order');
 ok(gen.some(r => Number(r.rank) <= 60), 'generated players can rank among the sheet players');
 ok(new Set(a.map(r => r.rank)).size === a.length, 'no two players share a rank');
+// The ranking follows the ratings: a strong #1 and a sheet #2 and #3 rated
+// 96 leave no room for a generated player at #2 (who could be 95 at best).
+{
+  const top = sheet(40).map((r, i) => ({ ...r, rating: String(i === 0 ? 99 : i < 4 ? 96 : Math.round(95 - i * 0.2)) }));
+  const c = build(top).filter(r => r.rank).sort((x, y) => x.rank - y.rank);
+  ok(c.slice(0, 4).every(r => !r.generated), `no generated player jumps ahead of better-rated sheet players (top 4: ${c.slice(0, 4).map(r => r.rating).join(', ')})`);
+  const inv = c.filter((g, i) => g.generated && (c.slice(i + 1).find(x => !x.generated) || { rating: 0 }).rating > Number(g.rating));
+  ok(!inv.length, 'and none is ranked ahead of the next sheet player when that player is rated higher');
+  const intlRanked = build(sheet(60, [{ __tab: '2030', rank: '30', classYear: '2030', name: 'Ranked Abroad', state: 'INTL', rating: '88', pos: 'SG', hometown: 'Toronto, ON' }]));
+  ok(intlRanked.filter(r => r.name === 'Ranked Abroad').length === 1 && new Set(intlRanked.filter(r => r.rank).map(r => r.rank)).size === intlRanked.filter(r => r.rank).length,
+    'a ranked player listed as INT/INTL is ranked with his class, without sharing a rank');
+}
 ok(new Set(a.map(r => r.name.toLowerCase())).size === a.length, 'no generated player shares a name with anyone');
 ok(gen.every(r => r.pos && r.height && r.hometown && r.hs && r.dob && r.scouting && r.offers && r.hs_ppg), 'every generated player has a bio, offers and stats');
 ok(gen.every(r => r.committedSchool && r.finalList.includes(r.committedSchool)), 'in a committed class they commit, to a school on their final list');

@@ -2257,6 +2257,13 @@ window.SimEngine = {
         n++;
       }
       const fresh = this.normalizePlayerObj(raw, true);
+      // Classes still in high school take the current national rankings
+      // (where generated players fall among the sheet's), and a generated
+      // prospect his current rating.
+      if (Number(p.recClassYear) > s.year && !p.enrolled && fresh.rsci) {
+        p.rsci = fresh.rsci;
+        if (p.genRecruit && fresh.recRating) { p.recRating = fresh.recRating; p.rating = fresh.rating; p.stars = fresh.stars; }
+      }
       if (fresh.scout && (fresh.scout.scouting || fresh.scout.strengths || fresh.scout.weaknesses)) p.scout = fresh.scout;
       if (fresh.written) p.written = fresh.written;
     });

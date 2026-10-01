@@ -483,6 +483,10 @@
       if (id.country) id.state = pick(['FL', 'TX', 'CA', 'GA', 'NC', 'VA', 'MD', 'AZ', 'UT', 'NV', 'KS', 'MO', 'NH', 'CT', 'PA', 'IN', 'NJ'], rng);
       // Never rated above a sheet player ranked ahead of him.
       let rating = Math.round(clamp(T(slot) + id.jitter, 60, GEN_MAX));
+      // At the very top of the curve, where he'd be past the generated
+      // ceiling, he lands somewhere in the low-to-mid 90s instead of all
+      // of them piling up at the ceiling.
+      if (T(slot) + id.jitter > GEN_MAX + 0.5) rating = GEN_MAX - Math.floor(rngFor(`${genOf(year)}|top|${year}|${j}`)() * 3);
       if (above != null) rating = Math.min(rating, Math.round(above));
       const text = profileText(rng, id.pos);
       // Recruitment: offers from schools around his level, a final list,
@@ -530,6 +534,28 @@
       out.push(row);
       j++;
     }
+
+    // The ranking follows the ratings. Generated players were drawn for
+    // open places on the curve, but nobody is ranked ahead of a sheet
+    // player rated higher than him: the sheet's players keep their own
+    // order, a generated player goes ahead of one only when he's rated
+    // higher (never ahead of the sheet's #1, and the sheet's #20 still
+    // stays in the top 27), and ties go to the sheet.
+    const ratingOf = r => { const v = num(get(r, 'rating')); return v != null ? v : T(r.__slot); };
+    const gens = out.slice().sort((a, b) => ratingOf(b) - ratingOf(a) || a.__slot - b.__slot);
+    const final = [];
+    let si = 0, gi = 0;
+    while (si < ordered.length || gi < gens.length) {
+      const sp = ordered[si], gp = gens[gi];
+      let takeGen = !!gp;
+      if (gp && sp) {
+        const authored = num(get(sp, 'sheetRank'));
+        const latest = authored ? Math.ceil(authored * 1.3) + 1 : Infinity;
+        takeGen = authored !== 1 && ratingOf(gp) > ratingOf(sp) && final.length + 1 < latest;
+      }
+      if (takeGen) { final.push(gp); gi++; } else { final.push(sp); si++; }
+    }
+    final.forEach((r, i) => { set(r, 'rank', String(i + 1)); r.__slot = i + 1; });
     return out.concat(overseas(year, K, allNames, T, commits, counts));
   }
 
@@ -620,7 +646,7 @@
       // their own pool; an international ranked in the class is ranked here.
       const st = String(r[K('state')] || '').trim().toUpperCase();
       const ranked = /^\d+$/.test(String(r[K('rank')] || '').trim());
-      if (st && !US.has(st) && (st === 'INT' || st === 'INTL' || !ranked)) { abroad.push(r); return; }
+      if (st && !US.has(st) && !ranked) { abroad.push(r); return; }
       // The class column decides the class; the tab is the fallback.
       const cy = String(r[K('classYear')] || '').trim();
       const y = /^\d{4}$/.test(cy) ? cy : r.__tab;
