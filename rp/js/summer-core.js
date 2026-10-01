@@ -61,14 +61,18 @@
   // to a thin roster near home; a sheet player is never moved off his team.
   function assignPrograms(players, season) {
     const programs = new Map();
-    (RG().AAU_PROGRAMS || []).forEach(p => programs.set(norm(p.name), { name: p.name, circuit: p.circuit, region: p.region, members: [] }));
+    // "Team Takeover EYBL" and "Team Takeover" are one program.
+    const key = v => (RG().aauKey ? RG().aauKey(v) : norm(v));
+    (RG().AAU_PROGRAMS || []).forEach(p => programs.set(key(p.name), { name: p.name, circuit: p.circuit, region: p.region, members: [] }));
     const pool = [];
     players.slice().sort(byRank).forEach(pl => {
-      const k = norm(pl.aauTeam);
+      const k = key(pl.aauTeam);
       if (k && programs.has(k)) { programs.get(k).members.push(pl); return; }
-      if (k && pl.sheet && !/^(n a|na|none|tbd|unknown)$/.test(k)) {
+      if (k && pl.sheet && !/^(n a|na|none|tbd|unknown|dnp)$/.test(k)) {
         const cs = circuits();
-        programs.set(k, { name: String(pl.aauTeam).trim(), circuit: cs[hash(k) % cs.length].key, region: regionOf(pl.state), guest: true, members: [pl] });
+        const known = RG().aauCircuit ? RG().aauCircuit(pl.aauTeam) : '';
+        const name = String(pl.aauTeam).trim().replace(/\s+(EYBL|3SSB|UAA|PRO16)$/i, '');
+        programs.set(k, { name, circuit: known || cs[hash(k) % cs.length].key, region: regionOf(pl.state), guest: true, members: [pl] });
         return;
       }
       pool.push(pl);

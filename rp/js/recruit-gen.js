@@ -173,7 +173,7 @@
   };
   const regionOf = st => Object.keys(REGIONS).find(k => REGIONS[k].split(' ').includes(String(st || '').toUpperCase())) || 'SE';
   const AAU_PROGRAMS = [
-    ['Team Takeover', 'EYBL', 'MA'], ['Expressions', 'EYBL', 'NE'], ['Nightrydas', 'EYBL', 'SE'], ['Mokan Elite', 'EYBL', 'MW'],
+    ['Team Takeover', 'EYBL', 'MA'], ['Expressions Elite', 'EYBL', 'NE'], ['Nightrydas Elite', 'EYBL', 'SE'], ['MoKan Elite', 'EYBL', 'MW'],
     ['Team Thad', 'EYBL', 'SE'], ['Oakland Soldiers', 'EYBL', 'W'], ['Houston Hoops', 'EYBL', 'SW'], ['Indy Heat', 'EYBL', 'MW'],
     ['Garden State Warriors', 'EYBL', 'NE'], ['Philly Pride', 'EYBL', 'NE'], ['Motor City Rise', 'EYBL', 'MW'], ['SoCal Legacy', 'EYBL', 'W'],
     ['Lone Star Legends', 'EYBL', 'SW'], ['Peach State Fire', 'EYBL', 'SE'], ['Keystone Stars', 'EYBL', 'NE'], ['Emerald City Legends', 'EYBL', 'W'],
@@ -186,6 +186,35 @@
     ['Carolina Heat', 'UAA', 'SE'], ['Old Dominion Elite', 'UAA', 'MA'], ['Big Apple Ballers', 'UAA', 'NE'], ['Metroplex Hoopers', 'UAA', 'SW'],
     ['Hill Country Elite', 'UAA', 'SW'], ['Pacific Northwest Legends', 'UAA', 'W'], ['Great Lakes Select', 'UAA', 'MW'], ['Palmetto Stars', 'UAA', 'SE']
   ].map(([name, circuit, region]) => ({ name, circuit, region }));
+  // Programs the recruiting sheet lists, by circuit, and the other ways a
+  // program gets written ("Team Takeover EYBL", "Nightrydas", "WhyNot").
+  // aauKey() is what makes two spellings the same program.
+  const SHEET_CIRCUITS = {
+    EYBL: 'Team Takeover|Drive Nation|Indy Heat|PSA Cardinals|Meanstreets|MoKan Elite|Vegas Elite|Team Final|Expressions Elite|Houston Hoops|Seattle Rotary|NJ Scholars|Oakland Soldiers|Team Melo|Team CP3|Brad Beal Elite|Nightrydas Elite|All Ohio Red|City Rocks|Team Thad|Mac Irvin Fire|Boo Williams|Team Durant|E1T1|Howard Pulley|Georgia Stars|Team Griffin|LivOn|Team WhyNot',
+    '3SSB': 'Game Elite|West Coast Elite|AZ Unity|D1 Minnesota|Utah Prospects|Compton Magic|Team Loaded|Florida Rebels|Atlanta Xpress|Nebraska Supreme',
+    UAA: 'Upward Stars|Pro Skills|Team United'
+  };
+  const AAU_ALIASES = {
+    'expressions': 'expressions elite', 'nightrydas': 'nightrydas elite', 'mokan basketball': 'mokan elite',
+    'cp3': 'team cp3', 'bradley beal elite': 'brad beal elite', 'each 1 teach 1': 'e1t1', 'ae5 basketball': 'ae5',
+    'team why': 'team whynot', 'team why not': 'team whynot', 'why not': 'team whynot', 'whynot': 'team whynot',
+    'nw rotary': 'seattle rotary', 'team loaded va': 'team loaded', 'livon basketball': 'livon', 'insep academy': 'insep'
+  };
+  function aauKey(name) {
+    const k = String(name || '').toLowerCase().replace(/\s+(eybl|3ssb|uaa|pro16)\s*$/, '').replace(/[^a-z0-9]+/g, ' ').trim();
+    return AAU_ALIASES[k] || k;
+  }
+  const circuitByKey = {};
+  Object.entries(SHEET_CIRCUITS).forEach(([c, names]) => names.split('|').forEach(n => { circuitByKey[aauKey(n)] = c; }));
+  // The circuit a program plays on: written after its name, else known, else ''.
+  function aauCircuit(name) {
+    const m = /\s(EYBL|3SSB|UAA)\s*$/i.exec(String(name || ''));
+    if (m) return m[1].toUpperCase();
+    const k = aauKey(name);
+    const own = AAU_PROGRAMS.find(p => aauKey(p.name) === k);
+    return own ? own.circuit : (circuitByKey[k] || '');
+  }
+
   // His program: one near home; the best prospects lean toward the EYBL,
   // and a few travel to play for a program elsewhere. a, b: two draws.
   // counts: players each program already has in the class, so rosters
@@ -605,7 +634,7 @@
     return out;
   }
 
-  const api = { SLOTS, POOL, GEN_MAX, CIRCUITS, AAU_PROGRAMS, REGIONS, regionOf, aauProgramFor, setResets, getResets, genOf, quotaFor, curve, curveFor, classTop, starsFor, projectionFor, statLine, buildClass, augment, hash, rngFor, ACADEMIES };
+  const api = { SLOTS, POOL, GEN_MAX, CIRCUITS, AAU_PROGRAMS, aauKey, aauCircuit, REGIONS, regionOf, aauProgramFor, setResets, getResets, genOf, quotaFor, curve, curveFor, classTop, starsFor, projectionFor, statLine, buildClass, augment, hash, rngFor, ACADEMIES };
   root.RecruitGen = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);
