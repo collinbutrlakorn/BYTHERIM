@@ -348,7 +348,9 @@ window.onload = () => {
           // Stars follow the rating (recruit-gen.js sets them): 90+ five,
           // 80+ four, 70+ three; under 70, none.
           stars: (() => { const rt = parseInt(row.rating); return isNaN(rt) ? ((row.stars !== undefined && row.stars !== "" && !isNaN(parseInt(row.stars))) ? parseInt(row.stars) : 0) : rt >= 90 ? 5 : rt >= 80 ? 4 : rt >= 70 ? 3 : 0; })(),
-          proClub: String(row.proClub || ''),
+          // A club only once he's signed: an overseas prospect still at an
+          // academy is open to college.
+          proClub: /playing pro/i.test(String(row.status || '')) ? String(row.proClub || '') : '',
           rating: (row.rating !== undefined && row.rating !== "" && !isNaN(parseInt(row.rating))) ? parseInt(row.rating) : 70,
           status: String(row.status || "Uncommitted"),
           committedSchool: row.committedSchool ? String(row.committedSchool) : null,

@@ -39,6 +39,14 @@ overtime in some close games, scoring runs, lead changes, win probability,
 a player of the game and a headline — and the same game always plays out
 the same way.
 
+**team-pages.js** — search boxes on the Teams index (schools and
+conferences), Team Stats and Player Stats (finding a bench player with his
+board rank); a finished season archived whole and opened as its own team
+page from Team History and from a player's season row, sortable, with Back;
+and overseas prospects: academies and youth teams aren't pro clubs,
+Africans go to Europe or the BAL, Australians to the NBL, and generated
+overseas prospects can be recruited to college.
+
 **big-games.js** — watching a game live plays the slate around it and
 holds back spoilers (the week's results, the champion) until the broadcast
 closes; conference tournament MOPs, regional MOPs, the Final Four MOP and

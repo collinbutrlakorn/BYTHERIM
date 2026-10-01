@@ -319,6 +319,7 @@
         <div class="section-head page-head">
           <div><h2 class="section-title">Team Stats</h2><p class="section-sub">Every Division I team. Click a column to sort, a team to open its page.</p></div>
           <div class="filters-container">
+            <input type="search" id="teamStatsSearch" class="filter-select search-input" placeholder="Search teams" aria-label="Search teams" oninput="SimEngine.setTeamStatsSearch(this.value)">
             <select id="teamStatsConfFilter" onchange="SimEngine.setTeamStatsConfFilter(this.value)" class="filter-select">
               <option value="ALL">All NCAA</option>
             </select>
@@ -344,6 +345,7 @@
         <div class="section-head page-head">
           <div><h2 class="section-title">Player Stats</h2><p class="section-sub">League leaders. Filter by conference or position; click a player for his page.</p></div>
           <div class="filters-container">
+            <input type="search" id="statsSearch" class="filter-select search-input" placeholder="Search players or schools" aria-label="Search players or schools" oninput="SimEngine.setStatsSearch(this.value)">
             <select id="confFilter" onchange="SimEngine.setConfFilter(this.value)" class="filter-select"><option value="ALL">All NCAA</option></select>
             <select id="statsPosFilter" onchange="SimEngine.setStatsPosFilter(this.value)" class="filter-select">
               <option value="ALL">All Positions</option>

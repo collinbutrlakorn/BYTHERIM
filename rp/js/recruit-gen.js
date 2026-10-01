@@ -134,14 +134,25 @@
     Spain: ['Real Madrid', 'FC Barcelona', 'Joventut Badalona', 'Valencia Basket'], France: ['ASVEL', 'Paris Basketball', 'AS Monaco', 'Cholet Basket'],
     Germany: ['Bayern Munich', 'Alba Berlin', 'ratiopharm Ulm'], Lithuania: ['Zalgiris Kaunas', 'Rytas Vilnius'], Latvia: ['VEF Riga'],
     Turkey: ['Fenerbahce', 'Anadolu Efes'], Greece: ['Olympiacos', 'Panathinaikos'], Italy: ['Olimpia Milano', 'Virtus Bologna'],
-    Australia: ['NBL Next Stars'], Finland: ['Helsinki Seagulls'], Sweden: ['Sodertalje Kings'], Israel: ['Maccabi Tel Aviv', 'Hapoel Jerusalem'],
+    Australia: ['Perth Wildcats', 'Melbourne United', 'Sydney Kings', 'Brisbane Bullets', 'Adelaide 36ers', 'Tasmania JackJumpers', 'Illawarra Hawks', 'Cairns Taipans'],
+    Finland: ['Helsinki Seagulls'], Sweden: ['Sodertalje Kings'], Israel: ['Maccabi Tel Aviv', 'Hapoel Jerusalem'],
     Argentina: ['San Lorenzo'], Brazil: ['Flamengo', 'Franca'], Belgium: ['Filou Oostende'], Netherlands: ['ZZ Leiden'], England: ['London Lions'],
-    Canada: ['Overtime Elite'], Nigeria: ['NBA Academy Africa'], Senegal: ['NBA Academy Africa'], Mali: ['NBA Academy Africa'],
-    Cameroon: ['NBA Academy Africa'], 'South Sudan': ['NBA Academy Africa'], 'DR Congo': ['NBA Academy Africa'],
-    'Dominican Republic': ['Overtime Elite'], 'Puerto Rico': ['Overtime Elite']
+    Canada: ['Overtime Elite'],
+    // Africa's prospects go to Europe, now and then to the BAL.
+    Nigeria: ['ASVEL', 'Real Madrid', 'FC Barcelona', 'Gran Canaria', 'Paris Basketball', 'Cholet Basket', 'Joventut Badalona', 'Rivers Hoopers (BAL)'],
+    Senegal: ['ASVEL', 'Cholet Basket', 'AS Monaco', 'Real Madrid', 'Paris Basketball', 'Gran Canaria', 'Bayern Munich', 'AS Douanes (BAL)'],
+    Mali: ['ASVEL', 'Cholet Basket', 'Joventut Badalona', 'Real Madrid', 'Paris Basketball', 'Valencia Basket', 'Stade Malien (BAL)'],
+    Cameroon: ['ASVEL', 'Real Madrid', 'Paris Basketball', 'Cholet Basket', 'Gran Canaria', 'Joventut Badalona', 'FAP (BAL)'],
+    'South Sudan': ['Real Madrid', 'FC Barcelona', 'ASVEL', 'Paris Basketball', 'Joventut Badalona', 'Cobra Sport (BAL)'],
+    'DR Congo': ['ASVEL', 'Real Madrid', 'Paris Basketball', 'Cholet Basket', 'Joventut Badalona', 'Petro de Luanda (BAL)'],
+    'Dominican Republic': ['Overtime Elite'], 'Puerto Rico': ['Cangrejeros de Santurce', 'Leones de Ponce']
   };
+  // Where a prospect plays before he's a pro: an academy or a club's youth
+  // team (high school, in effect). Countries without one play for the club.
   const YOUTH = { France: 'INSEP', Spain: 'Real Madrid Youth', Serbia: 'Mega Basket Youth', Australia: 'NBA Global Academy', Germany: 'Bayern Munich Youth',
-    Lithuania: 'Zalgiris Academy', Turkey: 'Fenerbahce Youth', Italy: 'Stella Azzurra', Greece: 'Panathinaikos Youth', Israel: 'Maccabi Youth' };
+    Lithuania: 'Zalgiris Academy', Turkey: 'Fenerbahce Youth', Italy: 'Stella Azzurra', Greece: 'Panathinaikos Youth', Israel: 'Maccabi Youth',
+    Nigeria: 'NBA Academy Africa', Senegal: 'SEED Academy', Mali: 'NBA Academy Africa', Cameroon: 'NBA Academy Africa',
+    'South Sudan': 'NBA Academy Africa', 'DR Congo': 'NBA Academy Africa', Canada: 'Orangeville Prep' };
   const clubFor = (country, rng) => pick(CLUBS[country] || ['Overtime Elite', 'Real Madrid', 'ASVEL'], rng);
   function internationalWho(rng, taken) {
     for (let tries = 0; tries < 12; tries++) {
@@ -558,7 +569,7 @@
       put('finalListTitle', offers.length ? `Top ${Math.min(3, offers.length)}` : ''); put('finalList', offers.slice(0, 3).join(', '));
       put('accolades', '');
       put('scouting', text.scouting); put('strengths', text.strengths); put('weaknesses', text.weaknesses);
-      [['intl', club], ['fiba', `${id.country} ${rng() < 0.5 ? 'U17' : 'U18'}`]].forEach(([lvl, team]) => {
+      [['intl', YOUTH[id.country] || club], ['fiba', `${id.country} ${rng() < 0.5 ? 'U17' : 'U18'}`]].forEach(([lvl, team]) => {
         const line = statLine(rng, id.pos, rating - 3, lvl === 'intl' ? 'fiba' : 'fiba');
         put(`${lvl}_team`, team);
         Object.entries(line).forEach(([kk, v]) => put(`${lvl}_${kk}`, String(v)));

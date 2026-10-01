@@ -46,6 +46,7 @@ window.SimEngine = {
     draftCycle: null,       // where the Draft RP's cycle stands (see draft-cycle.js)
     lastDevelopment: [],
     departedArchive: [],
+    rosterArchive: {},
     recordsScope: null,
     recordsMode: 'season',
     draftResults: [],
@@ -213,6 +214,7 @@ window.SimEngine = {
     this.state.summer = null;
     this.state.summerHistory = [];
     this.state.departedKeys = null;
+    this.state.rosterArchive = {};
     this.state.pendingWire = [];
     this.state.proPlayers = [];
     this.state.recruitsClassView = 'incoming';
@@ -272,6 +274,7 @@ window.SimEngine = {
           this.state.departedNames = new Set(savedState.departedNames || []);
           this.state.departedKeys = savedState.departedKeys || null;
           this.state.departedArchive = savedState.departedArchive || [];
+          this.state.rosterArchive = savedState.rosterArchive || {};
           this.state.seasonInitialized = savedState.seasonInitialized || false;
           this.state.lastTransfers = savedState.lastTransfers || [];
           this.state.lastDeclarations = savedState.lastDeclarations || [];
@@ -422,6 +425,7 @@ window.SimEngine = {
           departedNames: Array.from(this.state.departedNames || []),
           departedKeys: Array.from(this.departedKeys()),
           departedArchive: this.state.departedArchive,
+          rosterArchive: this.state.rosterArchive || {},
           seasonInitialized: this.state.seasonInitialized,
           lastTransfers: this.state.lastTransfers,
           lastDeclarations: this.state.lastDeclarations,
@@ -1554,6 +1558,7 @@ window.SimEngine = {
       // college scale (international pros are valued from it).
       recRating: isRecruit ? (parseFloat(rawRating) || null) : null,
       intlTeam: String(getVal(['intlteam'], '') || '').trim(),
+      proClub: String(getVal(['proclub'], '') || '').trim(),
       reclassFrom: parseInt(getVal(['reclass', 'reclassfrom', 'originalclass'], ''), 10) || null,
       allStar: (() => {
         const a = String(getVal(['accolades'], '') || '').toLowerCase();
@@ -1697,7 +1702,10 @@ window.SimEngine = {
     if (!r || r.fromOthers || !r.recClassYear || Number(r.recClassYear) <= this.state.year) return false;
     if (r.sheetCommitted === true) return false;
     if (r.sheetCommitted === undefined && !r.genRecruit && HSCore.committedTo(r)) return false;   // saves from before
-    if (HSCore.isInternational(r) && !(Number(r.rsci) > 0)) return false;
+    // Overseas prospects off the national list: the generated ones are
+    // recruited like anyone else (some stay pro; see staysPro), the
+    // sheet's keep the path the sheet gives them.
+    if (HSCore.isInternational(r) && !(Number(r.rsci) > 0)) return !!r.genRecruit;
     return true;
   },
   liveQuota(school) {
@@ -1744,6 +1752,8 @@ window.SimEngine = {
         r.liveList = [...new Set((offers.length >= 3 ? offers : offers.concat(this.liveOffersFor(r, sc))))].slice(0, 12);
       }
       if (HSCore.committedTo(r)) return;
+      // An overseas prospect set on turning pro takes no visits.
+      if (HSCore.isInternational(r) && !(Number(r.rsci) > 0) && HSCore.staysPro && HSCore.staysPro(r)) { r.liveList = []; r.liveProBound = true; return; }
       const cp = HSCore.classProgress(c, year, p);
       if (cp <= 0 || !r.liveList.length) return;
       const scored = r.liveList.map(school => ({
@@ -4738,6 +4748,75 @@ window.SimEngine = {
     this.renderOffseasonOverlay();
   },
 
+  // Each team's season as it ended: coach, team stats with their national
+  // ranks, and every player's line, so a past season's team page reads like
+  // a current one even after its players are gone. Player lines are stored
+  // as arrays against one key list to keep saves small.
+  ROSTER_KEYS: ['gp','gs','mpg','ppg','oreb','rpg','apg','stl','blk','tov','pf','fgm','fga','fgPct','twoPm','twoPa','twoPPct',
+    'threePm','threePa','threePPct','ftm','fta','ftPct','bpm','obpm','dbpm','tsPct','eFgPct','orebPct','drebPct','trbPct',
+    'astPct','tovPct','blkPct','usg','ftr','threePar','ortg','drtg','netRtg'],
+  archiveRosters(year) {
+    const s = this.state;
+    if (!s.rosterArchive || typeof s.rosterArchive !== 'object') s.rosterArchive = {};
+    if (s.rosterArchive[year]) return;
+    const keys = this.ROSTER_KEYS;
+    const rows = new Map(this.computeAllTeamStats().map(r => [r.school, r]));
+    const teams = {};
+    s.teams.forEach(t => {
+      const r = rows.get(t.school);
+      teams[t.school] = {
+        conf: t.conference || '', coach: t.coach ? t.coach.name : '', prestige: t.prestige != null ? t.prestige : null,
+        preseason: t.preseasonRank || null, sos: t.sosRank || null,
+        stats: r ? r.stats : null, ranks: r ? r.ranks : null,
+        players: (t.roster || []).map(p => [p.id, p.name, p.pos || '', p.class || '', p.jersey || '',
+          ...keys.map(k => (p.stats && p.stats[k] !== undefined ? p.stats[k] : null))])
+      };
+    });
+    s.rosterArchive[year] = { keys, teams };
+  },
+
+  // A team's season: from the roster archive, or, for seasons played
+  // before the archive existed, pieced together from each player's own
+  // season lines.
+  teamSeasonData(school, year) {
+    const s = this.state;
+    const team = this.findTeam(school);
+    const hist = team && (team.history || []).find(h => h.year === year) || null;
+    const a = s.rosterArchive && s.rosterArchive[year];
+    const t = a && a.teams && a.teams[school];
+    if (t) {
+      const players = t.players.map(row => {
+        const [id, name, pos, cls, jersey, ...vals] = row;
+        const stats = {};
+        a.keys.forEach((k, i) => { stats[k] = vals[i] == null ? '—' : vals[i]; });
+        return { id, name, pos, class: cls, jersey, stats };
+      });
+      return { school, year, hist, conf: t.conf, coach: t.coach, prestige: t.prestige, preseason: t.preseason, sos: t.sos,
+        stats: t.stats, ranks: t.ranks || {}, players, archived: true };
+    }
+    const pool = s.activePlayers.concat(s.recruits || [], s.proPlayers || [], s.departedArchive || []);
+    const seen = new Set();
+    const players = [];
+    pool.forEach(p => {
+      if (seen.has(p.id)) return;
+      const h = (p.seasonHistory || []).find(x => x.year === year && x.school === school);
+      if (!h) return;
+      seen.add(p.id);
+      players.push({ id: p.id, name: p.name, pos: p.pos, class: h.class || '', jersey: '', stats: h.stats || {} });
+    });
+    const conf = (players.length && (pool.find(p => p.id === players[0].id) || {}).seasonHistory || []).find(x => x.year === year && x.school === school);
+    return { school, year, hist, conf: (conf && conf.conference) || (team && team.conference) || '', coach: '', stats: null, ranks: {}, players, archived: false };
+  },
+
+  // Seasons a team has on record, newest first, the current one included.
+  teamSeasons(school) {
+    const team = this.findTeam(school);
+    const years = new Set((team && team.history || []).map(h => h.year));
+    Object.keys(this.state.rosterArchive || {}).forEach(y => { if (this.state.rosterArchive[y].teams[school]) years.add(Number(y)); });
+    years.add(this.state.year);
+    return [...years].sort((x, y) => y - x);
+  },
+
   // Records the finished season permanently before anything resets for the
   // new year — per player, per team, and league-wide. This is what the
   // season summary and team history pages read from.
@@ -4772,6 +4851,8 @@ window.SimEngine = {
         ncaaWins: ncaaWins[team.school] || 0
       });
     });
+
+    this.archiveRosters(year);
 
     const { npoy, dpoy, froy } = this.computeNationalAwards();
     const bracket = this.state.ncaaTournament;
@@ -5958,11 +6039,16 @@ window.SimEngine = {
     // field goal percentage. Mirrors the NCAA's own qualifying approach.
     const minMpg = 10;
     const minMinutes = 150;
+    const qualifies = p => !this.state.statsQualifiedOnly ||
+        (parseFloat(p.stats.mpg) >= minMpg && (p.stats.totMin || 0) >= minMinutes);
+    // A search looks through every player (qualified or not) by name,
+    // school, position or hometown; each keeps his place on the board.
+    const query = String(this._statsQuery || '').trim().toLowerCase();
+    const hits = p => !query || [p.name, p.school, p.pos, p.hometown, p.conference].some(v => String(v || '').toLowerCase().includes(query));
     let pool = this.state.activePlayers.filter(p =>
       this.matchesConfFilter(p.conference, this.state.confFilter) &&
       this.matchesPosFilter(p.pos, this.state.statsPosFilter) &&
-      (!this.state.statsQualifiedOnly ||
-        (parseFloat(p.stats.mpg) >= minMpg && (p.stats.totMin || 0) >= minMinutes)));
+      (query ? hits(p) : qualifies(p)));
 
     pool.sort((a, b) => {
       let valA = a.stats ? a.stats[col] : 0;
@@ -6022,17 +6108,33 @@ window.SimEngine = {
     statsHeader.innerHTML = theadHtml;
 
     let tbodyHtml = '';
+    // Board position of each player under the current sort and filters.
+    const boardRank = new Map();
+    if (query) {
+      pool.filter(qualifies).forEach((p, i) => boardRank.set(p, i + 1));
+      // Rank against the whole board, not just the matches.
+      const board = this.state.activePlayers.filter(p => this.matchesConfFilter(p.conference, this.state.confFilter) &&
+        this.matchesPosFilter(p.pos, this.state.statsPosFilter) && qualifies(p));
+      const cmp = (a, b) => {
+        let valA = a.stats ? a.stats[col] : 0, valB = b.stats ? b.stats[col] : 0;
+        if (['name', 'school', 'pos', 'class'].includes(col)) return String(a[col] || '').localeCompare(String(b[col] || '')) * dir;
+        if (typeof valA === 'string') valA = parseFloat(valA.replace('%', '')) || 0;
+        if (typeof valB === 'string') valB = parseFloat(valB.replace('%', '')) || 0;
+        return (valA - valB) * dir;
+      };
+      board.sort(cmp).forEach((p, i) => boardRank.set(p, i + 1));
+    }
     if (pool.length === 0) {
-      tbodyHtml = `<tr><td colspan="25" class="empty-table-msg">No players found for conference: ${this.state.confFilter}</td></tr>`;
+      tbodyHtml = `<tr><td colspan="25" class="empty-table-msg">${query ? `No player matches “${this.esc(this._statsQuery.trim())}”.` : `No players found for conference: ${this.state.confFilter}`}</td></tr>`;
     } else {
       // Show a readable slice rather than every player in the country. The
       // rank column reflects the current sort, so flipping to ascending
       // renumbers from the bottom of the league up.
-      const limit = this.state.statsLimit || 25;
+      const limit = query ? 200 : (this.state.statsLimit || 25);
       const shown = pool.slice(0, limit);
       shown.forEach((p, idx) => {
         tbodyHtml += `<tr>`;
-        tbodyHtml += `<td class="rank-cell">${idx + 1}</td>`;
+        tbodyHtml += `<td class="rank-cell">${query ? (boardRank.get(p) || '–') : idx + 1}</td>`;
         const safeName = p.name.replace(/'/g, "\\'");
         const safeId = String(p.id).replace(/'/g, "\\'");
         const safeSchool = p.school.replace(/'/g, "\\'");
@@ -6051,7 +6153,7 @@ window.SimEngine = {
     const moreBtn = document.getElementById('statsShowMore');
     if (moreBtn) {
       const limit = this.state.statsLimit || 25;
-      if (pool.length <= 25) {
+      if (query || pool.length <= 25) {
         moreBtn.style.display = 'none';
       } else {
         moreBtn.style.display = 'inline-flex';
@@ -6060,6 +6162,11 @@ window.SimEngine = {
           : `Show Top 25`;
       }
     }
+  },
+
+  setStatsSearch(q) {
+    this._statsQuery = String(q || '');
+    this.sortAndRenderStatsTable();
   },
 
   toggleStatsLimit() {
@@ -6091,6 +6198,27 @@ window.SimEngine = {
     this.updateTeamTab();
     this.activateTabSilently('teamTab');
     this.pushNav({ type: 'team', key: school, view: 'team', label: school });
+  },
+
+  // A team as it was in a past season (the current season is its team page).
+  goToTeamSeason(school, year) {
+    year = Number(year);
+    if (!this.findTeam(school)) return;
+    if (!year || year === this.state.year) { this.goToTeamPage(school); return; }
+    this.closePlayerPage();
+    this.state.teamPageSelection = school;
+    this.state.teamPageView = 'season';
+    this.state.teamPageSeason = year;
+    this.updateTeamTab();
+    this.activateTabSilently('teamTab');
+    this.pushNav({ type: 'team', key: school, view: 'season', year, label: `${school} ${year}-${String(year + 1).slice(2)}` });
+    if (typeof window !== 'undefined' && typeof window.scrollTo === 'function') { try { window.scrollTo(0, 0); } catch (e) { /* not in every host */ } }
+  },
+
+  // From a player's season row: that season's team.
+  goToTeamSeasonFromPlayer(school, year) {
+    if (!this.findTeam(school)) return;
+    this.goToTeamSeason(school, year);
   },
 
   updateTopPerformances() {
@@ -6822,7 +6950,7 @@ window.SimEngine = {
       const safeSchool = String(r.school || '').replace(/'/g, "\\'");
       return `<tr>
         <td class="bold-text">${r.year}-${(r.year + 1).toString().slice(2)}</td>
-        <td><span class="clickable-school" onclick="SimEngine.goToTeamFromPlayer('${safeSchool}')">${r.school || '—'}</span></td>
+        <td><span class="clickable-school" onclick="SimEngine.goToTeamSeasonFromPlayer('${safeSchool}', ${Number(r.year) || 0})" title="${this.esc(r.school || '')} in ${r.year}-${(r.year + 1).toString().slice(2)}">${r.school || '—'}</span></td>
         <td class="sub-text">${r.class || '—'}</td>
         ${cols.map(c => `<td>${st[c[0]] !== undefined ? st[c[0]] : '—'}</td>`).join('')}
       </tr>`;
@@ -8341,6 +8469,7 @@ window.SimEngine = {
     if (entry.type === 'team') {
       this.state.teamPageSelection = entry.key;
       this.state.teamPageView = entry.key ? (entry.view || 'team') : 'index';
+      if (entry.view === 'season') this.state.teamPageSeason = entry.year;
       this.updateTeamTab();
       this.activateTabSilently('teamTab');
     } else if (entry.type === 'history') {
@@ -8407,9 +8536,15 @@ window.SimEngine = {
 
     if (!team) {
       container.innerHTML = this.renderTeamIndex();
+      if (this._teamIndexQuery) this.filterTeamIndex(this._teamIndexQuery);
       return;
     }
 
+    if (this.state.teamPageView === 'season' && this.state.teamPageSeason != null && this.state.teamPageSeason !== this.state.year) {
+      container.innerHTML = this.renderTeamSeason(team, this.state.teamPageSeason);
+      container.classList.remove('fresh');
+      return;
+    }
     if (this.state.teamPageView === 'history') container.innerHTML = this.renderTeamHistoryView(team);
     else if (this.state.teamPageView === 'gamelog') container.innerHTML = this.renderTeamGameLog(team);
     else {
@@ -8433,10 +8568,14 @@ window.SimEngine = {
       byConf[c].push(t);
     });
 
-    let html = `<div class="section-head page-head"><div><h2 class="section-title">Teams</h2><p class="section-sub">All ${this.state.teams.length} Division I programs by conference. Pick a school for its roster, stats and schedule.</p></div></div>`;
+    const q = this._teamIndexQuery || '';
+    let html = `<div class="section-head page-head"><div><h2 class="section-title">Teams</h2><p class="section-sub">All ${this.state.teams.length} Division I programs by conference. Pick a school for its roster, stats and schedule.</p></div>
+      <div class="filters-container"><input type="search" id="teamIndexSearch" class="filter-select search-input" placeholder="Search teams or conferences" aria-label="Search teams or conferences"
+        value="${this.esc(q)}" oninput="SimEngine.filterTeamIndex(this.value)" onkeydown="if(event.key==='Enter')SimEngine.openFirstTeamMatch()"></div></div>
+      <p class="empty-table-msg" id="teamIndexEmpty" style="display:none">No team matches that search.</p>`;
     Object.keys(byConf).sort().forEach(conf => {
       const teams = byConf[conf].sort((a, b) => a.school.localeCompare(b.school));
-      html += `<div class="conf-section">
+      html += `<div class="conf-section" data-conf="${this.esc(conf.toLowerCase())}">
         <div class="conf-section-header">
           ${this.getConferenceLogoImg(conf, 'conf-logo')}
           <h4 class="conf-section-title">${conf}</h4>
@@ -8448,7 +8587,7 @@ window.SimEngine = {
         const sd = t.simData || {};
         const rec = (sd.wins || sd.losses) ? `${sd.wins || 0}-${sd.losses || 0}` : '';
         const rank = t.apRank ? `<span class="team-tile-rank">${t.apRank}</span>` : '';
-        html += `<button class="team-index-card team-tile" onclick="SimEngine.setTeamPageSelection('${safe}')" title="${this.esc(t.school)}">
+        html += `<button class="team-index-card team-tile" data-name="${this.esc(t.school.toLowerCase())}" onclick="SimEngine.setTeamPageSelection('${safe}')" title="${this.esc(t.school)}">
           ${rank}<img src="${this.getTeamLogo(t.school)}" class="team-tile-logo" alt="">
           <span class="team-index-name">${t.school}</span>
           ${rec ? `<span class="team-tile-rec">${rec}</span>` : ''}
@@ -8457,6 +8596,33 @@ window.SimEngine = {
       html += `</div></div>`;
     });
     return html;
+  },
+
+  // Narrows the team index as you type: a school's name, or a conference
+  // (which keeps all of its teams).
+  filterTeamIndex(q) {
+    this._teamIndexQuery = String(q || '');
+    const s = this._teamIndexQuery.trim().toLowerCase();
+    const root = document.getElementById('teamPageContainer');
+    if (!root) return;
+    let shown = 0;
+    root.querySelectorAll('.conf-section').forEach(sec => {
+      const confHit = s && (sec.getAttribute('data-conf') || '').includes(s);
+      let n = 0;
+      sec.querySelectorAll('.team-tile').forEach(b => {
+        const hit = !s || confHit || (b.getAttribute('data-name') || '').includes(s);
+        b.style.display = hit ? '' : 'none';
+        if (hit) n++;
+      });
+      sec.style.display = n ? '' : 'none';
+      shown += n;
+    });
+    const empty = document.getElementById('teamIndexEmpty');
+    if (empty) empty.style.display = shown ? 'none' : '';
+  },
+  openFirstTeamMatch() {
+    const t = this.matchTeam(this._teamIndexQuery);
+    if (t) this.setTeamPageSelection(t.school);
   },
 
   // Short human summary of how a team's season ended.
@@ -8483,64 +8649,16 @@ window.SimEngine = {
     return 'Preseason';
   },
 
-  renderTeamDetail(team) {
-    const safe = team.school.replace(/'/g, "\\'");
-    const allRows = this.computeAllTeamStats();
-    const row = allRows.find(r => r.school === team.school) || { stats: this.computeTeamStats(team), ranks: {} };
-    const st = row.stats, rk = row.ranks || {};
-    const apTag = (this.state.regularSeasonDone && team.apRank && team.apRank <= 25)
-      ? `<span class="ap-rank-tag">AP #${team.apRank}</span>` : '';
-
+  // The team statistics grids (box score and advanced), each number with
+  // its national rank underneath.
+  teamStatGrids(st, rk = {}) {
     const statCell = (label, value, rankKey) => `
       <div class="team-stat-cell">
         <span class="team-stat-label">${label}</span>
         <span class="team-stat-value"${/^-?\d/.test(String(value)) ? ` data-count="${value}"` : ''}>${value}</span>
         <span class="team-stat-rank">${rk[rankKey] ? this.ordinal(rk[rankKey]) : '—'}</span>
       </div>`;
-
-    const pollRank = this.pollRankOf(team);
-    let html = `
-      <div class="team-header team-hero">
-        <img src="${this.getTeamLogo(team.school)}" class="team-hero-mark" alt="" aria-hidden="true">
-        <img src="${this.getTeamLogo(team.school)}" class="team-logo" alt="">
-        <div class="team-title-block">
-          <span class="modal-team-year">
-            ${this.getConferenceLogoImg(team.conference, 'conf-logo-sm')} ${team.conference}
-            &bull; ${this.state.year}-${(this.state.year + 1).toString().slice(2)}
-          </span>
-          <div class="modal-team-title-wrap">
-            <h2 class="modal-team-name">${team.school}</h2>${apTag || (pollRank ? `<span class="ap-rank-tag">No. ${pollRank}</span>` : '')}
-          </div>
-          <span class="team-hero-meta">${team.simData.wins}-${team.simData.losses} &middot; ${team.simData.confWins}-${team.simData.confLosses} conference</span>
-        </div>
-        <div class="team-hero-actions">
-          <button class="outline-btn btn-sm" onclick="SimEngine.setTeamPageView('gamelog')">Game log</button>
-          <button class="outline-btn btn-sm" onclick="SimEngine.setTeamPageView('history')">History</button>
-          <button class="outline-btn btn-sm" onclick="SimEngine.backToTeamIndex()">All teams</button>
-        </div>
-      </div>
-
-      ${team.coach ? `<div class="coach-card mb-1-5">
-        <div class="coach-head">
-          <span class="coach-label">Head Coach</span>
-          <span class="coach-name">${this.esc(team.coach.name)}</span>
-          <span class="coach-meta">${this.coachMetaLine(team)}</span>
-        </div>
-        ${team.coachTags && team.coachTags.length ? `<div class="coach-tags">${team.coachTags.map(t => `<span class="coach-tag">${t}</span>`).join('')}</div>` : ''}
-        ${team.coach.style ? `<p class="coach-style">${team.coach.style}</p>` : ''}
-      </div>` : ''}
-
-      <div class="team-stats-grid mb-1-5${team.prestige != null ? ' five' : ''}">
-        <div class="stat-box"><span class="stat-label">RECORD</span><span class="stat-value">${team.simData.wins}-${team.simData.losses}</span><span class="sub-text-sm">(${team.simData.confWins}-${team.simData.confLosses} conf)</span></div>
-        ${team.prestige != null ? `<div class="stat-box"><span class="stat-label">PRESTIGE</span><span class="stat-value">${team.prestige}</span><span class="sub-text-sm">${Prestige.label(team.prestige, team.prestigeHistory)}${team.prestigeHistory != null && Math.abs(team.prestige - team.prestigeHistory) >= 3 ? ` (${team.prestige > team.prestigeHistory ? '▲' : '▼'} from ${team.prestigeHistory})` : ''}</span></div>` : ''}
-        <div class="stat-box"><span class="stat-label">PRESEASON</span><span class="stat-value">${team.preseasonRank ? '#' + team.preseasonRank : '—'}</span><span class="sub-text-sm">roster strength</span></div>
-        <div class="stat-box"><span class="stat-label">SOS</span><span class="stat-value">${team.sosRank ? this.ordinal(team.sosRank) : '—'}</span><span class="sub-text-sm">of ${this.state.teams.length}</span></div>
-        <div class="stat-box"><span class="stat-label">GAMES</span><span class="stat-value">${st.gp}</span><span class="sub-text-sm">played</span></div>
-      </div>
-
-      <div class="season-result-banner mb-1-5">${this.getSeasonResultText(team)}</div>
-
-      ${st.gp ? `      <div class="flex-between wrap-gap mb-1">
+    return `      <div class="flex-between wrap-gap mb-1">
         <h3 class="uppercase-title">Team Statistics</h3>
       </div>
       <p class="sub-text-sm mb-1">Small number under each stat is this team's national rank.</p>
@@ -8579,13 +8697,142 @@ window.SimEngine = {
         ${statCell('3PAr', st.threePar, 'threePar')}
         ${statCell('FTr', st.ftr, 'ftr')}
       </div>
-    ` : `<div class="card empty-card"><h3 class="uppercase-title">Team Statistics</h3><p class="sub-text">Team and national-rank numbers fill in after the first week of games.</p></div>`}
+`;
+  },
+
+  renderTeamDetail(team) {
+    const safe = team.school.replace(/'/g, "\\'");
+    const allRows = this.computeAllTeamStats();
+    const row = allRows.find(r => r.school === team.school) || { stats: this.computeTeamStats(team), ranks: {} };
+    const st = row.stats, rk = row.ranks || {};
+    const apTag = (this.state.regularSeasonDone && team.apRank && team.apRank <= 25)
+      ? `<span class="ap-rank-tag">AP #${team.apRank}</span>` : '';
+
+    const pollRank = this.pollRankOf(team);
+    let html = `
+      <div class="team-header team-hero">
+        <img src="${this.getTeamLogo(team.school)}" class="team-hero-mark" alt="" aria-hidden="true">
+        <img src="${this.getTeamLogo(team.school)}" class="team-logo" alt="">
+        <div class="team-title-block">
+          <span class="modal-team-year">
+            ${this.getConferenceLogoImg(team.conference, 'conf-logo-sm')} ${team.conference}
+            &bull; ${this.state.year}-${(this.state.year + 1).toString().slice(2)}
+          </span>
+          <div class="modal-team-title-wrap">
+            <h2 class="modal-team-name">${team.school}</h2>${apTag || (pollRank ? `<span class="ap-rank-tag">No. ${pollRank}</span>` : '')}
+          </div>
+          <span class="team-hero-meta">${team.simData.wins}-${team.simData.losses} &middot; ${team.simData.confWins}-${team.simData.confLosses} conference</span>
+        </div>
+        <div class="team-hero-actions">
+          <button class="outline-btn btn-sm" onclick="SimEngine.setTeamPageView('gamelog')">Game log</button>
+          <button class="outline-btn btn-sm" onclick="SimEngine.setTeamPageView('history')">Team History</button>
+          <button class="outline-btn btn-sm" onclick="SimEngine.backToTeamIndex()">All teams</button>
+          ${this.teamFinderHtml()}
+        </div>
+      </div>
+
+      ${team.coach ? `<div class="coach-card mb-1-5">
+        <div class="coach-head">
+          <span class="coach-label">Head Coach</span>
+          <span class="coach-name">${this.esc(team.coach.name)}</span>
+          <span class="coach-meta">${this.coachMetaLine(team)}</span>
+        </div>
+        ${team.coachTags && team.coachTags.length ? `<div class="coach-tags">${team.coachTags.map(t => `<span class="coach-tag">${t}</span>`).join('')}</div>` : ''}
+        ${team.coach.style ? `<p class="coach-style">${team.coach.style}</p>` : ''}
+      </div>` : ''}
+
+      <div class="team-stats-grid mb-1-5${team.prestige != null ? ' five' : ''}">
+        <div class="stat-box"><span class="stat-label">RECORD</span><span class="stat-value">${team.simData.wins}-${team.simData.losses}</span><span class="sub-text-sm">(${team.simData.confWins}-${team.simData.confLosses} conf)</span></div>
+        ${team.prestige != null ? `<div class="stat-box"><span class="stat-label">PRESTIGE</span><span class="stat-value">${team.prestige}</span><span class="sub-text-sm">${Prestige.label(team.prestige, team.prestigeHistory)}${team.prestigeHistory != null && Math.abs(team.prestige - team.prestigeHistory) >= 3 ? ` (${team.prestige > team.prestigeHistory ? '▲' : '▼'} from ${team.prestigeHistory})` : ''}</span></div>` : ''}
+        <div class="stat-box"><span class="stat-label">PRESEASON</span><span class="stat-value">${team.preseasonRank ? '#' + team.preseasonRank : '—'}</span><span class="sub-text-sm">roster strength</span></div>
+        <div class="stat-box"><span class="stat-label">SOS</span><span class="stat-value">${team.sosRank ? this.ordinal(team.sosRank) : '—'}</span><span class="sub-text-sm">of ${this.state.teams.length}</span></div>
+        <div class="stat-box"><span class="stat-label">GAMES</span><span class="stat-value">${st.gp}</span><span class="sub-text-sm">played</span></div>
+      </div>
+
+      <div class="season-result-banner mb-1-5">${this.getSeasonResultText(team)}</div>
+
+      ${st.gp ? this.teamStatGrids(st, rk) : `<div class="card empty-card"><h3 class="uppercase-title">Team Statistics</h3><p class="sub-text">Team and national-rank numbers fill in after the first week of games.</p></div>`}
     `;
 
     html += this.renderTeamPlayerTable(team, 'box');
     html += this.renderTeamPlayerTable(team, 'adv');
 
     return html;
+  },
+
+  // A past season's team, laid out like a current team page: the season's
+  // record and result, coach, team stats with national ranks, and the
+  // roster's box score and advanced lines.
+  renderTeamSeason(team, year) {
+    const d = this.teamSeasonData(team.school, year);
+    const h = d.hist || {};
+    const label = `${year}-${(year + 1).toString().slice(2)}`;
+    const seasons = this.teamSeasons(team.school);
+    const sel = `<select class="filter-select" aria-label="Season" onchange="SimEngine.goToTeamSeason('${this.jsArg(team.school)}', this.value)">
+      ${seasons.map(y => `<option value="${y}"${y === year ? ' selected' : ''}>${y}-${(y + 1).toString().slice(2)}${y === this.state.year ? ' (now)' : ''}</option>`).join('')}</select>`;
+    let result = 'Season record';
+    if (h.wonNationalTitle) result = 'Won the National Championship';
+    else if (h.ncaaSeed) result = `NCAA Tournament &middot; No. ${h.ncaaSeed} seed${h.ncaaWins ? ` &middot; ${h.ncaaWins} win${h.ncaaWins === 1 ? '' : 's'}` : ''}${h.wonConfTourney ? ' &middot; conference tournament champions' : ''}`;
+    else if (h.wonConfTourney) result = 'Conference tournament champions';
+    else if (h.wins != null) result = 'Missed the NCAA Tournament';
+    const conf = d.conf || team.conference;
+    const pseudo = { school: team.school, past: true, roster: d.players };
+    const st = d.stats;
+    return `
+      <div class="team-header team-hero">
+        <img src="${this.getTeamLogo(team.school)}" class="team-hero-mark" alt="" aria-hidden="true">
+        <img src="${this.getTeamLogo(team.school)}" class="team-logo" alt="">
+        <div class="team-title-block">
+          <span class="modal-team-year">${this.getConferenceLogoImg(conf, 'conf-logo-sm')} ${this.esc(conf)} &bull; ${label}</span>
+          <div class="modal-team-title-wrap">
+            <h2 class="modal-team-name">${team.school}</h2>${h.apRank ? `<span class="ap-rank-tag">AP #${h.apRank}</span>` : ''}
+          </div>
+          <span class="team-hero-meta">${h.wins != null ? `${h.wins}-${h.losses} &middot; ${h.confWins}-${h.confLosses} conference` : 'Record not on file'}</span>
+        </div>
+        <div class="team-hero-actions">
+          ${sel}
+          <button class="outline-btn btn-sm" onclick="SimEngine.goToTeamPage('${this.jsArg(team.school)}')">${this.state.year}-${(this.state.year + 1).toString().slice(2)} team</button>
+          <button class="outline-btn btn-sm" onclick="SimEngine.setTeamPageView('history')">Team History</button>
+        </div>
+      </div>
+      ${d.coach ? `<div class="coach-card mb-1-5"><div class="coach-head"><span class="coach-label">Head Coach</span><span class="coach-name">${this.esc(d.coach)}</span></div></div>` : ''}
+      <div class="team-stats-grid mb-1-5">
+        <div class="stat-box"><span class="stat-label">RECORD</span><span class="stat-value">${h.wins != null ? `${h.wins}-${h.losses}` : '—'}</span><span class="sub-text-sm">${h.wins != null ? `(${h.confWins}-${h.confLosses} conf)` : ''}</span></div>
+        <div class="stat-box"><span class="stat-label">AP RANK</span><span class="stat-value">${h.apRank ? '#' + h.apRank : '—'}</span><span class="sub-text-sm">final poll</span></div>
+        <div class="stat-box"><span class="stat-label">PRESEASON</span><span class="stat-value">${d.preseason ? '#' + d.preseason : '—'}</span><span class="sub-text-sm">roster strength</span></div>
+        <div class="stat-box"><span class="stat-label">SOS</span><span class="stat-value">${d.sos ? this.ordinal(d.sos) : '—'}</span><span class="sub-text-sm">of ${this.state.teams.length}</span></div>
+      </div>
+      <div class="season-result-banner mb-1-5">${result}</div>
+      ${st && st.gp ? this.teamStatGrids(st, d.ranks) : `<div class="card empty-card"><h3 class="uppercase-title">Team Statistics</h3><p class="sub-text">Team totals weren't kept for this season (it was played before team seasons were saved). The players' own lines are below.</p></div>`}
+      ${this.renderTeamPlayerTable(pseudo, 'box')}
+      ${this.renderTeamPlayerTable(pseudo, 'adv')}`;
+  },
+
+  // A search box for jumping straight to another team's page.
+  teamFinderHtml() {
+    const names = this.state.teams.map(t => t.school).sort((a, b) => a.localeCompare(b));
+    if (!document.getElementById('teamFinderList')) {
+      const dl = document.createElement('datalist');
+      dl.id = 'teamFinderList';
+      document.body.appendChild(dl);
+    }
+    const dl = document.getElementById('teamFinderList');
+    if (dl.childElementCount !== names.length) dl.innerHTML = names.map(n => `<option value="${this.esc(n)}">`).join('');
+    return `<input type="search" class="filter-select team-finder" list="teamFinderList" placeholder="Find a team" aria-label="Find a team"
+      onchange="SimEngine.findTeamFromSearch(this.value)" onkeydown="if(event.key==='Enter')SimEngine.findTeamFromSearch(this.value)">`;
+  },
+  findTeamFromSearch(q) {
+    const t = this.matchTeam(q);
+    if (t) this.setTeamPageSelection(t.school);
+  },
+  // The team a search means: an exact name, else the one starting with it,
+  // else the first containing it.
+  matchTeam(q) {
+    const s = String(q || '').trim().toLowerCase();
+    if (!s) return null;
+    const teams = this.state.teams;
+    return teams.find(t => t.school.toLowerCase() === s) || teams.find(t => t.school.toLowerCase().startsWith(s))
+      || teams.find(t => t.school.toLowerCase().includes(s)) || null;
   },
 
   // Full player table for a single team — 'box' for box score stats,
@@ -8632,7 +8879,9 @@ window.SimEngine = {
         const safeId = String(p.id).replace(/'/g, "\\'");
       rows += '<tr>' + cols.map(([id]) => {
         if (id === 'jersey') return `<td class="jersey-num">${p.jersey ? '#' + p.jersey : '—'}</td>`;
-        if (id === 'name') return `<td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${p.name}</span></td>`;
+        if (id === 'name') return team.past && !this.findPlayerRef(p.id)
+          ? `<td>${this.esc(p.name)}</td>`
+          : `<td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${p.name}</span></td>`;
         if (id === 'pos' || id === 'class') return `<td class="sub-text">${p[id]}</td>`;
         return `<td>${p.stats ? p.stats[id] : '—'}</td>`;
       }).join('') + '</tr>';
@@ -8646,7 +8895,7 @@ window.SimEngine = {
           const arrow = isActive ? ((this.state[dirKey] || 'desc') === 'desc' ? ' &darr;' : ' &uarr;') : '';
           return `<th class="${isActive ? 'active-sort' : ''}" onclick="SimEngine.sortTeamRoster('${mode}','${id}')">${label}${arrow}</th>`;
         }).join('')}</tr></thead>
-        <tbody>${rows || `<tr><td colspan="${cols.length}" class="empty-table-msg">No games played yet.</td></tr>`}</tbody>
+        <tbody>${rows || `<tr><td colspan="${cols.length}" class="empty-table-msg">${team.past ? 'No player lines were kept for this season.' : 'No games played yet.'}</td></tr>`}</tbody>
       </table></div>`;
   },
 
@@ -8722,8 +8971,8 @@ window.SimEngine = {
       if (h.wonNationalTitle) result = 'National Champions';
       else if (h.wonConfTourney) result = 'Conference Champions';
       else if (h.ncaaSeed) result = `NCAA Tournament (#${h.ncaaSeed} seed)`;
-      rows += `<tr>
-        <td class="bold-text">${h.year}-${(h.year + 1).toString().slice(2)}</td>
+      rows += `<tr class="game-row" onclick="SimEngine.goToTeamSeason('${this.jsArg(team.school)}', ${h.year})" title="The ${h.year}-${(h.year + 1).toString().slice(2)} team: roster and stats">
+        <td class="bold-text"><span class="clickable-school">${h.year}-${(h.year + 1).toString().slice(2)}</span></td>
         <td>${h.wins}-${h.losses}</td>
         <td class="sub-text">${h.confWins}-${h.confLosses}</td>
         <td class="sub-text">${h.apRank ? '#' + h.apRank : '—'}</td>
@@ -8735,6 +8984,7 @@ window.SimEngine = {
         <img src="${this.getTeamLogo(team.school)}" class="team-logo">
         <div class="team-title-block"><h2 class="modal-team-name">${team.school}</h2><span class="modal-team-year">Team History</span></div>
       </div>
+      <p class="sub-text-sm mb-1">Pick a season for that team's roster and stats.</p>
       <div class="table-scroll"><table class="data-table">
         <thead><tr><th>Season</th><th>Record</th><th>Conf</th><th>AP Rank</th><th>Result</th></tr></thead>
         <tbody>${rows}</tbody>
@@ -8745,6 +8995,11 @@ window.SimEngine = {
 
   setTeamStatsConfFilter(val) {
     this.state.teamStatsConfFilter = val;
+    this.updateTeamStatsTab();
+  },
+
+  setTeamStatsSearch(q) {
+    this._teamStatsQuery = String(q || '');
     this.updateTeamStatsTab();
   },
 
@@ -8783,8 +9038,10 @@ window.SimEngine = {
          ['twoPm','2P'],['twoPa','2PA'],['twoPPct','2P%'],
          ['threePm','3PM'],['threePa','3PA'],['threePPct','3P%'],['ftm','FTM'],['fta','FTA'],['ftPct','FT%']];
 
+    const tq = String(this._teamStatsQuery || '').trim().toLowerCase();
     let rows = this.computeAllTeamStats()
-      .filter(r => this.matchesConfFilter(r.conference, this.state.teamStatsConfFilter));
+      .filter(r => this.matchesConfFilter(r.conference, this.state.teamStatsConfFilter))
+      .filter(r => !tq || r.school.toLowerCase().includes(tq) || String(r.conference || '').toLowerCase().includes(tq));
 
     const col = this.state.teamStatSortCol;
     const dir = this.state.teamStatSortDir === 'asc' ? 1 : -1;
@@ -8808,7 +9065,7 @@ window.SimEngine = {
     }
 
     if (rows.length === 0) {
-      body.innerHTML = `<tr><td colspan="${cols.length}" class="empty-table-msg">No teams match this filter.</td></tr>`;
+      body.innerHTML = `<tr><td colspan="${cols.length}" class="empty-table-msg">${tq ? 'No team matches that search.' : 'No teams match this filter.'}</td></tr>`;
       return;
     }
 
@@ -10764,6 +11021,8 @@ window.SimEngine = {
   // the history tab needs its own view built from the archive rather than
   // from today's data.
   showHistoricalTeam(school, year, fromBack = false) {
+    // A past team opens as its own team page (roster, stats, ranks).
+    if (!fromBack && this.findTeam(school)) { this.goToTeamSeason(school, year); return; }
     if (!fromBack) this.pushNav({ type: 'history', key: `team-${school}-${year}`, year, team: school, label: `${school} ${year}-${String(year + 1).slice(2)}` });
     const team = this.state.teams.find(t => t.school === school);
     const container = document.getElementById('historyContainer');

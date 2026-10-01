@@ -289,8 +289,8 @@
     [/turk|istanbul|ankara|izmir|fenerbah/i, ['Fenerbahce', 'Anadolu Efes', 'Besiktas', 'Galatasaray']],
     [/greece|athens|thessaloniki/i, ['Olympiacos', 'Panathinaikos', 'AEK Athens', 'PAOK']],
     [/italy|rome|milan|bologna/i, ['Olimpia Milano', 'Virtus Bologna', 'Reyer Venezia']],
-    [/australia|melbourne|sydney|perth|brisbane|adelaide|victoria|, (AU|ACT|VIC|NSW)/i, ['Perth Wildcats (NBL Next Stars)', 'Melbourne United (NBL Next Stars)', 'Sydney Kings (NBL Next Stars)']],
-    [/new zealand|auckland/i, ['New Zealand Breakers (NBL Next Stars)']],
+    [/australia|melbourne|sydney|perth|brisbane|adelaide|canberra|tasmania|hobart|cairns|victoria|, (AU|AUS|ACT|VIC|NSW|QLD|WA|SA)$/i, ['Perth Wildcats', 'Melbourne United', 'Sydney Kings', 'Brisbane Bullets', 'Adelaide 36ers', 'Tasmania JackJumpers', 'South East Melbourne Phoenix', 'Illawarra Hawks', 'Cairns Taipans']],
+    [/new zealand|auckland/i, ['New Zealand Breakers']],
     [/china|beijing|shanghai|guangdong/i, ['Beijing Ducks', 'Guangdong Southern Tigers', 'Shanghai Sharks']],
     [/japan|tokyo|osaka/i, ['Alvark Tokyo', 'Chiba Jets']],
     [/korea|seoul/i, ['Seoul SK Knights', 'Ulsan Hyundai Mobis']],
@@ -298,8 +298,19 @@
     [/brazil|sao paulo|rio de janeiro|franca/i, ['Franca', 'Flamengo', 'Sao Paulo']],
     [/sweden|stockholm|gothenburg|finland|helsinki|denmark|norway/i, ['Sodertalje Kings', 'Bakken Bears']],
     [/uk|england|london|manchester/i, ['London Lions']],
-    [/nigeria|lagos|senegal|dakar|mali|bamako|cameroon|congo|ghana|accra|sudan/i, ['NBA Academy Africa', 'Real Madrid', 'FC Barcelona', 'ASVEL']],
+    // Africa's best prospects mostly go to Europe; some play in the BAL.
+    [/nigeria|lagos/i, ['ASVEL', 'Real Madrid', 'FC Barcelona', 'Gran Canaria', 'Paris Basketball', 'Cholet Basket', 'Joventut Badalona', 'Rivers Hoopers (BAL)']],
+    [/senegal|dakar|thies/i, ['ASVEL', 'Cholet Basket', 'AS Monaco', 'Real Madrid', 'Paris Basketball', 'Gran Canaria', 'Bayern Munich', 'AS Douanes (BAL)']],
+    [/mali|bamako/i, ['ASVEL', 'Cholet Basket', 'Joventut Badalona', 'Real Madrid', 'Paris Basketball', 'Valencia Basket', 'Stade Malien (BAL)']],
+    [/cameroon|yaound|douala/i, ['ASVEL', 'Real Madrid', 'Paris Basketball', 'Cholet Basket', 'Gran Canaria', 'Joventut Badalona', 'FAP (BAL)']],
+    [/sudan|juba/i, ['Real Madrid', 'FC Barcelona', 'ASVEL', 'Paris Basketball', 'Joventut Badalona', 'Cobra Sport (BAL)']],
+    [/congo|kinshasa|ghana|accra|rwanda|kigali|angola|luanda|ivory|abidjan|kenya|nairobi|egypt|cairo|tunisia/i, ['ASVEL', 'Real Madrid', 'FC Barcelona', 'Paris Basketball', 'Cholet Basket', 'Joventut Badalona', 'Petro de Luanda (BAL)', 'APR (BAL)']],
     [/puerto rico|mayag|san juan/i, ['Cangrejeros de Santurce', 'Leones de Ponce']],
+    [/russia|moscow|st\.? petersburg|kazan/i, ['CSKA Moscow', 'Zenit St. Petersburg', 'UNICS Kazan']],
+    [/ukraine|kyiv|kharkiv|poland|warsaw|czech|prague|hungary|budapest|romania|bulgaria/i, ['Partizan', 'Crvena Zvezda', 'Alba Berlin', 'Zalgiris Kaunas']],
+    [/ireland|dublin|scotland/i, ['London Lions', 'Manchester Giants']],
+    [/israel|tel aviv|jerusalem/i, ['Maccabi Tel Aviv', 'Hapoel Jerusalem']],
+    [/philippines|manila|taiwan|taipei/i, ['Seoul SK Knights', 'Alvark Tokyo', 'Beijing Ducks']],
     [/canada|, (ON|QC|BC|AB)$/i, ['Overtime Elite']]
   ];
   const D1_LIKE = /university|college|state|^[A-Z]{2,5}$/i;
@@ -307,12 +318,24 @@
   // Where an uncommitted international plays: the sheet's committed club
   // when it names one that isn't a college, else his last club, else a
   // club from his country.
+  // Academies are high school: the NBA Academies, INSEP, SEED, a club's
+  // youth or junior team, a prep school. A player there isn't a pro yet.
+  const ACADEMY = /academy|academic|insep|\bseed\b|\byouth\b|\bjuniors?\b|\bjr\.?$|\bu1[4-9]\b|\bu2[01]\b|\bprep\b|high school|\bhs\b|\bnext stars\b|\bmis\b|stella azzurra|aspire|\bselect\b|hoop summit|^n\/a$|^none$|^-$/i;
+  const isAcademy = name => ACADEMY.test(String(name || '').trim());
+  const NOT_A_CLUB = /^(pro|playing pro|professional|overseas|international|tbd|undecided)$/i;
+  // His pro club: one he's signed with, the senior team he's played for,
+  // or one in his part of the world.
   function clubFor(r, isD1) {
+    const ok = n => n && !NOT_A_CLUB.test(n) && !isAcademy(n);
     const c = committedTo(r);
-    if (c && !(isD1 ? isD1(c) : D1_LIKE.test(c))) return c;
+    if (ok(c) && !(isD1 ? isD1(c) : D1_LIKE.test(c))) return c;
+    const signed = String(r.proClub || '').trim();
+    if (ok(signed)) return signed;
     const last = String(r.intlTeam || '').trim();
-    if (last && !/^(n\/a|nike hoop summit|none|-)$/i.test(last)) return last;
-    const where = `${r.hometown || ''} ${r.state || ''}`;
+    if (ok(last)) return last;
+    // Where he's from: hometown, else the country the sheet lists (some
+    // overseas rows put the country where the school goes).
+    const where = `${r.hometown || ''} ${r.state || ''} ${r.country || ''} ${r.hs || ''}`;
     const hit = CLUBS.find(([re]) => re.test(where));
     const list = hit ? hit[1] : ['Overtime Elite', 'Real Madrid', 'ASVEL', 'Partizan'];
     return list[Math.floor(rngFor(keyOf(r) + '|club')() * list.length)];
@@ -320,6 +343,18 @@
 
   // Turns pro: an international who never commits to a college (or who
   // commits to a club).
+  // How likely an overseas prospect is to stay pro rather than come to
+  // college: Europeans most, then Australians and Latin Americans, then
+  // Africans and Canadians, who mostly come over.
+  function proLean(r) {
+    const where = `${r.country || ''} ${r.hometown || ''}`;
+    if (/canada|, (ON|QC|BC|AB|MB|NS|SK)$/i.test(where)) return 0.15;
+    if (/nigeria|senegal|mali|cameroon|sudan|congo|ghana|rwanda|angola|ivory|kenya|egypt|tunisia|africa/i.test(where)) return 0.35;
+    if (/australia|new zealand|, (AUS|ACT|VIC|NSW|QLD)$/i.test(where)) return 0.45;
+    if (/argentina|brazil|puerto rico|dominican|china|japan|korea|philippines/i.test(where)) return 0.4;
+    return 0.6;
+  }
+  const staysPro = r => rngFor(keyOf(r) + '|stays-pro')() < proLean(r);
   function turnsPro(r, isD1) {
     if (!isInternational(r)) return false;
     const c = committedTo(r);
@@ -404,6 +439,6 @@
   root.HSCore = {
     hash, rngFor, isInternational, committedTo, classProgress, rankOffset, rankClass, starQuota, starsByRank,
     commitAt, commitVisible, RECLASS_NAMED, parseDob, reclassFrom, reclassAt, currentClass,
-    EVENTS, TEAM_STYLE, EVENT_LOGO, selectRosters, splitEastWest, splitSnake, clubFor, turnsPro, proTalent, proBreakout, proPedigreeRank, proLine, proStats, US_STATES
+    EVENTS, TEAM_STYLE, EVENT_LOGO, selectRosters, splitEastWest, splitSnake, clubFor, isAcademy, proLean, staysPro, turnsPro, proTalent, proBreakout, proPedigreeRank, proLine, proStats, US_STATES
   };
 })(typeof window !== 'undefined' ? window : globalThis);
