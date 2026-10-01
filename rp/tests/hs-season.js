@@ -154,7 +154,7 @@ const FIX = path.join(__dirname, 'fixtures');
   const di = Sim.OFFSEASON_STAGES.findIndex(s => s.key === 'draft');
   for (let i = 0; i <= di; i++) await Sim.simulateWeek();
   const draftedPros = (Sim.state.draftResults || []).filter(r => Sim.state.proPlayers.some(p => p.id === r.id));
-  for (let i = di + 1; i < Sim.OFFSEASON_STAGES.length; i++) await Sim.simulateWeek();
+  { let g = 0; while (Sim.state.ncaaDone && g++ < 40) await Sim.simulateWeek(); }
   ok(!Sim.state.proPlayers.some(p => draftedPros.some(d => d.id === p.id)), `drafted pros leave the pro pool (${draftedPros.map(d => '#' + d.pick + ' ' + d.name).join(', ') || 'none drafted'})`);
   ok(!Sim.state.activePlayers.some(p => p.isPro), 'and no pro ever joins a college roster');
 

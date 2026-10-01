@@ -1028,3 +1028,28 @@ a.outline-btn { text-decoration: none; display: inline-flex; align-items: center
 .summer-honors .hs-when { min-width: 3rem; }
 .summer-strip { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; align-items: baseline; font-size: 0.85rem; margin-bottom: 0.9rem; }
 .summer-strip b { font-weight: 700; }
+
+/* Summer as a short season: steps, event tabs, results */
+.card.summer-head { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 0.9rem; }
+.summer-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.summer-steps li { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.76rem; font-weight: 600; color: var(--text-muted); border: 1px solid var(--border); border-radius: var(--r-pill); padding: 0.2rem 0.6rem 0.2rem 0.25rem; }
+.summer-steps li .stage-dot { width: 1.25rem; height: 1.25rem; font-size: 0.68rem; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: var(--bg-color); }
+.summer-steps li.done { color: var(--text-main); }
+.summer-steps li.current { border-color: var(--accent); color: var(--text-main); }
+.summer-tabs { margin-bottom: 0.9rem; flex-wrap: wrap; }
+.summer-split { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 0.9rem; margin-bottom: 0.9rem; }
+@media (max-width: 900px) { .summer-split { grid-template-columns: 1fr; } }
+.summer-table td:first-child { color: var(--text-muted); width: 1.5rem; }
+.summer-table tr.cutline td { border-bottom: 2px solid var(--accent); }
+.summer-round h4 { margin: 0.6rem 0 0.3rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.summer-games { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.35rem; }
+.summer-game { display: grid; grid-template-columns: 1fr auto; gap: 1px 0.5rem; align-items: center; background: var(--bg-color); border: 1px solid var(--border); border-radius: var(--r-md); padding: 0.4rem 0.6rem; font-size: 0.85rem; }
+.summer-game > span { display: flex; justify-content: space-between; gap: 0.5rem; color: var(--text-muted); grid-column: 1; }
+.summer-game > span.won { color: var(--text-main); font-weight: 700; }
+.summer-game .hs-link, .summer-game .hs-actions { grid-column: 2; grid-row: 1 / span 2; }
+.summer-game.hidden-result { grid-template-columns: 1fr; }
+.summer-game.hidden-result .hs-actions { grid-column: 1; grid-row: auto; }
+.summer-awards-row { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; }
+.summer-leaders { margin: 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.88rem; }
+.summer-leaders li small { color: var(--text-muted); margin-left: 0.3rem; }
+.summer-leaders li b { float: right; font-family: 'Oswald', sans-serif; }

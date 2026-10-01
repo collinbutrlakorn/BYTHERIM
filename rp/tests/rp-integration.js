@@ -164,7 +164,8 @@ const keep = (name, snap) => { if (OUT) fs.writeFileSync(path.join(OUT, name + '
   ok(alum && alum.seasons.length >= 1 && alum.seasons[0].school === 'Louisville', 'his college season line is kept');
 
   // ---- the rest of the offseason: portal and rollover ----
-  for (let i = draftIdx + 1; i < Sim.OFFSEASON_STAGES.length; i++) await Sim.simulateWeek();
+  // (The summer circuit takes a click per step.)
+  { let g = 0; while (Sim.state.ncaaDone && g++ < 40) await Sim.simulateWeek(); }
   ok(Sim.state.year === 2029, 'the season rolls over to 2029-30');
 
   // ---- the 2029-30 tab goes on as the new season starts ----

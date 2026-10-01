@@ -125,6 +125,19 @@ const RL = require('../js/recruit-live.js');
     ok((await Sim.applyGeneratedResets({ [liveYear]: 1, [openYear]: 2 }, loader)).length === 0, 'the same reset isn\'t applied twice');
   }
 
+  // A namesake isn't the recruit: a college player (or one who has left)
+  // sharing his name doesn't keep him from arriving or from his class list.
+  const incoming = S.allRecruits.find(r => Number(r.recClassYear) === year + 2 && !r.genRecruit && Number(r.rsci) > 0) || S.allRecruits.find(r => Number(r.recClassYear) === year + 2);
+  const host = S.teams.find(t => t.school !== incoming.school && (t.roster || []).length);
+  host.roster.push({ id: 'namesake-1', name: incoming.name, school: host.school, class: 'JR', pos: 'SG', rating: 70 });
+  Sim.markDeparted({ id: 'namesake-2', name: incoming.name, school: 'Somewhere', class: 'SR' });
+  S.year += 1; Sim.refreshRecruitPool();
+  const pooled = S.recruits.includes(incoming);
+  S.year -= 1; Sim.refreshRecruitPool();
+  ok(pooled, `a college player sharing ${incoming.name}'s name doesn't stop him from arriving`);
+  ok(Sim.hsClassMembers(year + 2).includes(incoming), 'and a namesake who left doesn\'t take him off his class list');
+  host.roster = host.roster.filter(p => p.id !== 'namesake-1');
+
   console.log('\nLive recruiting OK.');
   process.exit(0);
 

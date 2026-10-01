@@ -26,6 +26,7 @@ function boot(opts = {}) {
   w.confirm = () => true;
   w.__BTR_NO_CUTSCENES = true;   // cutscenes are for people, not tests
   w.__BTR_AUTO_DRAFT = true;     // no Draft RP tab to hand off to: run the draft cycle in place
+  w.__BTR_AUTO_SUMMER = true;    // nor a Recruiting page: play the summer here, a step per Continue
   w.alert = () => {};
   const store = {};
   Object.defineProperty(w, 'localStorage', {
@@ -61,8 +62,13 @@ async function playSeason(Sim, guard = 90) {
 }
 
 // Walks every offseason stage, rolling into the next season.
+// The summer circuit takes a click per step, so the offseason is walked
+// until the new season starts, plus one more click (the season's first
+// week), as it always was.
 async function playOffseason(Sim) {
-  for (let i = 0; i < Sim.OFFSEASON_STAGES.length; i++) await Sim.simulateWeek();
+  let guard = 0;
+  while (Sim.state.ncaaDone && guard++ < 40) await Sim.simulateWeek();
+  await Sim.simulateWeek();
 }
 
 let passed = 0;

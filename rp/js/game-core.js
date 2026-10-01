@@ -45,11 +45,17 @@ function generateRawPlayerBox(player, minutesMultiplier = 1) {
   // expected makes get used directly as attempts, which understates shot
   // volume and inflates field-goal percentage once the team score is
   // reconciled.)
+  // threePar is the share of his SHOTS that are threes (that's what a
+  // three-point attempt rate is), so attempts are solved from it directly.
+  // Reading it as the share of his points from threes gave a poor shooter
+  // far more threes than his rate: a 25% shooter's few points from deep
+  // take a lot of attempts, which is how rim-running bigs ended up
+  // launching one or two threes a night.
   const fgPoints = Math.max(0, ppgExp - (ftaExp * ftPct));
-  const expected3PM = (fgPoints * threePar) / 3;
-  const expected2PM = Math.max(0, (fgPoints - expected3PM * 3) / 2);
-  let expected3PA = threePPct > 0 ? expected3PM / threePPct : expected3PM * 3;
-  let expected2PA = twoPPct > 0 ? expected2PM / twoPPct : expected2PM * 2;
+  const ptsPerShot = threePar * 3 * threePPct + (1 - threePar) * 2 * twoPPct;
+  const expectedFga = ptsPerShot > 0 ? fgPoints / ptsPerShot : fgPoints / 1.0;
+  let expected3PA = expectedFga * threePar;
+  let expected2PA = expectedFga * (1 - threePar);
   if (expected2PA < 0) expected2PA = 1;
   if (expected3PA < 0) expected3PA = 1;
 
@@ -97,6 +103,18 @@ function generateRawPlayerBox(player, minutesMultiplier = 1) {
     fgm: twoPm + threePm, fga: twoPa + threePa,
     twoPm, twoPa, threePm, threePa, ftm, fta
   };
+}
+
+// A player's expected points and shooting possessions per game, the same
+// way his raw box is drawn: the league's points-per-possession norm for
+// efficiency-aware possessions (see buildConsistentBoxes) is built from it.
+function expectedLoad(exp) {
+  exp = exp || {};
+  const ppg = parseFloat(exp.ppg) || 0, fta = parseFloat(exp.fta) || 0, ftPct = parseFloat(exp.ftPct) || 0.7;
+  const par = parseFloat(exp.threePar) || 0.3, p3 = parseFloat(exp.threePPct) || 0.33, p2 = parseFloat(exp.twoPPct) || 0.5;
+  const pps = par * 3 * p3 + (1 - par) * 2 * p2;
+  const fga = pps > 0 ? Math.max(0, ppg - fta * ftPct) / pps : 0;
+  return { pts: ppg, load: fga + 0.44 * fta + (parseFloat(exp.tov) || 0) };
 }
 
 // Rescales a team's raw player boxes so total points hit `targetScore`
@@ -280,9 +298,13 @@ function capShotVolume(boxes, maxShare) {
       .sort((x, y) => (x.fga || 0) - (y.fga || 0));
     if (room.length === 0) return;
     let i = 0;
+    // Threes go to the teammates who shoot them, in proportion to how much;
+    // a center who never shoots one isn't handed a guard's leftover threes.
+    const shooters = room.filter(x => (x.threePa || 0) > 0).sort((x, y) => (y.threePa || 0) - (x.threePa || 0));
     const give = (attKey, madeKey, dAtt, dMade) => {
+      const to = attKey === 'threePa' && shooters.length ? shooters : room;
       for (let n = 0; n < dAtt; n++) {
-        const t = room[i % room.length]; i++;
+        const t = to[i % to.length]; i++;
         t[attKey] += 1;
         if (n < dMade) { t[madeKey] += 1; t.pts += (attKey === 'threePa' ? 3 : 2); }
         t.fgm = t.twoPm + t.threePm;
@@ -354,18 +376,34 @@ function shareOut(total, weights) {
   return out;
 }
 
-// Hands out `count` makes one at a time, each to a shooter chosen in
-// proportion to his remaining attempts times his touch.
+// Hands out `count` makes among the shooters. Each player's touch (his
+// shooting tonight, read against what he usually shoots) is moved up or
+// down by the same few points until the makes add up, so a team's cold
+// night costs everyone about the same percentage points: a 67% finisher
+// lands around 62 when his guards drop from 46 to 41. (Scaling every
+// player's percentage by the same factor punished efficient bigs most,
+// and drawing makes one at a time pulled every shooter toward the team
+// average.) The fractions are rounded with a little chance, game to game.
 function dealMakes(count, attempts, pct, rnd) {
+  const n = attempts.length;
   const made = attempts.map(() => 0);
-  for (let k = 0; k < count; k++) {
-    let total = 0;
-    const w = attempts.map((a, i) => { const x = Math.max(0, a - made[i]) * pct[i]; total += x; return x; });
-    if (total <= 0) break;
-    let r = rnd() * total, pick = 0;
-    for (let i = 0; i < w.length; i++) { r -= w[i]; if (r <= 0) { pick = i; break; } }
-    made[pick]++;
+  const att = attempts.map(a => Math.max(0, a || 0));
+  const totalAtt = att.reduce((x, a) => x + a, 0);
+  count = Math.min(count, totalAtt);
+  if (count <= 0 || !n) return made;
+  const p = pct.map(v => Math.max(0.02, Math.min(0.98, v || 0)));
+  const sumAt = d => att.reduce((x, a, i) => x + a * Math.max(0, Math.min(1, p[i] + d)), 0);
+  let lo = -1, hi = 1;
+  for (let it = 0; it < 40; it++) { const mid = (lo + hi) / 2; if (sumAt(mid) < count) lo = mid; else hi = mid; }
+  const target = att.map((a, i) => a * Math.max(0, Math.min(1, p[i] + hi)));
+  let given = 0;
+  target.forEach((t, i) => { made[i] = Math.min(att[i], Math.floor(t)); given += made[i]; });
+  const order = target.map((t, i) => [t - Math.floor(t) + (rnd() - 0.5) * 0.5, i]).sort((a, b) => b[0] - a[0]);
+  for (let k = 0; given < count && k < n * 4; k++) {
+    const i = order[k % n][1];
+    if (made[i] < att[i]) { made[i]++; given++; }
   }
+  while (given > count) { const i = made.indexOf(Math.max(...made)); made[i]--; given--; }
   return made;
 }
 
@@ -429,7 +467,9 @@ function solveTeamLine(raw, score, poss, orbRate, rnd) {
 }
 
 // Rebuilds a team's player boxes around its solved line.
-function dealTeamLine(raw, line, dreb, oppTov, oppTwoMiss, oppFta, rnd) {
+// touch: [twoPPct, threePPct] per player (his season expectations), the
+// prior his shooting tonight is read against.
+function dealTeamLine(raw, line, dreb, oppTov, oppTwoMiss, oppFta, rnd, touch) {
   const idx = raw.map((b, i) => i).filter(i => raw[i].min > 0);
   const out = raw.map(b => ({ ...b }));
   if (!idx.length) return out;
@@ -440,9 +480,13 @@ function dealTeamLine(raw, line, dreb, oppTov, oppTwoMiss, oppFta, rnd) {
   const w3 = pick('threePa');
   const twoPa = shareOut(line.twoPa, w2);
   const threePa = shareOut(line.threePa, w3.some(x => x > 0) ? w3 : pick('fga'));
-  // Touch: a player's raw shooting this game, pulled toward league norms.
-  const t2 = idx.map(i => (raw[i].twoPm + 0.5 * 4) / (raw[i].twoPa + 4));
-  const t3 = idx.map(i => (raw[i].threePm + 0.34 * 4) / (raw[i].threePa + 4));
+  // Touch: a player's raw shooting this game, pulled toward what he
+  // usually shoots. (Pulling everyone toward the league average flattened
+  // the difference between a 65% finisher and a 45% shooter every night,
+  // which is what kept efficient bigs from ever shooting like themselves.)
+  const prior = (i, j, dflt) => { const v = touch && touch[i] ? Number(touch[i][j]) : NaN; return v > 0 && v < 1 ? v : dflt; };
+  const t2 = idx.map(i => (raw[i].twoPm + prior(i, 0, 0.5) * 4) / (raw[i].twoPa + 4));
+  const t3 = idx.map(i => (raw[i].threePm + prior(i, 1, 0.34) * 4) / (raw[i].threePa + 4));
   const twoPm = dealMakes(line.twoPm, twoPa, t2, rnd);
   const threePm = dealMakes(line.threePm, threePa, t3, rnd);
   // Whatever makes couldn't be placed (every shooter full) go to anyone with room.
@@ -497,15 +541,36 @@ function buildConsistentBoxes(homeRaw, awayRaw, homeScore, awayScore, opts = {})
     return b;
   };
   const H = prep(homeRaw), A = prep(awayRaw);
-  const poss = Math.max(56, Math.min(84, Math.round(((homeScore + awayScore) / 2) / POINTS_PER_POSS + (rnd() - 0.5) * 3)));
+  // How efficient each roster is tonight, against the league (opts.effNorm:
+  // points per shooting possession across the league's expectations). An
+  // efficient team reaches its score on fewer possessions, so its shooters
+  // keep their percentages. With a league-average norm, every team was
+  // given league-average possessions, and the score then dragged a roster
+  // of efficient finishers down by several points apiece.
+  // The norm is learned from the games themselves (opts.effAcc, a running
+  // total kept by the caller) once there are enough of them, so league
+  // possessions stay where they were; opts.effNorm seeds it.
+  const acc = opts.effAcc;
+  const loadOf = b => sumKey(b, 'fga') + 0.44 * sumKey(b, 'fta') + sumKey(b, 'tov');
+  const norm = acc && acc.load > 2000 ? acc.pts / acc.load : opts.effNorm;
+  const relEff = b => {
+    if (!norm) return 1;
+    const pts = sumKey(b, 'pts'), load = loadOf(b);
+    return load > 0 ? Math.max(0.86, Math.min(1.16, (pts / load) / norm)) : 1;
+  };
+  if (acc) [H, A].forEach(b => { acc.pts += sumKey(b, 'pts'); acc.load += loadOf(b); });
+  const implied = (score, b) => score / (POINTS_PER_POSS * relEff(b));
+  const lenK = (opts.gameMinutes || 40) / 40;
+  const poss = Math.max(Math.round(56 * lenK), Math.min(Math.round(84 * lenK), Math.round((implied(homeScore, H) + implied(awayScore, A)) / 2 + (rnd() - 0.5) * 3)));
   const orb = (off, def) => {
     const o = sumKey(off, 'oreb'), d = sumKey(def, 'dreb');
     return Math.min(0.42, Math.max(0.2, o + d > 0 ? o / (o + d) : 0.29));
   };
   const hl = solveTeamLine(H, homeScore, poss, orb(H, A), rnd);
   const al = solveTeamLine(A, awayScore, poss, orb(A, H), rnd);
-  const homeBoxes = dealTeamLine(H, hl, al.oppDreb, al.tov, al.twoMiss, al.fta, rnd);
-  const awayBoxes = dealTeamLine(A, al, hl.oppDreb, hl.tov, hl.twoMiss, hl.fta, rnd);
+  const touch = opts.touch || {};
+  const homeBoxes = dealTeamLine(H, hl, al.oppDreb, al.tov, al.twoMiss, al.fta, rnd, touch.home);
+  const awayBoxes = dealTeamLine(A, al, hl.oppDreb, hl.tov, hl.twoMiss, hl.fta, rnd, touch.away);
   // Put the per-player caps back where the deal pushed past them.
   // Offensive boards that no longer fit a player's shots move to a teammate
   // who shot more, so the team's offensive rebounds stay on its own misses.
@@ -601,7 +666,13 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
   const ac = awayTeam.coachProfile || {};
   const paceMult = ((hc.pace || 1) + (ac.pace || 1)) / 2;
 
-  const totalPoints = Math.max(90, (paceBase + qualityAdj) * paceMult + gaussian() * paceVarianceStd);
+  // A caller that knows what these two rosters score (the summer circuit,
+  // where lines come from what each player is written to have done) passes
+  // the expected total; otherwise it comes from the teams' quality.
+  const gameMinutes = opts.gameMinutes || 40;
+  const totalPoints = opts.expectedTotal
+    ? Math.max(70 * gameMinutes / 40, opts.expectedTotal + gaussian() * paceVarianceStd)
+    : Math.max(90, (paceBase + qualityAdj) * paceMult + gaussian() * paceVarianceStd);
 
   let homeScore = Math.round((totalPoints + actualMargin) / 2);
   let awayScore = Math.round((totalPoints - actualMargin) / 2);
@@ -615,8 +686,8 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
   };
   awayScore = Math.round(applyDefense(hc, awayScore));
   homeScore = Math.round(applyDefense(ac, homeScore));
-  homeScore = Math.max(35, homeScore);
-  awayScore = Math.max(35, awayScore);
+  homeScore = Math.max(Math.round(35 * gameMinutes / 40), homeScore);
+  awayScore = Math.max(Math.round(35 * gameMinutes / 40), awayScore);
   if (homeScore === awayScore) homeScore += 1; // no ties in regulation-only v1 model
 
   const homeRoster = homeTeam.simData.rosterRef || homeTeam.roster;
@@ -632,8 +703,9 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
 
   // Both teams' lines are built together: possessions, rebounds, steals
   // and fouls all depend on what the other team did.
-  const { homeBoxes, awayBoxes } = buildConsistentBoxes(homeRaw.map(x => x.box), awayRaw.map(x => x.box), homeScore, awayScore);
-  [homeBoxes, awayBoxes].forEach(b => fitMinutes(b));
+  const touchOf = list => list.map(x => { const e = x.player.expectedStats || {}; return [parseFloat(e.twoPPct), parseFloat(e.threePPct)]; });
+  const { homeBoxes, awayBoxes } = buildConsistentBoxes(homeRaw.map(x => x.box), awayRaw.map(x => x.box), homeScore, awayScore, { touch: { home: touchOf(homeRaw), away: touchOf(awayRaw) }, effNorm: opts.effNorm, effAcc: opts.effAcc, gameMinutes });
+  [homeBoxes, awayBoxes].forEach(b => fitMinutes(b, 5 * gameMinutes, gameMinutes));
 
   return {
     homeScore, awayScore,
@@ -642,7 +714,7 @@ function simulateSingleGame(homeTeam, awayTeam, opts = {}) {
   };
 }
 
-const GameCore = { fitMinutes, generateRawPlayerBox, reconcileTeamScore, capTeamAssists, capIndividualShare, capShotVolume, capOffensiveRebounds, buildConsistentBoxes, simulateSingleGame, getZeroBox };
+const GameCore = { expectedLoad, fitMinutes, generateRawPlayerBox, reconcileTeamScore, capTeamAssists, capIndividualShare, capShotVolume, capOffensiveRebounds, buildConsistentBoxes, simulateSingleGame, getZeroBox };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = GameCore;
 else if (typeof window !== 'undefined') window.GameCore = GameCore;

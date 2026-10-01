@@ -50,6 +50,29 @@ function bootDraft(universe) {
 }
 
 // ---------------------------------------------------------------- Recruiting
+// The recruiting page with an NCAA RP save in this browser: db is an
+// in-memory stand-in for the save's IndexedDB, and the summer scripts load
+// as they do on the page.
+function bootRecruitingWithSave(universe, save) {
+  const html = fs.readFileSync(path.join(ROOT, 'recruiting/index.html'), 'utf8');
+  const dom = new JSDOM(html, { url: 'http://localhost/recruiting/', runScripts: 'outside-only' });
+  const w = dom.window, ctx = dom.getInternalVMContext();
+  w.alert = () => {};
+  w.scrollTo = () => {};
+  w.Papa = { parse: (url, opts) => opts.complete({ data: url.includes('vS_KgPla') ? ROSTER : RECRUITS }) };
+  w.fetch = url => String(url).includes('data/universe.json') && universe
+    ? Promise.resolve({ ok: true, json: () => Promise.resolve(clone(universe)) })
+    : Promise.resolve({ ok: false, status: 404 });
+  const store = { 1: clone(save) };
+  const writes = [];
+  ['teams-master.js', 'roster-gen.js', 'recruit-gen.js', 'game-core.js', 'summer-core.js'].forEach(f => vm.runInContext(fs.readFileSync(path.join(ROOT, 'rp/js', f), 'utf8'), ctx, { filename: f }));
+  w.db = { leagueState: { get: async id => clone(store[id]), update: async (id, patch) => { writes.push(Object.keys(patch)); Object.assign(store[id], clone(patch)); return 1; } } };
+  ['app.js', 'portal.js'].forEach(f => vm.runInContext(fs.readFileSync(path.join(ROOT, 'recruiting', f), 'utf8'), ctx, { filename: f }));
+  w.onload();
+  vm.runInContext('loadPortalData()', ctx);
+  return tick(80).then(() => ({ w, d: w.document, ev: expr => vm.runInContext(expr, ctx), store, writes }));
+}
+
 function bootRecruiting(universe) {
   const html = fs.readFileSync(path.join(ROOT, 'recruiting/index.html'), 'utf8');
   const dom = new JSDOM(html, { url: 'http://localhost/recruiting/', runScripts: 'outside-only' });
@@ -147,7 +170,7 @@ function bootRecruiting(universe) {
     const navs = [...d.querySelectorAll('.nav-btn')].map(b => b.textContent.trim());
     ok(navs.join() === 'Class Rankings,School Rankings,Statistics,Transfer Portal,Summer Circuit', 'recruiting: Transfer Portal and Summer Circuit tabs in the nav');
     ev("switchTab('summer')");
-    ok(/No summer has been played yet/.test(d.getElementById('summerContainer').textContent), 'recruiting: without a published summer the tab says so');
+    ok(/No summer yet/.test(d.getElementById('summerContainer').textContent), 'recruiting: without a published summer the tab says so');
     ok(ev("Portal.sheet.some(t => t.name === 'DaRon Drew' && t.from === 'Ohio' && t.to === 'Illinois' && t.season === '2028-29')"), 'recruiting: a "T - Ohio" note is a scheduled transfer into 2028-29');
     ok(ev("Portal.sheet.some(t => t.name === 'Lewis Pope' && t.from === 'Missouri' && t.to === 'Arkansas' && t.season === '2029-30')"), 'recruiting: a player listed at a new school next Year is a scheduled transfer');
     ok(ev("!Portal.sheet.some(t => t.name === 'Elijah Williams')"), 'recruiting: two players sharing a name in one Year are not treated as a transfer');
@@ -230,6 +253,79 @@ function bootRecruiting(universe) {
     ok(d.querySelectorAll('.nav-btn')[4].classList.contains('active') && ev('location.hash') === '#/summer', 'recruiting: the tab has its own address');
     ev(`openRecruitProfile(recruits.find(r => r.name === ${JSON.stringify(names[0])}))`);
     ok(/Peach Jam Champion/.test(d.getElementById('profileContainer').textContent), 'recruiting: the profile lists his summer honors');
+  }
+
+  // ---- Recruiting: the summer as a season, game by game ----
+  {
+    const two = RECRUITS.filter(r => String(r.classYear) === '2029').slice(20, 24);
+    const ids = two.map((r, i) => 'p' + i);
+    const line = (ppg) => ({ gp: 12, mpg: 28.0, ppg, rpg: 7.0, apg: 2.5, spg: 1.0, bpg: 1.5, topg: 2.0, fg: '61.0%', fg2: '64.0%', fg3: '30.0%', ft: '70.0%', bpm: 5.1, obpm: 3, dbpm: 2.1, ts: '62.0%', rts: '8.0%', efg: '61.0%', oreb: '9.0%', dreb: '18.0%', trb: '13.0%', ast: '12.0%', tov: '11.0%', stl: '1.8%', blk: '4.0%', usg: '22.0%', ftr: '.400', p3ar: '.100', ortg: 120.1, drtg: 98.2, fga2: 9, rimFga: 6, rimPct: '70.0%', shortMidFga: 1.8, shortMidPct: '45.0%', longMidFga: 1.2, longMidPct: '40.0%', rimMidRatio: '2.00', fga3: 1, fta: 4 });
+    // [id, min, pts, oreb, dreb, ast, stl, blk, tov, pf, twoPm, twoPa, threePm, threePa, ftm, fta, started]
+    const box = (a, b) => [[[ids[a], 30, 20, 3, 6, 2, 1, 2, 2, 2, 8, 12, 0, 1, 4, 5, 1]], [[ids[b], 28, 14, 1, 5, 3, 1, 0, 3, 3, 5, 10, 1, 4, 1, 2, 1]]];
+    const u = clone(UNIVERSE);
+    u.summer = {
+      v: 2, season: 2029, step: 5, done: false,
+      steps: ['Session 1', 'Session 2', 'Session 3', 'Session 4', 'Championship quarters & semis', 'Championship finals'].map((x, i) => ({ key: 's' + i, label: x, short: x })),
+      circuits: [{ key: 'EYBL', name: 'Nike EYBL', event: 'Peach Jam', standings: [['Team Takeover', 2, 0, 150, 130], ['Expressions', 0, 2, 130, 150]],
+        programs: [{ name: 'Team Takeover', roster: [ids[0], ids[2]] }, { name: 'Expressions', roster: [ids[1], ids[3]] }],
+        champion: null, finalists: ['Team Takeover', 'Expressions'], mvp: { id: ids[0], name: two[0].name, team: 'Team Takeover', line: '20 ppg' }, firstTeam: [] }],
+      fiba: null,
+      games: [
+        { id: 'EYBL|2029|1', st: 's1', ev: 'EYBL', rd: 'Session 1', h: 'Team Takeover', a: 'Expressions', hs: 75, as: 64, b: box(0, 1) },
+        { id: 'EYBL|2029|2', st: 's2', ev: 'EYBL', rd: 'Session 2', h: 'Expressions', a: 'Team Takeover', hs: 66, as: 75, b: box(1, 0) },
+        { id: 'EYBL|2029|3', st: 'cf', ev: 'EYBL', rd: 'Final', h: 'Team Takeover', a: 'Expressions', hidden: 1 }
+      ],
+      names: { [ids[0]]: two[0].name, [ids[1]]: two[1].name },
+      history: [],
+      players: [
+        { id: ids[0], n: two[0].name, c: 2029, t: 'Team Takeover', ci: 'EYBL', aau: line(20), prev: { s: 2028, t: 'Team Takeover', ci: 'EYBL', aau: line(15.5) } },
+        { id: ids[1], n: two[1].name, c: 2029, t: 'Expressions', ci: 'EYBL', aau: line(14) }
+      ]
+    };
+    const { d, ev } = await bootRecruiting(u);
+    ev("switchTab('summer')");
+    const txt = () => d.getElementById('summerContainer').textContent;
+    ok(/Next: Championship finals/.test(txt()) && /Session 4/.test(txt()) && d.querySelectorAll('.summer-steps li.done').length === 5, 'recruiting: the summer shows where it stands');
+    ok(/Team Takeover/.test(txt()) && /2-0/.test(txt()) && d.querySelectorAll('.summer-game').length >= 3, 'recruiting: standings and every result');
+    ok(/Final to be revealed/.test(txt()) && !/🏆/.test(txt()), 'recruiting: a final not yet watched in the NCAA RP stays hidden');
+    ev("openSummerBox('EYBL|2029|1')");
+    const sheet = d.getElementById('summerSheet');
+    ok(sheet && new RegExp(two[0].name).test(sheet.textContent) && /8-13/.test(sheet.textContent), 'recruiting: any game opens its box score');
+    ev('closeSummerBox()');
+    ev("setSummerTab('leaders')");
+    ok(/AAU points/.test(txt()) && new RegExp(two[0].name).test(txt()), 'recruiting: summer leaders');
+    ev(`openRecruitProfile(recruits.find(r => r.name === ${JSON.stringify(two[0].name)}))`);
+    const prof = d.getElementById('profileContainer').textContent;
+    ok(/Summer 2029 \(so far\)/.test(prof) && /Summer 2028/.test(prof), 'recruiting: his simulated summers are his AAU line, last summer kept below');
+    ok(!/Before the sim/.test(prof), 'recruiting: the simulated line replaces the sheet\'s written one');
+    ok(/game log/.test(prof) && /Expressions/.test(prof), 'recruiting: the profile has his summer game log');
+  }
+
+  // ---- Recruiting: the summer played on the page, against the save ----
+  {
+    global.RosterGen = require('../js/roster-gen.js');
+    require('../js/recruit-gen.js');
+    global.GameCore = require('../js/game-core.js');
+    const SC = require('../js/summer-core.js');
+    const num = v => { const n = parseFloat(String(v == null ? '' : v).replace('%', '')); return isNaN(n) ? null : n; };
+    const people = RECRUITS.map((r, i) => ({ id: 'rec' + i, name: r.name, rank: num(r.rank), rating: num(r.rating), recRating: num(r.rating), talent: 70 + (num(r.rating) - 80) * 1.15, pos: r.pos, cls: Number(r.classYear), state: r.state, aauTeam: '', sheet: true, written: null }));
+    // The summer of 2027: the classes of 2028 and 2029 on the circuit.
+    const P = SC.plan(2027, { aauPlayers: people, fibaEligible: people.map(p => ({ ...p, nation: 'USA' })) });
+    const recs = people.map(p => ({ id: p.id, name: p.name, recClassYear: p.cls, pos: p.pos, rsci: p.rank }));
+    const { d, ev, store, writes } = await bootRecruitingWithSave(null, { id: 1, currentYear: 2026, summer: P, allRecruits: recs, summerHistory: [] });
+    ev("switchTab('summer')");
+    const box = () => d.getElementById('summerContainer');
+    ok(/Sim AAU Session 1/.test(box().textContent) && /Sim the rest of the summer/.test(box().textContent), 'recruiting: with a save at its summer, the Summer Circuit tab plays it');
+    await ev('simSummer(false)');
+    ok(store[1].summer.step === 1 && store[1].summer.games.length > 10 && store[1].summer.rev > P.rev, `recruiting: Sim plays a step and writes it to the save (${store[1].summer.games.length} games)`);
+    ok(writes.every(k => k.join() === 'summer'), 'recruiting: only the summer is written, never the rest of the save');
+    const name = ev("recruits.find(r => r.stats && r.stats.aau && r.stats.aau.sim && r.stats.aau.gp >= 2).name");
+    ok(!!name, `recruiting: players' AAU lines are the simulated ones (${name})`);
+    ok(/Sim AAU Session 2/.test(box().textContent) && /Session 1/.test(box().textContent), 'recruiting: and the tab moves on to the next step');
+    await ev('simSummer(true)');
+    ok(store[1].summer.done && store[1].summer.step === store[1].summer.steps.length, 'recruiting: Sim the rest plays out the summer');
+    ok(/This summer is over/.test(box().textContent) && /🏆/.test(box().textContent), 'recruiting: champions show once it\'s over (finals played here aren\'t held back)');
+    ok(ev("recruits.some(r => (r.accolades || []).some(a => /Champion|MVP/.test(a)))"), 'recruiting: honors join the accolades');
   }
 
   // ---- RP hub: card status lines follow the universe ----

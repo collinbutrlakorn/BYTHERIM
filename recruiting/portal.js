@@ -179,6 +179,7 @@ function loadPortalData() {
     Portal.ready.sheet = true;
   }
 
+  loadLocalSummer().then(changed => { if (changed) applyRecruitFlips(); });
   (window.Cloud ? Cloud.universe(UNIVERSE_URL) : fetch(UNIVERSE_URL, { cache: 'no-cache' }).then(r => (r.ok ? r.json() : null)))
     .then(u => { Portal.universe = u && u.version ? u : null; applyRecruitFlips(); })
     .catch(() => { Portal.universe = null; })
@@ -190,7 +191,7 @@ function loadPortalData() {
 function applyRecruitFlips() {
   const flips = (Portal.universe && Portal.universe.recruitFlips) || [];
   const live = Portal.universe && Portal.universe.recruitingLive;
-  const summer = Portal.universe && Portal.universe.summer;
+  const summer = summerSnap();
   if (!flips.length && !live && !summer) return;
   if (typeof recruits === 'undefined' || !recruits.length) { Portal.flipsPending = true; return; }
   let moved = 0;
@@ -272,37 +273,310 @@ function summerTier(line, team) {
 const summerAccolade = h => String(h).replace(/^\d{4}\s+/, '').replace(/\b(champion|gold|silver|bronze|first team|scoring leader|all-star five)\b/gi, m => m.replace(/\b\w/g, c => c.toUpperCase()));
 
 function applySummer() {
-  const sm = Portal.universe && Portal.universe.summer;
-  if (!sm || typeof recruits === 'undefined' || !recruits.length) return 0;
+  const sm = summerSnap();
+  if (typeof recruits === 'undefined' || !recruits.length) return 0;
+  // Back to the sheet's lines first: the summer shown can change (a step
+  // played here, the other source picked).
+  recruits.forEach(r => {
+    if (!r._written) r._written = { aau: r.stats && r.stats.aau, fiba: r.stats && r.stats.fiba, accolades: (r.accolades || []).slice() };
+    else { r.stats.aau = r._written.aau; r.stats.fiba = r._written.fiba; r.accolades = r._written.accolades.slice(); }
+    r.statsHistory = {}; r.summerGames = []; delete r.summerHonors; delete r.summerBuzz;
+  });
+  if (!sm) return 0;
   const byKey = new Map();
   recruits.forEach(r => byKey.set(`${portalKey(r.name)}|${r.classYear}`, r));
   const fibaTeam = (sm.fiba && sm.fiba.name.match(/U\d+/)) ? sm.fiba.name.match(/U\d+/)[0] : 'U19';
+  const label = (season, live) => `Summer ${season}${live ? ' (so far)' : ''}`;
+  const live = sm.v === 2 && !sm.done;
+  Portal.summerById = new Map();
   let n = 0;
   (sm.players || []).forEach(x => {
     const r = byKey.get(`${portalKey(x.n)}|${x.c}`);
     if (!r) return;
+    if (x.id) Portal.summerById.set(x.id, r);
     r.stats = r.stats || {};
-    if (x.aau) r.stats.aau = summerTier(x.aau, x.t ? `${x.t}${x.ci ? ` (${x.ci})` : ''}` : '');
-    if (x.fiba) r.stats.fiba = summerTier(x.fiba, x.na ? `${x.na} ${fibaTeam}` : '');
+    // The simulated summer replaces his written AAU / FIBA line (the sim
+    // is modeled on it); last summer's, if he played one, stays below.
+    r.statsHistory = {};
+    if (x.aau) r.stats.aau = { ...summerTier(x.aau, x.t ? `${x.t}${x.ci ? ` (${x.ci})` : ''}` : ''), sim: true, label: label(sm.season, live) };
+    if (x.fiba) r.stats.fiba = { ...summerTier(x.fiba, x.na ? `${x.na} ${fibaTeam}` : ''), sim: true, label: label(sm.season, live) };
+    if (x.prev) {
+      ['aau', 'fiba'].forEach(tier => {
+        const pl = x.prev[tier];
+        if (!pl) return;
+        const team = tier === 'aau' ? `${x.prev.t || ''}${x.prev.ci ? ` (${x.prev.ci})` : ''}` : `${x.prev.na || ''}`;
+        const row = { label: label(x.prev.s), team, line: summerTier(pl, team) };
+        // Nothing this summer at this level: last summer's is his line,
+        // not history under it.
+        if (!x[tier]) { r.stats[tier] = { ...row.line, sim: true, label: row.label }; return; }
+        r.statsHistory[tier] = [row].concat((r.statsHistory[tier] || []).filter(h => h.label !== row.label));
+      });
+    }
     if (x.h && x.h.length) {
       r.summerHonors = x.h;
       r.accolades = [...new Set((r.accolades || []).concat(x.h.map(summerAccolade)))];
     }
     if (x.b) r.summerBuzz = x.b;
+    r.summerGames = [];
     n++;
   });
+  // Game logs, from every game's box score.
+  if (sm.v === 2) {
+    (sm.games || []).forEach(g => {
+      if (g.hidden || !g.b) return;
+      [0, 1].forEach(side => (g.b[side] || []).forEach(l => {
+        const r = Portal.summerById.get(l[0]);
+        if (!r) return;
+        const us = side === 0 ? g.h : g.a, them = side === 0 ? g.a : g.h;
+        const ourPts = side === 0 ? g.hs : g.as, theirPts = side === 0 ? g.as : g.hs;
+        r.summerGames.push({ id: g.id, ev: g.ev, rd: g.rd, team: us, opp: them, res: `${ourPts > theirPts ? 'W' : 'L'} ${ourPts}-${theirPts}`, l: summerLine(l) });
+      }));
+    });
+  }
   return n;
 }
+
+// ---------- Where the summer comes from, and playing it here ----------
+//
+// Two sources, like the Draft RP:
+//   official  the published universe's summer (everyone sees it)
+//   local     the NCAA RP save in this browser, where the summer is played:
+//             the NCAA RP plans it at its Summer Circuit step and waits;
+//             each step is played here and written back to the save.
+async function loadLocalSummer() {
+  if (typeof db === 'undefined' || !db.leagueState || typeof SummerCore === 'undefined') return false;
+  let s;
+  try { s = await db.leagueState.get(1); } catch (e) { return false; }
+  if (!s || !s.summer || s.summer.v !== 2) return false;
+  Portal.local = { P: s.summer, recruits: s.allRecruits || [], history: s.summerHistory || [], year: s.currentYear };
+  // The recruits' lines for this summer, as played so far.
+  SummerCore.applyLines(s.summer, Portal.local.recruits);
+  if (s.summer.done) SummerCore.settle(s.summer, Portal.local.recruits);
+  if (!Portal.summerSource) Portal.summerSource = 'local';
+  return true;
+}
+function summerSource() {
+  const official = Portal.universe && Portal.universe.summer;
+  if (Portal.local && (Portal.summerSource === 'local' || !official)) return 'local';
+  return official ? 'official' : null;
+}
+function summerSnap() {
+  const src = summerSource();
+  if (src === 'local') {
+    const L = Portal.local;
+    if (!L._snap || L._snapRev !== L.P.rev) {
+      L._snap = SummerCore.snapshot(L.P, { recruits: L.recruits, history: L.history, hidden: g => /Final$/.test(g.rd || '') && !(L.P.seen && L.P.seen[g.id]) });
+      L._snapRev = L.P.rev;
+    }
+    return L._snap;
+  }
+  return src === 'official' ? Portal.universe.summer : null;
+}
+function setSummerSource(k) {
+  Portal.summerSource = k;
+  applySummer();
+  if (typeof filterRecruits === 'function') filterRecruits();
+  renderSummer();
+}
+
+// Plays the next step (or the rest of the summer) against the save.
+async function simSummer(all) {
+  const L = Portal.local;
+  if (!L || L.P.done || Portal.summerBusy) return;
+  Portal.summerBusy = true;
+  renderSummer();
+  await new Promise(r => setTimeout(r, 30));
+  try {
+    // The save first, in case the NCAA RP moved on since this page loaded.
+    try {
+      const s = await db.leagueState.get(1);
+      if (s && s.summer && s.summer.v === 2 && s.summer.season === L.P.season && (s.summer.rev || 0) > (L.P.rev || 0)) L.P = s.summer;
+    } catch (e) { /* play on what we have */ }
+    let guard = 0;
+    do {
+      const before = L.P.games.length;
+      SummerCore.playStep(L.P);
+      // Played here, watched here: finals aren't held back as a surprise.
+      L.P.games.slice(before).forEach(g => { if (/Final$/.test(g.rd)) L.P.seen[g.id] = true; });
+    } while (all && !L.P.done && guard++ < 20);
+    SummerCore.applyLines(L.P, L.recruits);
+    if (L.P.done) SummerCore.settle(L.P, L.recruits);
+    await db.leagueState.update(1, { summer: L.P });
+  } catch (e) {
+    console.error('Playing the summer:', e);
+    Portal.summerError = e.message || String(e);
+  } finally { Portal.summerBusy = false; }
+  applySummer();
+  if (typeof filterRecruits === 'function') filterRecruits();
+  renderSummer();
+}
+
+// One box-score line [id, min, pts, oreb, dreb, ast, stl, blk, tov, pf,
+// twoPm, twoPa, threePm, threePa, ftm, fta, started] as an object.
+function summerLine(a) {
+  const [id, min, pts, oreb, dreb, ast, stl, blk, tov, pf, twoPm, twoPa, threePm, threePa, ftm, fta, started] = a;
+  return { id, min, pts, reb: oreb + dreb, oreb, dreb, ast, stl, blk, tov, pf, fgm: twoPm + threePm, fga: twoPa + threePa, threePm, threePa, ftm, fta, started: !!started };
+}
+
+function summerEventName(sm, ev) {
+  if (ev === 'FIBA') return sm.fiba ? sm.fiba.name : 'FIBA';
+  const c = (sm.circuits || []).find(x => x.key === ev);
+  return c ? c.name : ev;
+}
+
+function setSummerTab(k) { Portal.summerTab = k; renderSummer(); }
 
 function renderSummer() {
   const el = document.getElementById('summerContainer');
   if (!el) return;
-  const sm = Portal.universe && Portal.universe.summer;
+  const sm = summerSnap();
   if (!sm && !Portal.ready.universe) { el.innerHTML = '<p class="portal-empty">Loading the summer circuit…</p>'; return; }
   if (!sm) {
-    el.innerHTML = `<p class="portal-empty">No summer has been played yet. The NCAA RP plays the AAU circuits and the FIBA youth World Cup between the transfer portal and the new season; the results show here once the universe is published.</p>`;
+    el.innerHTML = `<p class="portal-empty">No summer yet. The summer circuit (four AAU sessions and the circuit championships, then the FIBA youth World Cup) is played here, against your NCAA RP save, when the sim reaches its Summer Circuit step; a new save starts with one already played. The official universe's summer shows here once it's published.</p>`;
     return;
   }
+  if (sm.v !== 2) { renderSummerSummary(el, sm); return; }
+  const esc = portalEsc;
+  const byId = Portal.summerById || new Map();
+  const who = (x, nameOverride) => {
+    if (!x) return '';
+    const r = x.id ? byId.get(x.id) : null;
+    const name = nameOverride || x.name || '';
+    return r ? `<a class="summer-player" onclick="openRecruitProfile(recruits.find(q => q.id === '${escAttr(r.id)}'))">${esc(name)}</a>` : esc(name);
+  };
+  const tabs = (sm.circuits || []).map(c => [c.key, c.name]).concat(sm.fiba ? [['FIBA', sm.fiba.short || 'FIBA']] : []).concat([['leaders', 'Leaders']]);
+  const tab = tabs.some(t => t[0] === Portal.summerTab) ? Portal.summerTab : tabs[0][0];
+  const steps = (sm.steps || []).map((st, i) => `<li class="${i < sm.step ? 'done' : i === sm.step ? 'current' : ''}">${i < sm.step ? '✓ ' : ''}${esc(st.short || st.label)}</li>`).join('');
+  const next = !sm.done && sm.steps[sm.step] ? `Next: ${esc(sm.steps[sm.step].label)}` : 'The summer is over.';
+
+  const games = sm.games || [];
+  const gameRow = g => g.hidden
+    ? `<li class="summer-game"><span>${esc(g.h)} vs ${esc(g.a)}</span><small>Final to be revealed in the NCAA RP</small></li>`
+    : `<li class="summer-game" onclick="openSummerBox('${escAttr(g.id)}')" title="Box score"><span class="${g.hs > g.as ? 'won' : ''}">${esc(g.h)} <b>${g.hs}</b></span><span class="${g.as > g.hs ? 'won' : ''}">${esc(g.a)} <b>${g.as}</b></span><small>Box score</small></li>`;
+  const roundsOf = (ev, labels) => labels.map(rd => ({ rd, list: games.filter(g => g.ev === ev && g.rd === rd) })).filter(x => x.list.length);
+  const roundsHTML = list => list.map(x => `<div class="summer-round"><h4>${esc(x.rd)}</h4><ul class="summer-games">${x.list.map(gameRow).join('')}</ul></div>`).join('');
+  const tableHTML = (rows, cut) => `<div class="table-container"><table class="summer-table"><thead><tr><th></th><th style="text-align:left">Team</th><th>W-L</th><th class="summer-pts">PF</th><th class="summer-pts">PA</th><th>+/-</th></tr></thead><tbody>
+    ${rows.map(([t, w, l, pf, pa], i) => `<tr class="${cut && i === cut - 1 ? 'cutline' : ''}"><td>${i + 1}</td><td style="text-align:left">${esc(t)}</td><td>${w}-${l}</td><td class="summer-pts">${pf || 0}</td><td class="summer-pts">${pa || 0}</td><td>${(pf || 0) - (pa || 0) > 0 ? '+' : ''}${(pf || 0) - (pa || 0)}</td></tr>`).join('')}</tbody></table></div>`;
+
+  let body = '';
+  const c = (sm.circuits || []).find(x => x.key === tab);
+  if (c) {
+    const awards = [
+      c.champion ? `<dt>Champion</dt><dd>🏆 ${esc(c.champion)} <small>over ${esc(c.runnerUp)}</small></dd>` : (c.finalists ? `<dt>Final</dt><dd>${esc(c.finalists[0])} vs ${esc(c.finalists[1])}</dd>` : ''),
+      c.eventMvp ? `<dt>${esc(c.event)} MVP</dt><dd>${who(c.eventMvp)} <small>${esc(c.eventMvp.line)}</small></dd>` : '',
+      c.mvp ? `<dt>Circuit MVP</dt><dd>${who(c.mvp)} <small>${esc(c.mvp.team)} · ${esc(c.mvp.line)}</small></dd>` : '',
+      c.scoringLeader ? `<dt>Scoring leader</dt><dd>${who(c.scoringLeader)} <small>${esc(c.scoringLeader.line)}</small></dd>` : '',
+      (c.firstTeam || []).length ? `<dt>First Team</dt><dd>${c.firstTeam.map(x => who(x)).join(', ')}</dd>` : ''
+    ].join('');
+    const progs = (c.programs || []).map(p => `<details><summary>${esc(p.name)}</summary><p class="summer-roster">${p.roster.map(id => { const r = byId.get(id); return r ? `<a class="summer-player" onclick="openRecruitProfile(recruits.find(q => q.id === '${escAttr(r.id)}'))">${esc(r.name)}</a> <small>${r.classYear} ${esc(r.pos || '')}</small>` : esc((sm.names || {})[id] || ''); }).join(' · ')}</p></details>`).join('');
+    body = `<div class="summer-grid">
+        <section class="summer-card"><div class="summer-head"><span class="summer-kicker">${esc(c.name)} · league</span><h3>Standings</h3></div>
+          ${tableHTML(c.standings || [], 8)}<p class="summer-note">The top eight go to the ${esc(c.event)}.</p></section>
+        <section class="summer-card"><div class="summer-head"><span class="summer-kicker">${esc(c.name)}</span><h3>${esc(c.event)}</h3></div>
+          ${awards ? `<dl class="summer-awards">${awards}</dl>` : '<p class="summer-note">The championship follows the four league sessions.</p>'}
+          ${roundsHTML(roundsOf(c.key, ['Final', 'Semifinals', 'Quarterfinals']))}</section>
+        <section class="summer-card summer-wide"><div class="summer-head"><span class="summer-kicker">${esc(c.name)}</span><h3>Results</h3></div>
+          ${roundsHTML(roundsOf(c.key, ['Session 4', 'Session 3', 'Session 2', 'Session 1'])) || '<p class="summer-note">No games yet.</p>'}</section>
+        <section class="summer-card summer-wide"><div class="summer-head"><span class="summer-kicker">${esc(c.name)}</span><h3>Programs</h3></div>${progs}</section>
+      </div>`;
+  } else if (tab === 'FIBA' && sm.fiba) {
+    const f = sm.fiba;
+    const medals = f.medals ? `<div class="summer-medals"><span>🥇 ${esc(f.medals.gold)}</span><span>🥈 ${esc(f.medals.silver)}</span><span>🥉 ${esc(f.medals.bronze)}</span></div>` : '';
+    const usa = (f.rosters || []).find(t => t.name === 'USA');
+    body = `<div class="summer-grid">
+        <section class="summer-card"><div class="summer-head"><span class="summer-kicker">FIBA</span><h3>${esc(f.name)}</h3></div>
+          ${medals}
+          <dl class="summer-awards">${f.mvp ? `<dt>MVP</dt><dd>${who(f.mvp)} <small>${esc(f.mvp.team)} · ${esc(f.mvp.line)}</small></dd>` : ''}
+          ${(f.allStar || []).length ? `<dt>All-Star Five</dt><dd>${f.allStar.map(x => `${who(x)} <small>${esc(x.team)}</small>`).join(', ')}</dd>` : ''}</dl>
+          ${roundsHTML(roundsOf('FIBA', ['Final', 'Bronze medal game', 'Semifinals', 'Quarterfinals'])) || '<p class="summer-note">The knockouts follow the group stage.</p>'}
+          ${usa ? `<details><summary>Team USA</summary><p class="summer-roster">${usa.players.map(id => { const r = byId.get(id); return r ? who({ id }, r.name) : ''; }).filter(Boolean).join(' · ')}</p></details>` : ''}</section>
+        <section class="summer-card"><div class="summer-head"><span class="summer-kicker">FIBA</span><h3>Groups</h3></div>
+          ${(f.groups || []).map(gr => `<h4 class="summer-subhead">Group ${esc(gr.name)}</h4>${tableHTML(gr.standings || [], 2)}${roundsHTML(roundsOf('FIBA', [`Group ${gr.name}`]))}`).join('')}</section>
+      </div>`;
+  } else {
+    const rows = (sm.players || []).map(x => ({ x, r: byId.get(x.id) })).filter(o => o.r);
+    const board = (title, list, val) => `<section class="summer-card"><div class="summer-head"><span class="summer-kicker">Leaders</span><h3>${esc(title)}</h3></div>
+      <ol class="summer-leaders">${list.slice(0, 15).map(o => `<li>${who({ id: o.x.id }, o.r.name)} <small>${o.r.classYear} · ${esc(o.x.t || o.x.na || '')}</small><b>${val(o)}</b></li>`).join('')}</ol></section>`;
+    const aau = rows.filter(o => o.x.aau && o.x.aau.gp >= Math.min(6, Math.max(1, sm.step * 2)));
+    const fiba = rows.filter(o => o.x.fiba && o.x.fiba.gp >= 2);
+    const by = (list, k, base) => list.slice().sort((a, b) => b.x[base][k] - a.x[base][k]);
+    body = `<div class="summer-grid">
+        ${board('AAU points', by(aau, 'ppg', 'aau'), o => o.x.aau.ppg)}
+        ${board('AAU rebounds', by(aau, 'rpg', 'aau'), o => o.x.aau.rpg)}
+        ${board('AAU assists', by(aau, 'apg', 'aau'), o => o.x.aau.apg)}
+        ${board('AAU blocks', by(aau, 'bpg', 'aau'), o => o.x.aau.bpg)}
+        ${fiba.length ? board(`${sm.fiba ? sm.fiba.short : 'FIBA'} points`, by(fiba, 'ppg', 'fiba'), o => o.x.fiba.ppg) : ''}
+        ${fiba.length ? board(`${sm.fiba ? sm.fiba.short : 'FIBA'} rebounds`, by(fiba, 'rpg', 'fiba'), o => o.x.fiba.rpg) : ''}
+      </div>`;
+  }
+  const past = (sm.history || []).slice().reverse();
+  const history = past.length ? `<section class="summer-card summer-wide"><div class="summer-head"><span class="summer-kicker">Past summers</span><h3>Champions</h3></div>
+      <ul class="summer-history">${past.map(h => `<li><b>${h.season}</b> ${(h.champions || []).map(x => `${esc(x.event)}: ${esc(x.team)}`).join(' · ')}${h.fiba && h.fiba.medals ? ` · ${esc(h.fiba.name)}: ${esc(h.fiba.medals.gold)}` : ''}</li>`).join('')}</ul></section>` : '';
+  const src = summerSource(), L = Portal.local;
+  const toggle = L && Portal.universe && Portal.universe.summer
+    ? `<div class="summer-source" role="group" aria-label="Which summer">${[['local', 'Your save'], ['official', 'Official universe']].map(([k, l]) => `<button type="button" class="${src === k ? 'active' : ''}" onclick="setSummerSource('${k}')">${l}</button>`).join('')}</div>` : '';
+  let controls = '';
+  if (src === 'local' && L && !L.P.done) {
+    const st = L.P.steps[L.P.step];
+    controls = `<div class="summer-sim">${Portal.summerBusy ? '<span class="summer-note">Playing…</span>'
+      : `<button type="button" class="summer-sim-btn primary" onclick="simSummer(false)">&#9654; Sim ${esc(st ? st.label : 'the next step')}</button>
+         <button type="button" class="summer-sim-btn" onclick="simSummer(true)">Sim the rest of the summer</button>`}
+      <span class="summer-note">Played against the NCAA RP save in this browser; the NCAA RP moves on to final rosters once the summer is over.${Portal.summerError ? ` <b>${esc(Portal.summerError)}</b>` : ''}</span></div>`;
+  } else if (src === 'local' && L && L.P.done) {
+    controls = `<p class="summer-note">This summer is over. The next one is played here once the NCAA RP reaches its Summer Circuit step, after the transfer portal.</p>`;
+  }
+  el.innerHTML = `<div class="portal-summary"><b>Summer ${sm.season}</b><span>${next}</span>${toggle}</div>
+    ${controls}
+    <ol class="summer-steps">${steps}</ol>
+    <div class="summer-tabs">${tabs.map(([k, l]) => `<button type="button" class="${k === tab ? 'active' : ''}" onclick="setSummerTab('${k}')">${esc(l)}</button>`).join('')}</div>
+    ${body}${history ? `<div class="summer-grid">${history}</div>` : ''}`;
+}
+
+// A box score, in a sheet over the page.
+function openSummerBox(id) {
+  const sm = summerSnap();
+  const g = sm && (sm.games || []).find(x => x.id === id);
+  if (!g || g.hidden) return;
+  const esc = portalEsc;
+  const byId = Portal.summerById || new Map();
+  const name = l => { const r = byId.get(l.id); return r ? `<a class="summer-player" onclick="closeSummerBox(); openRecruitProfile(recruits.find(q => q.id === '${escAttr(r.id)}'))">${esc(r.name)}</a>` : esc((sm.names || {})[l.id] || ''); };
+  const pct = (m, a) => (a ? `${m}-${a}` : '0-0');
+  const side = (team, pts, lines) => {
+    const ls = lines.map(summerLine);
+    const tot = k => ls.reduce((n, l) => n + l[k], 0);
+    return `<h4 class="summer-subhead">${esc(team)} <b>${pts}</b></h4>
+      <div class="table-container"><table class="summer-box"><thead><tr><th style="text-align:left">Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>FG</th><th>3P</th><th>FT</th></tr></thead><tbody>
+      ${ls.map(l => `<tr><td style="text-align:left">${name(l)}${l.started ? '' : ' <small>bench</small>'}</td><td>${l.min}</td><td><b>${l.pts}</b></td><td>${l.reb}</td><td>${l.ast}</td><td>${l.stl}</td><td>${l.blk}</td><td>${l.tov}</td><td>${pct(l.fgm, l.fga)}</td><td>${pct(l.threePm, l.threePa)}</td><td>${pct(l.ftm, l.fta)}</td></tr>`).join('')}
+      <tr class="summer-total"><td style="text-align:left">Team</td><td></td><td><b>${tot('pts')}</b></td><td>${tot('reb')}</td><td>${tot('ast')}</td><td>${tot('stl')}</td><td>${tot('blk')}</td><td>${tot('tov')}</td><td>${pct(tot('fgm'), tot('fga'))}</td><td>${pct(tot('threePm'), tot('threePa'))}</td><td>${pct(tot('ftm'), tot('fta'))}</td></tr>
+      </tbody></table></div>`;
+  };
+  closeSummerBox();
+  const el = document.createElement('div');
+  el.className = 'summer-sheet';
+  el.id = 'summerSheet';
+  el.innerHTML = `<div class="summer-sheet-card" role="dialog" aria-modal="true">
+      <div class="summer-sheet-top"><div><span class="summer-kicker">${esc(summerEventName(sm, g.ev))} · ${esc(g.rd)}</span><h3>${esc(g.h)} ${g.hs}, ${esc(g.a)} ${g.as}</h3></div><button type="button" class="summer-close" onclick="closeSummerBox()" aria-label="Close">×</button></div>
+      ${side(g.h, g.hs, g.b[0] || [])}${side(g.a, g.as, g.b[1] || [])}
+    </div>`;
+  el.addEventListener('click', e => { if (e.target === el) closeSummerBox(); });
+  document.body.appendChild(el);
+}
+function closeSummerBox() { const el = document.getElementById('summerSheet'); if (el) el.remove(); }
+
+// A player's summer games, for his profile.
+function summerGameLogHTML(p) {
+  const sm = summerSnap();
+  const games = p.summerGames || [];
+  if (!sm || !games.length) return '';
+  const esc = portalEsc;
+  return `<div class="profile-section summer-log"><h3 class="section-title-sm">Summer ${sm.season} game log</h3>
+    <div class="profile-stats-table-wrapper"><table class="profile-stats-table">
+      <tr><th style="text-align:left">Game</th><th style="text-align:left">Opp</th><th>Result</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>FG</th><th>3P</th><th>FT</th></tr>
+      ${games.map(g => `<tr onclick="openSummerBox('${escAttr(g.id)}')" class="summer-log-row"><td style="text-align:left">${esc(g.ev === 'FIBA' ? (sm.fiba ? sm.fiba.short : 'FIBA') : g.ev)} · ${esc(g.rd)}</td><td style="text-align:left">${esc(g.opp)}</td><td>${esc(g.res)}</td><td>${g.l.min}</td><td>${g.l.pts}</td><td>${g.l.reb}</td><td>${g.l.ast}</td><td>${g.l.stl}</td><td>${g.l.blk}</td><td>${g.l.fgm}-${g.l.fga}</td><td>${g.l.threePm}-${g.l.threePa}</td><td>${g.l.ftm}-${g.l.fta}</td></tr>`).join('')}
+    </table></div></div>`;
+}
+
+function renderSummerSummary(el, sm) {
   const byKey = new Map((typeof recruits !== 'undefined' ? recruits : []).map(r => [portalKey(r.name), r]));
   const who = name => {
     const bare = String(name || '').replace(/\s*\([^)]*\)\s*$/, '');

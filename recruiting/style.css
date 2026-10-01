@@ -1403,3 +1403,58 @@ a.query-btn { text-decoration: none; display: inline-flex; align-items: center; 
   .summer-grid { grid-template-columns: 1fr; }
   .summer-standings { columns: 1; }
 }
+
+/* Summer as a short season: steps, event tabs, results, box scores */
+.summer-steps { list-style: none; margin: 0 0 0.8rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.summer-steps li { font-size: 0.74rem; font-weight: 600; color: var(--text-muted); border: 1px solid var(--border); border-radius: var(--r-pill); padding: 0.2rem 0.65rem; }
+.summer-steps li.done { color: var(--text-main); }
+.summer-steps li.current { border-color: var(--accent); color: var(--text-main); }
+.summer-tabs { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1rem; }
+.summer-tabs button { border: 1px solid var(--border); background: var(--card-bg); color: var(--text-muted); font: inherit; font-size: 0.82rem; font-weight: 700; padding: 0.4rem 0.9rem; border-radius: var(--r-pill); cursor: pointer; }
+.summer-tabs button.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.summer-note { color: var(--text-muted); font-size: 0.8rem; margin: 0; }
+.summer-subhead { margin: 0.8rem 0 0.35rem; font-size: 0.85rem; color: var(--text-main); }
+.summer-table tr.cutline td { border-bottom: 2px solid var(--accent); }
+.summer-round h4 { margin: 0.5rem 0 0.35rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.summer-games { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0.4rem; }
+.summer-game { display: flex; flex-direction: column; gap: 2px; background: var(--bg-color); border: 1px solid var(--border); border-radius: var(--r-md); padding: 0.45rem 0.65rem; font-size: 0.85rem; cursor: pointer; }
+.summer-game:hover { border-color: var(--accent); }
+.summer-game > span { display: flex; justify-content: space-between; gap: 0.5rem; color: var(--text-muted); }
+.summer-game > span.won { color: var(--text-main); font-weight: 700; }
+.summer-game small { color: var(--text-muted); font-size: 0.7rem; }
+.summer-roster { margin: 0.4rem 0 0; font-size: 0.82rem; line-height: 1.7; color: var(--text-main); }
+.summer-roster small { color: var(--text-muted); }
+.summer-leaders { margin: 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.86rem; color: var(--text-main); }
+.summer-leaders li small { color: var(--text-muted); margin-left: 0.3rem; }
+.summer-leaders li b { float: right; }
+.summer-sheet { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); z-index: 1000; display: flex; align-items: flex-start; justify-content: center; padding: 4vh 16px; overflow-y: auto; }
+.summer-sheet-card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 1rem 1.1rem 1.2rem; width: min(820px, 100%); }
+.summer-sheet-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.summer-sheet-top h3 { margin: 0.15rem 0 0; color: var(--text-main); font-size: 1.2rem; }
+.summer-close { border: 1px solid var(--border); background: transparent; color: var(--text-main); font-size: 1.3rem; line-height: 1; width: 2rem; height: 2rem; border-radius: 50%; cursor: pointer; }
+.summer-box td small { color: var(--text-muted); }
+.summer-box tr.summer-total td { border-top: 1px solid var(--border); font-weight: 700; }
+.profile-stats-table .stat-season { text-align: left; white-space: nowrap; }
+.profile-stats-table .stat-season small { display: block; color: var(--text-muted); font-size: 0.7rem; font-weight: 400; }
+.profile-stats-table tr.stat-history td { color: var(--text-muted); }
+.summer-log { margin-top: 1.4rem; }
+.summer-log h3 { font-size: 0.85rem; margin: 0 0 0.5rem; color: var(--text-main); }
+.summer-log-row { cursor: pointer; }
+.summer-log-row:hover td { color: var(--accent); }
+@media (max-width: 600px) { .summer-sheet { padding: 2vh 8px; } .summer-games { grid-template-columns: 1fr; } }
+.summer-table td, .summer-table th, .summer-box td, .summer-box th { padding: 8px 10px; }
+@media (max-width: 600px) {
+  .summer-table .summer-pts { display: none; }
+  .summer-table td, .summer-table th, .summer-box td, .summer-box th { padding: 7px 6px; font-size: 0.78rem; }
+}
+
+/* Summer: which summer, and playing it here */
+.summer-source { display: inline-flex; gap: 0.25rem; margin-left: auto; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-pill); padding: 3px; }
+.summer-source button { border: 0; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.78rem; font-weight: 700; padding: 0.3rem 0.75rem; border-radius: var(--r-pill); cursor: pointer; }
+.summer-source button.active { background: var(--accent); color: var(--accent-contrast); }
+.summer-sim { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; margin: 0 0 0.9rem; padding: 0.75rem 0.9rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-lg); }
+.summer-sim-btn { font: inherit; font-size: 0.85rem; font-weight: 700; padding: 0.5rem 0.95rem; border-radius: var(--r-pill); border: 1px solid var(--border); background: transparent; color: var(--text-main); cursor: pointer; }
+.summer-sim-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.summer-sim-btn:hover { filter: brightness(1.08); }
+.summer-sim .summer-note { flex-basis: 100%; }
+@media (max-width: 600px) { .summer-source { margin-left: 0; } .summer-sim-btn { flex: 1 1 auto; } }

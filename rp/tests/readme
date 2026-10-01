@@ -147,6 +147,13 @@ an over-committed program keeps its best commits, the rest flip to programs
 of similar standing, sheet commitments never move, and flips are published
 for the recruiting page.
 
+**recruit-stats.js** — a recruit's real numbers in college: two-point and
+free-throw percentage, three-point rate and assists translated from his
+high-school / AAU / FIBA lines (an impossible cell is ignored), a rim-running
+big who doesn't shoot threes isn't given a 45% free-throw stroke, a passing
+big keeps his assists, a game's box score keeps a 66% finisher clear of 47%
+shooters, and opening a save re-reads the sheet's numbers and scouting.
+
 **recruit-live.js** — live recruiting: school pull (prestige, how a program
 is trending, the coach), lists shrinking 12 → 8 → 5 → 3, teammates drawing
 each other, full classes losing their pull; in the sim, sheet commitments
@@ -155,14 +162,21 @@ landing through a season with top prospects at stronger programs, a
 coaching change reopening a commitment, and the live classes published
 for the recruiting page.
 
-**summer-circuit.js** — the summer between seasons: AAU programs filled
-evenly (a sheet player's own team kept), the U17/U19 World Cup by year, and
-in the sim the summer step after the portal, three circuits with leagues and
-championships, only players of age at FIBA, Team USA built from the
-universe, every AAU player's line in the recruiting page's columns, honors,
-breakouts climbing the rankings (never past the #1) and reaching the
-recruiting wire, finals to watch or reveal, the recruit card, and the
-published summer.
+**summer-circuit.js** — the summer as a short season: AAU programs filled
+evenly (a sheet player's own team kept), the U17/U19 World Cup by year; a
+new save opening with the summer before its first season played (its lines
+on the rising seniors and juniors, shooting and passing as written, 32-minute
+AAU games, the wire); in the sim, the summer step after the portal, pointing
+to the Recruiting page and playable here a step at a time (four AAU
+sessions, the championships, the World Cup's groups, knockouts and medal
+games), every game kept with a box score that adds up, standings counting
+the games played, lines filling in as it goes, only players of age at FIBA,
+Team USA built from the universe, simulated AAU scoring that follows each
+player's written line, honors, breakouts climbing the rankings (never past
+the #1) and reaching the recruiting wire, finals hidden until watched or
+revealed, the recruit card, and the published summer with every game.
+rp-pages.js covers the summer played on the Recruiting page against a save:
+Sim writes only the summer back, lines replace the written ones, honors.
 
 **autosave.js** — the loading screen on a new save, and account autosave:
 right after a milestone, throttled otherwise, never mid-sim, and never over

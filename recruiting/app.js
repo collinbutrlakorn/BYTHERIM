@@ -1233,16 +1233,24 @@ function renderProfile(p) {
   let statsTablesHTML = statsLevels.map(lvl => {
     let st = p.stats[lvl.key];
     if (!st || st.gp === 0) return '';
+    // A simulated summer (see portal.js) is the line shown; the sheet's
+    // written line and any earlier summer stay below it, labelled.
+    const hist = ((p.statsHistory && p.statsHistory[lvl.key]) || []).filter(h => h.line && h.line.gp);
+    const cells = x => `<td>${x.gp}</td><td>${x.mpg}</td><td>${x.ppg}</td><td>${x.rpg}</td><td>${x.apg}</td><td>${x.spg}</td><td>${x.bpg}</td><td>${x.topg}</td><td>${x.fg}</td><td>${x.fg3}</td><td>${x.ft}</td>`;
+    const head = '<th>GP</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th><th>FG%</th><th>3FG%</th><th>FT%</th>';
+    const rows = hist.length
+      ? `<tr><th class="stat-season">Season</th>${head}</tr>
+         <tr><td class="stat-season">${st.label || 'Current'}<small>${st.team}</small></td>${cells(st)}</tr>
+         ${hist.map(h => `<tr class="stat-history"><td class="stat-season">${h.label}<small>${h.team}</small></td>${cells(h.line)}</tr>`).join('')}`
+      : `<tr>${head}</tr><tr>${cells(st)}</tr>`;
     return `
-      <h4 style="font-size: 0.85rem; margin-top: 1.2rem; margin-bottom: 0.5rem; color: var(--text-main);">${lvl.label} <span style="color: var(--text-muted); font-weight: 400;">(${st.team})</span></h4>
+      <h4 style="font-size: 0.85rem; margin-top: 1.2rem; margin-bottom: 0.5rem; color: var(--text-main);">${lvl.label} <span style="color: var(--text-muted); font-weight: 400;">(${st.sim && st.label ? `${st.label} · ` : ''}${st.team})</span></h4>
       ${st.misaligned ? '<div class="stat-warn">Some of these numbers look shifted by a column in the database, so they may be in the wrong places.</div>' : ''}
       <div class="profile-stats-table-wrapper">
-        <table class="profile-stats-table">
-          <tr><th>GP</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th><th>FG%</th><th>3FG%</th><th>FT%</th></tr>
-          <tr><td>${st.gp}</td><td>${st.mpg}</td><td>${st.ppg}</td><td>${st.rpg}</td><td>${st.apg}</td><td>${st.spg}</td><td>${st.bpg}</td><td>${st.topg}</td><td>${st.fg}</td><td>${st.fg3}</td><td>${st.ft}</td></tr>
-        </table>
+        <table class="profile-stats-table">${rows}</table>
       </div>`;
   }).join('');
+  if (typeof summerGameLogHTML === 'function') statsTablesHTML += summerGameLogHTML(p);
 
   if (!statsTablesHTML) statsTablesHTML = '<div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 1rem;">No statistics available.</div>';
 
