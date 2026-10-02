@@ -110,10 +110,10 @@ window.SimEngine = {
   // Counts an action for the site's usage report (see BTR.track).
   track(event) { try { if (typeof BTR !== 'undefined' && BTR.track) BTR.track(event); } catch (e) { /* never in the way */ } },
 
-  async startNewGame() {
+  async startNewGame(opts = {}) {
     this.track('rp_new_save');
     const hasSave = await this.checkForExistingSave();
-    if (hasSave && !confirm("Starting a new save will permanently erase your current save. Continue?")) {
+    if (hasSave && !opts.retry && !confirm("Starting a new save will permanently erase your current save. Continue?")) {
       return;
     }
 
@@ -134,6 +134,17 @@ window.SimEngine = {
       await this.fetchData();
     } finally {
       await this.hideLoader();
+    }
+    // If neither the rosters nor the recruits could be read (no connection,
+    // or Google Sheets having a moment), the universe is all generated
+    // players. Say so instead of letting someone play a fake season
+    // without knowing.
+    if (this._sheetsUnreachable) {
+      this.spotlight({ kicker: 'Connection', title: 'Couldn\u2019t reach the player database',
+        sub: 'This universe was filled with generated players instead of the real rosters and recruits. Check your connection and try again to get the real ones.',
+        actions: [{ label: 'Try again', primary: true, fn: () => this.startNewGame({ retry: true }) },
+          { label: 'Play this universe', fn: () => this.playSeasonIntro() }] }, { force: true });
+      return;
     }
     this.playSeasonIntro();
   },
@@ -759,6 +770,7 @@ window.SimEngine = {
     if (realPlayerCount === 0) {
       console.warn('No roster players were loaded from the sheet. Check the roster tab is published and that its season column matches the current season.');
     }
+    this._sheetsUnreachable = !sheetsReachable;
     if (!sheetsReachable) {
       this.logNews(`Could not reach Google Sheets — generated a full ${this.state.teams.length}-team universe from scratch.`);
     } else {

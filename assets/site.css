@@ -733,7 +733,8 @@ h1, h2, h3, h4, .display {
 
 .board-toolbar {
   position: sticky;
-  top: 64px;
+  top: var(--header-h, 64px);
+  transition: top .25s ease;
   z-index: 50;
   display: flex;
   align-items: center;
@@ -1079,3 +1080,11 @@ a.card:hover { border-color: var(--border-strong); transform: translateY(-2px); 
 .pr-films figure { margin: 0; }
 .pr-films figcaption { font-size: .8rem; margin-top: .3rem; }
 .pr-films figcaption a { color: var(--muted, inherit); }
+
+/* Phones on their side: the header tucks away while scrolling down and
+   returns on scrolling up (assets/site.js, tuckHeader). */
+:root { --header-h: 64px; }
+:root.header-tucked { --header-h: 0px; }
+.site-header { transition: transform .25s ease; }
+.site-header.is-tucked { transform: translateY(-100%); box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { .site-header { transition: none; } }

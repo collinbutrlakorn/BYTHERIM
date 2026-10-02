@@ -205,3 +205,11 @@
 .footer-fiction { display: block; margin-top: 0.35rem; font-size: 0.8rem; }
 .footer-legal { display: block; margin: 0.45rem 0 0; max-width: 72ch; font-size: 0.76rem; line-height: 1.45; opacity: 0.85; }
 .site-footer .footer-bottom a { text-decoration: underline; text-underline-offset: 2px; }
+
+/* Phones on their side: the header tucks away while scrolling down and
+   returns on scrolling up (assets/site.js, tuckHeader). */
+:root { --header-h: 64px; }
+:root.header-tucked { --header-h: 0px; }
+.site-header { transition: transform .25s ease; }
+.site-header.is-tucked { transform: translateY(-100%); box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { .site-header { transition: none; } }

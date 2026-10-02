@@ -520,7 +520,39 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addFooter);
     else addFooter();
     wireChrome();
+    tuckHeader();
     countVisit();
+  }
+
+  // A phone on its side has little height to spare, so there the header
+  // slides away while you scroll down the page and comes back as soon as
+  // you scroll up (swipe down) or reach the top. Anything pinned under the
+  // header follows it through --header-h. Never tucked while one of its
+  // menus is open or it has keyboard focus.
+  function tuckHeader() {
+    const header = document.querySelector('.site-header');
+    if (!header || !window.matchMedia) return;
+    const mq = window.matchMedia('(orientation: landscape) and (max-height: 540px)');
+    const root = document.documentElement;
+    let lastY = window.scrollY, tucked = false;
+    const set = on => {
+      if (on === tucked) return;
+      tucked = on;
+      header.classList.toggle('is-tucked', on);
+      root.classList.toggle('header-tucked', on);
+    };
+    const busy = () => header.matches(':focus-within') ||
+      !!header.querySelector('.open, [aria-expanded="true"]');
+    const onScroll = () => {
+      const y = window.scrollY, dy = y - lastY;
+      if (!mq.matches || y < header.offsetHeight || busy()) { lastY = y; return set(false); }
+      if (Math.abs(dy) < 8) return;          // ignore jitter
+      lastY = y;
+      set(dy > 0);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    if (mq.addEventListener) mq.addEventListener('change', onScroll);
+    header.addEventListener('focusin', () => set(false));
   }
 
   // Google sign-in lives in the header on every page. The RP pages load

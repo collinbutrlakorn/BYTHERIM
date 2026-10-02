@@ -109,7 +109,8 @@
 
 /* ---------- Tabs ---------- */
 .app-tabs {
-  position: sticky; top: 64px; z-index: 40;
+  position: sticky; top: var(--header-h, 64px); z-index: 40;
+  transition: top .25s ease;
   margin: 0 -1.25rem 0.5rem; padding: 0.55rem 1.25rem;
   background: color-mix(in srgb, var(--bg-color) 88%, transparent);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
