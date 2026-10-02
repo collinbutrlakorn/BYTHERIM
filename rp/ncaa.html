@@ -116,6 +116,8 @@
   <link rel="stylesheet" href="css/gamecenter.css">
   <script src="../assets/site.js"></script>
   <script src="../assets/flags.js"></script>
+  <script src="../assets/tour.js"></script>
+  <script src="../assets/rp-tours.js"></script>
 </head>
 <body>
 
@@ -145,6 +147,7 @@
 
       <nav class="home-links" aria-label="More from the RP">
         <a href="./guide.html">How the RP works</a>
+        <a href="?tour=1" onclick="if (window.Tour) { event.preventDefault(); Tour.start('ncaa-home'); }">Take the tour</a>
         <a href="./draft.html">Draft RP</a>
         <a href="../recruiting/">Recruiting</a>
       </nav>
@@ -182,6 +185,7 @@
             <div class="app-menu-group">
               <span class="app-menu-label">Settings</span>
               <button role="menuitem" data-cutscene-toggle onclick="Cutscene.setEnabled(!Cutscene.enabled())">Cutscenes: On</button>
+              <button role="menuitem" onclick="document.getElementById('appMenu').classList.remove('open'); window.Tour && Tour.start(document.querySelector('.sim-layout') && document.querySelector('.sim-layout').offsetParent ? 'ncaa-app' : 'ncaa-home')">Take the tour</button>
               <a role="menuitem" href="./guide.html">How the RP works</a>
             </div>
             <div class="app-menu-group" id="cloudGroup" style="display:none">

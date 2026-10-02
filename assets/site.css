@@ -1072,3 +1072,4 @@ a.card:hover { border-color: var(--border-strong); transform: translateY(-2px); 
 .legal ul { margin: 0.5rem 0 0.8rem 1.2rem; display: flex; flex-direction: column; gap: 0.3rem; }
 .legal a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 .legal .legal-see { margin-top: 2rem; color: var(--muted); }
+.guide-steps a, .section-head p a { color: var(--accent); }

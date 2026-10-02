@@ -114,6 +114,8 @@
 <link rel="stylesheet" href="css/cutscene.css">
 <script src="../assets/site.js"></script>
 <script src="../assets/flags.js"></script>
+<script src="../assets/tour.js"></script>
+<script src="../assets/rp-tours.js"></script>
 
 <style>
   /* ============================================================
@@ -625,6 +627,7 @@
     <div class="draft-header-actions">
       <div id="draftSource"></div>
       <button class="sim-btn sim-btn-secondary btn-sm cutscene-toggle" type="button" data-cutscene-toggle onclick="Cutscene.setEnabled(!Cutscene.enabled())">Cutscenes: On</button>
+      <button type="button" class="sim-btn sim-btn-secondary btn-sm" onclick="window.Tour && Tour.start('draft-rp')">Tour</button>
       <a href="./ncaa.html" class="sim-btn sim-btn-secondary btn-sm">NCAA RP</a>
     </div>
   </div>

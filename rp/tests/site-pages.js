@@ -524,9 +524,37 @@ function table(row) {
     ok(frame && /autoplay=1/.test(frame.src) && /youtube-nocookie\.com\/embed\/videoseries/.test(frame.src), 'home: pressing play loads the playlist and starts it');
     w.close();
   }
+  // First-time tours (assets/tour.js): open once, step through, remembered.
+  {
+    const { JSDOM } = require('jsdom');
+    const dom = new JSDOM('<!doctype html><html><body><button id="a">A</button><div id="b">B</div></body></html>', { url: 'https://bytherim.com/rp/ncaa.html', runScripts: 'outside-only' });
+    const tw = dom.window;
+    tw.eval(read('assets/tour.js'));
+    const Tour = tw.Tour;
+    Tour.define('t', [{ title: 'One', text: 'first' }, { el: '#a', title: 'Two', text: 'second' }, { el: '#missing', title: 'Three', text: 'third' }], { label: 'Test tour' });
+    Tour.start('t');
+    const card = () => tw.document.querySelector('.tour-card');
+    ok(card() && /One/.test(card().textContent) && /1 of 3/.test(card().textContent), 'tour: opens with its first step');
+    Tour.next();
+    ok(/Two/.test(card().textContent) && card().querySelector('[data-t="back"]'), 'tour: steps forward, with Back');
+    Tour.next();
+    ok(/Three/.test(card().textContent) && /Got it/.test(card().textContent), 'tour: a step whose part of the page is missing still shows, centered');
+    Tour.next();
+    ok(!tw.document.querySelector('.tour-root') && tw.localStorage.getItem('btr-tour-t') === 'done', 'tour: finishing closes it and remembers');
+    let started = await Tour.auto('t', { delay: 0 });
+    ok(started === false, 'tour: a finished tour doesn\'t open again on its own');
+    Tour.reset('t'); Tour.start('t');
+    tw.document.dispatchEvent(new tw.KeyboardEvent('keydown', { key: 'Escape' }));
+    ok(!tw.document.querySelector('.tour-root') && tw.localStorage.getItem('btr-tour-t') === 'skipped', 'tour: Escape skips it, remembered too');
+    const tours = read('assets/rp-tours.js');
+    ['ncaa-home', 'ncaa-app', 'recruiting', 'draft-rp', 'rp-hub'].forEach(id => ok(tours.includes(`T.define('${id}'`), `tour: the ${id} page has one`));
+    ['rp/ncaa.html', 'rp/draft.html', 'rp/index.html', 'recruiting/index.html'].forEach(f => ok(/assets\/tour\.js/.test(read(f)) && /assets\/rp-tours\.js/.test(read(f)), `tour: ${f} loads the tours`));
+    dom.window.close();
+  }
   {
     const { w, d, errors } = await boot('rp/guide');
-    ok(errors.length === 0 && d.querySelector('.site-header') && d.querySelectorAll('.guide-steps li').length === 5, 'rp guide: boots with the shared header and the five season steps');
+    ok(errors.length === 0 && d.querySelector('.site-header') && d.querySelectorAll('.guide-steps')[0].querySelectorAll('li').length === 5, 'rp guide: boots with the shared header and the five season steps');
+    ok(d.getElementById('getting-started') && d.querySelectorAll('#getting-started .guide-steps li').length === 6 && /\?tour=1/.test(d.getElementById('getting-started').innerHTML), 'rp guide: a first-season walkthrough, with links to each page\'s quick tour');
     ok([...d.querySelectorAll('.site-footer a')].some(a => a.getAttribute('href') === '../rp/guide.html'), 'footer: links the RP guide');
     w.close();
   }
