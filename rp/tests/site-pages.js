@@ -154,7 +154,7 @@ ok(htmlFiles.every(f => !/href="(\.\.\/)?style\.css"/.test(read(f)) || f.startsW
 // Strengths, Weaknesses, Film.
 const BOARD_CSV = [
   'pick,tier,name,DOB,class,height,weight,position,school,archetype,ESPN Image URL,Scouting Report,PTS,REB,AST,STL,BLK,TS%,eFG%,USG%,BPM,OBPM,DBPM,3Pr,FTr,2P%,3P&,FT%,Prev Rank,Wingspan,Comparison,Strengths,Weaknesses,Film',
-  '1,2,Test Wing,10/12/2007,FR,"6\'8""",235 lbs,SF,Kansas,Wing-Creator,,"Big wing.",18.4,7.1,3.9,1.2,0.8,58.2%,54.0%,28.5%,8.9,6.1,2.8,0.34,0.41,55.1%,35.6%,77.0%,3,"7\'0""",Paul George,Pull-up shooting; Size on the wing,Handle under pressure,https://youtube.com/watch?v=abc',
+  '1,2,Test Wing,10/12/2007,FR,"6\'8""",235 lbs,SF,Kansas,Wing-Creator,,"Big wing.",18.4,7.1,3.9,1.2,0.8,58.2%,54.0%,28.5%,8.9,6.1,2.8,0.34,0.41,55.1%,35.6%,77.0%,3,"7\'0""",Paul George,Pull-up shooting; Size on the wing,Handle under pressure,"https://youtube.com/watch?v=abc | <iframe width=""560"" src=""https://www.youtube.com/embed/7jrgG5B2dEQ?si=YaOsgNhJCLYuw-TU"" allowfullscreen></iframe>\nhttps://youtu.be/AbCdEfGhIjK?t=1m30s"',
   '2,3,Euro Guard,01/02/2008,INTL,"6\'6""",195 lbs,SG,pro,Playmaking Guard,,,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,,,,,,',
   '3,3,Conf Big, 03/04/2007,SO,"7\'0""",240 lbs,C, ohiostate ,Rim-Runner,,,SEC,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,3,,,,,',
   '4,3,Old Guard,02/02/2004,SR,"6\'2""",185 lbs,PG,Oregon,Floor General,,,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,2,,,,,',
@@ -389,6 +389,14 @@ function table(row) {
     ok(row.querySelector('.fact-wide .comp-chip') && row.querySelector('.fact-wide .comp-chip').textContent === 'Paul George', 'draft: the comparison is a chip on its own full-width row');
     ok(row.querySelectorAll('.pr-list.plus li').length === 2 && row.querySelectorAll('.pr-list.minus li').length === 1, 'draft: strengths and weaknesses listed');
     ok(row.querySelector('a[href="https://youtube.com/watch?v=abc"]').textContent.includes('Watch film'), 'draft: film link shown');
+    const vids = [...row.querySelectorAll('.pr-films [data-film]')];
+    ok(vids.length === 2 && /youtube-nocookie\.com\/embed\/7jrgG5B2dEQ\?/.test(vids[0].dataset.film), 'draft: a pasted <iframe> snippet becomes a playable film');
+    ok(/embed\/AbCdEfGhIjK\?rel=0&start=90$/.test(vids[1].dataset.film), 'draft: share links play too, from their start time');
+    ok(vids[0].querySelector('img').src.includes('i.ytimg.com/vi/7jrgG5B2dEQ/') && !row.querySelector('.pr-films iframe'), 'draft: films wait as thumbnails until pressed');
+    ok(row.querySelector('.pr-films figcaption a').href === 'https://www.youtube.com/watch?v=7jrgG5B2dEQ', 'draft: each film links to its normal YouTube page');
+    vids[0].click();
+    const vframe = row.querySelector('.pr-films iframe');
+    ok(vframe && /embed\/7jrgG5B2dEQ\?rel=0&autoplay=1/.test(vframe.src), 'draft: pressing play loads that video');
 
     w.location.hash = '#radar-guy';
     await new Promise(r => setTimeout(r, 50));
@@ -522,6 +530,7 @@ function table(row) {
     facade.click();
     const frame = d.querySelector('.video-frame iframe');
     ok(frame && /autoplay=1/.test(frame.src) && /youtube-nocookie\.com\/embed\/videoseries/.test(frame.src), 'home: pressing play loads the playlist and starts it');
+    ok(facade && facade.dataset.yt.includes('list=UUZtkkd1J155mbEIXTfX4_Fg'), 'home: plays every upload on the channel, not one playlist');
     w.close();
   }
   // First-time tours (assets/tour.js): open once, step through, remembered.

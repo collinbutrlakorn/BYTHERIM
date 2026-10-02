@@ -274,7 +274,24 @@
   function detailHTML(p) {
     const { facts, report, lists } = detailFacts(p);
     const stats = statsHTML(p);
-    const film = p.film ? `<a class="btn btn-ghost btn-sm" href="${esc(p.film)}" target="_blank" rel="noopener">Watch film</a>` : '';
+    const films = p.films || (p.film ? [{ url: p.film }] : []);
+    const vids = films.filter(f => f.yt);
+    const film = films.filter(f => !f.yt).map(f => `<a class="btn btn-ghost btn-sm" href="${esc(f.url)}" target="_blank" rel="noopener">Watch film</a>`).join('');
+    // The YouTube player loads only when someone presses play; until then
+    // each video is just its thumbnail.
+    const videos = vids.length ? `
+  <h4>Film</h4>
+  <div class="pr-films">${vids.map((f, i) => `
+    <figure>
+      <div class="video-frame">
+        <button class="video-facade" type="button" data-film="https://www.youtube-nocookie.com/embed/${esc(f.yt)}?rel=0${f.start ? '&start=' + f.start : ''}" aria-label="Play ${esc(p.name)} film${vids.length > 1 ? ' ' + (i + 1) : ''}">
+          <img src="https://i.ytimg.com/vi/${esc(f.yt)}/hqdefault.jpg" alt="" loading="lazy">
+          <span class="play-btn" aria-hidden="true"></span>
+        </button>
+      </div>
+      <figcaption><a href="${esc(f.url)}" target="_blank" rel="noopener">Open on YouTube</a></figcaption>
+    </figure>`).join('')}
+  </div>` : '';
     return `
 <img class="pr-bigphoto" src="${esc(photoFor(p))}" alt="${esc(p.name)}" loading="lazy" onerror="this.onerror=null;this.src='${initialsBadge(p.name)}'">
 <div>
@@ -282,6 +299,7 @@
   <h4>${esc(p.archetype || 'Scouting report')}</h4>
   ${report}
   ${lists}
+  ${videos}
   ${stats}
   <div class="pr-actions">
     ${film}
@@ -486,6 +504,15 @@
     if (yr) { e.preventDefault(); return showYear(+yr.dataset.year, { push: true }); }
     if (e.target.closest('#tierInfoBtn')) return setTierInfo(document.getElementById('tierInfo').hidden);
     if (!e.target.closest('#tierInfo')) setTierInfo(false);
+    const vid = e.target.closest('[data-film]');
+    if (vid) {
+      const frame = document.createElement('iframe');
+      frame.src = vid.dataset.film + '&autoplay=1';
+      frame.title = vid.getAttribute('aria-label') || 'Film';
+      frame.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
+      frame.allowFullscreen = true;
+      return vid.replaceWith(frame);
+    }
     const copy = e.target.closest('[data-copy]');
     if (copy) {
       const url = location.origin + pageUrl(copy.dataset.copy);

@@ -27,7 +27,11 @@
      Wingspan    shown with the measurements
      Comparison  player comp, shown on the profile
      Strengths / Weaknesses   separate items with ";" or new lines
-     Film        a YouTube or other link to highlights / film
+     Film        YouTube links play right on the profile (a normal link,
+                 a youtu.be share link, an embed link or the whole
+                 <iframe> snippet all work; put several on separate lines
+                 or between "|"). Any other site shows as a "Watch film"
+                 button.
      Stats Name  the player's name as Barttorvik spells it, if different
      Stats Link  a Basketball-Reference international or G League page
                  (e.g. basketball-reference.com/international/players/...)
@@ -220,12 +224,33 @@
       comp: get('comparison', 'comp', 'player comp'),
       strengths: list(get('strengths', 'strength')),
       weaknesses: list(get('weaknesses', 'weakness')),
-      film: /^https?:\/\//i.test(get('film', 'highlights', 'video')) ? get('film', 'highlights', 'video') : '',
+      films: filmList(get('film', 'highlights', 'video')),
+      get film() { return this.films.length ? this.films[0].url : ''; },
       statsLink: /^https?:\/\//i.test(get('stats link', 'realgm', 'stats url')) ? get('stats link', 'realgm', 'stats url') : '',
       draft: draftResult(get('draft pick', 'actual pick', 'nba pick', 'drafted'), get('draft team', 'nba team', 'drafted by'), get('draft year'), boardYear),
       sheetStats: stats,
       seasons: []   // filled in by loadBoard()
     };
+  }
+
+  // The Film cell: every web address in it, in order. YouTube ones get the
+  // video id (and start time) so the profile can play them in place.
+  function filmList(raw) {
+    const seen = new Set();
+    return (String(raw || '').match(/https?:\/\/[^\s"'<>|;]+/gi) || [])
+      .map(u => u.replace(/[),.]+$/, ''))
+      .filter(u => !seen.has(u) && seen.add(u))
+      .map(u => {
+        const m = u.match(/(?:youtube(?:-nocookie)?\.com\/(?:watch\?(?:[^#]*?&)?v=|embed\/|shorts\/|live\/|v\/)|youtu\.be\/)([\w-]{11})/i);
+        if (!m) return { url: u, yt: '' };
+        const t = (u.match(/[?&#](?:t|start)=([\dhms]+)/i) || [])[1] || '';
+        const start = /^\d+$/.test(t) ? +t
+          : (t.match(/(\d+)h/) || [0, 0])[1] * 3600 + (t.match(/(\d+)m/) || [0, 0])[1] * 60 + +(t.match(/(\d+)s/) || [0, 0])[1];
+        // An embed or nocookie address isn't a page anyone can open; link
+        // to the normal watch page instead.
+        const url = 'https://www.youtube.com/watch?v=' + m[1] + (start ? '&t=' + start + 's' : '');
+        return { url, yt: m[1], start };
+      });
   }
 
   // Newest season first. On the current board the sheet's own numbers
