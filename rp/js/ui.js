@@ -26,6 +26,12 @@ window.UIController = {
       const open = !menu.classList.contains('open');
       menu.classList.toggle('open', open);
       btn.setAttribute('aria-expanded', String(open));
+      // Never past the bottom of the screen: a long menu scrolls inside.
+      if (open) {
+        menu.style.maxHeight = '';
+        const r = menu.getBoundingClientRect(), vh = window.innerHeight || 0;
+        if (vh && r.bottom > vh - 12) menu.style.maxHeight = `${Math.max(180, vh - r.top - 12)}px`;
+      }
     });
     document.addEventListener('click', (e) => { if (!e.target.closest('.app-menu-wrap')) close(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });

@@ -155,6 +155,7 @@
       const a = this.active;
       if (!a) return;
       const spot = a.el.querySelector('.tour-spot'), card = a.el.querySelector('.tour-card');
+      if (!spot || !card || !a.el.isConnected) return;   // the tour's markup was removed from under it
       const node = this.target();
       const vw = root.innerWidth || 1024, vh = root.innerHeight || 800;
       if (!node) {

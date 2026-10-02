@@ -312,6 +312,10 @@ function findPlayer(p, rows, byName) {
 // named with a year and "Board" ("2025 Board"), found through the
 // published sheet's HTML page, which lists every tab and its id.
 const PUB_BASE = SHEET.replace(/\/pub(html)?\?.*$/, '');
+// The sheet's "Torvik 2026"-style tabs: Barttorvik's file copied in by the
+// relay in tools/torvik-relay.gs, for when Barttorvik refuses this server.
+const relayTabs = new Map(); // year -> CSV url
+let relayStatusUrl = null;
 async function listBoards() {
   const boards = [{ year: DRAFT_YEAR, url: SHEET, current: true }];
   try {
@@ -321,6 +325,9 @@ async function listBoards() {
     while ((m = re.exec(html))) {
       const name = m[1].replace(/\\x([0-9a-f]{2})/gi, (_, h) => String.fromCharCode(parseInt(h, 16))).replace(/\\(.)/g, '$1');
       const year = +((name.match(/\b(?:19|20)\d{2}\b/) || [])[0]);
+      const tabUrl = `${PUB_BASE}/pub?gid=${m[2]}&single=true&output=csv`;
+      if (/^torvik\s+(?:19|20)\d{2}$/i.test(name.trim())) { relayTabs.set(year, tabUrl); continue; }
+      if (/^torvik\s+status$/i.test(name.trim())) { relayStatusUrl = tabUrl; continue; }
       if (!year || !/board/i.test(name) || boards.some(b => b.year === year)) continue;
       boards.push({ year, url: `${PUB_BASE}/pub?gid=${m[2]}&single=true&output=csv` });
     }
@@ -355,6 +362,7 @@ let previous = null;
 try { previous = JSON.parse(readFileSync(OUT, 'utf8')); } catch (e) { /* first run */ }
 const keptSeasons = [];
 let torvikRead = false; // whether Barttorvik answered at all this run
+let relayRead = false;  // whether the sheet's relay copy was used instead
 const linked = new Map(); // Basketball-Reference page -> prospect ids
 const report = [];
 
@@ -401,7 +409,17 @@ for (const [year, yearJobs] of [...jobs].sort((a, b) => a[0] - b[0])) {
     }
   };
   try { rows = parseCSV(await get(torvikUrl(year))); torvikRead = true; }
-  catch (e) { keepPrevious(`could not download (${e.message})`); continue; }
+  catch (e) {
+    // Barttorvik refused: the copy the sheet's relay made, if there is one.
+    if (relayTabs.has(year)) {
+      try {
+        rows = parseCSV(await get(relayTabs.get(year)));
+        if (!rows.length) throw new Error('the tab is empty');
+        relayRead = true;
+        report.push(`${label}: Barttorvik refused this server (${e.message}); read the sheet's "Torvik ${year}" tab instead`);
+      } catch (e2) { keepPrevious(`could not download (${e.message}), nor read the sheet's "Torvik ${year}" tab (${e2.message})`); continue; }
+    } else { keepPrevious(`could not download (${e.message})`); continue; }
+  }
 
   // Only rows with real box-score numbers count; before a season starts
   // Barttorvik lists players with the per-game columns still blank.
@@ -444,7 +462,18 @@ for (const [url, ids] of linked) {
 if (linked.size) report.push(`Basketball-Reference: stats for ${Object.keys(out.pro).length} linked players`);
 
 // When the college numbers were last read from Barttorvik (shown on the board).
-out.torvikUpdated = torvikRead ? out.updated : ((previous && (previous.torvikUpdated || previous.updated)) || null);
+// Through the relay, it's when the relay last read Barttorvik ("Torvik
+// status" tab: year, read at, HTTP status).
+let relayAt = null;
+if (relayRead && relayStatusUrl) {
+  try {
+    parseCSV(await get(relayStatusUrl)).forEach(r => { const t = Date.parse(r[1]); if (String(r[2]) === '200' && t && (!relayAt || t > relayAt)) relayAt = t; });
+  } catch (e) { /* the date just falls back below */ }
+}
+out.torvikUpdated = torvikRead ? out.updated
+  : relayRead ? (relayAt ? new Date(relayAt).toISOString() : out.updated)
+  : ((previous && (previous.torvikUpdated || previous.updated)) || null);
+if (relayRead) out.torvikVia = 'sheet relay';
 
 mkdirSync(dirname(OUT), { recursive: true });
 // Keep the file byte-identical when nothing changed, so the daily job
@@ -459,5 +488,5 @@ console.log(report.join('\n'));
 // couldn't be refreshed, so a blocked source doesn't go unnoticed.
 if (keptSeasons.length && process.env.GITHUB_ACTIONS) {
   console.log(`::warning::Barttorvik could not be read for ${keptSeasons.join(', ')}; the saved numbers were kept.`
-    + (torvikRead ? '' : ' Barttorvik refuses GitHub\'s servers (HTTP 403). Run tools/update-stats from your own computer to refresh them (see the README).'));
+    + (torvikRead || relayRead ? '' : ' Barttorvik refuses GitHub\'s servers (HTTP 403). Set up the sheet relay (tools/torvik-relay.gs) or run tools/update-stats from your own computer (see the README).'));
 }

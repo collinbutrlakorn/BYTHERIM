@@ -180,5 +180,28 @@ ok(stats.torvikUpdated && !isNaN(Date.parse(stats.torvikUpdated)), 'the file rec
 ok(after.torvikUpdated === stats.torvikUpdated, '...and a blocked run doesn\'t move that date');
 ok(fs.existsSync(path.join(ROOT, 'tools', 'update-stats-mac.command')) && fs.existsSync(path.join(ROOT, 'tools', 'update-stats-windows.cmd')), 'one-click updaters to run it from your own computer');
 
+// The sheet's relay: Barttorvik refuses the server (HTTP 403), but the
+// big board sheet has a "Torvik 2026" tab copied in by tools/torvik-relay.gs.
+const relayFile = path.join(tmp, 'relay.mjs');
+fs.writeFileSync(relayFile, `
+const real = globalThis.fetch;
+const torvik2026 = ${JSON.stringify(TORVIK_2026.replace('10.1', '12.6'))};
+globalThis.fetch = async url => {
+  url = String(url);
+  if (url.includes('barttorvik')) return { ok: false, status: 403, text: async () => 'Forbidden' };
+  if (url.endsWith('/pubhtml')) return { ok: true, status: 200, text: async () => ${JSON.stringify(PUBHTML)} + 'items.push({name: "Torvik 2026", pageUrl: "x", gid: "41",initialSheet: false});items.push({name: "Torvik status", pageUrl: "x", gid: "42",initialSheet: false});' };
+  if (url.includes('gid=41')) return { ok: true, status: 200, text: async () => torvik2026 };
+  if (url.includes('gid=42')) return { ok: true, status: 200, text: async () => '2027,2026-10-01T13:00:00.000Z,200\\n2026,2026-10-01T13:00:10.000Z,200' };
+  return real(url);
+};`);
+const relayLog = execFileSync(process.execPath, ['--import', 'file://' + preload, '--import', 'file://' + relayFile, path.join(ROOT, 'tools', 'update-stats.mjs')],
+  { env: { ...process.env, STATS_OUT: out, CRAWL_DELAY_MS: '0', BBREF_DELAY_MS: '0' }, encoding: 'utf8' });
+const relayed = JSON.parse(fs.readFileSync(out, 'utf8'));
+ok(relayed.seasons['2025-26']['exact-match'].stats.PTS === '12.6', 'when Barttorvik refuses the server, the sheet\'s "Torvik 2026" relay tab is read instead');
+ok(/read the sheet's "Torvik 2026" tab instead/.test(relayLog), 'and the run log says so');
+ok(relayed.torvikUpdated === '2026-10-01T13:00:10.000Z' && relayed.torvikVia === 'sheet relay', 'the board shows when the relay last read Barttorvik');
+ok(JSON.stringify(relayed.seasons['2024-25']) === JSON.stringify(stats.seasons['2024-25']), 'seasons without a relay tab keep what was saved');
+ok(fs.existsSync(path.join(ROOT, 'tools', 'torvik-relay.gs')), 'the relay script ships in tools/');
+
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log('\nStats updater verified.');
