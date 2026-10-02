@@ -354,6 +354,7 @@ const out = { updated: new Date().toISOString(), source: 'barttorvik.com, basket
 let previous = null;
 try { previous = JSON.parse(readFileSync(OUT, 'utf8')); } catch (e) { /* first run */ }
 const keptSeasons = [];
+let torvikRead = false; // whether Barttorvik answered at all this run
 const linked = new Map(); // Basketball-Reference page -> prospect ids
 const report = [];
 
@@ -399,7 +400,7 @@ for (const [year, yearJobs] of [...jobs].sort((a, b) => a[0] - b[0])) {
       report.push(`${label}: ${why}`);
     }
   };
-  try { rows = parseCSV(await get(torvikUrl(year))); }
+  try { rows = parseCSV(await get(torvikUrl(year))); torvikRead = true; }
   catch (e) { keepPrevious(`could not download (${e.message})`); continue; }
 
   // Only rows with real box-score numbers count; before a season starts
@@ -442,6 +443,9 @@ for (const [url, ids] of linked) {
 }
 if (linked.size) report.push(`Basketball-Reference: stats for ${Object.keys(out.pro).length} linked players`);
 
+// When the college numbers were last read from Barttorvik (shown on the board).
+out.torvikUpdated = torvikRead ? out.updated : ((previous && (previous.torvikUpdated || previous.updated)) || null);
+
 mkdirSync(dirname(OUT), { recursive: true });
 // Keep the file byte-identical when nothing changed, so the daily job
 // doesn't commit just because the timestamp moved.
@@ -454,5 +458,6 @@ console.log(report.join('\n'));
 // Flag it in the Actions log (a yellow warning) when a whole season
 // couldn't be refreshed, so a blocked source doesn't go unnoticed.
 if (keptSeasons.length && process.env.GITHUB_ACTIONS) {
-  console.log(`::warning::Barttorvik could not be read for ${keptSeasons.join(', ')}; the saved numbers were kept.`);
+  console.log(`::warning::Barttorvik could not be read for ${keptSeasons.join(', ')}; the saved numbers were kept.`
+    + (torvikRead ? '' : ' Barttorvik refuses GitHub\'s servers (HTTP 403). Run tools/update-stats from your own computer to refresh them (see the README).'));
 }

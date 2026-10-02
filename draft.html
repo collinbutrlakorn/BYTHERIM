@@ -356,7 +356,7 @@
     const college = p.seasons.find(s => s.source === 'barttorvik');
     const pro = p.seasons.find(s => s.source === 'bbref');
     const source = (college
-      ? `<span>College stats via <a class="pr-source" href="https://barttorvik.com/playerstat.php?link=y&year=${college.label.slice(0, 2)}${college.label.slice(-2)}&p=${encodeURIComponent(college.torvikName || p.name)}&t=${encodeURIComponent(college.team || '')}" target="_blank" rel="noopener">Barttorvik</a></span>`
+      ? `<span>College stats via <a class="pr-source" href="https://barttorvik.com/playerstat.php?link=y&year=${college.label.slice(0, 2)}${college.label.slice(-2)}&p=${encodeURIComponent(college.torvikName || p.name)}&t=${encodeURIComponent(college.team || '')}" target="_blank" rel="noopener">Barttorvik</a>${BOARD.statsAsOf && !isPast() ? `, updated ${new Date(BOARD.statsAsOf).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}</span>`
       : '') + (pro
       ? `<span>${/gleague/.test(pro.url) ? 'G League' : 'International'} stats via <a class="pr-source" href="${esc(pro.url)}" target="_blank" rel="noopener">Basketball-Reference</a></span>`
       : '');

@@ -315,6 +315,7 @@
         url = b.url;
       }
       const [res, college] = await Promise.all([fetch(url), loadStats()]);
+      if (college && window.BOARD) window.BOARD.statsAsOf = college.torvikUpdated || college.updated || null;
       if (!res.ok) throw new Error('Board sheet returned HTTP ' + res.status);
       const rows = BTR.parseCSV(await res.text()).map(r => normalize(r, year)).filter(p => p.name);
       rows.forEach(p => attachSeasons(p, college, year));

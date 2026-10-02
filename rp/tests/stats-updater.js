@@ -176,6 +176,9 @@ const after = JSON.parse(fs.readFileSync(out, 'utf8'));
 ok(JSON.stringify(after.seasons) === JSON.stringify(stats.seasons), 'a blocked Barttorvik keeps every saved season instead of wiping them');
 ok(JSON.stringify(after.pro) === JSON.stringify(stats.pro), 'a refused Basketball-Reference page keeps the saved pro lines');
 ok(/sent a web page instead of the CSV/.test(blockedLog) && /kept the \d+ stat lines already saved/.test(blockedLog), 'the run log says what was kept and why');
+ok(stats.torvikUpdated && !isNaN(Date.parse(stats.torvikUpdated)), 'the file records when Barttorvik was last read (the board shows it)');
+ok(after.torvikUpdated === stats.torvikUpdated, '...and a blocked run doesn\'t move that date');
+ok(fs.existsSync(path.join(ROOT, 'tools', 'update-stats-mac.command')) && fs.existsSync(path.join(ROOT, 'tools', 'update-stats-windows.cmd')), 'one-click updaters to run it from your own computer');
 
 fs.rmSync(tmp, { recursive: true, force: true });
 console.log('\nStats updater verified.');
