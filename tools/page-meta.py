@@ -23,6 +23,8 @@ PAGES = {
     'rp/ncaa.html':          ('/rp/ncaa.html',    'ncaa',       'A full Division I college basketball simulation: every program, player development, award races, the NCAA Tournament and an NBA draft every offseason.'),
     'rp/draft.html':         ('/rp/draft.html',   'draft-rp',   None),
     'recruiting/index.html': ('/recruiting/',     'recruiting', 'Recruiting rankings, prospect profiles, commitments and the transfer portal for the BYTHERIM RP universe.'),
+    'privacy.html':          ('/privacy.html',    'home',       None),
+    'terms.html':            ('/terms.html',      'home',       None),
     '404.html':              (None,               'home',       'That page moved or never existed.'),
 }
 AUTHOR = 'Collin Butrlakorn'

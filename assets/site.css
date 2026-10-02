@@ -631,7 +631,7 @@ h1, h2, h3, h4, .display {
   border-top: 1px solid var(--border);
   font-size: 0.97rem;
 }
-.pr-rank { font-family: 'Oswald', sans-serif; font-weight: 600; color: var(--muted); text-align: right; }
+.pr-item .pr-rank { font-family: 'Oswald', sans-serif; font-weight: 600; color: var(--muted); text-align: right; font-size: inherit; }
 .pr-move { font-size: 0.68rem; text-align: center; }
 .pr-move.up { color: var(--win); }
 .pr-move.down { color: var(--loss); }
@@ -832,8 +832,9 @@ h1, h2, h3, h4, .display {
 .pr.open { border-color: var(--accent-line); }
 
 .pr-main { width: 100%; padding: 0.6rem 0.9rem; text-align: left; }
-.pr-rank { font-family: 'Oswald', sans-serif; font-size: 1.35rem; font-weight: 600; text-align: center; }
-.pr-rank.unranked { font-size: 0.95rem; color: var(--faint); }
+/* Big board ranks (the NBA power rankings have their own .pr-item .pr-rank). */
+.pr-main .pr-rank { font-family: 'Oswald', sans-serif; font-size: 1.35rem; font-weight: 600; text-align: center; }
+.pr-main .pr-rank.unranked { font-size: 0.95rem; color: var(--faint); }
 .pr-photo { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; object-position: 50% 12%; background: var(--surface-2); border: 1px solid var(--border); }
 .pr-id { min-width: 0; }
 .pr-name { display: block; font-weight: 700; font-size: 1.06rem; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -940,7 +941,7 @@ h1, h2, h3, h4, .display {
     padding: 0.6rem 0.75rem;
   }
   .past-board .pr-main { grid-template-columns: 34px 42px minmax(0, 1fr) auto; }
-  .pr-rank { grid-area: rank; font-size: 1.15rem; }
+  .pr-main .pr-rank { grid-area: rank; font-size: 1.15rem; }
   .pr-photo { grid-area: photo; width: 42px; height: 42px; }
   .pr-id { grid-area: id; }
   .pr-age { grid-area: age; }
@@ -1056,3 +1057,18 @@ a.card:hover { border-color: var(--border-strong); transform: translateY(-2px); 
   .hero-dots { bottom: 0.9rem; }
 }
 @media (prefers-reduced-motion: reduce) { .hero-rotator > .hero { transition: none; } }
+
+/* Legal note under every page's footer */
+.footer-legal { display: block; margin: 0.45rem 0 0; max-width: 72ch; font-size: 0.76rem; line-height: 1.45; opacity: 0.85; }
+
+/* Privacy Policy and Terms of Use */
+.legal { max-width: 760px; }
+.legal h1 { font-size: clamp(2rem, 5vw, 2.8rem); text-transform: uppercase; margin: 0.3rem 0 0.2rem; }
+.legal .legal-date { color: var(--muted); font-size: 0.92rem; margin-bottom: 1.6rem; }
+.legal h2 { font-size: 1.3rem; text-transform: uppercase; margin: 2rem 0 0.5rem; }
+.legal h3 { font-size: 1.05rem; margin: 1.2rem 0 0.35rem; }
+.legal p, .legal li { color: var(--text); line-height: 1.7; }
+.legal p + p { margin-top: 0.7rem; }
+.legal ul { margin: 0.5rem 0 0.8rem 1.2rem; display: flex; flex-direction: column; gap: 0.3rem; }
+.legal a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.legal .legal-see { margin-top: 2rem; color: var(--muted); }

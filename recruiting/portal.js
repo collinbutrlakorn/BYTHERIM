@@ -437,6 +437,8 @@ function renderSummer() {
   }
   if (sm.v !== 2) { renderSummerSummary(el, sm); return; }
   const esc = portalEsc;
+  // A team name; a national team gets its flag.
+  const tm = n => (window.Flags ? Flags.team(n) : esc(n));
   const byId = Portal.summerById || new Map();
   const who = (x, nameOverride) => {
     if (!x) return '';
@@ -451,12 +453,12 @@ function renderSummer() {
 
   const games = sm.games || [];
   const gameRow = g => g.hidden
-    ? `<li class="summer-game"><span>${esc(g.h)} vs ${esc(g.a)}</span><small>Final to be revealed in the NCAA RP</small></li>`
-    : `<li class="summer-game" onclick="openSummerBox('${escAttr(g.id)}')" title="Box score"><span class="${g.hs > g.as ? 'won' : ''}">${esc(g.h)} <b>${g.hs}</b></span><span class="${g.as > g.hs ? 'won' : ''}">${esc(g.a)} <b>${g.as}</b></span><small>Box score</small></li>`;
+    ? `<li class="summer-game"><span>${tm(g.h)} vs ${tm(g.a)}</span><small>Final to be revealed in the NCAA RP</small></li>`
+    : `<li class="summer-game" onclick="openSummerBox('${escAttr(g.id)}')" title="Box score"><span class="${g.hs > g.as ? 'won' : ''}">${tm(g.h)} <b>${g.hs}</b></span><span class="${g.as > g.hs ? 'won' : ''}">${tm(g.a)} <b>${g.as}</b></span><small>Box score</small></li>`;
   const roundsOf = (ev, labels) => labels.map(rd => ({ rd, list: games.filter(g => g.ev === ev && g.rd === rd) })).filter(x => x.list.length);
   const roundsHTML = list => list.map(x => `<div class="summer-round"><h4>${esc(x.rd)}</h4><ul class="summer-games">${x.list.map(gameRow).join('')}</ul></div>`).join('');
   const tableHTML = (rows, cut) => `<div class="table-container"><table class="summer-table"><thead><tr><th></th><th style="text-align:left">Team</th><th>W-L</th><th class="summer-pts">PF</th><th class="summer-pts">PA</th><th>+/-</th></tr></thead><tbody>
-    ${rows.map(([t, w, l, pf, pa], i) => `<tr class="${cut && i === cut - 1 ? 'cutline' : ''}"><td>${i + 1}</td><td style="text-align:left">${esc(t)}</td><td>${w}-${l}</td><td class="summer-pts">${pf || 0}</td><td class="summer-pts">${pa || 0}</td><td>${(pf || 0) - (pa || 0) > 0 ? '+' : ''}${(pf || 0) - (pa || 0)}</td></tr>`).join('')}</tbody></table></div>`;
+    ${rows.map(([t, w, l, pf, pa], i) => `<tr class="${cut && i === cut - 1 ? 'cutline' : ''}"><td>${i + 1}</td><td style="text-align:left">${tm(t)}</td><td>${w}-${l}</td><td class="summer-pts">${pf || 0}</td><td class="summer-pts">${pa || 0}</td><td>${(pf || 0) - (pa || 0) > 0 ? '+' : ''}${(pf || 0) - (pa || 0)}</td></tr>`).join('')}</tbody></table></div>`;
 
   let body = '';
   const c = (sm.circuits || []).find(x => x.key === tab);
@@ -481,13 +483,13 @@ function renderSummer() {
       </div>`;
   } else if (tab === 'FIBA' && sm.fiba) {
     const f = sm.fiba;
-    const medals = f.medals ? `<div class="summer-medals"><span>🥇 ${esc(f.medals.gold)}</span><span>🥈 ${esc(f.medals.silver)}</span><span>🥉 ${esc(f.medals.bronze)}</span></div>` : '';
+    const medals = f.medals ? `<div class="summer-medals"><span>🥇 ${tm(f.medals.gold)}</span><span>🥈 ${tm(f.medals.silver)}</span><span>🥉 ${tm(f.medals.bronze)}</span></div>` : '';
     const usa = (f.rosters || []).find(t => t.name === 'USA');
     body = `<div class="summer-grid">
         <section class="summer-card"><div class="summer-head"><span class="summer-kicker">FIBA</span><h3>${esc(f.name)}</h3></div>
           ${medals}
-          <dl class="summer-awards">${f.mvp ? `<dt>MVP</dt><dd>${who(f.mvp)} <small>${esc(f.mvp.team)} · ${esc(f.mvp.line)}</small></dd>` : ''}
-          ${(f.allStar || []).length ? `<dt>All-Star Five</dt><dd>${f.allStar.map(x => `${who(x)} <small>${esc(x.team)}</small>`).join(', ')}</dd>` : ''}</dl>
+          <dl class="summer-awards">${f.mvp ? `<dt>MVP</dt><dd>${who(f.mvp)} <small>${tm(f.mvp.team)} · ${esc(f.mvp.line)}</small></dd>` : ''}
+          ${(f.allStar || []).length ? `<dt>All-Star Five</dt><dd>${f.allStar.map(x => `${who(x)} <small>${tm(x.team)}</small>`).join(', ')}</dd>` : ''}</dl>
           ${roundsHTML(roundsOf('FIBA', ['Final', 'Bronze medal game', 'Semifinals', 'Quarterfinals'])) || '<p class="summer-note">The knockouts follow the group stage.</p>'}
           ${usa ? `<details><summary>Team USA</summary><p class="summer-roster">${usa.players.map(id => { const r = byId.get(id); return r ? who({ id }, r.name) : ''; }).filter(Boolean).join(' · ')}</p></details>` : ''}</section>
         <section class="summer-card"><div class="summer-head"><span class="summer-kicker">FIBA</span><h3>Groups</h3></div>
@@ -496,7 +498,7 @@ function renderSummer() {
   } else {
     const rows = (sm.players || []).map(x => ({ x, r: byId.get(x.id) })).filter(o => o.r);
     const board = (title, list, val) => `<section class="summer-card"><div class="summer-head"><span class="summer-kicker">Leaders</span><h3>${esc(title)}</h3></div>
-      <ol class="summer-leaders">${list.slice(0, 15).map(o => `<li>${who({ id: o.x.id }, o.r.name)} <small>${o.r.classYear} · ${esc(o.x.t || o.x.na || '')}</small><b>${val(o)}</b></li>`).join('')}</ol></section>`;
+      <ol class="summer-leaders">${list.slice(0, 15).map(o => `<li>${who({ id: o.x.id }, o.r.name)} <small>${o.r.classYear} · ${o.x.t ? esc(o.x.t) : tm(o.x.na || '')}</small><b>${val(o)}</b></li>`).join('')}</ol></section>`;
     const aau = rows.filter(o => o.x.aau && o.x.aau.gp >= Math.min(6, Math.max(1, sm.step * 2)));
     const fiba = rows.filter(o => o.x.fiba && o.x.fiba.gp >= 2);
     const by = (list, k, base) => list.slice().sort((a, b) => b.x[base][k] - a.x[base][k]);
@@ -511,7 +513,7 @@ function renderSummer() {
   }
   const past = (sm.history || []).slice().reverse();
   const history = past.length ? `<section class="summer-card summer-wide"><div class="summer-head"><span class="summer-kicker">Past summers</span><h3>Champions</h3></div>
-      <ul class="summer-history">${past.map(h => `<li><b>${h.season}</b> ${(h.champions || []).map(x => `${esc(x.event)}: ${esc(x.team)}`).join(' · ')}${h.fiba && h.fiba.medals ? ` · ${esc(h.fiba.name)}: ${esc(h.fiba.medals.gold)}` : ''}</li>`).join('')}</ul></section>` : '';
+      <ul class="summer-history">${past.map(h => `<li><b>${h.season}</b> ${(h.champions || []).map(x => `${esc(x.event)}: ${esc(x.team)}`).join(' · ')}${h.fiba && h.fiba.medals ? ` · ${esc(h.fiba.name)}: ${tm(h.fiba.medals.gold)}` : ''}</li>`).join('')}</ul></section>` : '';
   const src = summerSource(), L = Portal.local;
   const toggle = L && Portal.universe && Portal.universe.summer
     ? `<div class="summer-source" role="group" aria-label="Which summer">${[['local', 'Your save'], ['official', 'Official universe']].map(([k, l]) => `<button type="button" class="${src === k ? 'active' : ''}" onclick="setSummerSource('${k}')">${l}</button>`).join('')}</div>` : '';
@@ -545,7 +547,7 @@ function openSummerBox(id) {
     // Starters first, marked; then the bench by minutes.
     const ls = lines.map(summerLine).sort((a, b) => (b.started - a.started) || (b.min - a.min));
     const tot = k => ls.reduce((n, l) => n + l[k], 0);
-    return `<h4 class="summer-subhead">${esc(team)} <b>${pts}</b></h4>
+    return `<h4 class="summer-subhead">${window.Flags ? Flags.team(team) : esc(team)} <b>${pts}</b></h4>
       <div class="table-container"><table class="summer-box"><thead><tr><th style="text-align:left">Player</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TO</th><th>FG</th><th>3P</th><th>FT</th></tr></thead><tbody>
       ${ls.map((l, i) => `<tr class="${l.started ? 'is-starter' : ''}${i > 0 && !l.started && ls[i - 1].started ? ' bench-start' : ''}"><td style="text-align:left">${l.started ? '<span class="starter-badge" title="Starter" aria-label="Starter">S</span>' : ''}${name(l)}</td><td>${l.min}</td><td><b>${l.pts}</b></td><td>${l.reb}</td><td>${l.ast}</td><td>${l.stl}</td><td>${l.blk}</td><td>${l.tov}</td><td>${pct(l.fgm, l.fga)}</td><td>${pct(l.threePm, l.threePa)}</td><td>${pct(l.ftm, l.fta)}</td></tr>`).join('')}
       <tr class="summer-total"><td style="text-align:left">Team</td><td></td><td><b>${tot('pts')}</b></td><td>${tot('reb')}</td><td>${tot('ast')}</td><td>${tot('stl')}</td><td>${tot('blk')}</td><td>${tot('tov')}</td><td>${pct(tot('fgm'), tot('fga'))}</td><td>${pct(tot('threePm'), tot('threePa'))}</td><td>${pct(tot('ftm'), tot('fta'))}</td></tr>
@@ -573,7 +575,7 @@ function summerGameLogHTML(p) {
   return `<div class="profile-section summer-log"><h3 class="section-title-sm">Summer ${sm.season} game log</h3>
     <div class="profile-stats-table-wrapper"><table class="profile-stats-table">
       <tr><th style="text-align:left">Game</th><th style="text-align:left">Opp</th><th>Result</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>FG</th><th>3P</th><th>FT</th></tr>
-      ${games.map(g => `<tr onclick="openSummerBox('${escAttr(g.id)}')" class="summer-log-row"><td style="text-align:left">${esc(g.ev === 'FIBA' ? (sm.fiba ? sm.fiba.short : 'FIBA') : g.ev)} · ${esc(g.rd)}</td><td style="text-align:left">${esc(g.opp)}</td><td>${esc(g.res)}</td><td>${g.l.min}</td><td>${g.l.pts}</td><td>${g.l.reb}</td><td>${g.l.ast}</td><td>${g.l.stl}</td><td>${g.l.blk}</td><td>${g.l.fgm}-${g.l.fga}</td><td>${g.l.threePm}-${g.l.threePa}</td><td>${g.l.ftm}-${g.l.fta}</td></tr>`).join('')}
+      ${games.map(g => `<tr onclick="openSummerBox('${escAttr(g.id)}')" class="summer-log-row"><td style="text-align:left">${esc(g.ev === 'FIBA' ? (sm.fiba ? sm.fiba.short : 'FIBA') : g.ev)} · ${esc(g.rd)}</td><td style="text-align:left">${g.ev === 'FIBA' && window.Flags ? Flags.team(g.opp) : esc(g.opp)}</td><td>${esc(g.res)}</td><td>${g.l.min}</td><td>${g.l.pts}</td><td>${g.l.reb}</td><td>${g.l.ast}</td><td>${g.l.stl}</td><td>${g.l.blk}</td><td>${g.l.fgm}-${g.l.fga}</td><td>${g.l.threePm}-${g.l.threePa}</td><td>${g.l.ftm}-${g.l.fta}</td></tr>`).join('')}
     </table></div></div>`;
 }
 
@@ -584,7 +586,8 @@ function renderSummerSummary(el, sm) {
     const r = byKey.get(portalKey(bare));
     return r ? `<a class="summer-player" onclick="openPortalPlayer('${escAttr(r.name)}')">${portalEsc(name)}</a>` : portalEsc(name);
   };
-  const score = f => f ? `<div class="summer-score"><span class="${f.hs > f.as ? 'won' : ''}">${portalEsc(f.home)} <b>${f.hs}</b></span><span class="${f.as > f.hs ? 'won' : ''}">${portalEsc(f.away)} <b>${f.as}</b></span></div>` : '';
+  const tmS = n => (window.Flags ? Flags.team(n) : portalEsc(n));
+  const score = f => f ? `<div class="summer-score"><span class="${f.hs > f.as ? 'won' : ''}">${tmS(f.home)} <b>${f.hs}</b></span><span class="${f.as > f.hs ? 'won' : ''}">${tmS(f.away)} <b>${f.as}</b></span></div>` : '';
   const circuits = (sm.circuits || []).map(c => `<section class="summer-card">
       <div class="summer-head"><span class="summer-kicker">${portalEsc(c.name)}</span><h3>${portalEsc(c.event)}</h3></div>
       <div class="summer-champ">🏆 <b>${portalEsc(c.champion)}</b> <small>over ${portalEsc(c.runnerUp)}</small></div>
@@ -599,7 +602,7 @@ function renderSummerSummary(el, sm) {
   const f = sm.fiba;
   const fiba = f ? `<section class="summer-card">
       <div class="summer-head"><span class="summer-kicker">FIBA</span><h3>${portalEsc(f.name)}</h3></div>
-      <div class="summer-medals"><span>🥇 ${portalEsc(f.medals.gold)}</span><span>🥈 ${portalEsc(f.medals.silver)}</span><span>🥉 ${portalEsc(f.medals.bronze)}</span></div>
+      <div class="summer-medals"><span>🥇 ${(window.Flags ? Flags.team(f.medals.gold) : portalEsc(f.medals.gold))}</span><span>🥈 ${(window.Flags ? Flags.team(f.medals.silver) : portalEsc(f.medals.silver))}</span><span>🥉 ${(window.Flags ? Flags.team(f.medals.bronze) : portalEsc(f.medals.bronze))}</span></div>
       ${score(f.final)}
       <dl class="summer-awards">
         ${f.mvp ? `<dt>MVP</dt><dd>${who(f.mvp)}</dd>` : ''}
@@ -615,7 +618,7 @@ function renderSummerSummary(el, sm) {
       </tbody></table></div></section>` : '';
   const past = (sm.history || []).filter(h => h.season !== sm.season).slice().reverse();
   const history = past.length ? `<section class="summer-card summer-wide"><div class="summer-head"><span class="summer-kicker">Past summers</span><h3>Champions</h3></div>
-      <ul class="summer-history">${past.map(h => `<li><b>${h.season}</b> ${(h.champions || []).map(c => `${portalEsc(c.event)}: ${portalEsc(c.team)}`).join(' · ')}${h.fiba ? ` · ${portalEsc(h.fiba.name)}: ${portalEsc(h.fiba.medals.gold)}` : ''}</li>`).join('')}</ul></section>` : '';
+      <ul class="summer-history">${past.map(h => `<li><b>${h.season}</b> ${(h.champions || []).map(c => `${portalEsc(c.event)}: ${portalEsc(c.team)}`).join(' · ')}${h.fiba ? ` · ${portalEsc(h.fiba.name)}: ${(window.Flags ? Flags.team(h.fiba.medals.gold) : portalEsc(h.fiba.medals.gold))}` : ''}</li>`).join('')}</ul></section>` : '';
   el.innerHTML = `<div class="portal-summary"><b>Summer ${sm.season}</b><span>The AAU circuits for the rising seniors and juniors${f ? `, and the ${portalEsc(f.name)}` : ''}, played in the NCAA RP.</span></div>
     <div class="summer-grid">${circuits}${fiba}${leaders}${history}</div>`;
 }

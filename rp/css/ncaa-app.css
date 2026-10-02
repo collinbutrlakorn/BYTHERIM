@@ -998,7 +998,11 @@ a.outline-btn { text-decoration: none; display: inline-flex; align-items: center
 @media (max-width: 640px) {
   .sim-btn.sim-skip { padding: 0.85rem 0.9rem; }
   .sim-btn.sim-skip span { display: none; }
-  .skip-pop { left: 0; right: auto; }
+  .skip-pop { left: 0; right: auto; max-width: calc(100vw - 2rem); }
+  /* On a phone the "…" button sits at the left of the row: open its menu
+     rightward, on screen, and let a long menu scroll. */
+  .app-menu { left: 0; right: auto; transform-origin: top left; width: min(290px, calc(100vw - 2rem));
+    max-height: min(70vh, calc(100dvh - 12rem)); overflow-y: auto; overscroll-behavior: contain; }
 }
 
 /* ---------- Summer circuit (offseason page, recruit cards, Recruits tab) ---------- */

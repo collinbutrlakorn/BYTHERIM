@@ -1244,11 +1244,11 @@ function renderProfile(p) {
     const head = '<th>GP</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th><th>FG%</th><th>3FG%</th><th>FT%</th>';
     const rows = hist.length
       ? `<tr><th class="stat-season">Season</th>${head}</tr>
-         <tr><td class="stat-season">${st.label || 'Current'}<small>${st.team}</small></td>${cells(st)}</tr>
-         ${hist.map(h => `<tr class="stat-history"><td class="stat-season">${h.label}<small>${h.team}</small></td>${cells(h.line)}</tr>`).join('')}`
+         <tr><td class="stat-season">${st.label || 'Current'}<small>${lvl.key === 'fiba' && window.Flags ? Flags.team(st.team) : st.team}</small></td>${cells(st)}</tr>
+         ${hist.map(h => `<tr class="stat-history"><td class="stat-season">${h.label}<small>${lvl.key === 'fiba' && window.Flags ? Flags.team(h.team) : h.team}</small></td>${cells(h.line)}</tr>`).join('')}`
       : `<tr>${head}</tr><tr>${cells(st)}</tr>`;
     return `
-      <h4 style="font-size: 0.85rem; margin-top: 1.2rem; margin-bottom: 0.5rem; color: var(--text-main);">${lvl.label} <span style="color: var(--text-muted); font-weight: 400;">(${st.sim && st.label ? `${st.label} · ` : ''}${st.team})</span></h4>
+      <h4 style="font-size: 0.85rem; margin-top: 1.2rem; margin-bottom: 0.5rem; color: var(--text-main);">${lvl.label} <span style="color: var(--text-muted); font-weight: 400;">(${st.sim && st.label ? `${st.label} · ` : ''}${lvl.key === 'fiba' && window.Flags ? Flags.team(st.team) : st.team})</span></h4>
       ${st.misaligned ? '<div class="stat-warn">Some of these numbers look shifted by a column in the database, so they may be in the wrong places.</div>' : ''}
       <div class="profile-stats-table-wrapper">
         <table class="profile-stats-table">${rows}</table>

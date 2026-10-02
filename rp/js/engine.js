@@ -572,12 +572,20 @@ window.SimEngine = {
 
   _logoCache: {},
 
+  // A team's name, with its flag when it's a national team.
+  teamTag(name) { return typeof Flags !== 'undefined' ? Flags.team(name) : this.esc(name); },
+
   getTeamLogo(schoolName) {
     if (!schoolName || schoolName === 'Free Agent' || schoolName === 'Uncommitted') return '';
     // The all-star teams (East/West, Team Air/Team Flight, USA/World).
     const star = typeof HSCore !== 'undefined' && HSCore.TEAM_STYLE[schoolName];
     if (star && !this.findTeam(schoolName)) return `../schoollogos/${star.logo}.png`;
     if (this._logoCache[schoolName]) return this._logoCache[schoolName];
+    // A national team (FIBA): its flag.
+    if (typeof Flags !== 'undefined' && !this.findTeam(schoolName)) {
+      const fc = Flags.code(schoolName);
+      if (fc) return (this._logoCache[schoolName] = `${Flags.BASE}${fc}.svg`);
+    }
 
     const normalized = String(schoolName).toLowerCase().replace(/[^a-z0-9]/g, '');
     const fileBase = this.LOGO_ALIASES[normalized] || normalized;
@@ -2057,7 +2065,7 @@ window.SimEngine = {
     const cur = this.currentSummer();
     const fe = sm && sm.fiba && cur && cur.season === sm.season && cur.fiba ? cur.fiba.short : 'FIBA';
     return `<div class="card rc-block"><h3 class="section-title">Summer circuit</h3>
-      ${sm ? `<p class="sub-text-sm">${sm.season}${sm.live ? ' (in progress)' : ''}${sm.team ? ` · ${this.esc(sm.team)} (${this.esc(sm.circuit)})` : ''}${sm.nation && sm.fiba ? ` · ${this.esc(sm.nation)} at the ${this.esc(fe)}` : ''}${sm.buzz >= 2 ? ' · <b class="summer-up">Breakout summer</b>' : sm.buzz <= -1 ? ' · <span class="summer-down">Quiet summer</span>' : ''}</p>
+      ${sm ? `<p class="sub-text-sm">${sm.season}${sm.live ? ' (in progress)' : ''}${sm.team ? ` · ${this.esc(sm.team)} (${this.esc(sm.circuit)})` : ''}${sm.nation && sm.fiba ? ` · ${this.teamTag(sm.nation)} at the ${this.esc(fe)}` : ''}${sm.buzz >= 2 ? ' · <b class="summer-up">Breakout summer</b>' : sm.buzz <= -1 ? ' · <span class="summer-down">Quiet summer</span>' : ''}</p>
       ${sm.aau || sm.fiba ? `<div class="table-scroll"><table class="data-table compact"><thead><tr><th></th><th>GP</th><th>PPG</th><th>RPG</th><th>APG</th><th>FG%</th><th>3P%</th><th>BPM</th></tr></thead><tbody>${ln(sm.circuit || 'AAU', sm.aau)}${ln(fe, sm.fiba)}</tbody></table></div>` : ''}` : ''}
       ${hon.length ? `<ul class="summer-honors">${hon.map(h => `<li><span class="hs-when">${h.season}</span>${this.esc(h.text)}</li>`).join('')}</ul>` : ''}
     </div>`;
@@ -2112,12 +2120,12 @@ window.SimEngine = {
 
     const gameRow = (g, rd) => {
       if (this.summerHidden({ id: g.id, rd })) {
-        return `<li class="summer-game hidden-result"><span>${esc(g.home)} vs ${esc(g.away)}</span><span class="hs-actions"><button type="button" class="hs-btn primary" onclick="SimEngine.watchSummerGame('${pid(g.id)}')">&#9654; Watch</button><button type="button" class="hs-btn" onclick="SimEngine.revealSummerGame('${pid(g.id)}')">Show result</button></span></li>`;
+        return `<li class="summer-game hidden-result"><span>${this.teamTag(g.home)} vs ${this.teamTag(g.away)}</span><span class="hs-actions"><button type="button" class="hs-btn primary" onclick="SimEngine.watchSummerGame('${pid(g.id)}')">&#9654; Watch</button><button type="button" class="hs-btn" onclick="SimEngine.revealSummerGame('${pid(g.id)}')">Show result</button></span></li>`;
       }
-      return `<li class="summer-game"><span class="${g.winner === g.home ? 'won' : ''}">${esc(g.home)} <b>${g.hs}</b></span><span class="${g.winner === g.away ? 'won' : ''}">${esc(g.away)} <b>${g.as}</b></span><button type="button" class="hs-link" onclick="SimEngine.watchSummerGame('${pid(g.id)}')" title="Watch">&#9654;</button></li>`;
+      return `<li class="summer-game"><span class="${g.winner === g.home ? 'won' : ''}">${this.teamTag(g.home)} <b>${g.hs}</b></span><span class="${g.winner === g.away ? 'won' : ''}">${this.teamTag(g.away)} <b>${g.as}</b></span><button type="button" class="hs-link" onclick="SimEngine.watchSummerGame('${pid(g.id)}')" title="Watch">&#9654;</button></li>`;
     };
     const table = (rows, cut) => `<table class="data-table compact summer-table"><thead><tr><th></th><th>Team</th><th>W-L</th><th>+/-</th></tr></thead><tbody>
-      ${rows.map((t, i) => `<tr class="${cut && i === cut - 1 ? 'cutline' : ''}"><td>${i + 1}</td><td>${esc(t.team)}</td><td>${t.w}-${t.l}</td><td>${t.pf - t.pa > 0 ? '+' : ''}${t.pf - t.pa}</td></tr>`).join('')}</tbody></table>`;
+      ${rows.map((t, i) => `<tr class="${cut && i === cut - 1 ? 'cutline' : ''}"><td>${i + 1}</td><td>${this.teamTag(t.team)}</td><td>${t.w}-${t.l}</td><td>${t.pf - t.pa > 0 ? '+' : ''}${t.pf - t.pa}</td></tr>`).join('')}</tbody></table>`;
     const rounds = list => list.map(r => `<div class="summer-round"><h4>${esc(r.label)}</h4><ul class="summer-games">${r.games.map(g => gameRow(g, r.label)).join('')}</ul></div>`).join('');
 
     let body = '';
@@ -2140,7 +2148,7 @@ window.SimEngine = {
     } else if (tab === 'FIBA' && sm.fiba) {
       const f = sm.fiba;
       const finalSeen = f.final && !this.summerHidden({ id: f.final.id, rd: 'Final' });
-      const medal = (m, n) => `<span class="summer-medal ${m}">${m === 'gold' ? '🥇' : m === 'silver' ? '🥈' : '🥉'} ${esc(n)}</span>`;
+      const medal = (m, n) => `<span class="summer-medal ${m}">${m === 'gold' ? '🥇' : m === 'silver' ? '🥈' : '🥉'} ${this.teamTag(n)}</span>`;
       const usa = (f.rosters || []).find(t => t.name === 'USA');
       body = `<div class="summer-split">
           <div class="card summer-card"><div class="section-head"><h3 class="section-title">${esc(f.name)}</h3><span class="sub-text-sm">16 nations</span></div>
@@ -2148,7 +2156,7 @@ window.SimEngine = {
             ${usa ? `<details><summary>Team USA</summary><p class="sub-text-sm">${usa.players.filter(p => !p.depth).map(who).join(', ')}</p></details>` : ''}</div>
           <div class="card summer-card"><div class="section-head"><h3 class="section-title">Games</h3></div>
             ${f.medals && finalSeen ? `<p class="summer-medals">${medal('gold', f.medals.gold)}${medal('silver', f.medals.silver)}${medal('bronze', f.medals.bronze)}</p>` : ''}
-            ${sm.done && f.mvp ? `<div class="summer-awards-row"><span>MVP: ${who(f.mvp)} (${esc(f.mvp.nation)}, ${esc(f.mvp.line)})</span><span>All-Star Five: ${(f.allStar || []).map(x => `${who(x)} (${esc(x.nation)})`).join(', ')}</span></div>` : ''}
+            ${sm.done && f.mvp ? `<div class="summer-awards-row"><span>MVP: ${who(f.mvp)} (${this.teamTag(f.mvp.nation)}, ${esc(f.mvp.line)})</span><span>All-Star Five: ${(f.allStar || []).map(x => `${who(x)} (${this.teamTag(x.nation)})`).join(', ')}</span></div>` : ''}
             ${rounds(f.knockout.slice().reverse())}${rounds(f.groups.map(gr => ({ label: `Group ${gr.name}`, games: gr.games })).filter(r => r.games.length))}
             ${!f.groups.some(gr => gr.games.length) ? '<p class="sub-text-sm">The World Cup tips off after the AAU championships.</p>' : ''}</div>
         </div>`;
@@ -9998,7 +10006,7 @@ window.SimEngine = {
     // Last summer's champions, above both classes.
     const smv = s.summer && (s.summer.season === s.year || s.summer.season === s.year + 1) ? this.currentSummer() : null;
     const sm = smv && smv.done !== false ? smv : null;
-    const strip = sm ? `<div class="card summer-strip"><b>Summer ${sm.season}</b>${sm.aau.circuits.map(c => `<span>${this.esc(c.event)}: <b>${this.esc(c.champion)}</b></span>`).join('')}${sm.fiba && sm.fiba.medals ? `<span>${this.esc(sm.fiba.short)}: <b>${this.esc(sm.fiba.medals.gold)}</b></span>` : ''}</div>` : '';
+    const strip = sm ? `<div class="card summer-strip"><b>Summer ${sm.season}</b>${sm.aau.circuits.map(c => `<span>${this.esc(c.event)}: <b>${this.esc(c.champion)}</b></span>`).join('')}${sm.fiba && sm.fiba.medals ? `<span>${this.esc(sm.fiba.short)}: <b>${this.teamTag(sm.fiba.medals.gold)}</b></span>` : ''}</div>` : '';
     if (!this.hsReady() || !cal || classYear !== s.year + 1) { el.innerHTML = strip; return; }
     const byId = new Map((s.allRecruits || []).map(r => [r.id, r]));
     const card = key => {

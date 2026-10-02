@@ -20,7 +20,7 @@ class LocalOnly extends ResourceLoader {
 function ok(c, m) { if (!c) throw new Error('FAILED: ' + m); console.log('OK: ' + m); }
 
 const ROOT = path.join(__dirname, '..', '..');
-const PAGES = ['index', 'podcast', 'draft', 'nba', 'about'];
+const PAGES = ['index', 'podcast', 'draft', 'nba', 'about', 'privacy', 'terms'];
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const siteJs = read('assets/site.js');
 
@@ -37,11 +37,24 @@ PAGES.forEach(p => {
   ok(!html.includes('â€'), `${p}: no mojibake in the source`);
 });
 
+// ------------------------------------------------------------ legal
+{
+  ok(/href="\$\{BASE\}privacy\.html"/.test(siteJs) && /href="\$\{BASE\}terms\.html"/.test(siteJs), 'every footer links the Privacy Policy and Terms of Use');
+  ok(/not affiliated with or endorsed by the NBA, NCAA, FIBA/.test(siteJs), 'every footer says BYTHERIM is independent and whose logos those are');
+  const pv = read('privacy.html'), tm = read('terms.html');
+  ok(/Google/.test(pv) && /Usage statistics/.test(pv) && /Do Not Track/.test(pv) && /under 13/.test(pv) && /data-contact/.test(pv), 'privacy policy covers sign-in, usage counts, opt-out signals, children and contact');
+  ok(/not affiliated with, endorsed by/.test(tm) && /trademarks?|marks/.test(tm) && /RP is fiction/.test(tm) && /as is/.test(tm), 'terms cover affiliation, trademarks, the fictional RP and warranty');
+  const Flags = require(path.join(ROOT, 'assets/flags.js'));
+  ok(Flags.code('USA U19') === 'us' && Flags.code('South Sudan U18') === 'ss' && Flags.code('DR Congo') === 'cd' && Flags.code('Team Takeover') === '' && Flags.code('Canada Elite') === '',
+    'national teams get a flag image (not emoji); AAU programs don\'t');
+  ok(/<img class="flag[^>]*src="[^"]*flags\/ca\.svg"/.test(Flags.img('Canada U17')) && fs.existsSync(path.join(ROOT, 'assets/flags/ca.svg')), 'flags are SVG images shipped with the site');
+}
+
 // ------------------------------------------------------------ launch: domain, share cards, icons
 {
   const exists = f => fs.existsSync(path.join(ROOT, f));
   ok(read('CNAME').trim() === 'bytherim.com', 'CNAME points GitHub Pages at bytherim.com');
-  const every = ['index', 'podcast', 'draft', 'nba', 'about'].map(p => p + '.html')
+  const every = ['index', 'podcast', 'draft', 'nba', 'about', 'privacy', 'terms'].map(p => p + '.html')
     .concat(['rp/index.html', 'rp/guide.html', 'rp/ncaa.html', 'rp/draft.html', 'recruiting/index.html']);
   const expectPath = { 'index.html': '/', 'rp/index.html': '/rp/', 'recruiting/index.html': '/recruiting/' };
   every.forEach(f => {
@@ -228,7 +241,7 @@ function table(row) {
     ok(d.querySelectorAll('.site-header').length === 1 && d.querySelectorAll('.site-footer').length === 1, `${p}: exactly one shared header and footer`);
     const navText = [...d.querySelectorAll('.site-nav a')].map(a => a.textContent.trim());
     ['Podcast', 'Draft', 'NBA', 'About'].forEach(t => ok(navText.some(x => x.includes(t)), `${p}: nav has ${t}`));
-    if (p !== 'index') ok(d.querySelector(`.site-nav a[href="${p}.html"].active, .site-nav a[href="${p}.html"][aria-current]`), `${p}: its own nav item is marked current`);
+    if (!['index', 'privacy', 'terms'].includes(p)) ok(d.querySelector(`.site-nav a[href="${p}.html"].active, .site-nav a[href="${p}.html"][aria-current]`), `${p}: its own nav item is marked current`);
     ok(!d.querySelector('[data-icon]'), `${p}: icon placeholders hydrated`);
     ok(!d.querySelector('[data-support]'), `${p}: support block hidden while no support link is set`);
     const hrefs = [...d.querySelectorAll('a[href]')].map(a => a.getAttribute('href'));

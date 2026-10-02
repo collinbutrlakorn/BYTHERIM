@@ -302,31 +302,39 @@
       const st = document.createElement('style');
       st.id = 'cloudStyles';
       st.textContent = `
+/* The account menu and dialogs follow the page's theme (the header itself
+   stays dark in both, so they carry their own colours). */
+:root { --acct-surface: #0f1117; --acct-text: #f4f6fb; --acct-muted: #9aa3b2; --acct-border: #2a2f3a; --acct-hover: rgba(255,255,255,.06);
+  --acct-accent: #4aa8ff; --acct-accent-text: #04121f; --acct-shadow: 0 12px 32px rgba(0,0,0,.45); --acct-scrim: rgba(4,6,12,.72); }
+:root[data-theme="light"] { --acct-surface: #ffffff; --acct-text: #0c0f14; --acct-muted: #555e6c; --acct-border: #dde1e7; --acct-hover: #f1f3f6;
+  --acct-accent: #0a6fb8; --acct-accent-text: #ffffff; --acct-shadow: 0 12px 32px rgba(15,23,42,.16); --acct-scrim: rgba(15,23,42,.45); }
 .account-slot { display: flex; align-items: center; }
 .account-btn { display: inline-flex; align-items: center; gap: 6px; font: inherit; font-size: 0.85rem; font-weight: 600; padding: 6px 12px;
   border-radius: 999px; border: 1px solid var(--border, #2a2f3a); background: var(--surface, #0f1117); color: var(--text, #f4f6fb); cursor: pointer; }
 .account-wrap { position: relative; }
-.account-avatar { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border, #2a2f3a); background: var(--accent, #4aa8ff);
-  color: #fff; font: inherit; font-weight: 700; cursor: pointer; overflow: hidden; padding: 0; display: flex; align-items: center; justify-content: center; }
+.account-avatar { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border, #2a2f3a); background: var(--acct-accent);
+  color: var(--acct-accent-text); font: inherit; font-weight: 700; cursor: pointer; overflow: hidden; padding: 0; display: flex; align-items: center; justify-content: center; }
 .account-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.account-menu { display: none; position: absolute; right: 0; top: calc(100% + 8px); z-index: 5000; min-width: 230px; padding: 12px;
-  background: var(--surface, #0f1117); border: 1px solid var(--border, #2a2f3a); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,.35);
-  flex-direction: column; gap: 6px; color: var(--text, #f4f6fb); }
+.account-menu { display: none; position: absolute; right: 0; top: calc(100% + 8px); z-index: 5000; min-width: 230px; max-width: calc(100vw - 24px); padding: 12px;
+  background: var(--acct-surface); border: 1px solid var(--acct-border); border-radius: 12px; box-shadow: var(--acct-shadow);
+  flex-direction: column; gap: 6px; color: var(--acct-text); }
 .account-wrap.open .account-menu { display: flex; }
-.account-menu small { color: var(--muted, #9aa3b2); word-break: break-all; }
-.account-menu button { font: inherit; text-align: left; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border, #2a2f3a);
-  background: transparent; color: inherit; cursor: pointer; }
-.account-admin { width: fit-content; font-size: 0.7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #fff;
-  background: var(--accent, #4aa8ff); border-radius: 999px; padding: 2px 8px; }
-.cloud-modal { position: fixed; inset: 0; z-index: 6000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(4,6,12,.72); }
-.cloud-card { width: min(460px, 100%); background: var(--surface, #0f1117); color: var(--text, #f4f6fb); border: 1px solid var(--border, #2a2f3a);
-  border-radius: 14px; padding: 22px; display: flex; flex-direction: column; gap: 10px; }
-.cloud-card h2 { margin: 0; font-family: 'Oswald', sans-serif; }
-.cloud-card p { margin: 0; color: var(--muted, #9aa3b2); }
-.cloud-card textarea { font: inherit; padding: 10px; border-radius: 8px; border: 1px solid var(--border, #2a2f3a); background: transparent; color: inherit; }
-.cloud-card .row { display: flex; gap: 8px; }
-.cloud-card button { font: inherit; font-weight: 700; padding: 8px 16px; border-radius: 999px; cursor: pointer; border: 1px solid var(--border, #2a2f3a); background: transparent; color: inherit; }
-.cloud-card button.primary { background: var(--accent, #4aa8ff); border-color: var(--accent, #4aa8ff); color: #fff; }`;
+.account-menu b { color: var(--acct-text); }
+.account-menu small { color: var(--acct-muted); word-break: break-all; }
+.account-menu button { font: inherit; text-align: left; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--acct-border);
+  background: transparent; color: var(--acct-text); cursor: pointer; }
+.account-menu button:hover { background: var(--acct-hover); }
+.account-admin { width: fit-content; font-size: 0.7rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--acct-accent-text);
+  background: var(--acct-accent); border-radius: 999px; padding: 2px 8px; }
+.cloud-modal { position: fixed; inset: 0; z-index: 6000; display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--acct-scrim); }
+.cloud-card { width: min(460px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; background: var(--acct-surface); color: var(--acct-text); border: 1px solid var(--acct-border);
+  border-radius: 14px; padding: 22px; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--acct-shadow); }
+.cloud-card h2 { margin: 0; font-family: 'Oswald', sans-serif; color: var(--acct-text); }
+.cloud-card p { margin: 0; color: var(--acct-muted); }
+.cloud-card textarea { font: inherit; padding: 10px; border-radius: 8px; border: 1px solid var(--acct-border); background: transparent; color: inherit; }
+.cloud-card .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.cloud-card button { font: inherit; font-weight: 700; padding: 8px 16px; border-radius: 999px; cursor: pointer; border: 1px solid var(--acct-border); background: transparent; color: inherit; }
+.cloud-card button.primary { background: var(--acct-accent); border-color: var(--acct-accent); color: var(--acct-accent-text); }`;
       document.head.appendChild(st);
     },
 

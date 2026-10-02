@@ -203,3 +203,5 @@
 
 /* RP pages: fiction notice under the copyright line */
 .footer-fiction { display: block; margin-top: 0.35rem; font-size: 0.8rem; }
+.footer-legal { display: block; margin: 0.45rem 0 0; max-width: 72ch; font-size: 0.76rem; line-height: 1.45; opacity: 0.85; }
+.site-footer .footer-bottom a { text-decoration: underline; text-underline-offset: 2px; }

@@ -10,4 +10,6 @@
   <url><loc>https://bytherim.com/rp/ncaa.html</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
   <url><loc>https://bytherim.com/rp/draft.html</loc><changefreq>weekly</changefreq><priority>0.7</priority></url>
   <url><loc>https://bytherim.com/recruiting/</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://bytherim.com/privacy.html</loc><changefreq>yearly</changefreq><priority>0.2</priority></url>
+  <url><loc>https://bytherim.com/terms.html</loc><changefreq>yearly</changefreq><priority>0.2</priority></url>
 </urlset>

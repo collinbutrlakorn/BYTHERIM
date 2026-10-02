@@ -30,6 +30,9 @@
     // Leave empty to hide the "Support" block on the About page. Paste your
     // Ko-fi (or similar) page here and it appears automatically.
     supportUrl: '',
+    // An email for privacy requests, takedowns and questions, shown on the
+    // Privacy and Terms pages. Leave empty to point people to Instagram/X.
+    contactEmail: '',
     // Visitor counts (free, no cookies, no banner needed). Sign up at
     // goatcounter.com, choose a site code such as "bytherim", and put that
     // code here. Your dashboard is then https://<code>.goatcounter.com.
@@ -308,6 +311,9 @@
   // Shown under every RP page: the RP universe's people are invented.
   const RP_FICTION = 'BYTHERIM RP players and recruits are fictional. Any resemblance to real people is coincidental.';
 
+  // Under every page: who BYTHERIM isn't, and whose logos those are.
+  const LEGAL_NOTE = 'BYTHERIM is an independent fan site, not affiliated with or endorsed by the NBA, NCAA, FIBA or any team, school or league. Names and logos belong to their owners and are used for identification and commentary.';
+
   function footerHTML() {
     return `
 <footer class="site-footer">
@@ -335,7 +341,8 @@
       ${['youtube', 'spotify', 'apple', 'x', 'instagram', 'tiktok', 'substack'].map(k => `<a href="${CONFIG.social[k].url}" target="_blank" rel="noopener">${CONFIG.social[k].label}</a>`).join('')}
     </div>
   </div>
-  <div class="footer-bottom">&copy; ${new Date().getFullYear()} BYTHERIM · Created by <a href="${BASE}about.html">Collin Butrlakorn</a>${/\/(rp|recruiting)\//.test(location.pathname) ? `<span class="footer-fiction">${RP_FICTION}</span>` : ''}</div>
+  <div class="footer-bottom">&copy; ${new Date().getFullYear()} BYTHERIM · Created by <a href="${BASE}about.html">Collin Butrlakorn</a> · <a href="${BASE}privacy.html">Privacy</a> · <a href="${BASE}terms.html">Terms</a>${/\/(rp|recruiting)\//.test(location.pathname) ? `<span class="footer-fiction">${RP_FICTION}</span>` : ''}
+    <span class="footer-legal">${LEGAL_NOTE}</span></div>
 </footer>`;
   }
 
@@ -495,6 +502,9 @@
       document.querySelectorAll('[data-support]').forEach(el => {
         if (CONFIG.supportUrl) el.querySelectorAll('a[data-support-link]').forEach(a => { a.href = CONFIG.supportUrl; });
         else el.remove();
+      });
+      if (CONFIG.contactEmail) document.querySelectorAll('[data-contact]').forEach(el => {
+        el.innerHTML = `email <a href="mailto:${esc(CONFIG.contactEmail)}">${esc(CONFIG.contactEmail)}</a>`;
       });
       hydrateIcons();
       document.querySelectorAll('[data-social]').forEach(el => {
