@@ -156,6 +156,7 @@ function starsHTML(stars) {
 function escAttr(v) { return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, "\\'"); }
 
 function openRecruitProfile(p) {
+  if (window.BTR && BTR.track) BTR.track('recruit_profile');
   activeRecruit = p;
   renderProfile(p);
   switchTab('profile');

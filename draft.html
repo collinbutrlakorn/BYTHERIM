@@ -462,6 +462,7 @@
   const pageUrl = hash => location.pathname + (isPast() ? `?year=${state.year}` : '') + (hash ? `#${hash}` : '');
 
   function toggleProspect(id, scroll) {
+    if (BTR.track) BTR.track('board_prospect');
     state.openId = state.openId === id ? null : id;
     const p = state.all.find(x => x.id === id);
     if (p && p.rank == null) state.radarOpen = true;

@@ -94,7 +94,8 @@
               if (u) this.db.doc(`users/${u.uid}`).set({ email: u.email || '', name: u.displayName || '' }, { merge: true }).catch(() => {});
               this.renderSlot();
               this._subs.forEach(fn => { try { fn(this.user); } catch (e) { console.error(e); } });
-              if (first) { first = false; resolve(); }
+              if (first) { first = false; resolve(); setTimeout(() => this.countPage(), 0); }
+              else if (u && !this._signedTracked) { this._signedTracked = true; this.track('sign_in'); }
             });
           });
           return true;
@@ -296,6 +297,84 @@
       } catch (e) { return null; }
     },
 
+    // ---------- usage counts ----------
+    //
+    // How many people use the site and what they do, for the admin page.
+    // Only daily totals are stored (usage/{YYYY-MM-DD}: views per page,
+    // visitors, new visitors, signed-in visitors, phones vs computers,
+    // where visitors came from, and a few actions). Nothing identifies a
+    // person: whether this browser was already counted today is kept in
+    // the browser itself. Do Not Track / Global Privacy Control, copies of
+    // the site opened locally, and admins aren't counted.
+    _usage: {},
+    _usageTimer: null,
+    usageDay() { return new Date().toISOString().slice(0, 10); },
+    usageOff() {
+      if (typeof window === 'undefined' || root.__BTR_NO_USAGE) return true;
+      const n = root.navigator || {};
+      if (n.globalPrivacyControl || n.doNotTrack === '1' || root.doNotTrack === '1') return true;
+      if (location.protocol !== 'https:' || /^(localhost|127\.|0\.0\.0\.0)/.test(location.hostname)) return true;
+      return !this.enabled || this.admin;
+    },
+    usageKey(v) { return String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'other'; },
+    pageKey() {
+      const p = location.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
+      const known = { '/': 'home', '/rp/': 'rp_hub', '/rp/ncaa': 'ncaa_rp', '/rp/draft': 'draft_rp', '/rp/guide': 'rp_guide', '/recruiting/': 'recruiting',
+        '/draft': 'big_board', '/podcast': 'podcast', '/nba': 'nba', '/about': 'about', '/privacy': 'privacy', '/terms': 'terms' };
+      return known[p] || this.usageKey(p);
+    },
+    bump(path, n = 1) {
+      if (this.usageOff()) return;
+      this._usage[path] = (this._usage[path] || 0) + n;
+      clearTimeout(this._usageTimer);
+      this._usageTimer = setTimeout(() => this.flushUsage(), 8000);
+    },
+    // An action someone took ("rp_sim_week"), counted for the day.
+    track(event) { this.bump('events.' + this.usageKey(event)); },
+    async flushUsage() {
+      const q = this._usage; this._usage = {};
+      const keys = Object.keys(q);
+      if (!keys.length || !this.db || this.usageOff()) return;
+      const inc = n => this.fb.firestore.FieldValue.increment(n);
+      const data = { updated: Date.now() };
+      keys.forEach(k => {
+        const [a, b] = k.split('.');
+        if (b) { data[a] = data[a] || {}; data[a][b] = inc(q[k]); } else data[a] = inc(q[k]);
+      });
+      try { await this.db.doc(`usage/${this.usageDay()}`).set(data, { merge: true }); } catch (e) { /* counting is best-effort */ }
+    },
+    // One page view, once accounts know who's here.
+    countPage() {
+      if (this._counted || this.usageOff()) return;
+      this._counted = true;
+      const day = this.usageDay();
+      const get = k => { try { return localStorage.getItem(k); } catch (e) { return 'x'; } };
+      const set = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+      this.bump('views.' + this.pageKey());
+      if (get('btr-usage-day') !== day) {
+        set('btr-usage-day', day);
+        this.bump('visitors');
+        if (!get('btr-usage-first')) { set('btr-usage-first', day); this.bump('newVisitors'); }
+        const phone = root.matchMedia && root.matchMedia('(max-width: 760px), (pointer: coarse)').matches;
+        this.bump(phone ? 'mobile' : 'desktop');
+        if (this.user) { set('btr-usage-signed', day); this.bump('signedIn'); }
+        let ref = '';
+        try { ref = document.referrer ? new URL(document.referrer).hostname.replace(/^www\./, '') : ''; } catch (e) {}
+        this.bump('refs.' + (ref && ref !== location.hostname.replace(/^www\./, '') ? this.usageKey(ref) : 'direct'));
+      } else if (this.user && get('btr-usage-signed') !== day) { set('btr-usage-signed', day); this.bump('signedIn'); }
+      (root.__btrPending || []).splice(0).forEach(e => this.track(e));
+      if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') this.flushUsage(); });
+    },
+    // The admin page: the last `days` days, newest first.
+    async usage(days = 30) {
+      const out = [];
+      const now = Date.now();
+      const ids = Array.from({ length: days }, (_, i) => new Date(now - i * 864e5).toISOString().slice(0, 10));
+      const snaps = await Promise.all(ids.map(id => this.db.doc(`usage/${id}`).get().catch(() => null)));
+      snaps.forEach((s, i) => out.push({ day: ids[i], ...(s && s.exists ? s.data() : {}) }));
+      return out;
+    },
+
     // ---------- the header button ----------
     injectStyles() {
       if (document.getElementById('cloudStyles')) return;
@@ -355,7 +434,7 @@
         <button type="button" class="account-avatar" onclick="this.parentNode.classList.toggle('open')" aria-label="Your account">${u.photoURL ? `<img src="${esc(u.photoURL)}" alt="" referrerpolicy="no-referrer">` : initial}</button>
         <div class="account-menu">
           <b>${esc(u.displayName || 'Signed in')}</b><small>${esc(u.email)}</small>
-          ${this.admin ? '<span class="account-admin">Admin</span><button type="button" onclick="location.href=\'/admin.html\'">Site admin</button><button type="button" onclick="location.href=\'/rp/admin.html\'">RP admin</button><button type="button" onclick="location.href=\'/recruiting/admin.html\'">Recruiting admin</button><button type="button" onclick="Cloud.openAdmins()">Manage admins</button>' : ''}
+          ${this.admin ? '<span class="account-admin">Admin</span><button type="button" onclick="location.href=\'/admin.html#usage\'">Site usage</button><button type="button" onclick="location.href=\'/admin.html\'">Site admin</button><button type="button" onclick="location.href=\'/rp/admin.html\'">RP admin</button><button type="button" onclick="location.href=\'/recruiting/admin.html\'">Recruiting admin</button><button type="button" onclick="Cloud.openAdmins()">Manage admins</button>' : ''}
           <button type="button" onclick="Cloud.signOut()">Sign out</button>
         </div></div>`;
     },

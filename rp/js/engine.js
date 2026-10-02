@@ -107,7 +107,11 @@ window.SimEngine = {
   // Wipes any existing save and builds a genuinely new universe from
   // scratch. This is the actual fix for "can't reset to the beginning" —
   // previously there was no way to clear IndexedDB from the UI at all.
+  // Counts an action for the site's usage report (see BTR.track).
+  track(event) { try { if (typeof BTR !== 'undefined' && BTR.track) BTR.track(event); } catch (e) { /* never in the way */ } },
+
   async startNewGame() {
+    this.track('rp_new_save');
     const hasSave = await this.checkForExistingSave();
     if (hasSave && !confirm("Starting a new save will permanently erase your current save. Continue?")) {
       return;
@@ -2083,6 +2087,7 @@ window.SimEngine = {
   setSummerTab(k) { this._summerTab = k; this.renderOffseasonOverlay(); },
 
   async playSummer(all) {
+    this.track(all ? 'rp_summer_rest' : 'rp_summer_step');
     if (this.isSimBusy()) return;
     this._simBusy = true;
     try {
@@ -4047,6 +4052,7 @@ window.SimEngine = {
   },
 
   async simulateWeek() {
+    this.track('rp_sim_week');
     if (this.state.teams.length === 0) {
       alert("No active teams detected. Please refresh or check data sources.");
       return;
@@ -4874,6 +4880,7 @@ window.SimEngine = {
   // new year — per player, per team, and league-wide. This is what the
   // season summary and team history pages read from.
   archiveCompletedSeason() {
+    this.track('rp_season_done');
     const year = this.state.year;
 
     // Pros too, so a drafted pro's profile has his season overseas.
@@ -8423,6 +8430,7 @@ window.SimEngine = {
 
   // Watching one game also takes along anything already on the watch list.
   async watchGame(ref) {
+    this.track('rp_game_watched');
     if (this.isGamePlayed(ref)) return this.openGame(ref);
     const queued = (this._watchQueue || []).filter(r => !this.sameGame(r, ref));
     return this.watchGames([ref].concat(queued));
@@ -9481,6 +9489,7 @@ window.SimEngine = {
   },
 
   async cloudSave(quiet) {
+    if (!quiet) this.track('rp_cloud_save');
     if (typeof Cloud === 'undefined' || !Cloud.user || typeof db === 'undefined' || !db.leagueState) return;
     const note = document.getElementById('cloudNote');
     try {

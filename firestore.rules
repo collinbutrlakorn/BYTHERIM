@@ -22,6 +22,20 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Usage counts (see Cloud.countPage in rp/js/cloud.js): one document
+    // of daily totals per day, which any visitor's browser adds to and only
+    // admins can read. Only the expected fields, all numbers or maps of
+    // numbers, and nothing deleted.
+    match /usage/{day} {
+      allow read: if isAdmin();
+      allow create, update: if day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.keys().hasOnly(['views', 'visitors', 'newVisitors', 'signedIn', 'mobile', 'desktop', 'refs', 'events', 'updated'])
+        && (!('views' in request.resource.data) || request.resource.data.views.size() < 200)
+        && (!('refs' in request.resource.data) || request.resource.data.refs.size() < 300)
+        && (!('events' in request.resource.data) || request.resource.data.events.size() < 100);
+      allow delete: if isAdmin();
+    }
+
     // The admin list: only admins can see or change it (anyone else's
     // check simply fails, which the site reads as "not an admin"). The
     // first admin is added by hand in the Firebase console.

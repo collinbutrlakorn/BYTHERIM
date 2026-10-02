@@ -381,6 +381,7 @@ const DraftRP = {
   },
 
   async runNextStep() {
+    if (typeof BTR !== 'undefined' && BTR.track) BTR.track('draft_rp_step');
     if (!this.canRun() || this.state.busy) return;
     this.state.busy = true;
     this.renderCycleBar();
@@ -891,6 +892,7 @@ const DraftRP = {
   },
 
   addToBoard(id) {
+    if (typeof BTR !== 'undefined' && BTR.track) BTR.track('draft_rp_board_add');
     if (this.state.customOrder.includes(id)) return;
     this.state.customOrder.push(id);
     this.saveCustomBoard();

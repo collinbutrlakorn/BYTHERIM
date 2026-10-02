@@ -721,8 +721,17 @@
     document.head.appendChild(s);
   }
 
+  // An action worth counting on the admin page's usage report ("rp_sim_week").
+  // Counted by the accounts module (rp/js/cloud.js) once it's loaded.
+  function track(event) {
+    try {
+      if (window.Cloud && window.Cloud.track && window.Cloud._counted) window.Cloud.track(event);
+      else (window.__btrPending = window.__btrPending || []).push(event);
+    } catch (e) { /* counting never gets in the way */ }
+  }
+
   window.BTR = {
-    CONFIG, mount, toggleTheme, icon, esc, stripHtml, truncate, fmtDate, fmtDuration,
+    CONFIG, mount, track, toggleTheme, icon, esc, stripHtml, truncate, fmtDate, fmtDuration,
     fetchFeed, loadPosts, parseCSV, schoolLogo, schoolKey, initialsBadge, socialButtons, postCard, hydrateIcons, xFeed, socialEmbed,
     cloud, slideHTML, heroRotator
   };

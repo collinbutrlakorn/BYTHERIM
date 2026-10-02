@@ -12,7 +12,9 @@ function fakeFirebase() {
   const merge = (a, b) => {
     const out = { ...(a || {}) };
     Object.keys(b).forEach(k => {
-      out[k] = b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) && out[k] && typeof out[k] === 'object' ? merge(out[k], b[k]) : b[k];
+      out[k] = b[k] && b[k].__inc != null ? (Number(out[k]) || 0) + b[k].__inc
+        : b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) && out[k] && typeof out[k] === 'object' ? merge(out[k], b[k])
+        : b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) ? merge({}, b[k]) : b[k];
     });
     return out;
   };
@@ -27,7 +29,7 @@ function fakeFirebase() {
       async signInWithPopup() { user = fb._nextUser; await listener(user); },
       async signOut() { user = null; await listener(null); }
     }), { GoogleAuthProvider: function () {} }),
-    firestore: () => ({
+    firestore: Object.assign(() => ({
       doc: p => ({
         async get() { const d = store.get(p); return { exists: !!d, data: () => d }; },
         async set(data, opts) {
@@ -37,7 +39,7 @@ function fakeFirebase() {
         },
         async delete() { store.delete(p); }
       })
-    })
+    }), { FieldValue: { increment: n => ({ __inc: n }) } })
   };
   return fb;
 }
@@ -116,6 +118,52 @@ function fakeFirebase() {
   await Cloud.publishUniverse(JSON.stringify({ version: 1, season: { label: '2029-30' } }));
   const pubU = await Cloud.universe('../data/universe.json');
   ok(pubU && pubU.season && pubU.season.label === '2029-30', 'after an admin publishes, every page reads the published universe');
+
+  // Usage counts: daily totals only, once per browser per day for visitors,
+  // nothing from admins or browsers that ask not to be tracked.
+  {
+    const mk = (over = {}) => {
+      const fb3 = fakeFirebase();
+      const ls = new Map();
+      const c = { console, setTimeout: (f) => { c._t = f; return 1; }, clearTimeout() {}, firebase: fb3, BTR_CLOUD_CONFIG: { apiKey: 'test' },
+        location: { protocol: 'https:', hostname: 'bytherim.com', pathname: '/rp/ncaa.html' },
+        navigator: {}, matchMedia: () => ({ matches: true }),
+        localStorage: { getItem: k => (ls.has(k) ? ls.get(k) : null), setItem: (k, v) => ls.set(k, String(v)) }, ...over };
+      c.window = c; c.globalThis = c;
+      vm.createContext(c);
+      vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'js', 'cloud.js'), 'utf8'), c);
+      return { c, fb3 };
+    };
+    const { c, fb3 } = mk();
+    await c.Cloud.init();
+    c.Cloud.countPage();
+    c.Cloud.track('rp_sim_week'); c.Cloud.track('rp_sim_week');
+    await c.Cloud.flushUsage();
+    const day = c.Cloud.usageDay();
+    let d = fb3.store.get(`usage/${day}`);
+    ok(d && d.views.ncaa_rp === 1 && d.visitors === 1 && d.newVisitors === 1 && d.mobile === 1 && d.events.rp_sim_week === 2 && d.refs.direct === 1,
+      'a visit is counted as daily totals: the page, a new visitor on a phone, and what they did');
+    c.Cloud._counted = false; c.Cloud.countPage(); await c.Cloud.flushUsage();
+    d = fb3.store.get(`usage/${day}`);
+    ok(d.views.ncaa_rp === 2 && d.visitors === 1, 'a second page the same day is a view, not another visitor');
+    ok(!JSON.stringify(d).includes('@') && !Object.keys(d).some(k => /uid|email|ip/i.test(k)), 'nothing in the totals identifies anyone');
+    const dnt = mk({ navigator: { globalPrivacyControl: true } });
+    await dnt.c.Cloud.init(); dnt.c.Cloud.countPage(); await dnt.c.Cloud.flushUsage();
+    ok(!dnt.fb3.store.has(`usage/${day}`), 'Global Privacy Control / Do Not Track: not counted');
+    const local = mk({ location: { protocol: 'http:', hostname: 'localhost', pathname: '/' } });
+    await local.c.Cloud.init(); local.c.Cloud.countPage(); await local.c.Cloud.flushUsage();
+    ok(!local.fb3.store.has(`usage/${day}`), 'a copy of the site opened locally isn\'t counted');
+    const adm = mk();
+    adm.fb3.store.set('config/admins', { emails: ['boss@example.com'] });
+    adm.fb3._nextUser = { uid: 'a1', email: 'boss@example.com' };
+    await adm.c.Cloud.init(); await adm.c.Cloud.signIn(); adm.c.Cloud._counted = false; adm.c.Cloud.countPage(); await adm.c.Cloud.flushUsage();
+    ok(!adm.fb3.store.has(`usage/${day}`), 'admins aren\'t counted');
+    fb.store.set(`usage/${day}`, { visitors: 3 });
+    const rep = await Cloud.usage(7);
+    ok(rep.length === 7 && rep[0].day === day && rep[0].visitors === 3, 'the admin report reads the last days of totals');
+    const rules = fs.readFileSync(path.join(__dirname, '..', '..', 'firestore.rules'), 'utf8');
+    ok(/match \/usage\/\{day\}/.test(rules) && /allow read: if isAdmin\(\);/.test(rules), 'the database rules let only admins read the totals');
+  }
 
   // Without a config, nothing changes.
   const ctx2 = { console, setTimeout, BTR_CLOUD_CONFIG: null, fetch: ctx.fetch };

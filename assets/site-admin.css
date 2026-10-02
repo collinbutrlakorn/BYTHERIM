@@ -39,3 +39,22 @@
   .site-slide-actions { grid-column: 1 / -1; justify-content: flex-start; }
 }
 .adm button:disabled { opacity: 0.45; cursor: default; }
+
+/* Site usage report */
+.usage-section { margin-bottom: 1.5rem; }
+.usage-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.8rem; }
+.usage-head .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 3px; gap: 2px; }
+.usage-head .seg button { font: inherit; font-size: 0.85rem; font-weight: 600; border: 0; background: none; color: var(--text-muted); padding: 0.35rem 0.8rem; border-radius: 999px; cursor: pointer; }
+.usage-head .seg button.on { background: var(--accent); color: var(--bg-color); }
+.usage-chart { width: 100%; height: 180px; display: block; }
+.usage-chart .usage-views { fill: var(--accent); opacity: 0.28; }
+.usage-chart .usage-visitors { fill: var(--accent); }
+.usage-axis { display: flex; justify-content: space-between; color: var(--text-muted); font-size: 0.78rem; margin-top: 0.3rem; }
+.usage-key { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 0.25rem 0 0.6rem; vertical-align: -1px; background: var(--accent); }
+.usage-key.usage-views { opacity: 0.28; }
+.usage-table td { padding: 0.4rem 0.6rem; }
+.usage-num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; }
+.usage-section .card { margin-bottom: 1rem; }
+#usageBody .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-md, 12px); padding: 1rem 1.1rem; }
+#usageBody .adm-grid2 .card { margin-bottom: 0; }
+#usageBody .adm-grid2 { margin-bottom: 1rem; }
