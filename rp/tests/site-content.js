@@ -58,7 +58,7 @@ async function home(store, storage) {
       { id: 's3', img: 'i3', title: '<script>alert(1)</script>', caption: 'On YouTube', link: 'https://youtube.com/@bytherim', linkLabel: 'Watch' },
       { id: 's4', img: 'i4', title: 'Bad link', link: 'javascript:alert(1)' }
     ],
-    xPosts: ['https://x.com/collinbutr/status/123'],
+    xPosts: ['https://x.com/bytherimhoops/status/123'],
     instagramPosts: ['https://www.instagram.com/p/ABC/']
   };
   store.images = { i1: IMG + '1', i2: IMG + '2', i3: IMG + '3', i4: IMG + '4' };
@@ -79,7 +79,7 @@ async function home(store, storage) {
   await wait(200);
   ok(heroes[1].classList.contains('is-active') && !heroes[0].classList.contains('is-active'), 'a dot switches slides');
   ok(heroes[1].style.backgroundImage.includes(IMG + '3'), 'later banners load when they come up');
-  ok(!d.querySelector('[data-embed=x]').hidden && w.BTR.CONFIG.xPosts[0] === 'https://x.com/collinbutr/status/123', 'pinned X posts show on the home page');
+  ok(!d.querySelector('[data-embed=x]').hidden && w.BTR.CONFIG.xPosts[0] === 'https://x.com/bytherimhoops/status/123', 'pinned X posts show on the home page');
   ok(d.querySelector('[data-embed=instagram] .instagram-media'), 'pinned Instagram posts embed');
 
   // Second visit: drawn from this browser's copy, no image downloads.
@@ -124,14 +124,14 @@ async function home(store, storage) {
   ok(S.editing === 'new' && S.draft.slides.length === 5, 'a slide needs a banner before it\'s added');
   S.cancel();
   S.remove(S.draft.slides.findIndex(s => s.id === 's4'));
-  S.setPosts('xPosts', 'https://x.com/collinbutr/status/999?s=20\nhttps://x.com/collinbutr/status/123');
-  ok(S.draft.xPosts[0] === 'https://x.com/collinbutr/status/999', 'post links are cleaned of tracking bits');
-  S.setPosts('xPosts', 'twitter.com/collinbutr/status/555?t=abc  https://mobile.x.com/collinbutr/status/556/photo/1');
-  ok(S.draft.xPosts.join() === 'https://x.com/collinbutr/status/555,https://x.com/collinbutr/status/556', 'X links from the app, a phone or twitter.com all work');
+  S.setPosts('xPosts', 'https://x.com/bytherimhoops/status/999?s=20\nhttps://x.com/bytherimhoops/status/123');
+  ok(S.draft.xPosts[0] === 'https://x.com/bytherimhoops/status/999', 'post links are cleaned of tracking bits');
+  S.setPosts('xPosts', 'twitter.com/bytherimhoops/status/555?t=abc  https://mobile.x.com/bytherimhoops/status/556/photo/1');
+  ok(S.draft.xPosts.join() === 'https://x.com/bytherimhoops/status/555,https://x.com/bytherimhoops/status/556', 'X links from the app, a phone or twitter.com all work');
   S.setPosts('instagramPosts', 'https://www.instagram.com/reels/C9abc_1/?igsh=xyz\ninstagram.com/bytherimhoops/p/D1xyz/');
   ok(S.draft.instagramPosts.join() === 'https://www.instagram.com/reel/C9abc_1/,https://www.instagram.com/p/D1xyz/', 'Instagram share links, reels and profile-style links all work');
   S.setPosts('instagramPosts', '');
-  S.setPosts('xPosts', 'https://x.com/collinbutr/status/999?s=20\nhttps://x.com/collinbutr/status/123');
+  S.setPosts('xPosts', 'https://x.com/bytherimhoops/status/999?s=20\nhttps://x.com/bytherimhoops/status/123');
   ok(/Unpublished changes/.test((S.render(aw.document.getElementById('admBody')), aw.document.body.textContent)), 'changes wait for Publish');
   await S.publish();
   ok(astore.site.slides[0].title === 'Episode 40' && astore.images.new1 === IMG + 'new', 'Publish uploads the new banner and the slides');

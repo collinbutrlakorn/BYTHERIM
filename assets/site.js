@@ -22,7 +22,7 @@
       youtube:  { label: 'YouTube',        url: 'https://youtube.com/@bytherim' },
       spotify:  { label: 'Spotify',        url: 'https://open.spotify.com/show/5o5uMpUFLXYs1qktXKPFJg' },
       apple:    { label: 'Apple Podcasts', url: 'https://podcasts.apple.com/us/podcast/bytherim-podcast/id6807326876' },
-      x:        { label: 'X',              url: 'https://x.com/collinbutr' },
+      x:        { label: 'X',              url: 'https://x.com/bytherimhoops' },
       instagram:{ label: 'Instagram',      url: 'https://www.instagram.com/bytherimhoops/' },
       tiktok:   { label: 'TikTok',         url: 'https://www.tiktok.com/@bytherim' },
       substack: { label: 'Substack',       url: 'https://collindunks.substack.com' }
@@ -39,7 +39,7 @@
     // Leave empty to turn counting off.
     goatcounter: '',
     // Optional: links to specific X posts to pin on the NBA page, newest
-    // first, e.g. 'https://x.com/collinbutr/status/1234567890'. When this
+    // first, e.g. 'https://x.com/bytherimhoops/status/1234567890'. When this
     // has posts, they're shown instead of the live timeline. Single posts
     // load far more reliably than X's timeline embed does.
     xPosts: [],

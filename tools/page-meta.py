@@ -45,7 +45,7 @@ APP_ICONS = {
     'rp/draft.html':         ('icons/draft',      'draft.webmanifest',      'Draft RP'),
     'recruiting/index.html': ('icons/recruiting', 'recruiting.webmanifest', 'Recruiting'),
 }
-PERSON_PROFILES = ['https://x.com/collinbutr', 'https://collindunks.substack.com']
+PERSON_PROFILES = ['https://x.com/bytherimhoops', 'https://collindunks.substack.com']
 PAGE_TYPES = {'about.html': 'AboutPage', 'draft.html': 'CollectionPage', 'podcast.html': 'CollectionPage'}
 
 def structured_data(rel, url, title, desc, card_url):

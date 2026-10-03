@@ -423,8 +423,8 @@ function table(row) {
   {
     const { w, d } = await boot('nba');
     const card = d.querySelector('[data-embed="x"]');
-    ok(card && card.querySelector('.x-feed-head a').href === 'https://x.com/collinbutr', 'nba: X card has a working Follow link');
-    ok(card.querySelector('a.twitter-timeline[href^="https://twitter.com/collinbutr"]'), 'nba: X timeline embed for @collinbutr');
+    ok(card && card.querySelector('.x-feed-head a').href === 'https://x.com/bytherimhoops', 'nba: X card has a working Follow link');
+    ok(card.querySelector('a.twitter-timeline[href^="https://twitter.com/bytherimhoops"]'), 'nba: X timeline embed for @bytherimhoops');
     w.close();
   }
 

@@ -132,7 +132,7 @@
         <div class="section-head"><h3 class="section-title">Pinned posts</h3></div>
         <p class="adm-note">When a feed won't embed, paste the links to specific posts here, newest first, one per line. X posts show on the home page and the NBA page; Instagram posts and reels on the home page.</p>
         <div class="site-posts">
-          ${this.postsField('xPosts', 'X posts', 'https://x.com/collinbutr/status/…', X_RE)}
+          ${this.postsField('xPosts', 'X posts', 'https://x.com/bytherimhoops/status/…', X_RE)}
           ${this.postsField('instagramPosts', 'Instagram posts or reels', 'https://www.instagram.com/p/…', IG_RE)}
         </div>
         <button class="outline-btn btn-sm" onclick="SiteAdmin.previewPosts()">Preview posts</button>
