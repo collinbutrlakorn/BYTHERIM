@@ -117,6 +117,13 @@ const keep = (name, snap) => { if (OUT) fs.writeFileSync(path.join(OUT, name + '
   ok(Array.isArray(snap.draft.league) && snap.draft.league.length === 30, 'NBA season exists all year for the mock');
   ok(snap.draft.pool.some(p => p.name === 'Alberto Rodriguez' && p.scriptedDraft && p.scriptedDraft.overall === 1), 'published prospects carry their scripted pick for the mock');
   ok(snap.draft.pool.every(p => !p.stats || !('totPts' in p.stats)), 'season totals are left out of the published file');
+  // International pros: every draft-eligible one is on the board and in
+  // the published pool, however little he plays against men.
+  const eligiblePros = (Sim.state.proPlayers || []).filter(p => w.DraftCore.ageEligible(p, 2029));
+  ok(eligiblePros.some(p => p.name === 'Javier Bautista'), 'Javier Bautista (class of 2028, uncommitted, Barcelona) is a 2029-eligible pro');
+  const boardIds = new Set(Sim.computeDraftBigBoard(1000).map(e => e.player.id));
+  ok(eligiblePros.length >= 8 && eligiblePros.every(p => boardIds.has(p.id)), `every eligible international pro is on the big board (${eligiblePros.length})`);
+  ok(eligiblePros.every(p => snap.draft.pool.some(x => x.id === p.id && x.isPro && x.recRating)), 'and in the published pool, with what the Draft RP needs to rate him');
   const league = JSON.stringify(snap.draft.league);
   ok(JSON.stringify(Sim.buildUniverseSnapshot().draft.league) === league, 'the NBA season is stable between publishes');
 
@@ -137,6 +144,10 @@ const keep = (name, snap) => { if (OUT) fs.writeFileSync(path.join(OUT, name + '
   ok(draftIdx > 0, 'draft night is an offseason stage');
   for (let i = 0; i <= draftIdx; i++) await Sim.simulateWeek();
 
+  // Pros enter and withdraw like college underclassmen.
+  const decl = Sim.state.lastDeclarations && Sim.state.lastDeclarations.length ? Sim.state.lastDeclarations : declared;
+  ok(declared.some(d => d.isPro) || decl.some(d => d.isPro), 'international pros declare for the draft');
+  ok((Sim.state.returningPlayers || []).every(d => !d.isPro || d.college !== undefined), 'every pro who withdrew has been settled (club or college)');
   const stillIn = Sim.state.draftDeclarations.map(d => d.name);
   ok(stillIn.includes('Alberto Rodriguez') && stillIn.includes('Clark Wilkins') && stillIn.includes('Trevon Ashe'),
     'scripted picks never withdraw, exact or ranged');

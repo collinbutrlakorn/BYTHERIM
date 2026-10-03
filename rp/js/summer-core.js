@@ -628,9 +628,32 @@
     const teamOf = new Map();
     P.programs.forEach(p => p.roster.forEach(id => teamOf.set(id, p)));
     const aauBase = baseOf(aau), fibaBase = baseOf(fiba);
+    // BPM the Barttorvik way (torvik-bpm.js) when it's loaded: box-score
+    // weights fitted to college players and a team adjustment against
+    // each team's opponent-adjusted margin over the event. Without it the
+    // lines fall back to the game-score estimate in line().
+    const TB = root.TorvikBPM || (typeof require === 'function' ? (() => { try { return require('./torvik-bpm.js'); } catch (e) { return null; } })() : null);
+    const torvik = (ledger, isFiba, teamName) => {
+      if (!TB) return new Map();
+      const players = [];
+      ledger.by.forEach((a, id) => players.push({ key: id, team: teamName(id), pos: posOf(id), s: a }));
+      const games = [];
+      P.games.forEach(g => {
+        if ((g.ev === 'FIBA') !== isFiba) return;
+        games.push({ team: g.h, opp: g.a, pf: g.hs, pa: g.as, loc: 0 });
+        games.push({ team: g.a, opp: g.h, pf: g.as, pa: g.hs, loc: 0 });
+      });
+      return TB.season(players, games).players;
+    };
+    const withBpm = (ln, v) => {
+      if (!v) return ln;
+      ln.bpm = r1(v.bpm); ln.obpm = r1(v.obpm); ln.dbpm = r1(v.bpm - v.obpm);
+      return ln;
+    };
+    const aauBpm = torvik(aau, false, id => { const p = teamOf.get(id); return p ? p.name : ''; });
     aau.by.forEach((a, id) => {
       const e = entry(id);
-      e.aau = line(a, posOf(id), aauBase);
+      e.aau = withBpm(line(a, posOf(id), aauBase), aauBpm.get(id));
       const p = teamOf.get(id);
       e.team = p ? p.name : '';
       e.circuit = p ? p.circuit : a.tag;
@@ -638,10 +661,11 @@
     if (P.fiba) {
       const nationOf = new Map();
       P.fiba.teams.forEach(t => t.players.forEach(p => nationOf.set(p.id, t.name)));
+      const fibaBpm = torvik(fiba, true, id => nationOf.get(id) || '');
       fiba.by.forEach((a, id) => {
         if (/^fiba\|/.test(id)) return;   // national-team depth, not a prospect
         const e = entry(id);
-        e.fiba = line(a, posOf(id), fibaBase);
+        e.fiba = withBpm(line(a, posOf(id), fibaBase), fibaBpm.get(id));
         e.nation = nationOf.get(id) || '';
       });
     }

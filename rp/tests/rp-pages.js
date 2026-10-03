@@ -65,7 +65,7 @@ function bootRecruitingWithSave(universe, save) {
     : Promise.resolve({ ok: false, status: 404 });
   const store = { 1: clone(save) };
   const writes = [];
-  ['teams-master.js', 'roster-gen.js', 'recruit-gen.js', 'game-core.js', 'summer-core.js'].forEach(f => vm.runInContext(fs.readFileSync(path.join(ROOT, 'rp/js', f), 'utf8'), ctx, { filename: f }));
+  ['teams-master.js', 'roster-gen.js', 'recruit-gen.js', 'game-core.js', 'torvik-bpm.js', 'summer-core.js'].forEach(f => vm.runInContext(fs.readFileSync(path.join(ROOT, 'rp/js', f), 'utf8'), ctx, { filename: f }));
   w.db = { leagueState: { get: async id => clone(store[id]), update: async (id, patch) => { writes.push(Object.keys(patch)); Object.assign(store[id], clone(patch)); return 1; } } };
   ['app.js', 'portal.js'].forEach(f => vm.runInContext(fs.readFileSync(path.join(ROOT, 'recruiting', f), 'utf8'), ctx, { filename: f }));
   w.onload();

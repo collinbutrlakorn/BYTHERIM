@@ -293,7 +293,8 @@ const DraftRP = {
         if (inPool.has(p.id)) return;
         const sd = p.scriptedDraft;
         const hasPd = p.predraft && p.predraft.year === c.draftYear;
-        if (!(sd && sd.year === c.draftYear) && !hasPd) return;
+        // International pros are always in the pool, however far down.
+        if (!(sd && sd.year === c.draftYear) && !hasPd && !(p.isPro && DraftCore.ageEligible(p, c.draftYear))) return;
         const entry = { player: p, ...DraftCore.scoreProspect(p, c.winPct(p.school), opts) };
         s.prospects.push({ ...entry, tags: DraftCore.scoutingTags(entry) });
       });

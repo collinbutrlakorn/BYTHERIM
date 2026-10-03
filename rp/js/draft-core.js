@@ -208,8 +208,9 @@ function buildBigBoard(players, winPctFor, limit = 60, opts = {}) {
       const st = x.player.stats || {};
       const totalMin = num(st.mpg) * (st.gp || 0);
       const hasRole = totalMin >= 250 || num(st.mpg) >= 14;
-      // A teenage pro barely plays against men; scouts watch him anyway.
-      return hasRole || num(x.player.rating, 0) >= 82 || (x.player.isPro && num(x.player.recRating, 0) >= 82);
+      // A teenage pro barely plays against men; scouts watch every
+      // draft-eligible one anyway, so they're always on the board.
+      return hasRole || num(x.player.rating, 0) >= 82 || x.player.isPro;
     })
     .sort((a, b) => b.score - a.score)
     .map((x, i, all) => {

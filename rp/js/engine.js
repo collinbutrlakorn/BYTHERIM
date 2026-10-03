@@ -4211,7 +4211,10 @@ window.SimEngine = {
   reevaluateRotations() {
     this.state.teams.forEach(team => {
       (team.roster || []).forEach(p => {
-        const bpm = parseFloat(p.stats && p.stats.bpm) || 0;
+        // Barttorvik-style BPM runs higher for bigs than guards; take that
+        // out so a centre isn't promoted just for being a centre.
+        const bpm = (parseFloat(p.stats && p.stats.bpm) || 0)
+          - (typeof TorvikBPM !== 'undefined' ? TorvikBPM.positionLean(p.pos) : 0);
         const gp = (p.stats && p.stats.gp) || 0;
         // Only let real evidence move the needle, and cap the swing so a
         // hot fortnight doesn't turn a walk-on into a starter.
@@ -4368,6 +4371,61 @@ window.SimEngine = {
       }
     });
     this.state.activePlayers.forEach(p => this.recalculateAverages(p));
+    this.applyTorvikBpm();
+  },
+
+  // BPM, OBPM and DBPM from what each player actually did, computed the
+  // way Barttorvik does it (see torvik-bpm.js): college box-score weights
+  // and a team adjustment against opponent-adjusted efficiency margin.
+  // Done for the full season and for conference games on their own, so
+  // the "Conference only" view gets its own numbers.
+  applyTorvikBpm() {
+    if (typeof TorvikBPM === 'undefined') return;
+    const SUMS = ['min', 'pts', 'fga', 'fta', 'threePm', 'ast', 'tov', 'oreb', 'dreb', 'reb', 'stl', 'blk', 'pf'];
+    let season = null;
+    const run = (confOnly, field) => {
+      const players = [], seen = new Set(), games = [];
+      this.state.activePlayers.forEach(p => {
+        if (!p.school || !p.gameLog || !p.gameLog.length) return;
+        const s = {};
+        SUMS.forEach(k => { s[k] = 0; });
+        p.gameLog.forEach(g => {
+          if (confOnly && !g.isConf) return;
+          if (!(g.min > 0)) return;
+          SUMS.forEach(k => { s[k] += g[k] || 0; });
+          // One entry per team per game, taken from whoever played in it.
+          const key = `${p.school}|${g.phase}|${g.week}|${g.opponent}|${g.teamScore}-${g.oppScore}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          const neutral = g.phase && g.phase !== 'conf' && g.phase !== 'nonconf';
+          games.push({ team: p.school, opp: g.opponent, pf: g.teamScore, pa: g.oppScore, loc: neutral ? 0 : (g.isHome ? 1 : -1) });
+        });
+        if (s.min > 0) players.push({ key: p, team: p.school, pos: p.pos, s });
+      });
+      if (!players.length) return;
+      const res = TorvikBPM.season(players, games, confOnly && season ? { ratings: season } : { spread: TorvikBPM.D1_SPREAD });
+      if (!confOnly) season = res;
+      res.players.forEach((v, p) => {
+        const st = p[field];
+        if (!st) return;
+        st.bpm = v.bpm.toFixed(1);
+        st.obpm = v.obpm.toFixed(1);
+        st.dbpm = v.dbpm.toFixed(1);
+      });
+      if (!confOnly) {
+        // Kept for anything that wants a team's adjusted efficiency.
+        res.teams.forEach((t, school) => {
+          const team = this.state.teams.find(x => x.school === school);
+          if (team && team.simData) {
+            team.simData.adjO = +t.adjO.toFixed(1);
+            team.simData.adjD = +t.adjD.toFixed(1);
+            team.simData.adjEM = +((t.adjO - t.adjD) * res.scale).toFixed(1);
+          }
+        });
+      }
+    };
+    run(false, 'statsFull');
+    run(true, 'statsConf');
   },
 
   // League-wide true shooting, the zero point for rTS%. Totals accumulate
@@ -4751,7 +4809,8 @@ window.SimEngine = {
         else if (powerSix && (ppg >= 16 || pra >= 20)) declares = true;
         // Bigs can be worth a pick on efficiency and impact in limited
         // minutes — rim protection and finishing translate without volume.
-        else if (isBig && (parseFloat(st.bpm) || 0) >= 6.5) declares = true;
+        // (Barttorvik-scale BPM: +9 is a top-5% big man.)
+        else if (isBig && (parseFloat(st.bpm) || 0) >= 9 && rank <= 80) declares = true;
         else if (rank <= 30) declares = true;
         // Elite recruits leave unless the season went badly wrong.
         else if (rsci && rsci <= 10) declares = bpm > -1.5;
@@ -4788,15 +4847,20 @@ window.SimEngine = {
       }
     });
 
-    // International pros: a projected first-rounder enters, so does anyone
-    // in his last year before he'd be automatically eligible anyway, and a
-    // borderline one sometimes tests the waters.
+    // International pros enter as early entrants, the same way college
+    // underclassmen do: a projected first-rounder goes, a borderline one
+    // often tests the waters (and can withdraw at the deadline, or even
+    // commit to a college), and anyone in his last year before he'd be
+    // automatically eligible is in for good.
     (this.state.proPlayers || []).forEach(p => {
       const rank = boardRank[p.id] || 999;
       const last = (p.proYears || 0) >= 3;
       const scripted = this.scriptedDraftFor(p);
       const draftYear = this.upcomingDraftYear();
-      let declares = rank <= 30 || last || (rank <= 60 && Math.random() < 0.55);
+      let declares = last || rank <= 30
+        || (rank <= 60 && Math.random() < 0.7)
+        || (rank <= 120 && Math.random() < 0.35)
+        || (parseFloat(p.recRating) >= 85 && Math.random() < 0.25);
       if (scripted && scripted.year === draftYear) declares = true;
       else if (scripted && scripted.year > draftYear && !last) declares = false;
       if (!declares) return;
@@ -5743,6 +5807,51 @@ window.SimEngine = {
     this.state.proPlayers = out;
   },
 
+  // An international pro who withdraws from the draft usually goes back to
+  // his club, but now and then one commits to a college instead and
+  // enrolls as a freshman next season. Seeded per player and draft, so
+  // the NCAA RP and the Draft RP always agree on who did. Safe to call
+  // more than once.
+  settleWithdrawnPros() {
+    const back = (this.state.returningPlayers || []).filter(d => d.isPro);
+    if (!back.length || !this.hsReady()) return [];
+    const draftYear = this.upcomingDraftYear();
+    const recById = new Map((this.state.allRecruits || []).map(r => [r.id, r]));
+    const pros = new Map((this.state.proPlayers || []).map(p => [p.id, p]));
+    const moved = [];
+    back.forEach(d => {
+      if (d.college !== undefined) return;            // already settled
+      const rec = recById.get(d.id), pro = pros.get(d.id);
+      d.college = null;
+      if (!rec || !pro) return;
+      const rng = HSCore.rngFor(`pro-to-college|${d.id}|${draftYear}`);
+      // Rare, likelier for a younger pro and one whose stock didn't land.
+      const chance = 0.10 + ((pro.proYears || 0) === 0 ? 0.06 : 0) + ((d.boardRank || 999) > 60 ? 0.04 : 0);
+      if (rng() >= chance) return;
+      const rating = parseFloat(pro.rating) || 70;
+      const base = Math.max(35, Math.min(95, 50 + (rating - 74) * 2.2));
+      const open = this.state.teams.filter(t => (t.roster || []).length <= this.ROSTER_LIMIT - 2
+        && Math.abs((t.prestige != null ? t.prestige : 50) - base) <= 18);
+      if (!open.length) return;
+      const w = open.map(t => ({ t, w: Math.exp(((t.prestige || 50) - base) / 12) * (this.ROSTER_LIMIT - t.roster.length) }));
+      let x = rng() * w.reduce((n, y) => n + y.w, 0), dest = w[w.length - 1].t;
+      for (const y of w) { x -= y.w; if (x <= 0) { dest = y.t; break; } }
+      rec.school = dest.school;
+      rec.committedSchool = dest.school;
+      rec.status = `Committed to ${dest.school}`;
+      rec.formerClub = pro.club || null;
+      d.college = dest.school;
+      moved.push({ name: d.name, club: pro.club, to: dest.school, classYear: Number(rec.recClassYear) || null });
+    });
+    if (moved.length) {
+      this.state.recruitFlips = (this.state.recruitFlips || []).concat(moved.map(m => ({
+        year: this.state.year, classYear: m.classYear, name: m.name, from: m.club || 'Pro', to: m.to, reason: 'left pro club after withdrawing from the draft'
+      }))).slice(-400);
+      moved.forEach(m => this.logNews(`${m.name} withdraws from the ${draftYear} NBA Draft and leaves ${m.club || 'his club'} to commit to ${m.to}`));
+    }
+    return moved;
+  },
+
   // Each pro's season so far: a seeded pro-league line, played out over
   // the same calendar as the college season.
   updateProSeasons() {
@@ -5794,6 +5903,7 @@ window.SimEngine = {
     Object.entries(res.players || {}).forEach(([id, pd]) => { if (byId[id]) byId[id].predraft = pd; });
     Object.entries(res.draftFor || {}).forEach(([id, d]) => { if (byId[id]) byId[id].draft = d; });
     Object.assign(this.state, res.state || {});
+    if (res.state && res.state.returningPlayers) this.settleWithdrawnPros();
     if (res.draftEntry) {
       this.state.draftHistory = (this.state.draftHistory || []).filter(d => d.year !== res.draftEntry.year).concat([res.draftEntry]);
     }
@@ -5815,6 +5925,7 @@ window.SimEngine = {
     const res = DraftCycle.resolveDeadline(this.draftContext());
     this.state.draftDeclarations = res.staying;
     this.state.returningPlayers = res.returning;
+    this.settleWithdrawnPros();
     return res.returning;
   },
   computeDraftResults() {
@@ -5890,6 +6001,8 @@ window.SimEngine = {
 
   async completeOffseason() {
     this.state.offseasonStageIndex = 0;
+    // If the Draft RP ran the deadline, its withdrawn pros are settled here.
+    this.settleWithdrawnPros();
     this.runTransferPortal();
 
     const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
@@ -9267,8 +9380,15 @@ window.SimEngine = {
     // would have predicted, so exceeding expectations accelerates growth
     // and badly underperforming slows it.
     const actualBpm = parseFloat(st.bpm) || 0;
-    const impliedBpm = ((before - 74) * 0.50) + Math.max(0, before - 90) * 0.85;
-    const overperformance = Math.max(-4, Math.min(5, actualBpm - impliedBpm));
+    // Barttorvik-style BPM runs higher for big men than for guards, so
+    // the expectation accounts for position as well as rating.
+    const impliedBpm = typeof TorvikBPM !== 'undefined'
+      ? TorvikBPM.expected(before, player.pos)
+      : ((before - 74) * 0.50) + Math.max(0, before - 90) * 0.85;
+    // A box score over a handful of minutes says little, so it only
+    // counts in full once he's logged real time (about 400 minutes).
+    const sample = Math.min(1, (parseFloat(st.totMin) || 0) / 400);
+    const overperformance = Math.max(-4, Math.min(5, actualBpm - impliedBpm)) * sample;
 
     const base = (this.CLASS_GROWTH[cls] || 1.5) * reps * headroomFactor;
     const merit = overperformance * 0.42;
@@ -9322,6 +9442,8 @@ window.SimEngine = {
       potentialGrade: p.potentialGrade || null,
       traits: p.traits || null,
       isPro: !!p.isPro, draftClass: p.draftClass || null, dob: p.dob || null,
+      // What the board reads to value an international pro.
+      ...(p.isPro ? { recRating: p.recRating || null, proYears: p.proYears || 0, breakout: p.breakout || 0, club: p.club || null } : {}),
       // The sheet's Draft column, so the Draft RP's mock agrees with draft night.
       scriptedDraft: this.scriptedDraftFor(p) || null
     };
@@ -9365,9 +9487,11 @@ window.SimEngine = {
       // Players the sheet has going in this draft are always included, so
       // the Draft RP's mock can hold their pick before they've played.
       const onBoard = new Set(board.map(p => p.id));
+      // Every draft-eligible international pro is published too, however
+      // far down the board, so the Draft RP can show the whole class.
       players.forEach(p => {
         const sd = this.scriptedDraftFor(p);
-        if (sd && sd.year === draftYear && !onBoard.has(p.id)) board.push(p);
+        if (((sd && sd.year === draftYear) || p.isPro) && !onBoard.has(p.id)) { board.push(p); onBoard.add(p.id); }
       });
       pool = board.map(p => this.slimPlayer(p));
     } else {
@@ -10797,8 +10921,8 @@ window.SimEngine = {
         <div class="draft-recap-side">
           <div class="card"><div class="section-head"><h3 class="section-title">Most picks</h3></div>
             <ul class="count-list">${topSchools.map(([sc, n]) => `<li onclick="SimEngine.goToTeamPage('${this.jsArg(sc)}');SimEngine.closeOffseason()"><img src="${this.getTeamLogo(sc)}" class="xs-logo" alt=""><span>${this.esc(sc)}</span><b>${n}</b></li>`).join('')}</ul></div>
-          <div class="card"><div class="section-head"><h3 class="section-title">Back to school</h3><p class="section-sub">${back.length} withdrew at the deadline</p></div>
-            <ul class="count-list">${back.slice().sort((a, b) => (a.boardRank || 999) - (b.boardRank || 999)).slice(0, 8).map(r => `<li onclick="SimEngine.openPlayerModal('${this.jsArg(r.id)}')"><img src="${this.getTeamLogo(r.school)}" class="xs-logo" alt=""><span>${this.esc(r.name)}</span><small>${this.esc(r.school)}</small></li>`).join('') || '<li><span class="sub-text-sm">Nobody withdrew.</span></li>'}</ul></div>
+          <div class="card"><div class="section-head"><h3 class="section-title">Withdrew</h3><p class="section-sub">${back.length} withdrew at the deadline</p></div>
+            <ul class="count-list">${back.slice().sort((a, b) => (a.boardRank || 999) - (b.boardRank || 999)).slice(0, 8).map(r => `<li onclick="SimEngine.openPlayerModal('${this.jsArg(r.id)}')"><img src="${this.getTeamLogo(r.school)}" class="xs-logo" alt=""><span>${this.esc(r.name)}</span><small>${this.esc(r.college ? `${r.school} → ${r.college}` : r.school)}</small></li>`).join('') || '<li><span class="sub-text-sm">Nobody withdrew.</span></li>'}</ul></div>
         </div>
       </div>
     </div>`;
