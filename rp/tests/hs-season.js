@@ -126,6 +126,14 @@ const FIX = path.join(__dirname, 'fixtures');
   const cal = Sim.state.hsCalendar;
   ok(cal && cal.year === Sim.state.year && (cal.wire || []).length > 10, `the recruiting wire filled up over the season (${(cal.wire || []).length} items)`);
   ok(cal.wire.some(x => x.kind === 'commit'), 'commitments came in during the season');
+  // One a week: the McDonald's game with the Final Four, the Jordan Brand
+  // Classic the week after, the Hoop Summit the week after that.
+  ok(cal.events.mcd && cal.events.mcd.result && !(cal.events.jbc && cal.events.jbc.result) && !(cal.events.nhs && cal.events.nhs.result),
+    'after the title game only the McDonald\'s game has been played');
+  await Sim.simulateWeek();
+  ok(cal.events.jbc && cal.events.jbc.result && !(cal.events.nhs && cal.events.nhs.result), 'the Jordan Brand Classic is the next week');
+  await Sim.simulateWeek();
+  ok(cal.events.nhs && cal.events.nhs.result, 'and the Nike Hoop Summit the week after that');
   ['mcd', 'jbc', 'nhs'].forEach(k => {
     const e = cal.events[k];
     const teams = e ? Object.keys(e.rosters) : [];

@@ -210,9 +210,13 @@
   };
   const EVENT_LOGO = { mcd: 'mcdaag.png', jbc: 'jbc.png', nhs: 'nikehoopsummit.png' };
   const EVENTS = {
-    mcd: { name: "McDonald's All-American Game", short: "McDonald's AA", size: 24, pool: 35, announce: 0.45, play: 0.9, teams: ['East', 'West'] },
-    jbc: { name: 'Jordan Brand Classic', short: 'Jordan Brand', size: 24, pool: 75, announce: 0.6, play: 1, teams: ['Team Air', 'Team Flight'] },
-    nhs: { name: 'Nike Hoop Summit', short: 'Hoop Summit', size: 24, pool: 30, announce: 0.7, play: 1, teams: ['USA', 'World'] }
+    // One a week, in this order: the McDonald's game in Final Four week,
+    // the Jordan Brand Classic the week after (the first offseason step),
+    // the Hoop Summit the week after that. `step` is how many offseason
+    // steps have to be done first.
+    mcd: { name: "McDonald's All-American Game", short: "McDonald's AA", size: 24, pool: 35, announce: 0.45, play: 0.9, teams: ['East', 'West'], when: 'Final Four week' },
+    jbc: { name: 'Jordan Brand Classic', short: 'Jordan Brand', size: 24, pool: 75, announce: 0.6, play: 1, step: 1, teams: ['Team Air', 'Team Flight'], when: "the week after the McDonald's game" },
+    nhs: { name: 'Nike Hoop Summit', short: 'Hoop Summit', size: 24, pool: 30, announce: 0.7, play: 1, step: 2, teams: ['USA', 'World'], when: 'the week after the Jordan Brand Classic' }
   };
   const flagged = (r, k) => !!(r.allStar && r.allStar[k]);
 

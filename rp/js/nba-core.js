@@ -134,6 +134,9 @@ function fitBonus(team, prospect) {
 // opts.interest  — { teamId: { playerId: bonus } } from team workouts: a
 //                 prospect who crushed a team's workout is higher on
 //                 their list than on the consensus board
+// What being ready to play now is worth to a team picking after the lottery.
+const READY_NOW = { JR: 6, SR: 13, GR: 13 };
+
 function buildMockDraft(board, league, rng = Math.random, fixed = {}, opts = {}) {
   const r = rngPick(rng);
   const lottery = opts.lottery || runLottery(league, r);
@@ -171,7 +174,12 @@ function buildMockDraft(board, league, rng = Math.random, fixed = {}, opts = {})
     if (available.length === 0) return;
     // Teams consider a shortlist rather than only the top name, which is
     // what lets need and a little randomness move players a few spots.
-    const shortlist = available.slice(0, Math.min(opts.interest ? 8 : 6, available.length));
+    // Past the lottery, good teams also want someone who can play now, so
+    // the shortlist is a little longer and an upperclassman gets credit for
+    // being ready (as in real drafts, where the back of the first round
+    // and the second round are full of juniors and seniors).
+    const late = pickNum > 14;
+    const shortlist = available.slice(0, Math.min((opts.interest ? 8 : 6) + (late ? 6 : 0), available.length));
     // Still-open ranged locks are weighed by every team inside their
     // window, even if their raw score wouldn't put them in the natural
     // shortlist.
@@ -181,7 +189,9 @@ function buildMockDraft(board, league, rng = Math.random, fixed = {}, opts = {})
     let best = null, bestScore = -Infinity;
     shortlist.forEach(entry => {
       const liked = (interest[team.id] || {})[entry.player.id] || 0;
-      const score = entry.score + fitBonus(team, entry.player) + liked + (r() - 0.5) * 2.5;
+      const cls = entry.player.isPro ? '' : String(entry.player.class || '').toUpperCase();
+      const ready = late ? (READY_NOW[cls] || 0) : 0;
+      const score = entry.score + fitBonus(team, entry.player) + liked + ready + (r() - 0.5) * 2.5;
       if (score > bestScore) { bestScore = score; best = entry; }
     });
     const idx = available.indexOf(best);

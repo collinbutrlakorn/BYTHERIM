@@ -18,6 +18,8 @@ const { boot, playSeason, ok } = require('./harness');
 
   const step = () => Sim.applyDraftStep(DC.advance(Sim.draftContext()));
   const declaredCount = Sim.state.draftDeclarations.length;
+  const underclass = Sim.state.draftDeclarations.filter(d => !d.isPro && !['SR', 'GR'].includes(Sim.normalizeClassStanding(d.class) || d.class)).length;
+  ok(underclass >= 80 && underclass <= 190, `about 130 college underclassmen enter the draft (${underclass})`);
 
   // ---- combine ----
   step();
@@ -83,6 +85,9 @@ const { boot, playSeason, ok } = require('./harness');
   ok(Sim.state.draftCycle.stage === 'complete' && Sim.isDraftComplete(), 'draft night held');
   const picks = Sim.state.draftResults;
   ok(picks.length === 60 && new Set(picks.map(p => p.id)).size === 60, '60 picks, no one twice');
+  const olderFirst = picks.filter(p => p.pick <= 30 && ['JR', 'SR', 'GR'].includes(p.class));
+  ok(olderFirst.length >= 2, `upperclassmen go in the first round too (${olderFirst.map(p => `#${p.pick} ${p.class}`).join(', ')})`);
+  ok(picks.filter(p => p.pick <= 5).every(p => ['FR', 'SO', 'Pro'].includes(p.class)) || picks.filter(p => p.pick <= 5 && ['JR', 'SR', 'GR'].includes(p.class)).length <= 1, 'the very top of the draft stays young');
   ok(picks.every((p, i) => p.team && p.team.id === lot.order[i]), 'picks follow the order drawn on lottery night');
   ok(picks.every(p => !back.some(r => r.id === p.id)), 'no withdrawn player is drafted');
   ok(picks.filter(p => p.workedOut).length >= 10, `teams draft players who impressed them in workouts (${picks.filter(p => p.workedOut).length})`);

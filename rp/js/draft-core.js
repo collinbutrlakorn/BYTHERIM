@@ -20,7 +20,9 @@
 // better numbers, because teams are drafting the projection rather than
 // the season. The previous spread (FR +10 down to GR -1.5) was nowhere
 // near steep enough to reproduce that.
-const CLASS_YOUTH = { FR: 24, SO: 13, JR: 1, SR: -11, GR: -16 };
+// Youth still matters most at the top. Late in the first round, teams
+// picking there also value a player who's ready now (nba-core.js).
+const CLASS_YOUTH = { FR: 20, SO: 11, JR: 3, SR: -4, GR: -7 };
 const POS_SIZE_TARGET = { PG: 75, SG: 78, SF: 80, PF: 82, C: 84,
   G: 76, F: 81, W: 79, 'F/C': 83, 'G/F': 79, CG: 76 };
 
@@ -151,9 +153,9 @@ function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
   // Production counts for less as a player gets older: a freshman's
   // numbers are evidence of upside, a senior's are close to his ceiling.
   const ageDiscount = cls === 'FR' ? 1.0
-    : cls === 'SO' ? 0.88
-    : cls === 'JR' ? 0.72
-    : 0.58;
+    : cls === 'SO' ? 0.93
+    : cls === 'JR' ? 0.84
+    : 0.76;
 
   // Size is weighted more heavily than before — seven-footers with thin
   // statistical profiles are routinely lottery picks.

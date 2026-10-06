@@ -43,6 +43,17 @@ const TARGETS = [
   const sh = med(shooters.map(p => p.stats.totFtm / p.stats.totFta));
   ok(sh >= 0.78, `volume three-point shooters' median FT% ${sh.toFixed(3)} (expected .78+)`);
 
+  // Rebounds per 40 by position against Barttorvik's 2025-26 rotation
+  // players (guards about 4, bigs about 10), and every rotation guard
+  // blocks a shot at some point in a season.
+  const rot = Sim.state.activePlayers.filter(p => p.stats && p.stats.gp >= 15 && parseFloat(p.stats.mpg) >= 15);
+  const r40 = pos => med(rot.filter(p => pos.includes(p.pos)).map(p => p.stats.totReb / p.stats.totMin * 40));
+  ok(r40(['PG', 'CG', 'G']) >= 3.3 && r40(['PG', 'CG', 'G']) <= 4.7, `point and combo guards rebound like guards (${r40(['PG', 'CG', 'G']).toFixed(1)} per 40)`);
+  ok(r40(['C']) >= 9 && r40(['C']) <= 12, `centres rebound like centres (${r40(['C']).toFixed(1)} per 40)`);
+  ok(r40(['C']) > r40(['SF']) + 2.5 && r40(['SF']) > r40(['PG']) + 2, 'and the glass belongs to the bigs');
+  const starters = rot.filter(p => ['PG', 'SG', 'CG', 'G'].includes(p.pos) && p.stats.gp >= 20 && parseFloat(p.stats.mpg) >= 22);
+  const blank = starters.filter(p => !p.stats.totBlk).length;
+  ok(blank <= Math.max(2, starters.length * 0.01), `starting guards almost never go a season without a block (${blank} of ${starters.length})`);
   // Games played only counts games a player actually got on the floor.
   const ghosts = Sim.state.activePlayers.filter(p => p.stats && p.stats.gp > 0 && !(p.stats.totMin > 0)).length;
   ok(ghosts === 0, `no player has games played without minutes (${ghosts})`);

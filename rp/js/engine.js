@@ -3734,20 +3734,25 @@ window.SimEngine = {
     // every forward rebound like a centre and every guard pass like a point
     // guard, which is what produced the flood of 10+ rpg / sub-2 apg lines.
     const POS = {
-      PG: { reb: 3.5, ast: 4.00, stl: 1.34, blk: 0.13 },
-      SG: { reb: 4.1, ast: 2.20, stl: 1.17, blk: 0.23 },
-      SF: { reb: 5.7, ast: 1.60, stl: 1.08, blk: 0.45 },
-      PF: { reb: 6.7, ast: 1.58, stl: 1.02, blk: 1.02 },
-      C:  { reb: 8.8, ast: 1.05, stl: 0.72, blk: 1.72 },
-      G:  { reb: 3.3, ast: 3.40, stl: 1.25, blk: 0.185 },
+      // Rebounds per 40 checked against Barttorvik's 2025-26 rotation
+      // players: guards about 4, wings 5.5-7.5, bigs near 10. Guards had
+      // been rebounding a quarter too much and power forwards too little.
+      // Every guard blocks the odd shot; a starting point guard going a
+      // whole season without one is rare.
+      PG: { reb: 2.8, ast: 4.00, stl: 1.34, blk: 0.19 },
+      SG: { reb: 3.6, ast: 2.20, stl: 1.17, blk: 0.27 },
+      SF: { reb: 5.4, ast: 1.60, stl: 1.08, blk: 0.42 },
+      PF: { reb: 7.4, ast: 1.58, stl: 1.02, blk: 0.88 },
+      C:  { reb: 8.7, ast: 1.05, stl: 0.72, blk: 1.48 },
+      G:  { reb: 2.9, ast: 3.40, stl: 1.25, blk: 0.23 },
       // A combo guard fills either backcourt slot, so his profile sits
       // between a point guard's and a shooting guard's.
-      CG: { reb: 3.4, ast: 3.00, stl: 1.26, blk: 0.20 },
-      F:  { reb: 6.0, ast: 1.65, stl: 1.00, blk: 0.84 },
+      CG: { reb: 3.0, ast: 3.00, stl: 1.26, blk: 0.24 },
+      F:  { reb: 6.3, ast: 1.65, stl: 1.00, blk: 0.74 },
       // Wings, and combo bigs, both appear in the roster sheet.
-      W:  { reb: 4.9, ast: 2.05, stl: 1.12, blk: 0.355 },
-      'F/C': { reb: 7.9, ast: 1.22, stl: 0.78, blk: 1.48 },
-      'G/F': { reb: 4.0, ast: 2.60, stl: 1.18, blk: 0.31 }
+      W:  { reb: 4.6, ast: 2.05, stl: 1.12, blk: 0.35 },
+      'F/C': { reb: 8.2, ast: 1.22, stl: 0.78, blk: 1.28 },
+      'G/F': { reb: 3.8, ast: 2.60, stl: 1.18, blk: 0.31 }
     };
     const base = POS[pos] || POS[isBig ? 'PF' : 'SF'];
 
@@ -3857,7 +3862,9 @@ window.SimEngine = {
     if (rpg > rebCeiling) rpg = rebCeiling + (rpg - rebCeiling) * 0.30;
     let apg = Math.max(0.1, base.ast * usageScale);
     let stl = Math.max(0.1, base.stl * usageScale * athStl);
-    let blk = Math.max(0.05, base.blk * usageScale);
+    // A floor tied to minutes: anyone in the rotation gets a hand on a
+    // shot now and then, so a starting guard doesn't go a season without one.
+    let blk = Math.max(0.05, mpg * 0.0075, base.blk * usageScale);
     let tov = Math.max(0.2, (apg * 0.4 + 0.50));
 
     let pf = Math.min(3.4, Math.max(0.5, (mpg / 12.1)));
@@ -4806,7 +4813,7 @@ window.SimEngine = {
         // Production at the highest level of college basketball is itself a
         // declaration signal: an underclassman putting up these numbers in a
         // power conference is a pro prospect regardless of recruiting rank.
-        else if (powerSix && (ppg >= 16 || pra >= 20)) declares = true;
+        else if (powerSix && (ppg >= 16 || pra >= 20) && rank <= 90) declares = Math.random() < 0.6;
         // Bigs can be worth a pick on efficiency and impact in limited
         // minutes — rim protection and finishing translate without volume.
         // (Barttorvik-scale BPM: +9 is a top-5% big man.)
@@ -4815,10 +4822,13 @@ window.SimEngine = {
         // Elite recruits leave unless the season went badly wrong.
         else if (rsci && rsci <= 10) declares = bpm > -1.5;
         // So do players who have simply become good enough.
-        else if (rating >= 84) declares = true;
+        else if (rating >= 84 && rank <= 100) declares = true;
+        // Everyone else tests the waters at a rate that falls with his
+        // stock. Tuned so about 130 underclassmen enter a typical draft.
         else if (rank <= 60) declares = Math.random() < 0.55;
-        else if (rank <= 100) declares = Math.random() < 0.18;
-        else declares = Math.random() < 0.02;
+        else if (rank <= 100) declares = Math.random() < 0.4;
+        else if (rank <= 200) declares = Math.random() < 0.15;
+        else declares = Math.random() < 0.01;
       }
 
       // The roster sheet's Draft column overrides the model: a player
@@ -5540,6 +5550,8 @@ window.SimEngine = {
     await this.runOffseasonStage(stage.key);
     let ran = stage.key;
     this.state.offseasonStageIndex = idx + 1;
+    // The spring all-star games that follow the title game, one a step.
+    if (this.state.offseasonStageIndex <= 2) this.advanceHsCalendar();
 
     // Coming back from draft night, one click opens the portal: the draft
     // has already been seen in full in the Draft RP.
@@ -9972,7 +9984,7 @@ window.SimEngine = {
       this.spotlight({ logo, kicker: 'Rosters announced', title: `The ${ev.name} rosters are out`, sub: 'See who made it, then watch the game when it tips off.',
         actions: [{ label: 'See the rosters', primary: true, fn: toTab }, { label: 'Later' }] });
     } else {
-      this.spotlight({ logo, kicker: ev.play >= 1 ? 'After the title game' : 'Final Four week', title: `Watch the ${ev.name}`, sub: 'The best of the incoming class, from the opening tip.',
+      this.spotlight({ logo, kicker: ev.when ? ev.when.charAt(0).toUpperCase() + ev.when.slice(1) : 'After the title game', title: `Watch the ${ev.name}`, sub: 'The best of the incoming class, from the opening tip.',
         actions: [{ label: 'Watch', primary: true, fn: () => this.watchAllStarGame(key) }, { label: 'Later', fn: () => { if (document.getElementById('hsEvents')) this.updateRecruitsTab(); } }] });
     }
   },
@@ -10033,7 +10045,8 @@ window.SimEngine = {
         wire.push({ kind: 'roster', key, text: `${ev.name} rosters announced` });
         this.hsSpotlight(key, 'roster');
       }
-      if (e && !e.result && p >= ev.play && typeof GameCore !== 'undefined') {
+      const stepDone = !ev.step || (s.ncaaDone && (s.offseasonStageIndex || 0) >= ev.step);
+      if (e && !e.result && p >= ev.play && stepDone && typeof GameCore !== 'undefined') {
         e.result = this.playAllStarGame(key, e.rosters);
         if (e.result) { wire.push({ kind: 'game', key, text: `The ${ev.name} is final` }); this.hsSpotlight(key, 'game'); }
       }
@@ -10170,7 +10183,7 @@ window.SimEngine = {
         body = `<small>Final</small><div class="hs-actions"><button type="button" class="hs-btn primary" onclick="SimEngine.watchAllStarGame('${key}')">&#9654; Watch</button>
           <button type="button" class="hs-btn" onclick="SimEngine.revealAllStarGame('${key}')">Show result</button></div>`;
       } else {
-        body = `<small>${names.map(n => this.esc(n)).join(' vs ')} · ${ev.play >= 1 ? 'after the title game' : 'Final Four week'}</small>`;
+        body = `<small>${names.map(n => this.esc(n)).join(' vs ')} · ${ev.when || 'after the title game'}</small>`;
       }
       const open = this._hsOpen === key;
       const roster = open ? `<div class="hs-rosters">${names.map(n => `<div><b><img src="${this.getTeamLogo(n)}" alt="" class="xs-logo">${this.esc(n)}</b><ol>${(e.rosters[n] || []).map(id => byId.get(id)).filter(Boolean)

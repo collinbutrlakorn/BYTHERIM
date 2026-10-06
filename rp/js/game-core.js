@@ -86,13 +86,26 @@ function generateRawPlayerBox(player, minutesMultiplier = 1) {
   const isBigish = (parseFloat(exp.blk) || 0) >= 0.8;
   const par = parseFloat(exp.threePar) || 0.4;
   const perimeterPull = Math.max(0, Math.min(1, par / 0.55));   // 0 = rim-bound, 1 = spacing big
-  const baseShare = isBigish ? 0.41 : 0.27;
+  // (0.41 for bigs before guards' rebounding was trimmed; with more of a
+  // team's boards now going to its bigs, this keeps team OREB% at D1 levels.)
+  const baseShare = isBigish ? 0.37 : 0.26;
   const orebShare = baseShare * (1 - perimeterPull * 0.38) + (Math.random() * 0.08 - 0.04);
   const oreb = Math.min(reb, Math.round(reb * Math.max(0, orebShare)));
   const dreb = reb - oreb;
   const ast = Math.round((parseFloat(exp.apg) || 0) * scale * variance());
-  const stl = Math.round((parseFloat(exp.stl) || 0) * (0.3 + Math.random() * 1.4));
-  const blk = Math.round((parseFloat(exp.blk) || 0) * (0.3 + Math.random() * 1.4));
+  // Steals and blocks are rare, separate events, so each night's count is
+  // a Poisson draw around his average. Rounding a scaled average instead
+  // meant anyone averaging under about 0.4 (most guards' blocks) could
+  // never record one: a full season of zeros.
+  const poisson = mean => {
+    if (!(mean > 0)) return 0;
+    const L = Math.exp(-mean);
+    let k = 0, p = Math.random();
+    while (p > L && k < 12) { k++; p *= Math.random(); }
+    return k;
+  };
+  const stl = poisson(parseFloat(exp.stl) || 0);
+  const blk = poisson(parseFloat(exp.blk) || 0);
   const tov = Math.round((parseFloat(exp.tov) || 0) * scale * variance());
   const pf = Math.min(5, Math.round((parseFloat(exp.pf) || 0) * scale * variance()));
 
