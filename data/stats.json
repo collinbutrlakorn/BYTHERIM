@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-04T15:49:41.124Z",
+ "updated": "2026-10-06T06:47:35.560Z",
  "source": "barttorvik.com, basketball-reference.com",
  "seasons": {
   "2022-23": {
@@ -31,34 +31,6 @@
      "DBPM": "4.0"
     }
    },
-   "anthony-black": {
-    "torvikName": "Anthony Black",
-    "team": "Arkansas",
-    "conf": "SEC",
-    "gp": 36,
-    "mpg": "34.4",
-    "cls": "Fr",
-    "role": "Wing G",
-    "torvikId": "76222",
-    "stats": {
-     "PTS": "12.8",
-     "REB": "5.1",
-     "AST": "3.9",
-     "STL": "2.1",
-     "BLK": "0.6",
-     "TS%": "54.9%",
-     "eFG%": "49.5%",
-     "2P%": "51.3%",
-     "3P%": "30.1%",
-     "FT%": "70.5%",
-     "3Pr": "0.28",
-     "FTr": "0.58",
-     "USG%": "22.2%",
-     "BPM": "6.5",
-     "OBPM": "2.7",
-     "DBPM": "3.8"
-    }
-   },
    "jarace-walker": {
     "torvikName": "Jarace Walker",
     "team": "Houston",
@@ -87,32 +59,60 @@
      "DBPM": "5.6"
     }
    },
-   "taylor-hendricks": {
-    "torvikName": "Taylor Hendricks",
-    "team": "UCF",
-    "conf": "Amer",
-    "gp": 34,
-    "mpg": "34.6",
+   "nick-smith-jr": {
+    "torvikName": "Nick Smith Jr.",
+    "team": "Arkansas",
+    "conf": "SEC",
+    "gp": 17,
+    "mpg": "25.8",
     "cls": "Fr",
-    "role": "Stretch 4",
-    "torvikId": "76391",
+    "role": "Combo G",
+    "torvikId": "77081",
     "stats": {
-     "PTS": "15.1",
-     "REB": "7.0",
-     "AST": "1.4",
-     "STL": "0.9",
-     "BLK": "1.7",
-     "TS%": "58.9%",
-     "eFG%": "55.7%",
-     "2P%": "53.5%",
-     "3P%": "39.4%",
-     "FT%": "78.2%",
-     "3Pr": "0.40",
-     "FTr": "0.29",
-     "USG%": "20.4%",
-     "BPM": "7.4",
-     "OBPM": "3.4",
-     "DBPM": "4.0"
+     "PTS": "12.5",
+     "REB": "1.6",
+     "AST": "1.7",
+     "STL": "0.8",
+     "BLK": "0.1",
+     "TS%": "47.2%",
+     "eFG%": "43.6%",
+     "2P%": "39.7%",
+     "3P%": "33.8%",
+     "FT%": "74.0%",
+     "3Pr": "0.35",
+     "FTr": "0.25",
+     "USG%": "26.3%",
+     "BPM": "-1.6",
+     "OBPM": "0.1",
+     "DBPM": "-1.7"
+    }
+   },
+   "cam-whitmore": {
+    "torvikName": "Cam Whitmore",
+    "team": "Villanova",
+    "conf": "BE",
+    "gp": 26,
+    "mpg": "27.3",
+    "cls": "Fr",
+    "role": "Wing G",
+    "torvikId": "76487",
+    "stats": {
+     "PTS": "12.5",
+     "REB": "5.3",
+     "AST": "0.7",
+     "STL": "1.4",
+     "BLK": "0.3",
+     "TS%": "57.1%",
+     "eFG%": "55.1%",
+     "2P%": "57.8%",
+     "3P%": "34.3%",
+     "FT%": "70.3%",
+     "3Pr": "0.42",
+     "FTr": "0.25",
+     "USG%": "24.3%",
+     "BPM": "3.3",
+     "OBPM": "1.3",
+     "DBPM": "2.0"
     }
    },
    "cason-wallace": {
@@ -143,60 +143,88 @@
      "DBPM": "3.1"
     }
    },
-   "jett-howard": {
-    "torvikName": "Jett Howard",
-    "team": "Michigan",
-    "conf": "B10",
-    "gp": 29,
-    "mpg": "31.7",
+   "anthony-black": {
+    "torvikName": "Anthony Black",
+    "team": "Arkansas",
+    "conf": "SEC",
+    "gp": 36,
+    "mpg": "34.4",
     "cls": "Fr",
-    "role": "Wing F",
-    "torvikId": "76486",
+    "role": "Wing G",
+    "torvikId": "76222",
     "stats": {
-     "PTS": "14.2",
-     "REB": "2.8",
-     "AST": "2.0",
-     "STL": "0.4",
-     "BLK": "0.7",
-     "TS%": "56.2%",
-     "eFG%": "53.2%",
-     "2P%": "49.6%",
-     "3P%": "36.8%",
-     "FT%": "80.0%",
-     "3Pr": "0.64",
-     "FTr": "0.23",
-     "USG%": "21.8%",
-     "BPM": "4.6",
-     "OBPM": "4.3",
-     "DBPM": "0.3"
+     "PTS": "12.8",
+     "REB": "5.1",
+     "AST": "3.9",
+     "STL": "2.1",
+     "BLK": "0.6",
+     "TS%": "54.9%",
+     "eFG%": "49.5%",
+     "2P%": "51.3%",
+     "3P%": "30.1%",
+     "FT%": "70.5%",
+     "3Pr": "0.28",
+     "FTr": "0.58",
+     "USG%": "22.2%",
+     "BPM": "6.5",
+     "OBPM": "2.7",
+     "DBPM": "3.8"
     }
    },
-   "dereck-lively-ii": {
-    "torvikName": "Dereck Lively II",
-    "team": "Duke",
-    "conf": "ACC",
+   "taylor-hendricks": {
+    "torvikName": "Taylor Hendricks",
+    "team": "UCF",
+    "conf": "Amer",
     "gp": 34,
-    "mpg": "20.6",
+    "mpg": "34.6",
     "cls": "Fr",
-    "role": "C",
-    "torvikId": "76786",
+    "role": "Stretch 4",
+    "torvikId": "76391",
     "stats": {
-     "PTS": "5.2",
-     "REB": "5.4",
-     "AST": "1.1",
-     "STL": "0.5",
-     "BLK": "2.4",
-     "TS%": "65.7%",
-     "eFG%": "66.1%",
-     "2P%": "71.4%",
-     "3P%": "15.4%",
-     "FT%": "60.0%",
-     "3Pr": "0.11",
-     "FTr": "0.30",
-     "USG%": "12.8%",
-     "BPM": "13.7",
-     "OBPM": "3.7",
-     "DBPM": "10.1"
+     "PTS": "15.1",
+     "REB": "7.0",
+     "AST": "1.4",
+     "STL": "0.9",
+     "BLK": "1.7",
+     "TS%": "58.9%",
+     "eFG%": "55.7%",
+     "2P%": "53.5%",
+     "3P%": "39.4%",
+     "FT%": "78.2%",
+     "3Pr": "0.40",
+     "FTr": "0.29",
+     "USG%": "20.4%",
+     "BPM": "7.4",
+     "OBPM": "3.4",
+     "DBPM": "4.0"
+    }
+   },
+   "keyonte-george": {
+    "torvikName": "Keyonte George",
+    "team": "Baylor",
+    "conf": "B12",
+    "gp": 33,
+    "mpg": "28.7",
+    "cls": "Fr",
+    "role": "Combo G",
+    "torvikId": "77282",
+    "stats": {
+     "PTS": "15.3",
+     "REB": "4.2",
+     "AST": "2.8",
+     "STL": "1.1",
+     "BLK": "0.2",
+     "TS%": "52.4%",
+     "eFG%": "47.0%",
+     "2P%": "42.4%",
+     "3P%": "33.8%",
+     "FT%": "79.3%",
+     "3Pr": "0.55",
+     "FTr": "0.36",
+     "USG%": "29.8%",
+     "BPM": "4.7",
+     "OBPM": "4.1",
+     "DBPM": "0.6"
     }
    },
    "gradey-dick": {
@@ -255,60 +283,116 @@
      "DBPM": "1.0"
     }
    },
-   "kobe-bufkin": {
-    "torvikName": "Kobe Bufkin",
-    "team": "Michigan",
+   "brice-sensabaugh": {
+    "torvikName": "Brice Sensabaugh",
+    "team": "Ohio St.",
     "conf": "B10",
     "gp": 33,
-    "mpg": "34.0",
-    "cls": "So",
-    "role": "Combo G",
-    "torvikId": "75135",
+    "mpg": "24.5",
+    "cls": "Fr",
+    "role": "Stretch 4",
+    "torvikId": "76972",
     "stats": {
-     "PTS": "14.0",
-     "REB": "4.5",
-     "AST": "2.9",
-     "STL": "1.3",
-     "BLK": "0.7",
-     "TS%": "57.8%",
-     "eFG%": "54.2%",
-     "2P%": "54.6%",
-     "3P%": "35.5%",
-     "FT%": "84.9%",
-     "3Pr": "0.34",
+     "PTS": "16.3",
+     "REB": "5.4",
+     "AST": "1.2",
+     "STL": "0.5",
+     "BLK": "0.4",
+     "TS%": "58.8%",
+     "eFG%": "55.5%",
+     "2P%": "52.5%",
+     "3P%": "40.5%",
+     "FT%": "83.0%",
+     "3Pr": "0.36",
      "FTr": "0.24",
-     "USG%": "21.6%",
-     "BPM": "6.8",
-     "OBPM": "3.8",
-     "DBPM": "3.0"
+     "USG%": "32.1%",
+     "BPM": "3.8",
+     "OBPM": "4.7",
+     "DBPM": "-0.9"
     }
    },
-   "keyonte-george": {
-    "torvikName": "Keyonte George",
-    "team": "Baylor",
-    "conf": "B12",
-    "gp": 33,
-    "mpg": "28.7",
+   "dereck-lively-ii": {
+    "torvikName": "Dereck Lively II",
+    "team": "Duke",
+    "conf": "ACC",
+    "gp": 34,
+    "mpg": "20.6",
     "cls": "Fr",
-    "role": "Combo G",
-    "torvikId": "77282",
+    "role": "C",
+    "torvikId": "76786",
     "stats": {
-     "PTS": "15.3",
-     "REB": "4.2",
+     "PTS": "5.2",
+     "REB": "5.4",
+     "AST": "1.1",
+     "STL": "0.5",
+     "BLK": "2.4",
+     "TS%": "65.7%",
+     "eFG%": "66.1%",
+     "2P%": "71.4%",
+     "3P%": "15.4%",
+     "FT%": "60.0%",
+     "3Pr": "0.11",
+     "FTr": "0.30",
+     "USG%": "12.8%",
+     "BPM": "13.7",
+     "OBPM": "3.7",
+     "DBPM": "10.1"
+    }
+   },
+   "gregory-jackson": {
+    "torvikName": "Gregory Jackson",
+    "team": "South Carolina",
+    "conf": "SEC",
+    "gp": 32,
+    "mpg": "32.0",
+    "cls": "Fr",
+    "role": "Stretch 4",
+    "torvikId": "76398",
+    "stats": {
+     "PTS": "15.4",
+     "REB": "5.9",
+     "AST": "0.8",
+     "STL": "0.8",
+     "BLK": "0.8",
+     "TS%": "47.4%",
+     "eFG%": "44.4%",
+     "2P%": "41.9%",
+     "3P%": "32.4%",
+     "FT%": "67.7%",
+     "3Pr": "0.37",
+     "FTr": "0.27",
+     "USG%": "29.1%",
+     "BPM": "-2.9",
+     "OBPM": "-1.8",
+     "DBPM": "-1.1"
+    }
+   },
+   "maxwell-lewis": {
+    "torvikName": "Maxwell Lewis",
+    "team": "Pepperdine",
+    "conf": "WCC",
+    "gp": 29,
+    "mpg": "31.4",
+    "cls": "So",
+    "role": "Wing F",
+    "torvikId": "75452",
+    "stats": {
+     "PTS": "17.0",
+     "REB": "5.7",
      "AST": "2.8",
-     "STL": "1.1",
-     "BLK": "0.2",
-     "TS%": "52.4%",
-     "eFG%": "47.0%",
-     "2P%": "42.4%",
-     "3P%": "33.8%",
-     "FT%": "79.3%",
-     "3Pr": "0.55",
-     "FTr": "0.36",
-     "USG%": "29.8%",
-     "BPM": "4.7",
-     "OBPM": "4.1",
-     "DBPM": "0.6"
+     "STL": "0.8",
+     "BLK": "0.8",
+     "TS%": "54.8%",
+     "eFG%": "50.3%",
+     "2P%": "51.0%",
+     "3P%": "32.5%",
+     "FT%": "78.5%",
+     "3Pr": "0.32",
+     "FTr": "0.34",
+     "USG%": "27.8%",
+     "BPM": "0.0",
+     "OBPM": "0.0",
+     "DBPM": "0.0"
     }
    },
    "jalen-hood-schifino": {
@@ -339,60 +423,60 @@
      "DBPM": "-0.2"
     }
    },
-   "cam-whitmore": {
-    "torvikName": "Cam Whitmore",
-    "team": "Villanova",
-    "conf": "BE",
-    "gp": 26,
-    "mpg": "27.3",
-    "cls": "Fr",
-    "role": "Wing G",
-    "torvikId": "76487",
+   "kobe-bufkin": {
+    "torvikName": "Kobe Bufkin",
+    "team": "Michigan",
+    "conf": "B10",
+    "gp": 33,
+    "mpg": "34.0",
+    "cls": "So",
+    "role": "Combo G",
+    "torvikId": "75135",
     "stats": {
-     "PTS": "12.5",
-     "REB": "5.3",
-     "AST": "0.7",
-     "STL": "1.4",
-     "BLK": "0.3",
-     "TS%": "57.1%",
-     "eFG%": "55.1%",
-     "2P%": "57.8%",
-     "3P%": "34.3%",
-     "FT%": "70.3%",
-     "3Pr": "0.42",
-     "FTr": "0.25",
-     "USG%": "24.3%",
-     "BPM": "3.3",
-     "OBPM": "1.3",
-     "DBPM": "2.0"
+     "PTS": "14.0",
+     "REB": "4.5",
+     "AST": "2.9",
+     "STL": "1.3",
+     "BLK": "0.7",
+     "TS%": "57.8%",
+     "eFG%": "54.2%",
+     "2P%": "54.6%",
+     "3P%": "35.5%",
+     "FT%": "84.9%",
+     "3Pr": "0.34",
+     "FTr": "0.24",
+     "USG%": "21.6%",
+     "BPM": "6.8",
+     "OBPM": "3.8",
+     "DBPM": "3.0"
     }
    },
-   "noah-clowney": {
-    "torvikName": "Noah Clowney",
-    "team": "Alabama",
-    "conf": "SEC",
-    "gp": 36,
-    "mpg": "25.4",
+   "jett-howard": {
+    "torvikName": "Jett Howard",
+    "team": "Michigan",
+    "conf": "B10",
+    "gp": 29,
+    "mpg": "31.7",
     "cls": "Fr",
-    "role": "PF/C",
-    "torvikId": "77084",
+    "role": "Wing F",
+    "torvikId": "76486",
     "stats": {
-     "PTS": "9.8",
-     "REB": "7.9",
-     "AST": "0.8",
-     "STL": "0.6",
-     "BLK": "0.9",
-     "TS%": "57.6%",
-     "eFG%": "55.3%",
-     "2P%": "66.9%",
-     "3P%": "28.3%",
-     "FT%": "64.9%",
-     "3Pr": "0.47",
-     "FTr": "0.44",
-     "USG%": "17.8%",
-     "BPM": "7.7",
-     "OBPM": "3.1",
-     "DBPM": "4.6"
+     "PTS": "14.2",
+     "REB": "2.8",
+     "AST": "2.0",
+     "STL": "0.4",
+     "BLK": "0.7",
+     "TS%": "56.2%",
+     "eFG%": "53.2%",
+     "2P%": "49.6%",
+     "3P%": "36.8%",
+     "FT%": "80.0%",
+     "3Pr": "0.64",
+     "FTr": "0.23",
+     "USG%": "21.8%",
+     "BPM": "4.6",
+     "OBPM": "4.3",
+     "DBPM": "0.3"
     }
    },
    "dariq-whitehead": {
@@ -423,6 +507,34 @@
      "DBPM": "1.6"
     }
    },
+   "julian-strawther": {
+    "torvikName": "Julian Strawther",
+    "team": "Gonzaga",
+    "conf": "WCC",
+    "gp": 36,
+    "mpg": "31.2",
+    "cls": "Jr",
+    "role": "Wing F",
+    "torvikId": "73562",
+    "stats": {
+     "PTS": "15.3",
+     "REB": "6.2",
+     "AST": "1.3",
+     "STL": "0.8",
+     "BLK": "0.4",
+     "TS%": "60.2%",
+     "eFG%": "56.6%",
+     "2P%": "52.7%",
+     "3P%": "40.5%",
+     "FT%": "79.2%",
+     "3Pr": "0.49",
+     "FTr": "0.33",
+     "USG%": "20.6%",
+     "BPM": "4.5",
+     "OBPM": "4.1",
+     "DBPM": "0.4"
+    }
+   },
    "kris-murray": {
     "torvikName": "Kris Murray",
     "team": "Iowa",
@@ -451,6 +563,89 @@
      "DBPM": "0.6"
     }
    },
+   "trayce-jackson-davis": {
+    "torvikName": "Trayce Jackson-Davis",
+    "team": "Indiana",
+    "conf": "B10",
+    "gp": 32,
+    "mpg": "34.6",
+    "cls": "Jr",
+    "role": "C",
+    "torvikId": "70880",
+    "stats": {
+     "PTS": "20.9",
+     "REB": "10.8",
+     "AST": "4.0",
+     "STL": "0.8",
+     "BLK": "2.9",
+     "TS%": "60.9%",
+     "eFG%": "58.2%",
+     "2P%": "58.2%",
+     "FT%": "69.5%",
+     "3Pr": "0.00",
+     "FTr": "0.47",
+     "USG%": "30.1%",
+     "BPM": "13.1",
+     "OBPM": "6.0",
+     "DBPM": "7.1"
+    }
+   },
+   "terquavion-smith": {
+    "torvikName": "Terquavion Smith",
+    "team": "N.C. State",
+    "conf": "ACC",
+    "gp": 34,
+    "mpg": "33.6",
+    "cls": "So",
+    "role": "Scoring PG",
+    "torvikId": "75388",
+    "stats": {
+     "PTS": "17.9",
+     "REB": "3.6",
+     "AST": "4.1",
+     "STL": "1.4",
+     "BLK": "0.4",
+     "TS%": "49.5%",
+     "eFG%": "46.3%",
+     "2P%": "42.4%",
+     "3P%": "33.6%",
+     "FT%": "70.1%",
+     "3Pr": "0.50",
+     "FTr": "0.27",
+     "USG%": "29.3%",
+     "BPM": "3.2",
+     "OBPM": "3.7",
+     "DBPM": "-0.5"
+    }
+   },
+   "noah-clowney": {
+    "torvikName": "Noah Clowney",
+    "team": "Alabama",
+    "conf": "SEC",
+    "gp": 36,
+    "mpg": "25.4",
+    "cls": "Fr",
+    "role": "PF/C",
+    "torvikId": "77084",
+    "stats": {
+     "PTS": "9.8",
+     "REB": "7.9",
+     "AST": "0.8",
+     "STL": "0.6",
+     "BLK": "0.9",
+     "TS%": "57.6%",
+     "eFG%": "55.3%",
+     "2P%": "66.9%",
+     "3P%": "28.3%",
+     "FT%": "64.9%",
+     "3Pr": "0.47",
+     "FTr": "0.44",
+     "USG%": "17.8%",
+     "BPM": "7.7",
+     "OBPM": "3.1",
+     "DBPM": "4.6"
+    }
+   },
    "marcus-sasser": {
     "torvikName": "Marcus Sasser",
     "team": "Houston",
@@ -477,90 +672,6 @@
      "BPM": "8.3",
      "OBPM": "6.8",
      "DBPM": "1.5"
-    }
-   },
-   "nick-smith-jr": {
-    "torvikName": "Nick Smith Jr.",
-    "team": "Arkansas",
-    "conf": "SEC",
-    "gp": 17,
-    "mpg": "25.8",
-    "cls": "Fr",
-    "role": "Combo G",
-    "torvikId": "77081",
-    "stats": {
-     "PTS": "12.5",
-     "REB": "1.6",
-     "AST": "1.7",
-     "STL": "0.8",
-     "BLK": "0.1",
-     "TS%": "47.2%",
-     "eFG%": "43.6%",
-     "2P%": "39.7%",
-     "3P%": "33.8%",
-     "FT%": "74.0%",
-     "3Pr": "0.35",
-     "FTr": "0.25",
-     "USG%": "26.3%",
-     "BPM": "-1.6",
-     "OBPM": "0.1",
-     "DBPM": "-1.7"
-    }
-   },
-   "brice-sensabaugh": {
-    "torvikName": "Brice Sensabaugh",
-    "team": "Ohio St.",
-    "conf": "B10",
-    "gp": 33,
-    "mpg": "24.5",
-    "cls": "Fr",
-    "role": "Stretch 4",
-    "torvikId": "76972",
-    "stats": {
-     "PTS": "16.3",
-     "REB": "5.4",
-     "AST": "1.2",
-     "STL": "0.5",
-     "BLK": "0.4",
-     "TS%": "58.8%",
-     "eFG%": "55.5%",
-     "2P%": "52.5%",
-     "3P%": "40.5%",
-     "FT%": "83.0%",
-     "3Pr": "0.36",
-     "FTr": "0.24",
-     "USG%": "32.1%",
-     "BPM": "3.8",
-     "OBPM": "4.7",
-     "DBPM": "-0.9"
-    }
-   },
-   "julian-strawther": {
-    "torvikName": "Julian Strawther",
-    "team": "Gonzaga",
-    "conf": "WCC",
-    "gp": 36,
-    "mpg": "31.2",
-    "cls": "Jr",
-    "role": "Wing F",
-    "torvikId": "73562",
-    "stats": {
-     "PTS": "15.3",
-     "REB": "6.2",
-     "AST": "1.3",
-     "STL": "0.8",
-     "BLK": "0.4",
-     "TS%": "60.2%",
-     "eFG%": "56.6%",
-     "2P%": "52.7%",
-     "3P%": "40.5%",
-     "FT%": "79.2%",
-     "3Pr": "0.49",
-     "FTr": "0.33",
-     "USG%": "20.6%",
-     "BPM": "4.5",
-     "OBPM": "4.1",
-     "DBPM": "0.4"
     }
    },
    "colby-jones": {
@@ -619,62 +730,6 @@
      "DBPM": "4.7"
     }
    },
-   "maxwell-lewis": {
-    "torvikName": "Maxwell Lewis",
-    "team": "Pepperdine",
-    "conf": "WCC",
-    "gp": 29,
-    "mpg": "31.4",
-    "cls": "So",
-    "role": "Wing F",
-    "torvikId": "75452",
-    "stats": {
-     "PTS": "17.0",
-     "REB": "5.7",
-     "AST": "2.8",
-     "STL": "0.8",
-     "BLK": "0.8",
-     "TS%": "54.8%",
-     "eFG%": "50.3%",
-     "2P%": "51.0%",
-     "3P%": "32.5%",
-     "FT%": "78.5%",
-     "3Pr": "0.32",
-     "FTr": "0.34",
-     "USG%": "27.8%",
-     "BPM": "0.0",
-     "OBPM": "0.0",
-     "DBPM": "0.0"
-    }
-   },
-   "gregory-jackson": {
-    "torvikName": "Gregory Jackson",
-    "team": "South Carolina",
-    "conf": "SEC",
-    "gp": 32,
-    "mpg": "32.0",
-    "cls": "Fr",
-    "role": "Stretch 4",
-    "torvikId": "76398",
-    "stats": {
-     "PTS": "15.4",
-     "REB": "5.9",
-     "AST": "0.8",
-     "STL": "0.8",
-     "BLK": "0.8",
-     "TS%": "47.4%",
-     "eFG%": "44.4%",
-     "2P%": "41.9%",
-     "3P%": "32.4%",
-     "FT%": "67.7%",
-     "3Pr": "0.37",
-     "FTr": "0.27",
-     "USG%": "29.1%",
-     "BPM": "-2.9",
-     "OBPM": "-1.8",
-     "DBPM": "-1.1"
-    }
-   },
    "emoni-bates": {
     "torvikName": "Emoni Bates",
     "team": "Eastern Michigan",
@@ -729,33 +784,6 @@
      "BPM": "3.8",
      "OBPM": "1.9",
      "DBPM": "1.9"
-    }
-   },
-   "trayce-jackson-davis": {
-    "torvikName": "Trayce Jackson-Davis",
-    "team": "Indiana",
-    "conf": "B10",
-    "gp": 32,
-    "mpg": "34.6",
-    "cls": "Jr",
-    "role": "C",
-    "torvikId": "70880",
-    "stats": {
-     "PTS": "20.9",
-     "REB": "10.8",
-     "AST": "4.0",
-     "STL": "0.8",
-     "BLK": "2.9",
-     "TS%": "60.9%",
-     "eFG%": "58.2%",
-     "2P%": "58.2%",
-     "FT%": "69.5%",
-     "3Pr": "0.00",
-     "FTr": "0.47",
-     "USG%": "30.1%",
-     "BPM": "13.1",
-     "OBPM": "6.0",
-     "DBPM": "7.1"
     }
    },
    "ryan-kalkbrenner": {
@@ -839,34 +867,6 @@
      "BPM": "9.5",
      "OBPM": "4.2",
      "DBPM": "5.3"
-    }
-   },
-   "terquavion-smith": {
-    "torvikName": "Terquavion Smith",
-    "team": "N.C. State",
-    "conf": "ACC",
-    "gp": 34,
-    "mpg": "33.6",
-    "cls": "So",
-    "role": "Scoring PG",
-    "torvikId": "75388",
-    "stats": {
-     "PTS": "17.9",
-     "REB": "3.6",
-     "AST": "4.1",
-     "STL": "1.4",
-     "BLK": "0.4",
-     "TS%": "49.5%",
-     "eFG%": "46.3%",
-     "2P%": "42.4%",
-     "3P%": "33.6%",
-     "FT%": "70.1%",
-     "3Pr": "0.50",
-     "FTr": "0.27",
-     "USG%": "29.3%",
-     "BPM": "3.2",
-     "OBPM": "3.7",
-     "DBPM": "-0.5"
     }
    }
   },
@@ -6744,18 +6744,20 @@
      "label": "2026-27",
      "team": "Baskonia (Liga ACB)",
      "stats": {
-      "G": "1",
-      "MP": "2.0",
-      "PTS": "0.0",
-      "REB": "0.0",
-      "AST": "0.0",
+      "G": "2",
+      "MP": "10.0",
+      "PTS": "5.5",
+      "REB": "1.0",
+      "AST": "1.0",
       "STL": "0.0",
       "BLK": "0.0",
-      "TS%": "0.0%",
-      "eFG%": "0.0%",
-      "3P%": "0.0%",
-      "3Pr": "1.00",
-      "FTr": "0.00"
+      "TS%": "69.8%",
+      "eFG%": "64.3%",
+      "2P%": "75.0%",
+      "3P%": "33.3%",
+      "FT%": "100.0%",
+      "3Pr": "0.43",
+      "FTr": "0.29"
      }
     }
    ]
@@ -6870,20 +6872,20 @@
      "label": "2026-27",
      "team": "ASVEL (LNB Élite)",
      "stats": {
-      "G": "1",
-      "MP": "21.0",
-      "PTS": "5.0",
-      "REB": "5.0",
-      "AST": "2.0",
-      "STL": "0.0",
-      "BLK": "0.0",
-      "TS%": "52.5%",
-      "eFG%": "33.3%",
-      "2P%": "100.0%",
-      "3P%": "0.0%",
-      "FT%": "75.0%",
-      "3Pr": "0.67",
-      "FTr": "1.33"
+      "G": "2",
+      "MP": "21.5",
+      "PTS": "8.5",
+      "REB": "6.0",
+      "AST": "2.5",
+      "STL": "0.5",
+      "BLK": "0.5",
+      "TS%": "49.2%",
+      "eFG%": "37.5%",
+      "2P%": "50.0%",
+      "3P%": "16.7%",
+      "FT%": "66.7%",
+      "3Pr": "0.50",
+      "FTr": "1.00"
      }
     }
    ]
@@ -8529,6 +8531,230 @@
     }
    ]
   },
+  "rayan-rupert": {
+   "url": "https://www.basketball-reference.com/international/players/rayan-rupert-1.html",
+   "seasons": [
+    {
+     "label": "2022-23",
+     "team": "New Zealand (NBL)",
+     "stats": {
+      "G": "20",
+      "MP": "19.7",
+      "PTS": "6.6",
+      "REB": "2.5",
+      "AST": "0.9",
+      "STL": "0.8",
+      "BLK": "0.1",
+      "TS%": "45.4%",
+      "eFG%": "41.1%",
+      "2P%": "43.2%",
+      "3P%": "25.0%",
+      "FT%": "70.3%",
+      "3Pr": "0.37",
+      "FTr": "0.29"
+     }
+    }
+   ]
+  },
+  "sidy-cissoko": {
+   "url": "https://www.basketball-reference.com/gleague/players/c/cissosi01d.html",
+   "seasons": [
+    {
+     "label": "2022-23",
+     "team": "G League Ignite",
+     "stats": {
+      "G": "43",
+      "MP": "29.0",
+      "PTS": "11.6",
+      "REB": "2.8",
+      "AST": "3.2",
+      "STL": "1.0",
+      "BLK": "1.0",
+      "TS%": "57.5%",
+      "eFG%": "49.9%",
+      "2P%": "51.7%",
+      "3P%": "31.4%",
+      "FT%": "64.3%",
+      "3Pr": "0.40",
+      "FTr": "0.25",
+      "USG%": "19.2%"
+     }
+    },
+    {
+     "label": "2023-24",
+     "team": "AUS (G League)",
+     "stats": {
+      "G": "34",
+      "MP": "29.0",
+      "PTS": "14.1",
+      "REB": "5.2",
+      "AST": "3.1",
+      "STL": "1.4",
+      "BLK": "1.0",
+      "TS%": "57.3%",
+      "eFG%": "50.1%",
+      "2P%": "56.9%",
+      "3P%": "26.1%",
+      "FT%": "65.0%",
+      "3Pr": "0.38",
+      "FTr": "0.27",
+      "USG%": "24.0%"
+     }
+    },
+    {
+     "label": "2024-25",
+     "team": "TOT (G League)",
+     "stats": {
+      "G": "16",
+      "MP": "29.9",
+      "PTS": "16.6",
+      "REB": "3.5",
+      "AST": "3.1",
+      "STL": "1.3",
+      "BLK": "0.4",
+      "TS%": "63.2%",
+      "eFG%": "55.4%",
+      "2P%": "61.0%",
+      "3P%": "30.3%",
+      "FT%": "61.7%",
+      "3Pr": "0.36",
+      "FTr": "0.33",
+      "USG%": "21.4%"
+     }
+    },
+    {
+     "label": "2024-25",
+     "team": "AUS (G League)",
+     "stats": {
+      "G": "11",
+      "MP": "28.0",
+      "PTS": "16.3",
+      "REB": "4.0",
+      "AST": "2.9",
+      "STL": "1.2",
+      "BLK": "0.5",
+      "TS%": "62.0%",
+      "eFG%": "55.1%",
+      "2P%": "65.4%",
+      "3P%": "26.0%",
+      "FT%": "62.2%",
+      "3Pr": "0.39",
+      "FTr": "0.29",
+      "USG%": "25.0%"
+     }
+    },
+    {
+     "label": "2024-25",
+     "team": "RIP (G League)",
+     "stats": {
+      "G": "8",
+      "MP": "32.4",
+      "PTS": "15.8",
+      "REB": "3.4",
+      "AST": "3.6",
+      "STL": "1.4",
+      "BLK": "0.3",
+      "TS%": "62.1%",
+      "eFG%": "53.4%",
+      "2P%": "56.9%",
+      "3P%": "31.0%",
+      "FT%": "57.6%",
+      "3Pr": "0.33",
+      "FTr": "0.38",
+      "USG%": "18.3%"
+     }
+    }
+   ]
+  },
+  "leonard-miller": {
+   "url": "https://www.basketball-reference.com/gleague/players/m/millele01d.html",
+   "seasons": [
+    {
+     "label": "2022-23",
+     "team": "G League Ignite",
+     "stats": {
+      "G": "38",
+      "MP": "29.6",
+      "PTS": "16.9",
+      "REB": "10.1",
+      "AST": "1.6",
+      "STL": "1.0",
+      "BLK": "0.8",
+      "TS%": "63.3%",
+      "eFG%": "56.7%",
+      "2P%": "59.3%",
+      "3P%": "30.4%",
+      "FT%": "79.2%",
+      "3Pr": "0.19",
+      "FTr": "0.16",
+      "USG%": "22.5%"
+     }
+    },
+    {
+     "label": "2023-24",
+     "team": "IWA (G League)",
+     "stats": {
+      "G": "32",
+      "MP": "29.0",
+      "PTS": "18.8",
+      "REB": "8.2",
+      "AST": "2.8",
+      "STL": "1.0",
+      "BLK": "0.6",
+      "TS%": "60.3%",
+      "eFG%": "55.8%",
+      "2P%": "56.6%",
+      "3P%": "36.1%",
+      "FT%": "78.2%",
+      "3Pr": "0.35",
+      "FTr": "0.12",
+      "USG%": "27.5%"
+     }
+    },
+    {
+     "label": "2024-25",
+     "team": "IWA (G League)",
+     "stats": {
+      "G": "26",
+      "MP": "37.5",
+      "PTS": "24.7",
+      "REB": "11.5",
+      "AST": "3.4",
+      "STL": "1.1",
+      "BLK": "1.1",
+      "TS%": "61.5%",
+      "eFG%": "55.0%",
+      "2P%": "56.3%",
+      "3P%": "34.1%",
+      "FT%": "85.1%",
+      "3Pr": "0.26",
+      "FTr": "0.15",
+      "USG%": "28.8%"
+     }
+    },
+    {
+     "label": "2025-26",
+     "team": "WCB (G League)",
+     "stats": {
+      "G": "1",
+      "MP": "30.0",
+      "PTS": "16.0",
+      "REB": "4.0",
+      "AST": "1.0",
+      "STL": "2.0",
+      "BLK": "1.0",
+      "TS%": "81.0%",
+      "eFG%": "83.3%",
+      "2P%": "75.0%",
+      "3P%": "100.0%",
+      "FT%": "50.0%",
+      "3Pr": "0.11",
+      "FTr": "0.22",
+      "USG%": "15.6%"
+     }
+    }
+   ]
+  },
   "james-nnaji": {
    "url": "https://www.basketball-reference.com/international/players/james-nnaji-1.html",
    "seasons": [
@@ -8685,232 +8911,8 @@
      }
     }
    ]
-  },
-  "leonard-miller": {
-   "url": "https://www.basketball-reference.com/gleague/players/m/millele01d.html",
-   "seasons": [
-    {
-     "label": "2022-23",
-     "team": "G League Ignite",
-     "stats": {
-      "G": "38",
-      "MP": "29.6",
-      "PTS": "16.9",
-      "REB": "10.1",
-      "AST": "1.6",
-      "STL": "1.0",
-      "BLK": "0.8",
-      "TS%": "63.3%",
-      "eFG%": "56.7%",
-      "2P%": "59.3%",
-      "3P%": "30.4%",
-      "FT%": "79.2%",
-      "3Pr": "0.19",
-      "FTr": "0.16",
-      "USG%": "22.5%"
-     }
-    },
-    {
-     "label": "2023-24",
-     "team": "IWA (G League)",
-     "stats": {
-      "G": "32",
-      "MP": "29.0",
-      "PTS": "18.8",
-      "REB": "8.2",
-      "AST": "2.8",
-      "STL": "1.0",
-      "BLK": "0.6",
-      "TS%": "60.3%",
-      "eFG%": "55.8%",
-      "2P%": "56.6%",
-      "3P%": "36.1%",
-      "FT%": "78.2%",
-      "3Pr": "0.35",
-      "FTr": "0.12",
-      "USG%": "27.5%"
-     }
-    },
-    {
-     "label": "2024-25",
-     "team": "IWA (G League)",
-     "stats": {
-      "G": "26",
-      "MP": "37.5",
-      "PTS": "24.7",
-      "REB": "11.5",
-      "AST": "3.4",
-      "STL": "1.1",
-      "BLK": "1.1",
-      "TS%": "61.5%",
-      "eFG%": "55.0%",
-      "2P%": "56.3%",
-      "3P%": "34.1%",
-      "FT%": "85.1%",
-      "3Pr": "0.26",
-      "FTr": "0.15",
-      "USG%": "28.8%"
-     }
-    },
-    {
-     "label": "2025-26",
-     "team": "WCB (G League)",
-     "stats": {
-      "G": "1",
-      "MP": "30.0",
-      "PTS": "16.0",
-      "REB": "4.0",
-      "AST": "1.0",
-      "STL": "2.0",
-      "BLK": "1.0",
-      "TS%": "81.0%",
-      "eFG%": "83.3%",
-      "2P%": "75.0%",
-      "3P%": "100.0%",
-      "FT%": "50.0%",
-      "3Pr": "0.11",
-      "FTr": "0.22",
-      "USG%": "15.6%"
-     }
-    }
-   ]
-  },
-  "rayan-rupert": {
-   "url": "https://www.basketball-reference.com/international/players/rayan-rupert-1.html",
-   "seasons": [
-    {
-     "label": "2022-23",
-     "team": "New Zealand (NBL)",
-     "stats": {
-      "G": "20",
-      "MP": "19.7",
-      "PTS": "6.6",
-      "REB": "2.5",
-      "AST": "0.9",
-      "STL": "0.8",
-      "BLK": "0.1",
-      "TS%": "45.4%",
-      "eFG%": "41.1%",
-      "2P%": "43.2%",
-      "3P%": "25.0%",
-      "FT%": "70.3%",
-      "3Pr": "0.37",
-      "FTr": "0.29"
-     }
-    }
-   ]
-  },
-  "sidy-cissoko": {
-   "url": "https://www.basketball-reference.com/gleague/players/c/cissosi01d.html",
-   "seasons": [
-    {
-     "label": "2022-23",
-     "team": "G League Ignite",
-     "stats": {
-      "G": "43",
-      "MP": "29.0",
-      "PTS": "11.6",
-      "REB": "2.8",
-      "AST": "3.2",
-      "STL": "1.0",
-      "BLK": "1.0",
-      "TS%": "57.5%",
-      "eFG%": "49.9%",
-      "2P%": "51.7%",
-      "3P%": "31.4%",
-      "FT%": "64.3%",
-      "3Pr": "0.40",
-      "FTr": "0.25",
-      "USG%": "19.2%"
-     }
-    },
-    {
-     "label": "2023-24",
-     "team": "AUS (G League)",
-     "stats": {
-      "G": "34",
-      "MP": "29.0",
-      "PTS": "14.1",
-      "REB": "5.2",
-      "AST": "3.1",
-      "STL": "1.4",
-      "BLK": "1.0",
-      "TS%": "57.3%",
-      "eFG%": "50.1%",
-      "2P%": "56.9%",
-      "3P%": "26.1%",
-      "FT%": "65.0%",
-      "3Pr": "0.38",
-      "FTr": "0.27",
-      "USG%": "24.0%"
-     }
-    },
-    {
-     "label": "2024-25",
-     "team": "TOT (G League)",
-     "stats": {
-      "G": "16",
-      "MP": "29.9",
-      "PTS": "16.6",
-      "REB": "3.5",
-      "AST": "3.1",
-      "STL": "1.3",
-      "BLK": "0.4",
-      "TS%": "63.2%",
-      "eFG%": "55.4%",
-      "2P%": "61.0%",
-      "3P%": "30.3%",
-      "FT%": "61.7%",
-      "3Pr": "0.36",
-      "FTr": "0.33",
-      "USG%": "21.4%"
-     }
-    },
-    {
-     "label": "2024-25",
-     "team": "AUS (G League)",
-     "stats": {
-      "G": "11",
-      "MP": "28.0",
-      "PTS": "16.3",
-      "REB": "4.0",
-      "AST": "2.9",
-      "STL": "1.2",
-      "BLK": "0.5",
-      "TS%": "62.0%",
-      "eFG%": "55.1%",
-      "2P%": "65.4%",
-      "3P%": "26.0%",
-      "FT%": "62.2%",
-      "3Pr": "0.39",
-      "FTr": "0.29",
-      "USG%": "25.0%"
-     }
-    },
-    {
-     "label": "2024-25",
-     "team": "RIP (G League)",
-     "stats": {
-      "G": "8",
-      "MP": "32.4",
-      "PTS": "15.8",
-      "REB": "3.4",
-      "AST": "3.6",
-      "STL": "1.4",
-      "BLK": "0.3",
-      "TS%": "62.1%",
-      "eFG%": "53.4%",
-      "2P%": "56.9%",
-      "3P%": "31.0%",
-      "FT%": "57.6%",
-      "3Pr": "0.33",
-      "FTr": "0.38",
-      "USG%": "18.3%"
-     }
-    }
-   ]
   }
  },
- "torvikUpdated": "2026-10-04T14:53:00.995Z",
+ "torvikUpdated": "2026-10-05T14:52:01.317Z",
  "torvikVia": "sheet relay"
 }
