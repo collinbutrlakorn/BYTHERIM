@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-06T06:47:35.560Z",
+ "updated": "2026-10-06T17:16:11.570Z",
  "source": "barttorvik.com, basketball-reference.com",
  "seasons": {
   "2022-23": {
@@ -2835,6 +2835,34 @@
      "DBPM": "6.2"
     }
    },
+   "ivan-kharchenkov": {
+    "torvikName": "Ivan Kharchenkov",
+    "team": "Arizona",
+    "conf": "B12",
+    "gp": 39,
+    "mpg": "28.3",
+    "cls": "Fr",
+    "role": "Wing G",
+    "torvikId": "133778",
+    "stats": {
+     "PTS": "10.4",
+     "REB": "4.3",
+     "AST": "2.3",
+     "STL": "1.4",
+     "BLK": "0.3",
+     "TS%": "57.5%",
+     "eFG%": "54.6%",
+     "2P%": "58.2%",
+     "3P%": "31.7%",
+     "FT%": "72.3%",
+     "3Pr": "0.34",
+     "FTr": "0.33",
+     "USG%": "17.4%",
+     "BPM": "8.9",
+     "OBPM": "4.2",
+     "DBPM": "4.7"
+    }
+   },
    "braylon-mullins": {
     "torvikName": "Braylon Mullins",
     "team": "Connecticut",
@@ -2863,32 +2891,31 @@
      "DBPM": "2.8"
     }
    },
-   "ivan-kharchenkov": {
-    "torvikName": "Ivan Kharchenkov",
-    "team": "Arizona",
-    "conf": "B12",
-    "gp": 39,
-    "mpg": "28.3",
+   "najai-hines": {
+    "torvikName": "Najai Hines",
+    "team": "Seton Hall",
+    "conf": "BE",
+    "gp": 31,
+    "mpg": "18.0",
     "cls": "Fr",
-    "role": "Wing G",
-    "torvikId": "133778",
+    "role": "C",
+    "torvikId": "134877",
     "stats": {
-     "PTS": "10.4",
-     "REB": "4.3",
-     "AST": "2.3",
-     "STL": "1.4",
-     "BLK": "0.3",
-     "TS%": "57.5%",
-     "eFG%": "54.6%",
-     "2P%": "58.2%",
-     "3P%": "31.7%",
-     "FT%": "72.3%",
-     "3Pr": "0.34",
-     "FTr": "0.33",
-     "USG%": "17.4%",
-     "BPM": "8.9",
-     "OBPM": "4.2",
-     "DBPM": "4.7"
+     "PTS": "6.5",
+     "REB": "5.5",
+     "AST": "0.6",
+     "STL": "0.4",
+     "BLK": "2.2",
+     "TS%": "62.3%",
+     "eFG%": "60.2%",
+     "2P%": "60.2%",
+     "FT%": "69.0%",
+     "3Pr": "0.00",
+     "FTr": "0.44",
+     "USG%": "17.8%",
+     "BPM": "10.6",
+     "OBPM": "1.0",
+     "DBPM": "9.6"
     }
    },
    "davis-fogle": {
@@ -2919,31 +2946,32 @@
      "DBPM": "3.6"
     }
    },
-   "najai-hines": {
-    "torvikName": "Najai Hines",
-    "team": "Seton Hall",
-    "conf": "BE",
-    "gp": 31,
-    "mpg": "18.0",
+   "david-mirkovic": {
+    "torvikName": "David Mirkovic",
+    "team": "Illinois",
+    "conf": "B10",
+    "gp": 37,
+    "mpg": "29.5",
     "cls": "Fr",
-    "role": "C",
-    "torvikId": "134877",
+    "role": "Stretch 4",
+    "torvikId": "135431",
     "stats": {
-     "PTS": "6.5",
-     "REB": "5.5",
-     "AST": "0.6",
+     "PTS": "13.3",
+     "REB": "8.0",
+     "AST": "2.6",
      "STL": "0.4",
-     "BLK": "2.2",
-     "TS%": "62.3%",
-     "eFG%": "60.2%",
-     "2P%": "60.2%",
-     "FT%": "69.0%",
-     "3Pr": "0.00",
-     "FTr": "0.44",
-     "USG%": "17.8%",
-     "BPM": "10.6",
-     "OBPM": "1.0",
-     "DBPM": "9.6"
+     "BLK": "0.4",
+     "TS%": "59.1%",
+     "eFG%": "56.2%",
+     "2P%": "56.1%",
+     "3P%": "37.5%",
+     "FT%": "75.7%",
+     "3Pr": "0.42",
+     "FTr": "0.30",
+     "USG%": "23.3%",
+     "BPM": "8.9",
+     "OBPM": "5.9",
+     "DBPM": "3.0"
     }
    },
    "flory-bidunga": {
@@ -3280,34 +3308,6 @@
      "BPM": "-2.5",
      "OBPM": "-1.7",
      "DBPM": "-0.8"
-    }
-   },
-   "david-mirkovic": {
-    "torvikName": "David Mirkovic",
-    "team": "Illinois",
-    "conf": "B10",
-    "gp": 37,
-    "mpg": "29.5",
-    "cls": "Fr",
-    "role": "Stretch 4",
-    "torvikId": "135431",
-    "stats": {
-     "PTS": "13.3",
-     "REB": "8.0",
-     "AST": "2.6",
-     "STL": "0.4",
-     "BLK": "0.4",
-     "TS%": "59.1%",
-     "eFG%": "56.2%",
-     "2P%": "56.1%",
-     "3P%": "37.5%",
-     "FT%": "75.7%",
-     "3Pr": "0.42",
-     "FTr": "0.30",
-     "USG%": "23.3%",
-     "BPM": "8.9",
-     "OBPM": "5.9",
-     "DBPM": "3.0"
     }
    },
    "zvonimir-ivisic": {
@@ -8913,6 +8913,6 @@
    ]
   }
  },
- "torvikUpdated": "2026-10-05T14:52:01.317Z",
+ "torvikUpdated": "2026-10-06T14:50:22.831Z",
  "torvikVia": "sheet relay"
 }
