@@ -401,6 +401,7 @@ window.SimEngine = {
     // Skipping ahead saves once, at the end, not after every week.
     if (this._skipping) { this._skipDirty = true; return; }
     this.scheduleCloudSync();
+    this.maybeOfferAccount();
     if (typeof db === 'undefined' || !db.leagueState) return;
     // During the offseason the Draft RP may have written to this save.
     if (this.state.ncaaDone) { await this.syncDraftFromDB(); await this.syncSummerFromDB(); }
@@ -9663,6 +9664,17 @@ window.SimEngine = {
     this.showSimSpinner('Loading your save…');
     try { await Cloud.downloadSave(db); location.reload(); }
     catch (e) { await this.hideSimSpinner(); alert(`Couldn't load it: ${e.message || e}`); }
+  },
+
+  // One gentle nudge, once per browser, at the first natural pause (the
+  // regular season ending): saves otherwise live in this browser only.
+  maybeOfferAccount() {
+    if (typeof Cloud === 'undefined' || !Cloud.enabled || Cloud.user || this._skipping) return;
+    if (!this.state.regularSeasonDone || !this.state.teams.length) return;
+    try { if (localStorage.getItem('btr-acct-nudge')) return; localStorage.setItem('btr-acct-nudge', '1'); } catch (e) { return; }
+    this.track('rp_account_nudge');
+    this.spotlight({ kicker: 'Keep your save', title: 'Don\'t lose this dynasty', sub: 'Your save lives in this browser only. Sign in with Google and it backs up to your account, so you can pick it up on your phone, your laptop, or after clearing your browser.',
+      actions: [{ label: 'Sign in with Google', primary: true, fn: () => Cloud.signIn() }, { label: 'Not now' }] });
   },
 
   // After signing in: if the account holds a newer save than this browser
