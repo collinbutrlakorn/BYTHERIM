@@ -256,7 +256,8 @@
   // Newest season first. On the current board the sheet's own numbers
   // stand in for this season (that's how pro stats get in) and Barttorvik
   // covers college, this season and last. A past board shows the season
-  // that led into that draft.
+  // that led into that draft; an early look at a later one shows this
+  // season and last, like the featured board.
   function attachSeasons(p, college, boardYear = BOARD.draftYear) {
     const seasons = [];
     const auto = label => {
@@ -267,7 +268,9 @@
       if (line.mpg != null) extra.MP = String(line.mpg);
       return { ...line, stats: { ...extra, ...line.stats } };
     };
-    const current = boardYear === BOARD.draftYear;
+    // An early look at a later draft shows the same seasons as the featured
+    // board: those players haven't played the season before their draft yet.
+    const current = boardYear >= BOARD.draftYear;
     const label = current ? CURRENT_SEASON : seasonLabel(boardYear);
     if (Object.keys(p.sheetStats).length) {
       seasons.push({ label, team: p.isPro ? 'Pro' : p.school, stats: p.sheetStats, source: 'sheet' });

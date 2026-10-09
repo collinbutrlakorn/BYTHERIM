@@ -121,6 +121,7 @@
         <span class="eyebrow" id="boardEyebrow">2027 NBA Draft</span>
         <h1>Big Board</h1>
         <p id="boardIntro">BYTHERIM's rankings of the 2027 class, grouped by tier. Select a prospect to see his profile.</p>
+        <p class="future-note" id="futureNote" hidden></p>
         <nav class="board-years" id="yearChips" aria-label="Choose a draft year" hidden></nav>
       </div>
       <div class="board-summary" id="boardSummary" aria-live="polite"></div>
@@ -178,7 +179,10 @@
     all: [], q: '', pos: 'ALL', cls: 'ALL', radarOpen: false, openId: null, season: {}, hasPrev: false,
     year: BOARD.draftYear, boards: [{ year: BOARD.draftYear, current: true }]
   };
-  const isPast = () => state.year !== BOARD.draftYear;
+  // A board for a later draft than the featured one is an early look, not
+  // a finished ranking; one for an earlier draft is a final board.
+  const isFuture = () => state.year > BOARD.draftYear;
+  const isPast = () => state.year < BOARD.draftYear;
 
   const tierColor = t => TIER_COLORS[t] || 'var(--faint)';
   const tierLabel = t => (t == null ? 'Unassigned' : `Tier ${t}`);
@@ -477,7 +481,7 @@
 
   // ------------------------------------------------------------ interaction
   // Past boards live at draft.html?year=2025 (plus #prospect for a profile).
-  const pageUrl = hash => location.pathname + (isPast() ? `?year=${state.year}` : '') + (hash ? `#${hash}` : '');
+  const pageUrl = hash => location.pathname + (state.year !== BOARD.draftYear ? `?year=${state.year}` : '') + (hash ? `#${hash}` : '');
 
   function toggleProspect(id, scroll) {
     if (BTR.track) BTR.track('board_prospect');
@@ -553,22 +557,32 @@
   function renderYears() {
     const nav = document.getElementById('yearChips');
     nav.hidden = state.boards.length < 2;
-    nav.innerHTML = state.boards.map(b =>
-      `<a href="${b.current ? location.pathname : `?year=${b.year}`}" class="chip${b.year === state.year ? ' active' : ''}" data-year="${b.year}"${b.year === state.year ? ' aria-current="page"' : ''}>${b.year}</a>`).join('');
+    // The featured board leads, then any early looks, then past boards.
+    const order = b => (b.year === BOARD.draftYear ? Infinity : b.year);
+    nav.innerHTML = state.boards.slice().sort((a, b) => order(b) - order(a)).map(b =>
+      `<a href="${b.current ? location.pathname : `?year=${b.year}`}" class="chip${b.year === state.year ? ' active' : ''}${b.year > BOARD.draftYear ? ' chip-future' : ''}" data-year="${b.year}"${b.year === state.year ? ' aria-current="page"' : ''}>${b.year}${b.year > BOARD.draftYear ? ' <small>early look</small>' : ''}</a>`).join('');
   }
 
   function renderHead() {
     const y = state.year;
-    document.getElementById('boardEyebrow').textContent = isPast() ? `${y} NBA Draft · Final board` : `${y} NBA Draft`;
+    document.getElementById('boardEyebrow').textContent = isPast() ? `${y} NBA Draft · Final board` : isFuture() ? `${y} NBA Draft · Early look` : `${y} NBA Draft`;
     document.getElementById('boardIntro').textContent = isPast()
       ? `BYTHERIM's final board for the ${y} class, with where each prospect was actually drafted. Select a prospect to see his profile.`
-      : `BYTHERIM's rankings of the ${y} class, grouped by tier. Select a prospect to see his profile.`;
+      : isFuture()
+        ? `A first, very early look at the ${y} class. Select a prospect to see his profile.`
+        : `BYTHERIM's rankings of the ${y} class, grouped by tier. Select a prospect to see his profile.`;
+    const note = document.getElementById('futureNote');
+    note.hidden = !isFuture();
+    note.innerHTML = isFuture()
+      ? `<b>Not an official board.</b> Most of these players are still a year or more from the draft, so the order and tiers are rough and will move a lot. The <a href="${location.pathname}">${BOARD.draftYear} board</a> is BYTHERIM's current ranking.`
+      : '';
     document.getElementById('colSize').textContent = isPast() ? 'Drafted' : 'HT / WT';
     document.getElementById('radarIntro').textContent = isPast()
       ? `Prospects BYTHERIM tracked for ${y} but left off the ranked board, grouped by tier.`
       : 'Prospects outside the top 60 that BYTHERIM is still tracking, grouped by tier.';
-    document.title = `${y} NBA Draft Big Board | BYTHERIM`;
+    document.title = isFuture() ? `${y} NBA Draft Early Look | BYTHERIM` : `${y} NBA Draft Big Board | BYTHERIM`;
     document.querySelector('main').classList.toggle('past-board', isPast());
+    document.querySelector('main').classList.toggle('future-board', isFuture());
   }
 
   let loadToken = 0;
@@ -595,7 +609,7 @@
     }).catch(err => {
       if (token !== loadToken) return;
       console.error(err);
-      document.getElementById('board').innerHTML = isPast()
+      document.getElementById('board').innerHTML = year !== BOARD.draftYear
         ? `<div class="empty-state">The ${year} board couldn't be loaded right now. <a href="${location.pathname}">Back to the ${BOARD.draftYear} board</a>.</div>`
         : `<div class="empty-state">The big board couldn't be loaded right now. Check that the board's Google Sheet is still published to the web, then refresh.</div>`;
     });

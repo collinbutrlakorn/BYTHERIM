@@ -341,7 +341,7 @@
       ${['youtube', 'spotify', 'apple', 'x', 'instagram', 'tiktok', 'substack'].map(k => `<a href="${CONFIG.social[k].url}" target="_blank" rel="noopener">${CONFIG.social[k].label}</a>`).join('')}
     </div>
   </div>
-  <div class="footer-bottom">&copy; ${new Date().getFullYear()} BYTHERIM · Created by <a href="${BASE}about.html">Collin Butrlakorn</a> · <a href="${BASE}privacy.html">Privacy</a> · <a href="${BASE}terms.html">Terms</a>${/\/(rp|recruiting)\//.test(location.pathname) ? `<span class="footer-fiction">${RP_FICTION}</span>` : ''}
+  <div class="footer-bottom">&copy; ${new Date().getFullYear()} BYTHERIM · Created by <a href="${BASE}about.html">Collin Butrlakorn</a> · <a href="${BASE}privacy.html">Privacy</a> · <a href="${BASE}terms.html">Terms</a>${/\/rp\//.test(location.pathname) ? ' · <button type="button" class="footer-rate" data-action="rate">Rate the sim</button>' : ''}${/\/(rp|recruiting)\//.test(location.pathname) ? `<span class="footer-fiction">${RP_FICTION}</span>` : ''}
     <span class="footer-legal">${LEGAL_NOTE}</span></div>
 </footer>`;
   }
@@ -356,11 +356,25 @@
     btn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
   }
 
+  // "Rate the sim" (footer of the RP pages): the dialog loads on first use.
+  let rateScript = null;
+  function openRating() {
+    if (window.BTRRate) return window.BTRRate.open();
+    rateScript = rateScript || new Promise((ok, fail) => {
+      const sc = document.createElement('script');
+      sc.src = (BASE === '/' ? '/' : BASE) + 'assets/rate.js';
+      sc.onload = ok; sc.onerror = () => { rateScript = null; fail(); };
+      document.head.appendChild(sc);
+    });
+    rateScript.then(() => window.BTRRate && window.BTRRate.open()).catch(() => {});
+  }
+
   function wireChrome() {
     document.addEventListener('click', e => {
       const btn = e.target.closest('[data-action]');
       if (!btn) return;
       if (btn.dataset.action === 'theme') toggleTheme();
+      if (btn.dataset.action === 'rate') { e.preventDefault(); openRating(); }
       if (btn.dataset.action === 'menu') setMenu(!document.getElementById('siteNav').classList.contains('open'));
     });
     document.addEventListener('keydown', e => {

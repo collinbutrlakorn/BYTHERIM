@@ -796,6 +796,13 @@ h1, h2, h3, h4, .display {
 /* Year switcher for past boards. */
 .board-years { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 1rem; }
 .board-years .chip { height: 32px; padding: 0 0.85rem; font-family: 'Oswald', sans-serif; font-size: 0.9rem; letter-spacing: 0.5px; display: inline-flex; align-items: center; }
+/* An early look at a later draft: plainly provisional next to the featured board. */
+.board-years .chip-future { border-style: dashed; opacity: 0.85; gap: 0.35rem; }
+.board-years .chip-future small { font-family: system-ui, sans-serif; font-size: 0.68rem; letter-spacing: 0; text-transform: uppercase; opacity: 0.75; }
+.future-note { margin: 0.8rem 0 0; padding: 0.65rem 0.85rem; border: 1px dashed var(--border); border-radius: 10px; font-size: 0.9rem; color: var(--muted); max-width: 62ch; }
+.future-note b { color: var(--text); }
+.future-board #board { opacity: 0.92; }
+.future-board .eyebrow { color: var(--muted); }
 
 /* Tier guide. */
 .tier-info-btn { gap: 0.35rem; height: 30px; }
@@ -996,6 +1003,7 @@ a.card:hover { border-color: var(--border-strong); transform: translateY(-2px); 
 
 /* Footer credit link */
 .footer-bottom a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.footer-rate { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 
 /* Draft profile: NBA comparisons as chips on their own row */
 .pr-facts .fact-wide { grid-column: 1 / -1; }

@@ -36,6 +36,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // "Rate the sim" ratings (assets/rate.js): anyone adds one short
+    // rating, nothing identifies the rater, and only admins read them.
+    match /feedback/{id} {
+      allow read: if isAdmin();
+      allow create: if request.resource.data.keys().hasOnly(['stars', 'note', 'page', 'day', 'at'])
+        && request.resource.data.stars is int && request.resource.data.stars >= 1 && request.resource.data.stars <= 5
+        && request.resource.data.note is string && request.resource.data.note.size() <= 500
+        && request.resource.data.page is string && request.resource.data.page.size() <= 40
+        && request.resource.data.day is string && request.resource.data.day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.at is number;
+    }
+
     // The admin list: only admins can see or change it (anyone else's
     // check simply fails, which the site reads as "not an admin"). The
     // first admin is added by hand in the Firebase console.

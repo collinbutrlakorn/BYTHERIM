@@ -20,13 +20,30 @@
     data: null,
     async load(el) {
       el.innerHTML = '<p class="adm-empty">Loading usage…</p>';
-      try { this.data = await root.Cloud.usage(this.days); }
+      try { this.ratings = await root.Cloud.ratings().catch(() => null); this.data = await root.Cloud.usage(this.days); }
       catch (e) { el.innerHTML = `<p class="adm-empty">Couldn't read usage: ${esc(/permission|insufficient/i.test(String(e && (e.code || e.message))) ? 'the database rules need updating (paste firestore.rules into the Firebase console).' : (e.message || e))}</p>`; return; }
       this.render(el);
     },
     setDays(d, btn) { this.days = d; this.load(btn.closest('#usageBody')); },
     sum(list, key) { return list.reduce((t, d) => t + n(d[key]), 0); },
     merge(list, key) { const m = {}; list.forEach(d => Object.entries(d[key] || {}).forEach(([k, v]) => { m[k] = (m[k] || 0) + n(v); })); return Object.entries(m).sort((a, b) => b[1] - a[1]); },
+    // Ratings people left with the "Rate the sim" link (rate.js).
+    ratingsCard() {
+      const r = this.ratings;
+      if (r === undefined) return '';
+      if (r === null) return '<div class="card"><div class="section-head"><h3 class="section-title">Ratings</h3></div><p class="adm-note">Couldn\'t read ratings. The database rules may need updating (paste firestore.rules into the Firebase console).</p></div>';
+      const count = r.length;
+      const avg = count ? r.reduce((t, x) => t + n(x.stars), 0) / count : 0;
+      const dist = [5, 4, 3, 2, 1].map(s => ({ s, c: r.filter(x => n(x.stars) === s).length }));
+      const top = Math.max(1, ...dist.map(x => x.c));
+      const notes = r.filter(x => x.note).slice(0, 25);
+      const when = t => (t ? new Date(n(t)).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '');
+      return `<div class="card rating-card"><div class="section-head"><h3 class="section-title">Ratings</h3>
+          <span class="adm-note">${count ? `${avg.toFixed(1)} average from ${fmt(count)} ${count === 1 ? 'rating' : 'ratings'}` : 'No ratings yet'}</span></div>
+        ${count ? `<div class="rating-dist">${dist.map(x => `<div class="rating-row"><span>${x.s} ★</span><div class="rating-bar"><i style="width:${Math.round(100 * x.c / top)}%"></i></div><b>${fmt(x.c)}</b></div>`).join('')}</div>` : ''}
+        ${notes.length ? `<ul class="rating-notes">${notes.map(x => `<li><b>${'★'.repeat(n(x.stars))}${'☆'.repeat(5 - n(x.stars))}</b> <span class="adm-note">${esc(x.page ? nice(x.page, PAGE_NAMES) : '')} · ${when(x.at)}</span><p>${esc(x.note)}</p></li>`).join('')}</ul>` : (count ? '<p class="adm-note">No written notes yet.</p>' : '')}
+      </div>`;
+    },
     render(el) {
       const all = this.data || [];
       const week = all.slice(0, 7), today = all[0] || {};
@@ -34,13 +51,24 @@
       const card = (label, value, sub) => `<div class="adm-card"><span class="adm-card-label">${label}</span><b>${value}</b>${sub ? `<small>${sub}</small>` : ''}</div>`;
       const bars = all.slice().reverse();
       const max = Math.max(1, ...bars.map(d => Math.max(n(d.visitors), views(d))));
-      const W = 640, H = 150, bw = W / Math.max(1, bars.length);
-      const chart = `<svg class="usage-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="Visitors and page views per day">
-        ${bars.map((d, i) => { const v = views(d), u = n(d.visitors); const hv = (v / max) * H, hu = (u / max) * H;
-          return `<g><title>${d.day}: ${fmt(u)} visitors, ${fmt(v)} page views</title>
-            <rect x="${(i * bw + bw * 0.12).toFixed(1)}" y="${(H - hv).toFixed(1)}" width="${(bw * 0.76).toFixed(1)}" height="${hv.toFixed(1)}" class="usage-views"></rect>
-            <rect x="${(i * bw + bw * 0.28).toFixed(1)}" y="${(H - hu).toFixed(1)}" width="${(bw * 0.44).toFixed(1)}" height="${hu.toFixed(1)}" class="usage-visitors"></rect></g>`; }).join('')}</svg>
-        <div class="usage-axis"><span>${bars[0] ? bars[0].day.slice(5) : ''}</span><span>peak ${fmt(max)}</span><span>${bars.length ? bars[bars.length - 1].day.slice(5) : ''}</span></div>`;
+      const PLOT = 120;   // px height of the tallest bar
+      const dense = bars.length > 14;
+      // Each day is a column with its numbers printed on it: visitors above
+      // the bars, page views under the date. HTML rather than SVG so the
+      // text stays readable at any width.
+      const chart = `<div class="usage-scroll"><div class="usage-bars${dense ? ' dense' : ''}" role="img" aria-label="Visitors and page views per day">
+        ${bars.map(d => { const v = views(d), u = n(d.visitors);
+          return `<div class="usage-col" title="${esc(d.day)}: ${fmt(u)} visitors, ${fmt(v)} page views">
+            <span class="usage-val">${fmt(u)}</span>
+            <div class="usage-pair" style="height:${PLOT}px">
+              <i class="usage-views" style="height:${Math.round((v / max) * PLOT)}px"></i>
+              <i class="usage-visitors" style="height:${Math.round((u / max) * PLOT)}px"></i>
+            </div>
+            <span class="usage-day">${esc(d.day.slice(5))}</span>
+            <span class="usage-pv">${fmt(v)}</span>
+          </div>`; }).join('')}
+      </div></div>
+        <div class="usage-axis"><span>Visitors (top) · page views (bottom)</span><span>peak ${fmt(max)}</span></div>`;
       const table = (title, rows, names, empty, label) => `<div class="card"><div class="section-head"><h3 class="section-title">${title}</h3></div>
         ${rows.length ? `<table class="data-table compact usage-table"><tbody>${rows.slice(0, 15).map(([k, v]) => `<tr><td>${esc(label ? label(k) : nice(k, names))}</td><td class="usage-num">${fmt(v)}</td></tr>`).join('')}</tbody></table>` : `<p class="adm-note">${empty}</p>`}</div>`;
       const refName = k => (k === 'direct' ? 'Direct / bookmarks' : k.replace(/_/g, '.'));
@@ -64,7 +92,11 @@
           ${table('What people did', this.merge(all, 'events'), EVENT_NAMES, 'No actions counted yet.')}
           ${table('Where visitors came from', refs, {}, 'No visitors yet.', refName)}
         </div>
+        ${this.ratingsCard()}
         <p class="adm-note">Counts are daily totals with nothing that identifies a person. A visitor is one browser on one day. Admins aren't counted.</p>`;
+      // On a narrow screen the chart scrolls; start at the newest days.
+      const sc = el.querySelector('.usage-scroll');
+      if (sc) sc.scrollLeft = sc.scrollWidth;
     },
     async start() {
       const el = document.getElementById('usageBody');

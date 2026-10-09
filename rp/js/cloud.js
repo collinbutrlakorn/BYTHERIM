@@ -375,6 +375,23 @@
       return out;
     },
 
+    // ---------- ratings ----------
+    // "Rate the sim" (assets/rate.js): one document per rating, anyone can
+    // add one, only admins read them. Nothing identifies the rater.
+    async sendRating(r) {
+      if (!this.enabled || !this.db) throw new Error('Ratings are offline.');
+      const stars = Math.round(Number(r.stars));
+      if (!(stars >= 1 && stars <= 5)) throw new Error('Pick 1 to 5 stars.');
+      await this.db.collection('feedback').add({
+        stars, note: String(r.note || '').trim().slice(0, 500), page: this.pageKey(), day: this.usageDay(), at: Date.now()
+      });
+    },
+    // The admin page: the newest ratings.
+    async ratings(limit = 300) {
+      const snap = await this.db.collection('feedback').orderBy('at', 'desc').limit(limit).get();
+      return snap.docs.map(d => d.data());
+    },
+
     // ---------- the header button ----------
     injectStyles() {
       if (document.getElementById('cloudStyles')) return;
