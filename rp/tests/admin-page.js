@@ -11,7 +11,7 @@ const { ok, RP, JS } = require('./harness');
   const ctx = dom.getInternalVMContext();
   const vm = require('vm');
   w.__ADMIN_NO_AUTOSTART = true;
-  ['teams-master.js', 'roster-gen.js', 'prestige.js', 'admin.js'].forEach(f => vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), ctx, { filename: f }));
+  ['teams-master.js', 'roster-gen.js', 'prestige.js', 'twok-core.js', 'admin.js'].forEach(f => vm.runInContext(fs.readFileSync(path.join(JS, f), 'utf8'), ctx, { filename: f }));
 
   const teams = [
     { school: 'Duke', conference: 'ACC', prestige: 100, prestigeHistory: 100, coach: { name: 'Coach A', rep: 90, since: 2026, seasons: 2, careerW: 60, careerL: 10 }, coachTags: ['Up-tempo'], simData: { teamOvr: 84.2 } },
@@ -23,7 +23,11 @@ const { ok, RP, JS } = require('./harness');
     { id: 3, name: 'Gen Three', school: 'Siena', pos: 'SF', class: 'JR', rating: 68, isGenerated: true },
     { id: 4, name: 'Recruit Four', school: 'Siena', pos: 'SG', class: 'FR', rating: 72, enrolled: true }
   ];
-  const league = { currentYear: 2029, currentPhase: 'Preseason', coachChanges: [{ year: 2028, text: 'Siena names Coach B head coach' }] };
+  const file = (id, name, pos) => ({ id, name, pos, school: 'Duke', class: 'FR', rating: 90, ht: "6'8", wt: 215,
+    stats: { gp: 30, mpg: 30, ppg: '18.0', rpg: '6.0', apg: '2.5', stl: '1.2', blk: '0.8', threePa: '4.0', threePPct: '.370', fta: '4.5', ftPct: '.780', tsPct: '.590', usg: '25.0%' } });
+  const league = { currentYear: 2029, currentPhase: 'Preseason', coachChanges: [{ year: 2028, text: 'Siena names Coach B head coach' }],
+    draftHistory: [{ year: 2029, picks: [{ id: 'x1', pick: 1, round: 1, name: 'Top Pick', team: { name: 'Detroit Pistons' } }, { id: 'x2', pick: 2, round: 1, name: 'Old Pick', school: 'Siena', pos: 'C', ppg: '12.0', rpg: '9.0', apg: '1.0', team: { name: 'Utah Jazz' } }],
+      board: [], profiles: { x1: file('x1', 'Top Pick', 'SF') } }] };
   w.db = { leagueState: { get: async () => league }, teams: { toArray: async () => teams }, players: { toArray: async () => players } };
   vm.runInContext('db = window.db', ctx);
 
@@ -42,6 +46,11 @@ const { ok, RP, JS } = require('./harness');
   ok(!/Real One/.test(body()) && /Gen Three/.test(body()), 'players filter by source');
   A.setTab('coaches');
   ok(/Coach B/.test(body()) && /names Coach B/.test(body()), 'coaches tab lists coaches and changes');
+  A.setTab('twok');
+  ok(/2029 NBA Draft/.test(body()) && /Top Pick/.test(body()) && /Detroit Pistons/.test(body()), '2K tab lists the class in draft order');
+  ok(/limited/.test(body()), '2K tab flags a pick drafted before draft-night files were kept');
+  A.toggleTwoK('x1');
+  ok(/Three-Point Shot/.test(body()) && /Tendencies/.test(body()) && /Taken 1st overall by Detroit Pistons/.test(body()), 'a prospect opens his full 2K build');
 
   // ---- Recruiting admin: resetting generated classes ----
   {

@@ -16,6 +16,7 @@
     sort: { teams: ['prestige', -1], players: ['rating', -1], coaches: ['prestige', -1] },
     filters: { players: { q: '', source: '', conf: '', cls: '' }, teams: { q: '', conf: '' }, coaches: { q: '', source: '' } },
     openTeam: null,
+    twok: { year: null, open: null, printAll: false, cache: {} },
 
     // Where a player came from.
     sourceOf(p) {
@@ -88,7 +89,7 @@
     render() {
       const el = document.getElementById('admBody');
       if (!this.data) return;
-      const html = { overview: () => this.renderOverview(), teams: () => this.renderTeams(), players: () => this.renderPlayers(), coaches: () => this.renderCoaches() }[this.tab];
+      const html = { overview: () => this.renderOverview(), teams: () => this.renderTeams(), players: () => this.renderPlayers(), coaches: () => this.renderCoaches(), twok: () => this.renderTwoK() }[this.tab];
       el.innerHTML = html ? html() : '';
     },
 
@@ -305,6 +306,111 @@
         <div class="card">${this.table('coaches', cols, rows)}</div>
         <div class="card"><div class="section-head"><h3 class="section-title">Coaching changes</h3></div>
         ${changes.length ? `<ul class="adm-changes">${changes.map(c => `<li><span class="sub-text">${c.year}</span> ${esc(c.text)}</li>`).join('')}</ul>` : '<p class="adm-note">None yet. The carousel runs with the transfer portal each offseason.</p>'}</div>`;
+    },
+
+    // ---------- 2K draft class ----------
+    //
+    // Every class drafted in this save as NBA 2K MyNBA builds (twok-core.js):
+    // rookie overall by draft slot, attributes, tendencies, body and lore,
+    // to type into 2K's Create a Draft Class.
+
+    twokDrafts() {
+      const L = this.data.league || {};
+      return (L.draftHistory || []).filter(d => (d.picks || []).length).slice().sort((a, b) => b.year - a.year);
+    },
+    twokClass(draft) {
+      const key = `${draft.year}|${(draft.picks || []).length}|${Object.keys(draft.profiles || {}).length}`;
+      if (this.twok.cache[key]) return this.twok.cache[key];
+      const L = this.data.league || {};
+      const live = {}, archive = {};
+      this.data.players.concat(L.proPlayers || []).forEach(p => { live[p.id] = p; });
+      (L.departedArchive || []).forEach(p => { archive[p.id] = p; });
+      const files = draft.profiles || {};
+      const fileFor = rec => {
+        if (files[rec.id]) return { file: files[rec.id], limited: false };
+        if (live[rec.id]) return { file: root.TwoK.fromPlayer(live[rec.id]), limited: !live[rec.id].predraft };
+        if (archive[rec.id]) return { file: root.TwoK.fromPlayer(archive[rec.id]), limited: true };
+        return { file: { id: rec.id, name: rec.name, school: rec.school, pos: rec.pos, ht: rec.ht, class: rec.class, stats: { gp: 1, mpg: 30, ppg: rec.ppg, rpg: rec.rpg, apg: rec.apg } }, limited: true };
+      };
+      const entries = (draft.picks || []).slice().sort((a, b) => a.pick - b.pick).map(pk => {
+        const { file, limited } = fileFor(pk);
+        return { file, limited, pick: pk.pick, round: pk.round, team: pk.team ? pk.team.name : '' };
+      });
+      (draft.board || []).filter(b => b.pick == null && (files[b.id] || live[b.id])).slice(0, 20)
+        .forEach(b => { const { file, limited } = fileFor(b); entries.push({ file, limited, pick: null }); });
+      const built = root.TwoK.buildClass(entries, draft.year);
+      built.forEach((p, i) => { p.limited = entries[i].limited; });
+      this.twok.cache[key] = built;
+      return built;
+    },
+    setTwoKYear(y) { this.twok.year = +y; this.twok.open = null; this.render(); },
+    toggleTwoK(id) { this.twok.open = this.twok.open === id ? null : id; this.render(); },
+    printTwoK() {
+      this.twok.printAll = true;
+      this.render();
+      document.body.classList.add('tk-printing');
+      setTimeout(() => { root.print(); document.body.classList.remove('tk-printing'); this.twok.printAll = false; this.render(); }, 50);
+    },
+    downloadTwoK() {
+      const d = this.twokDrafts().find(x => x.year === this.twok.year) || this.twokDrafts()[0];
+      if (!d) return;
+      const { header, rows } = root.TwoK.csvRows(this.twokClass(d));
+      this.download(`2k-draft-class-${d.year}.csv`, header, rows);
+    },
+    renderTwoK() {
+      if (!root.TwoK) return '<p class="adm-note">The 2K tool didn\'t load. Refresh the page.</p>';
+      const drafts = this.twokDrafts();
+      if (!drafts.length) return '<p class="adm-note">No NBA draft has been held in this save yet. Once draft night runs (in the NCAA RP or the Draft RP), the class shows up here.</p>';
+      if (!drafts.some(d => d.year === this.twok.year)) this.twok.year = drafts[0].year;
+      const draft = drafts.find(d => d.year === this.twok.year);
+      const cls = this.twokClass(draft);
+      const limited = cls.filter(p => p.limited).length;
+      const rows = cls.map(p => {
+        const open = this.twok.printAll || this.twok.open === p.id;
+        return `<tr class="adm-click${open ? ' on' : ''}" data-id="${esc(p.id)}" onclick="AdminPage.toggleTwoK(this.dataset.id)">
+          <td class="tk-num">${p.pick || 'UDFA'}</td><td>${esc(p.team || '—')}</td>
+          <td><b>${esc(p.name)}</b>${p.limited ? ' <span class="tk-flag" title="Drafted before draft-night files were kept: built from his box score only">limited</span>' : ''}<div class="sub-text-sm">${esc(p.school || '')}${p.class ? ' · ' + esc(p.class) : ''}</div></td>
+          <td>${esc(p.body.pos)}${p.body.pos2 ? '/' + esc(p.body.pos2) : ''}</td>
+          <td class="tk-num">${p.body.age != null ? p.body.age + (p.body.ageEstimated ? '<span class="tk-est" title="Estimated from his class">~</span>' : '') : '—'}</td>
+          <td class="tk-num">${esc(p.body.heightLabel || '—')}</td><td class="tk-num">${p.body.weight || '—'}</td><td class="tk-num">${esc(p.body.wingspanLabel || '—')}</td>
+          <td class="tk-num tk-ovr">${p.ovr}</td><td class="tk-num">${p.pot}</td><td>${esc(p.label)}</td></tr>
+          ${open ? `<tr class="tk-detail"><td colspan="11">${this.twokCard(p)}</td></tr>` : ''}`;
+      }).join('');
+      return `<div class="card tk-head">
+          <div class="tk-controls">
+            <label>Draft <select onchange="AdminPage.setTwoKYear(this.value)">${drafts.map(d => `<option value="${d.year}"${d.year === draft.year ? ' selected' : ''}>${d.year} NBA Draft</option>`).join('')}</select></label>
+            <button type="button" class="sim-btn sim-btn-secondary btn-sm" onclick="AdminPage.downloadTwoK()">Download CSV</button>
+            <button type="button" class="sim-btn sim-btn-secondary btn-sm" onclick="AdminPage.printTwoK()">Print every card</button>
+          </div>
+          <p class="adm-note">${cls.length} prospects: ${cls.filter(p => p.pick).length} picks and the best of the undrafted, as 2K rookies. Overall is set by draft slot (top 3 around 79-77, the rest of the top ten 76-72, the rest of the first round 75-70); a prospect the sim rates far above or below his slot moves a point or two. Attributes are balanced to his strengths and weaknesses so the ones his position relies on average out near his overall. 2K computes its own overall from the attributes, so expect to nudge a point or two after typing a build in. Click a prospect for his full build.${limited ? ` <b>${limited} marked "limited"</b> were drafted before draft-night files were kept, so they're built from their box score only.` : ''}</p>
+        </div>
+        <div class="card"><div class="table-scroll"><table class="data-table adm-table tk-table"><thead><tr><th>Pick</th><th>Team</th><th>Player</th><th>Pos</th><th>Age</th><th>Ht</th><th>Wt</th><th>Wing</th><th>OVR</th><th>POT</th><th>Build</th></tr></thead>
+        <tbody>${rows}</tbody></table></div></div>`;
+    },
+    twokCard(p) {
+      const T = root.TwoK;
+      const groups = {};
+      T.ATTRS.forEach(([n, g]) => { (groups[g] = groups[g] || []).push(n); });
+      groups.Athleticism = T.ATHLETIC;
+      // Green: a real strength for his position. Red: a real weakness.
+      const cls = n => (p.marks[n] > 0 ? 'tk-hi' : p.marks[n] < 0 ? 'tk-lo' : '');
+      const attrCol = g => `<div class="tk-group"><h4>${esc(g)}</h4>${groups[g].map(n => `<div class="tk-row"><span>${esc(n)}</span><b class="${cls(n)}">${p.attributes[n]}</b></div>`).join('')}</div>`;
+      const tend = Object.entries(p.tendencies).filter(([, v]) => v != null);
+      const b = p.body;
+      const src = [p.sample.college > 0.2 ? 'college season' : '', p.sample.pre > 0 ? 'high school / AAU / FIBA lines' : '', p.sample.combine ? 'combine testing' : p.sample.measured ? 'combine measurements' : ''].filter(Boolean);
+      return `<div class="tk-card">
+        <div class="tk-top">
+          <div class="tk-id"><span class="tk-big">${p.ovr}</span><span class="sub-text-sm">OVR</span></div>
+          <div class="tk-id"><span class="tk-big">${p.pot}</span><span class="sub-text-sm">POT</span></div>
+          <div class="tk-bio"><b>${esc(p.name)}</b> · ${esc(b.pos)}${b.pos2 ? ' / ' + esc(b.pos2) : ''} · ${esc(p.label)}<br>
+            <span class="sub-text-sm">${b.heightLabel ? `${esc(b.heightLabel)} barefoot` : ''}${b.weight ? ` · ${b.weight} lbs` : ''}${b.wingspanLabel ? ` · ${esc(b.wingspanLabel)} wingspan` : ''}${b.age != null ? ` · ${b.age}${b.ageEstimated ? ' (est.)' : ''} on draft night` : ''}${b.hand ? ` · hands ${esc(b.hand)}` : ''}</span></div>
+        </div>
+        <p class="tk-lore">${esc(p.lore)}</p>
+        ${p.strengths.length || p.weaknesses.length ? `<p class="adm-note">${p.strengths.length ? `<b>Strengths:</b> ${esc(p.strengths.join(', '))}` : ''}${p.strengths.length && p.weaknesses.length ? ' · ' : ''}${p.weaknesses.length ? `<b>Weaknesses:</b> ${esc(p.weaknesses.join(', '))}` : ''}</p>` : ''}
+        <div class="tk-attrs">${T.GROUPS.map(attrCol).join('')}</div>
+        <div class="tk-group tk-tend"><h4>Tendencies</h4><div class="tk-tend-grid">${tend.map(([n, v]) => `<div class="tk-row"><span>${esc(n)}</span><b>${v}</b></div>`).join('')}</div></div>
+        <p class="adm-note">Built from his ${src.length ? esc(src.join(', ')) : 'box score'}${p.simRating != null ? ` · sim rating ${p.simRating}` : ''}. Overall Durability is left at 85: the sim doesn't track injuries.</p>
+      </div>`;
     },
 
     // ---------- CSV ----------

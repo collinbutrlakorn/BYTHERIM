@@ -55,3 +55,32 @@ body { background: var(--bg-color); color: var(--text-main); }
 .adm-reset-btns { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .adm-reset-btns .danger:not(:disabled) { color: var(--loss); border-color: var(--loss); }
 .adm-reset-btns button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* 2K draft class */
+.tk-controls { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+.tk-controls select { font: inherit; padding: 0.35rem 0.5rem; border-radius: 8px; border: 1px solid var(--border); background: var(--card-bg); color: var(--text-main); margin-left: 0.35rem; }
+.tk-num { font-variant-numeric: tabular-nums; text-align: center; }
+.tk-ovr { font-weight: 700; color: var(--accent); }
+.tk-flag { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; border: 1px dashed var(--border); border-radius: 6px; padding: 0 0.3rem; color: var(--text-muted); }
+.tk-est { color: var(--text-muted); }
+.tk-detail > td { white-space: normal !important; background: var(--card-bg); padding: 0 !important; }
+.tk-card { padding: 1rem 1.1rem 0.6rem; box-sizing: border-box; position: sticky; left: 0; width: min(100%, calc(100vw - 34px)); }
+.tk-top { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.tk-id { display: flex; flex-direction: column; align-items: center; min-width: 3.4rem; border: 1px solid var(--border); border-radius: 10px; padding: 0.35rem 0.5rem; }
+.tk-big { font-family: 'Oswald', sans-serif; font-size: 1.7rem; line-height: 1.1; }
+.tk-bio { flex: 1 1 260px; line-height: 1.45; }
+.tk-lore { margin: 0.8rem 0 0.2rem; line-height: 1.5; max-width: 80ch; }
+.tk-attrs { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.6rem 1.2rem; margin-top: 0.6rem; }
+.tk-group h4 { margin: 0.5rem 0 0.3rem; font: 700 0.75rem 'Asap Condensed', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.tk-row { display: flex; justify-content: space-between; gap: 0.6rem; font-size: 0.88rem; padding: 0.12rem 0; border-bottom: 1px solid var(--border); }
+.tk-row b { font-variant-numeric: tabular-nums; }
+.tk-hi { color: var(--win, #22c55e); }
+.tk-lo { color: var(--loss, #ef4444); }
+.tk-tend { margin-top: 0.8rem; }
+.tk-tend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0 1.2rem; }
+@media print {
+  body.tk-printing .site-header, body.tk-printing .site-footer, body.tk-printing .adm-head, body.tk-printing .adm-tabs, body.tk-printing .tk-head { display: none !important; }
+  body.tk-printing { background: #fff; color: #000; }
+  body.tk-printing .tk-detail { break-inside: avoid; }
+  body.tk-printing .table-scroll { overflow: visible; }
+}

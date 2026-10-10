@@ -566,6 +566,42 @@
     return { picks, finalBoard };
   }
 
+  // ---------- prospect files ----------
+
+  // Everything known about a drafted (or nearly drafted) prospect on draft
+  // night, kept with that draft so his 2K build can be made later, after
+  // he's left the college rosters. Game logs and sim internals are left
+  // out; season lines keep only their numbers.
+  function prospectFile(p) {
+    if (!p) return null;
+    // Just the numbers a 2K build is read from.
+    const KEEP = ['gp', 'gs', 'mpg', 'ppg', 'rpg', 'apg', 'stl', 'blk', 'tov', 'pf', 'oreb', 'dreb', 'fga', 'fgPct', 'twoPPct', 'threePa', 'threePPct',
+      'fta', 'ftPct', 'tsPct', 'usg', 'astPct', 'tovPct', 'orebPct', 'drebPct', 'ftr', 'threePar', 'bpm', 'obpm', 'dbpm'];
+    const line = st => {
+      if (!st) return null;
+      const o = {};
+      KEEP.forEach(k => { if (st[k] != null && (typeof st[k] === 'number' || typeof st[k] === 'string')) o[k] = st[k]; });
+      return o;
+    };
+    const pd = p.predraft || null;
+    return {
+      id: p.id, name: p.name, pos: p.pos, pos2: p.pos2 || null, class: p.class, school: p.school, conference: p.conference || null,
+      ht: p.ht || null, wt: p.wt || null, wingspan: p.wingspan || null, dob: p.dob || null, hometown: p.hometown || null, hs: p.hs || null,
+      jersey: p.jersey || null, rsci: p.rsci || null, recClassYear: p.recClassYear || null,
+      rating: p.rating, potential: p.potential || null, potentialGrade: p.potentialGrade || null,
+      athleticism: p.athleticism || null, athleticismGrade: p.athleticismGrade || null,
+      traits: p.traits || null, attributes: p.attributes || null,
+      scout: p.scout ? { scouting: p.scout.scouting || null, strengths: p.scout.strengths || null, weaknesses: p.scout.weaknesses || null } : null,
+      archetype: (p.playstyle && p.playstyle.archetype) || null,
+      written: p.written || null,
+      stats: line(p.stats),
+      seasons: (p.seasonHistory || []).slice(-4).map(h => ({ year: h.year, school: h.school, class: h.class, stats: line(h.stats) })),
+      predraft: pd ? { meas: pd.meas || null, tests: pd.tests || null, shooting: pd.shooting || null, pct: pd.pct || null,
+        profile: pd.profile || null, grade: pd.grade || null, personality: pd.personality || null, workoutGrade: pd.workoutGrade || null } : null,
+      isPro: !!p.isPro, club: p.club || null, proYears: p.proYears || 0, accolades: (p.accolades || []).slice(-8)
+    };
+  }
+
   // ---------- one step at a time ----------
 
   // ctx:
@@ -635,7 +671,12 @@
       const lottery = { year: ctx.draftYear, winners: (cycle.lottery || { winners: [] }).winners };
       out.state.draftResults = picks;
       out.state.draftLottery = lottery;
-      out.draftEntry = { year: ctx.draftYear, picks, lottery, board: finalBoard };
+      // Files for every pick plus the best of the undrafted, for the 2K
+      // draft class tool on the RP admin page.
+      const profiles = {};
+      picks.forEach(pk => { const f = prospectFile(ctx.byId[pk.id]); if (f) profiles[pk.id] = f; });
+      finalBoard.filter(b => b.pick == null).slice(0, 20).forEach(b => { const f = prospectFile(ctx.byId[b.id]); if (f) profiles[b.id] = f; });
+      out.draftEntry = { year: ctx.draftYear, picks, lottery, board: finalBoard, profiles };
       picks.forEach(pk => {
         out.draftFor = out.draftFor || {};
         out.draftFor[pk.id] = { year: ctx.draftYear, pick: pk.pick, round: pk.round, team: pk.team, teamId: pk.team ? pk.team.id : null };
@@ -650,7 +691,7 @@
 
   const DraftCycle = {
     STAGES, ORDER, stageIndex, nextStage, advance,
-    athleteProfile, personality, measure, testAthlete, shoot, runCombine, runWorkouts, resolveDeadline, runLottery, runDraft,
+    athleteProfile, personality, measure, prospectFile, testAthlete, shoot, runCombine, runWorkouts, resolveDeadline, runLottery, runDraft,
     PERSONALITIES, ORG_STYLES, orgStyle, group, fmtIn, hash01, seeded, letter
   };
 

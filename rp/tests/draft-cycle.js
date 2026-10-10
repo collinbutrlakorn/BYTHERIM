@@ -94,6 +94,18 @@ const { boot, playSeason, ok } = require('./harness');
   const hist = Sim.state.draftHistory.find(d => d.year === Sim.upcomingDraftYear());
   ok(hist && hist.board && hist.board.length === 60 && hist.board[0].rank === 1, 'the final big board is kept with the draft');
   ok(hist.board.filter(b => b.pick).length >= 45, 'the kept board marks where its players went');
+  // Draft-night files for the 2K draft class tool (RP admin).
+  ok(hist.profiles && picks.every(p => hist.profiles[p.id] && hist.profiles[p.id].stats), 'every pick\'s full profile is kept with the draft');
+  const measured = picks.filter(p => (hist.profiles[p.id].predraft || {}).meas);
+  ok(picks.filter(p => p.pick <= 30).every(p => (hist.profiles[p.id].predraft || {}).meas) && measured.length >= 40,
+    `with his combine measurements (every first-rounder; ${measured.length} of 60 picks were invited)`);
+  {
+    const TwoK = require('../js/twok-core.js');
+    const cls = TwoK.buildClass(picks.map(p => ({ file: hist.profiles[p.id], pick: p.pick, round: p.round, team: p.team.name })), hist.year);
+    const mean = (a, b) => cls.slice(a, b).reduce((s, x) => s + x.ovr, 0) / (b - a);
+    ok(cls.length === 60 && cls.slice(0, 3).every(x => x.ovr >= 76) && mean(0, 10) > mean(10, 30) && mean(10, 30) > mean(30, 60),
+      `the class converts to 2K rookies on the draft-slot curve (top 10 avg ${mean(0, 10).toFixed(1)}, 11-30 ${mean(10, 30).toFixed(1)}, 31-60 ${mean(30, 60).toFixed(1)})`);
+  }
 
   // The offseason moves on.
   await Sim.simulateWeek();
