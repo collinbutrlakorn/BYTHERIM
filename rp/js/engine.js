@@ -3418,7 +3418,7 @@ window.SimEngine = {
   // function on the engine, never attached to saved state.
   roleWeightFor(player) {
     switch (((player && player.role) || '').replace(/[^a-z]/g, '')) {
-      case 'focalpoint': case 'focal': case 'star': return 1.35;
+      case 'focalpoint': case 'focal': case 'star': return this.SCORING_TUNE.focal;
       case 'starter': return 1.15;
       case 'sixthman': case 'sixth': return 0.92;
       case 'rotation': return 0.78;
@@ -3721,8 +3721,22 @@ window.SimEngine = {
     return a + b - 1;
   },
 
+  // How a team's scoring is shared out (buildBaseStatExpectations):
+  //   slope      how much more of the offense each rating point above the
+  //              rotation's top five buys
+  //   minShare   the least a rotation player's share can be
+  //   starBonus  extra points per rating point above 80
+  //   ceiling    where a projection starts to bend
+  //   compress   how much of a player's share above an even split he keeps:
+  //              a go-to scorer still leads, but college offenses spread
+  //              the ball, so his teammates (efficient or not) keep their
+  //              touches. Checked against Barttorvik 2025-26: about 13
+  //              high-major players and 34 nationally average 20+.
+  SCORING_TUNE: { slope: 0.033, minShare: 0.42, starBonus: 0.3, ceiling: 24, compress: 0.75, focal: 1.05 },
+
   buildBaseStatExpectations(player, mpg, team) {
     if (mpg <= 0.5) return this.getZeroStats();
+    const TUNE = this.SCORING_TUNE;
 
     const r = parseFloat(player.rating);
     const pos = (player.pos || 'SF').toUpperCase();
@@ -3779,7 +3793,7 @@ window.SimEngine = {
     const roleMult = this.roleWeightFor(player);
 
     const usageRef = (team && team.usageReference) ? team.usageReference : 78;
-    let usageShare = Math.max(0.42, Math.min(1.68, 1 + (r - usageRef) * 0.033));
+    let usageShare = Math.max(TUNE.minShare, Math.min(1.68, 1 + (r - usageRef) * TUNE.slope));
 
     // Usage ceiling by archetype. An off-ball big living on rolls and lobs
     // finishes plays rather than creating them and tops out around 17%
@@ -3810,6 +3824,7 @@ window.SimEngine = {
     // A designated focal point carries more of the offense than his rating
     // alone implies; a declared bench player carries less.
     usageShare = Math.max(0.35, Math.min(1.85, usageShare * roleMult));
+    if (usageShare > 1) usageShare = 1 + (usageShare - 1) * TUNE.compress;
     const scoringUsage = (mpg / 28) * usageShare;
 
     // Scoring keys off talent above a replacement baseline rather than raw
@@ -3826,11 +3841,11 @@ window.SimEngine = {
     let ppg = Math.max(0.4, (2.2 + Math.max(4, r - 38) * 0.228) * scoringUsage);
     // Genuine stars get a little extra: go-to scorers take the late-clock
     // and late-game shots, which is what separates a 20-point season.
-    ppg += Math.max(0, r - 80) * 0.34 * Math.max(1, scoringUsage);
+    ppg += Math.max(0, r - 80) * TUNE.starBonus * Math.max(1, scoringUsage);
     // A soft ceiling: a focal-point star on a high-usage profile could be
     // projected past 50, which no shot cap downstream fully undoes (his
     // teammates' lines were built around it).
-    if (ppg > 24) ppg = 24 + (ppg - 24) * 0.35;
+    if (ppg > TUNE.ceiling) ppg = TUNE.ceiling + (ppg - TUNE.ceiling) * 0.35;
 
     // Interior finishers get a volume floor proportional to their minutes.
     // Lobs, dump-offs and put-backs happen regardless of how small a
