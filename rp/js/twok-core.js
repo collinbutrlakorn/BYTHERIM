@@ -212,6 +212,21 @@
     const drills = pz('shooting');
     if (drills != null) { three = three * 0.8 + drills * 0.35; freeT = freeT * 0.9 + drills * 0.15; }
 
+    // His real shooting, as percentages: college attempts, then his high
+    // school / AAU / FIBA lines counted as so many attempts, then a prior
+    // that a small sample can't outweigh. 2K's shooting ratings are read
+    // straight off these (see attributes).
+    const pw = pre ? Math.min(1, pre.weight) : 0;
+    const est = (cp, ca, pp, pa, prior, k) => {
+      const a = cp != null ? (ca || 0) : 0, b = pp != null ? pa : 0;
+      return ((cp || 0) * a + (pp || 0) * b + prior * k) / (a + b + k);
+    };
+    let tpEst = est(c.tpPct, c.tpa, p.tpPct, 90 * pw, 0.33, 45);
+    let ftEst = est(c.ftPct, c.fta, p.ftPct, 70 * pw, 0.70, 30);
+    const tpa40Est = c.tpa40 != null && (c.minutes || 0) >= 300 ? c.tpa40
+      : c.tpa40 != null && p.tpa40 != null ? (c.tpa40 * wc + p.tpa40 * (1 - wc)) : (c.tpa40 ?? p.tpa40 ?? { guard: 6, wing: 5, big: 1.2 }[g]);
+    if (drills != null) { tpEst += drills * 0.008; ftEst += drills * 0.005; }
+
     const S = {
       pts: blend('pts40', c.pts40, p.pts40),
       ast: blend('ast40', c.ast40, p.ast40),
@@ -228,7 +243,7 @@
       pf: c.pf40 != null ? z('pf40', g, c.pf40) * Math.max(0.35, wc) : 0,
       dbpm: c.dbpm != null ? z('dbpm', g, c.dbpm) * Math.max(0.35, wc) : 0,
       bpm: c.bpm != null ? z('bpm', g, c.bpm) * Math.max(0.35, wc) : 0,
-      three, ft: freeT, vol3,
+      three, ft: freeT, vol3, tpEst, ftEst, tpa40Est,
       tpar: c.tpar != null ? c.tpar : p.tpar != null ? p.tpar : null,
       ftrRaw: c.ftr != null ? c.ftr : p.ftr != null ? p.ftr : null,
       ...ath
@@ -236,6 +251,8 @@
 
     // The scouting report and his playstyle nudge the numbers.
     const T = scoutText(f);
+    if (has(T.all, 'shooter', 'shooting', 'jumper', 'range', 'catch and shoot', 'catch-and-shoot', 'sniper', 'stroke')) S.tpEst += 0.012;
+    if (has(T.weak, 'shooting', 'jumper', 'jump shot', 'range', 'perimeter shot')) S.tpEst -= 0.015;
     const nudge = (k, v) => { S[k] = clamp((S[k] || 0) + v, -2.8, 2.8); };
     const said = (k, v, ...w) => { if (has(T.all, ...w)) nudge(k, v); };
     const doubt = (k, v, ...w) => { if (has(T.weak, ...w)) nudge(k, -v); };
@@ -256,8 +273,12 @@
     said('iq', 0.5, ' iq', 'smart', 'cerebral', 'feel for the game', 'high iq', 'instinct');
     doubt('iq', 0.4, ' iq', 'decision', 'feel');
     said('vertical', 0.4, 'athletic', 'explosive', 'bouncy', 'above the rim', 'leaper');
-    said('strength', 0.4, 'strong', 'physical', 'powerful', 'wide frame');
-    doubt('strength', 0.5, 'strength', 'frame', 'thin', 'frail');
+    // Strength swings hard: the report's word on physicality decides it.
+    said('strength', 0.8, 'strong', 'physical', 'powerful', 'wide frame', 'bruising', 'plays through contact');
+    doubt('strength', 0.9, 'strength', 'physicality', 'frame', 'thin', 'frail', 'skinny', 'weak', 'contact', 'pushed around');
+    if (has(T.all, 'thin', 'skinny', 'frail', 'slight', 'wiry')) nudge('strength', -0.6);
+    said('dunk', 0.6, 'dunk', 'lob', 'above the rim', 'explosive', 'high flyer', 'posterize', 'vertical');
+    doubt('dunk', 0.5, 'below the rim', 'explosive', 'athleticism', 'vertical');
     said('motor', 0.5, 'motor', 'relentless', 'energy', 'hustle', 'tough');
     doubt('motor', 0.5, 'motor', 'effort', 'conditioning');
 
@@ -267,7 +288,12 @@
       primaryScorer: { handle: 0.3, pts: 0.2 }, connector: { iq: 0.35, ast: 0.2 }
     }[f.archetype] || {};
     Object.entries(ARCH).forEach(([k, v]) => nudge(k, v));
-    ['handle', 'finish', 'post', 'perD', 'rimP', 'reb', 'iq'].forEach(k => { if (S[k] == null) S[k] = 0; });
+    ['handle', 'finish', 'post', 'perD', 'rimP', 'reb', 'iq', 'dunk'].forEach(k => { if (S[k] == null) S[k] = 0; });
+    if (f.archetype === 'rollBig') S.dunk += 0.4;
+    if (f.archetype === 'slasher') S.dunk += 0.2;
+    // Finishing and dunking as single reads (+0.8 and up = good at it).
+    S.fin = clamp(0.45 * S.two + 0.25 * S.ftr + 0.45 * S.finish + 0.1 * S.ts, -2.6, 2.6);
+    S.dunker = clamp(0.65 * S.vertical + 0.2 * S.ftr + 0.15 * S.finish + 0.6 * S.dunk, -2.6, 2.6);
     return { S, g, sample: { college: wc, pre: wp, combine: !!(pd.tests || pd.pct), measured: !!pd.meas } };
   }
 
@@ -305,6 +331,8 @@
     ['Offensive Rebound', 'Rebounding', [0, 0.5, 1]],
     ['Defensive Rebound', 'Rebounding', [0.5, 0.5, 1]]
   ];
+  // Read on 2K's own scale from his numbers rather than re-centred.
+  const ANCHORED = ['Three-Point Shot', 'Free Throw', 'Mid-Range Shot', 'Driving Layup', 'Close Shot', 'Driving Dunk', 'Standing Dunk'];
   const ATHLETIC = ['Speed', 'Agility', 'Strength', 'Vertical', 'Stamina', 'Hustle', 'Overall Durability'];
   const GROUPS = ['Outside Scoring', 'Inside Scoring', 'Playmaking', 'Defense', 'Rebounding', 'Athleticism'];
 
@@ -362,19 +390,65 @@
       raw[name] = { v: ovr + BASE[r] + spread * s, r };
     });
     // Re-centre: what matters for his position averages out near his overall.
-    const core = Object.values(raw).filter(x => x.r === 1);
+    // Shooting, finishing and dunking are read on 2K's own scale below, so
+    // they don't move with the rest.
+    const core = Object.entries(raw).filter(([k, x]) => x.r === 1 && !ANCHORED.includes(k)).map(([, x]) => x);
     const mean = core.reduce((a, x) => a + x.v, 0) / core.length;
     const shift = clamp(ovr - 2 - mean, -7, 7);
     const out = {};
     Object.entries(raw).forEach(([k, x]) => { out[k] = Math.round(clamp(x.v + shift, 25, cap)); });
 
-    // Athleticism: the combine, with position and overall behind it.
-    const A = { guard: [12, 11, -5, 3], wing: [7, 6, 0, 4], big: [-5, -7, 9, -3] }[g];
-    const lift = (ovr - 72) * 0.4;
-    out['Speed'] = Math.round(clamp(62 + A[0] + 10 * S.speed + lift, 30, 96));
-    out['Agility'] = Math.round(clamp(62 + A[1] + 10 * S.agility + lift, 30, 96));
-    out['Strength'] = Math.round(clamp(54 + A[2] + 11 * S.strength + lift * 0.5 + (g === 'big' ? 2 * htZ : 0), 25, 92));
-    out['Vertical'] = Math.round(clamp(62 + A[3] + 11 * S.vertical + lift, 30, 95));
+    // Shooting on 2K's scale: a 35% three-point shooter on normal volume
+    // is about a 74, 40% on volume about an 84, a poor shooter under 70.
+    // Little volume means little proof: a big who rarely shoots one is
+    // read mostly off his free throws and stays under 70.
+    const lift = (ovr - 72) * 0.25;
+    const vol = clamp((S.tpa40Est - 5) * 0.6, -3, 2.5);
+    let three = 74 + (S.tpEst - 0.35) * 200 + vol + lift;
+    const ftRating = 70 + (S.ftEst - 0.70) * 120 + lift * 0.5;
+    if (S.tpa40Est < 2) three = Math.min(70, three * 0.5 + (45 + (S.ftEst - 0.65) * 90) * 0.5);
+    out['Three-Point Shot'] = Math.round(clamp(three, 30, 92));
+    out['Free Throw'] = Math.round(clamp(ftRating, 30, 92));
+    out['Mid-Range Shot'] = Math.round(clamp(S.tpa40Est < 2 ? 0.3 * three + 0.7 * ftRating - 3 + 2 * S.two : 0.5 * three + 0.5 * ftRating + 2 * S.two, 35, 90));
+
+    // Finishing: a good finisher is over 82 at the rim, on layups or
+    // close shots (bigs finish with close shots, everyone else on the move).
+    const finAdj = { guard: [2, -2], wing: [2, 0], big: [-6, 6] }[g];
+    let layup = 70 + 7 * S.fin + finAdj[0] + lift;
+    let close = 70 + 7 * S.fin + finAdj[1] + lift;
+    if (S.fin >= 0.8) {
+      const floor = 82 + (S.fin - 0.8) * 5;
+      if (g === 'big') { close = Math.max(close, floor); layup = Math.max(layup, floor - 6); }
+      else { layup = Math.max(layup, floor); close = Math.max(close, floor - 4); }
+    }
+    out['Driving Layup'] = Math.round(clamp(layup, 35, 95));
+    out['Close Shot'] = Math.round(clamp(close, 35, 95));
+
+    // Dunking: a good dunker is always over 82.
+    let ddunk = 62 + 12 * S.dunker + { guard: -4, wing: 0, big: -2 }[g] + lift;
+    let sdunk = g === 'big' ? 62 + 10 * S.dunker + 6 * htZ + 4 * S.strength + lift
+      : g === 'wing' ? 48 + 9 * S.dunker + 4 * htZ : 32 + 8 * S.dunker;
+    if (S.dunker >= 0.8) {
+      const floor = 82 + (S.dunker - 0.8) * 5;
+      ddunk = Math.max(ddunk, floor);
+      if (g === 'big') sdunk = Math.max(sdunk, floor);
+    }
+    out['Driving Dunk'] = Math.round(clamp(ddunk, 25, 95));
+    out['Standing Dunk'] = Math.round(clamp(sdunk, 25, 95));
+
+    // Athleticism: the combine, with position behind it. Speed and agility
+    // sit near the middle of 2K's scale for a typical rookie at his
+    // position; only real burst gets a guard into the 80s.
+    const A = { guard: [8, 9, -6, 3], wing: [3, 5, 0, 4], big: [-8, -8, 8, -3] }[g];
+    out['Speed'] = Math.round(clamp(59 + A[0] + 9 * S.speed + lift, 30, 92));
+    out['Agility'] = Math.round(clamp(60 + A[1] + 9 * S.agility + lift, 30, 92));
+    // Strength swings widely: a player who struggles with physicality is
+    // under 45, a genuinely strong one over 70.
+    let str = 55 + A[2] + 15 * S.strength + (g === 'big' ? 2 * htZ : 0);
+    if (S.strength <= -0.8) str = Math.min(str, 44 + (S.strength + 0.8) * 5);
+    if (S.strength >= 0.8) str = Math.max(str, 71 + (S.strength - 0.8) * 5);
+    out['Strength'] = Math.round(clamp(str, 25, 92));
+    out['Vertical'] = Math.round(clamp(62 + A[3] + 11 * S.vertical + lift * 1.6, 30, 95));
     const mpg = num(f.stats && f.stats.mpg, 24);
     out['Stamina'] = Math.round(clamp(76 + 4 * S.motor + (mpg - 28) * 0.4, 60, 95));
     out['Hustle'] = Math.round(clamp(62 + 9 * S.motor + 3 * S.orb + 2 * S.dbpm, 35, 95));
@@ -581,10 +655,13 @@
       // his position uses, the athletic reads for athleticism.
       marks: (() => {
         const m = {};
-        Object.entries(zs).forEach(([n, x]) => { if (x.r > 0 && Math.abs(x.z) >= 0.8) m[n] = x.z > 0 ? 1 : -1; });
+        Object.entries(zs).forEach(([n, x]) => { if (x.r > 0 && !ANCHORED.includes(n) && Math.abs(x.z) >= 0.8) m[n] = x.z > 0 ? 1 : -1; });
+        // Shooting, finishing and dunks: by 2K's own marks.
+        ANCHORED.forEach(n => { const rel = (ATTRS.find(a => a[0] === n) || [, , [1, 1, 1]])[2][GI[read.g]]; if (rel > 0 && attrs[n] >= 82) m[n] = 1; else if (rel > 0 && attrs[n] < 62) m[n] = -1; });
         const S = read.S;
         [['Speed', S.speed], ['Agility', S.agility], ['Strength', S.strength], ['Vertical', S.vertical], ['Hustle', S.motor]]
           .forEach(([n, v]) => { if (Math.abs(v) >= 0.8) m[n] = v > 0 ? 1 : -1; });
+        if (attrs['Strength'] < 45) m['Strength'] = -1; else if (attrs['Strength'] > 70) m['Strength'] = 1;
         return m;
       })(), body: b, attributes: attrs, tendencies: tend,
       strengths: ranked.slice(0, 3).filter(x => x[1] > 0.3).map(x => x[0]),
@@ -616,7 +693,7 @@
     return { header, rows };
   }
 
-  const api = { build, buildClass, csvRows, curveFor, readSkills, fromPlayer, ATTRS, ATHLETIC, GROUPS, group };
+  const api = { build, buildClass, csvRows, curveFor, readSkills, fromPlayer, ATTRS, ATHLETIC, ANCHORED, GROUPS, group };
   root.TwoK = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

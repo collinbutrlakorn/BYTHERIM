@@ -44,7 +44,7 @@ const allAttrs = cls.flatMap(p => Object.values(p.attributes));
 ok(allAttrs.every(v => Number.isInteger(v) && v >= 25 && v <= 96), 'every attribute is a whole number on 2K\'s scale');
 ok(cls.every(p => Object.values(p.tendencies).every(v => v == null || (v >= 0 && v <= 100))), 'tendencies run 0-100');
 // What a position relies on averages out near the overall.
-const coreMean = p => { const g = T.group(p.body.pos); const core = T.ATTRS.filter(a => a[2][{ guard: 0, wing: 1, big: 2 }[g]] === 1).map(a => p.attributes[a[0]]); return avg(core); };
+const coreMean = p => { const g = T.group(p.body.pos); const core = T.ATTRS.filter(a => a[2][{ guard: 0, wing: 1, big: 2 }[g]] === 1 && !T.ANCHORED.includes(a[0])).map(a => p.attributes[a[0]]); return avg(core); };
 ok(cls.every(p => Math.abs(coreMean(p) - (p.ovr - 2)) <= 4), 'the attributes his position relies on average out near his overall');
 const bigs = cls.filter(p => T.group(p.body.pos) === 'big'), guards = cls.filter(p => T.group(p.body.pos) === 'guard');
 ok(avg(bigs.map(p => p.attributes['Block'])) > avg(guards.map(p => p.attributes['Block'])) + 12, 'bigs block shots, guards don\'t');
@@ -68,6 +68,33 @@ const c = T.build({ file: tested, pick: 13 }, 2030, null), d = T.build({ file: b
 ok(c.body.height === 78 && c.body.wingspan === 85 && c.body.weight === 214, 'height, wingspan and weight come from the combine');
 ok(c.attributes['Vertical'] > d.attributes['Vertical'] + 5 && c.attributes['Speed'] > d.attributes['Speed'], 'a big vertical and a fast sprint show up in his athleticism');
 ok(/combine/.test(c.lore) && /Taken 13th overall/.test(c.lore), 'lore covers his combine and his draft slot');
+
+// ---- Collin's 2K benchmarks ----
+// A wing who played 32 games at 30 minutes; only what each check is about changes.
+const wing = (stats = {}, extra = {}) => ({ id: 'w', name: 'Wing', pos: 'SF', class: 'SO', school: 'Duke', rating: 88, ht: "6'7", wt: 210,
+  stats: { gp: 32, mpg: 30, ppg: '15.0', rpg: '5.5', apg: '2.0', stl: '1.1', blk: '0.5', pf: '2.3', fta: '4.0', ftPct: '.750', twoPPct: '.510', tsPct: '.560',
+    usg: '22.0%', astPct: '13.0%', tovPct: '13.0%', orebPct: '4.5%', drebPct: '13.0%', ftr: '.330', threePar: '.400', bpm: '5.0', dbpm: '2.0', ...stats }, ...extra });
+const tp = (pct, att) => T.build({ file: wing({ threePa: (att / 32).toFixed(1), threePPct: String(pct) }), pick: 15 }, 2030, null).attributes['Three-Point Shot'];
+const avg35 = tp(0.35, 150), good40 = tp(0.40, 190), bad30 = tp(0.30, 130);
+ok(avg35 >= 72 && avg35 <= 76, `a 35% shooter on normal volume is about a 74 three (${avg35})`);
+ok(good40 >= 82 && good40 <= 86, `a 40% shooter on volume is about an 84 (${good40})`);
+ok(bad30 < 70, `a poor shooter is under 70 (${bad30})`);
+const bigNoThrees = T.build({ file: { ...wing({ threePa: '0.1', threePPct: '.000', ftPct: '.620' }), pos: 'C', ht: "6'11" }, pick: 15 }, 2030, null);
+ok(bigNoThrees.attributes['Three-Point Shot'] < 60, `a big who never shoots threes rates low from deep (${bigNoThrees.attributes['Three-Point Shot']})`);
+
+const finisher = T.build({ file: wing({ twoPPct: '.610', ftr: '.480', tsPct: '.610' }, { archetype: 'slasher', traits: { strengths: ['Elite finisher at the rim', 'Attacks downhill'], weaknesses: [] } }), pick: 15 }, 2030, null);
+ok(Math.max(finisher.attributes['Driving Layup'], finisher.attributes['Close Shot']) > 82, `a good finisher is over 82 on layups or close shots (${finisher.attributes['Driving Layup']} / ${finisher.attributes['Close Shot']})`);
+const dunker = T.build({ file: wing({}, { traits: { strengths: ['Explosive above-the-rim athlete', 'Lob threat'], weaknesses: [] }, predraft: { pct: { maxVert: 96, standVert: 92, sprint: 70 } } }), pick: 15 }, 2030, null);
+ok(dunker.attributes['Driving Dunk'] > 82, `a good dunker is over 82 on dunks (${dunker.attributes['Driving Dunk']})`);
+const plain = T.build({ file: wing(), pick: 15 }, 2030, null);
+ok(plain.attributes['Driving Dunk'] < 80 && Math.max(plain.attributes['Driving Layup'], plain.attributes['Close Shot']) < 80, `an ordinary finisher and dunker stays under 80 (${plain.attributes['Driving Layup']} / ${plain.attributes['Driving Dunk']})`);
+
+const weak = T.build({ file: wing({}, { traits: { strengths: [], weaknesses: ['Struggles with physicality'] } }), pick: 15 }, 2030, null);
+const strong = T.build({ file: wing({}, { traits: { strengths: ['Strong, physical frame'], weaknesses: [] }, predraft: { pct: { bench: 85 } } }), pick: 15 }, 2030, null);
+ok(weak.attributes['Strength'] < 45, `struggles with physicality: strength under 45 (${weak.attributes['Strength']})`);
+ok(strong.attributes['Strength'] > 70, `very strong: over 70 (${strong.attributes['Strength']})`);
+const guardSpeed = guards.map(p => p.attributes['Speed']);
+ok(avg(guardSpeed) <= 72 && Math.max(...guardSpeed) <= 88, `a typical guard's speed sits around 70, not the 80s (avg ${avg(guardSpeed).toFixed(1)})`);
 
 // The spreadsheet.
 const { header, rows } = T.csvRows(cls);
