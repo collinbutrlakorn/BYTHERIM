@@ -93,8 +93,16 @@ const weak = T.build({ file: wing({}, { traits: { strengths: [], weaknesses: ['S
 const strong = T.build({ file: wing({}, { traits: { strengths: ['Strong, physical frame'], weaknesses: [] }, predraft: { pct: { bench: 85 } } }), pick: 15 }, 2030, null);
 ok(weak.attributes['Strength'] < 45, `struggles with physicality: strength under 45 (${weak.attributes['Strength']})`);
 ok(strong.attributes['Strength'] > 70, `very strong: over 70 (${strong.attributes['Strength']})`);
-const guardSpeed = guards.map(p => p.attributes['Speed']);
-ok(avg(guardSpeed) <= 72 && Math.max(...guardSpeed) <= 88, `a typical guard's speed sits around 70, not the 80s (avg ${avg(guardSpeed).toFixed(1)})`);
+const wings = cls.filter(p => T.group(p.body.pos) === 'wing');
+const spd = list => avg(list.map(p => p.attributes['Speed']));
+ok(Math.abs(spd(guards) - 83) <= 2, `a typical guard's speed is about 83 (${spd(guards).toFixed(1)})`);
+ok(Math.abs(spd(wings) - 75) <= 2, `a typical wing's about 75 (${spd(wings).toFixed(1)})`);
+ok(spd(bigs) >= 52 && spd(bigs) <= 62 && bigs.every(p => p.attributes['Speed'] < 70), `bigs sit in the 50s, all under 70 (${spd(bigs).toFixed(1)})`);
+const fast = { pct: { sprint: 97, lane: 90, shuttle: 85 }, profile: { speed: 82, agility: 78, explosive: 70, strength: 50, motor: 60 } };
+const fastGuard = T.build({ file: { ...wing(), pos: 'PG', ht: "6'2", predraft: fast }, pick: 15 }, 2030, null).attributes['Speed'];
+const fastWing = T.build({ file: { ...wing(), predraft: fast }, pick: 15 }, 2030, null).attributes['Speed'];
+const fastBig = T.build({ file: { ...wing(), pos: 'C', ht: "6'11", predraft: fast }, pick: 15 }, 2030, null).attributes['Speed'];
+ok(fastGuard > 90 && fastWing >= 85 && fastWing <= 90 && fastBig >= 70 && fastBig < 80, `the fastest: guard over 90 (${fastGuard}), wing high 80s (${fastWing}), big in the 70s (${fastBig})`);
 
 // The spreadsheet.
 const { header, rows } = T.csvRows(cls);

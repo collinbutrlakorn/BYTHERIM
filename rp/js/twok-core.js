@@ -436,12 +436,14 @@
     out['Driving Dunk'] = Math.round(clamp(ddunk, 25, 95));
     out['Standing Dunk'] = Math.round(clamp(sdunk, 25, 95));
 
-    // Athleticism: the combine, with position behind it. Speed and agility
-    // sit near the middle of 2K's scale for a typical rookie at his
-    // position; only real burst gets a guard into the 80s.
-    const A = { guard: [8, 9, -6, 3], wing: [3, 5, 0, 4], big: [-8, -8, 8, -3] }[g];
-    out['Speed'] = Math.round(clamp(59 + A[0] + 9 * S.speed + lift, 30, 92));
-    out['Agility'] = Math.round(clamp(60 + A[1] + 9 * S.agility + lift, 30, 92));
+    // Athleticism: the combine, with position behind it.
+    // Speed: a typical guard is about 83 (the truly fast ones over 90, and
+    // only a few), a wing about 75 (fast ones in the high 80s), a big in
+    // the 50s (a fast one reaches the 70s).
+    const A = { guard: [0, 11, -6, 3], wing: [0, 6, 0, 4], big: [0, -7, 8, -3] }[g];
+    const SPD = { guard: [83, 5, 96], wing: [75, 7, 90], big: [57, 8.5, 79] }[g];
+    out['Speed'] = Math.round(clamp(SPD[0] + SPD[1] * S.speed + lift * 0.6, 40, SPD[2]));
+    out['Agility'] = Math.round(clamp(62 + A[1] + 10 * S.agility + (ovr - 72) * 0.4, 30, 96));
     // Strength swings widely: a player who struggles with physicality is
     // under 45, a genuinely strong one over 70.
     let str = 55 + A[2] + 15 * S.strength + (g === 'big' ? 2 * htZ : 0);
