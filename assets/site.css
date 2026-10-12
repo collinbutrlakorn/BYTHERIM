@@ -238,7 +238,7 @@ h1, h2, h3, h4, .display {
   align-items: center;
   gap: 1.5rem;
 }
-.brand img { height: 38px; width: auto; }
+.brand img { height: 26px; width: auto; }
 
 .site-nav { display: flex; align-items: center; gap: 0.25rem; margin-left: auto; }
 .site-nav a {
@@ -309,7 +309,7 @@ h1, h2, h3, h4, .display {
   grid-template-columns: 1.6fr 1fr 1fr 1fr;
   gap: 2rem;
 }
-.footer-brand img { height: 36px; width: auto; margin-bottom: 0.9rem; }
+.footer-brand img { height: 28px; width: auto; margin-bottom: 0.9rem; }
 .footer-brand p { color: var(--muted); font-size: 0.95rem; max-width: 330px; margin-bottom: 1rem; }
 .footer-col h4 {
   font-size: 0.78rem;
@@ -535,7 +535,7 @@ h1, h2, h3, h4, .display {
   background: radial-gradient(120% 100% at 50% 0%, color-mix(in srgb, var(--mod) 22%, #0d0f14) 0%, #0b0d12 70%);
   overflow: hidden;
 }
-.rp-logo img { width: 100%; height: 100%; object-fit: contain; }
+.rp-logo img { width: 100%; height: 100%; object-fit: contain; padding: 10% 12%; box-sizing: border-box; }
 .rp-status {
   align-self: flex-start;
   display: inline-flex;

@@ -971,7 +971,7 @@ a.outline-btn { text-decoration: none; display: inline-flex; align-items: center
 .rp-loader.active { display: flex; animation: rpLoaderIn 0.25s ease; }
 .rp-loader.done { opacity: 0; transition: opacity 0.26s ease; }
 .rp-loader-card { width: min(420px, 100%); text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.9rem; }
-.rp-loader-logo { width: 150px; height: auto; animation: rpLoaderPulse 1.6s ease-in-out infinite; }
+.rp-loader-logo { width: 104px; height: auto; border-radius: 22%; animation: rpLoaderPulse 1.6s ease-in-out infinite; }
 .rp-loader-title { font-family: 'Oswald', sans-serif; font-size: 1.6rem; letter-spacing: 0.5px; text-transform: uppercase; margin: 0; color: var(--text-main); }
 .rp-loader-bar { width: 100%; height: 6px; border-radius: 999px; background: var(--border, #232833); overflow: hidden; }
 .rp-loader-bar span { display: block; height: 100%; width: 6%; border-radius: inherit; background: var(--accent, #4aa8ff); transition: width 0.45s ease; }

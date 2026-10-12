@@ -292,7 +292,7 @@
     return `
 <header class="site-header">
   <div class="site-header-inner">
-    <a href="${BASE || './'}" class="brand" aria-label="BYTHERIM home"><img src="${BASE}assets/logo-header.png" alt="BYTHERIM" width="138" height="42"></a>
+    <a href="${BASE || './'}" class="brand" aria-label="BYTHERIM home"><img src="${BASE}assets/logo-header.png" alt="BYTHERIM" width="172" height="26"></a>
     <nav class="site-nav" id="siteNav" aria-label="Main">
       ${links}
       <a href="${BASE}rp/" class="nav-rp${active === 'rp' ? ' active" aria-current="page' : ''}">BYTHERIM RP</a>
@@ -319,7 +319,7 @@
 <footer class="site-footer">
   <div class="footer-inner">
     <div class="footer-brand">
-      <img src="${BASE}assets/logo-header.png" alt="BYTHERIM" width="138" height="42">
+      <img src="${BASE}assets/logo-header.png" alt="BYTHERIM" width="172" height="26">
       <p>Draft analysis, film breakdowns and NBA conversation — plus a full college basketball simulation universe.</p>
       <div class="social-row">${socialButtons(['youtube', 'spotify', 'apple', 'x', 'instagram', 'tiktok', 'substack'])}</div>
     </div>

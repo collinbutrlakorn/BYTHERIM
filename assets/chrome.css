@@ -65,7 +65,7 @@
   align-items: center;
   gap: 1.5rem;
 }
-.site-header .brand img { height: 38px; width: auto; }
+.site-header .brand img { height: 26px; width: auto; }
 
 .site-nav { display: flex; align-items: center; gap: 0.25rem; margin-left: auto; }
 .site-nav a {
@@ -128,7 +128,7 @@
   grid-template-columns: 1.6fr 1fr 1fr 1fr;
   gap: 2rem;
 }
-.site-footer .footer-brand img { height: 36px; width: auto; margin-bottom: 0.9rem; }
+.site-footer .footer-brand img { height: 28px; width: auto; margin-bottom: 0.9rem; }
 .site-footer .footer-brand p { color: var(--muted); font-size: 0.95rem; max-width: 330px; margin: 0 0 1rem; }
 .site-footer .footer-col h4 {
   font-family: 'Oswald', 'Asap Condensed', sans-serif;

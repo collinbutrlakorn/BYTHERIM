@@ -162,7 +162,7 @@ window.SimEngine = {
       el.setAttribute('role', 'status');
       el.setAttribute('aria-live', 'polite');
       el.innerHTML = `<div class="rp-loader-card">
-        <img src="ncaarplogo.png" alt="" class="rp-loader-logo">
+        <img src="icons/ncaa-badge.png" alt="" class="rp-loader-logo">
         <h2 class="rp-loader-title"></h2>
         <div class="rp-loader-bar"><span></span></div>
         <p class="rp-loader-step"></p>
