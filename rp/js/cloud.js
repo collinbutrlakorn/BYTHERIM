@@ -254,6 +254,21 @@
       await this.db.doc(`official/site_${name}/images/${id}`).delete().catch(() => {});
     },
 
+    // ---------- the league (beta) ----------
+    // league/main: the planning page's season, teams and checklist
+    // (assets/league.js). Only admins can read or write it.
+    async getLeague() {
+      if (!this.db || !this.admin) return null;
+      const snap = await this.db.doc('league/main').get();
+      return snap.exists ? snap.data() : null;
+    },
+    async saveLeague(data) {
+      if (!this.admin) throw new Error('Only an admin can change the league.');
+      const doc = { ...data, updatedAt: Date.now(), by: this.user.email };
+      await this.db.doc('league/main').set(doc);
+      return doc;
+    },
+
     // ---------- generated recruits ----------
     // official/recruit_gen: { resets: { "2033": 1, ... } }, how many times
     // each class's generated players have been reset (recruit-gen.js).

@@ -48,6 +48,12 @@ service cloud.firestore {
         && request.resource.data.at is number;
     }
 
+    // The league planning page (league.html, beta): admins only, both
+    // reading and writing, so nothing about it is public.
+    match /league/{document=**} {
+      allow read, write: if isAdmin();
+    }
+
     // The admin list: only admins can see or change it (anyone else's
     // check simply fails, which the site reads as "not an admin"). The
     // first admin is added by hand in the Firebase console.

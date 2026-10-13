@@ -213,3 +213,7 @@
 .site-header { transition: transform .25s ease; }
 .site-header.is-tucked { transform: translateY(-100%); box-shadow: none; }
 @media (prefers-reduced-motion: reduce) { .site-header { transition: none; } }
+
+/* Admin-only beta pages in the main menu */
+.beta-tag { display: inline-block; margin-left: 0.35rem; padding: 1px 6px; border-radius: 999px; background: #e3bb4f; color: #181f40;
+  font: 700 0.6rem/1.5 'Asap Condensed', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; vertical-align: 2px; }

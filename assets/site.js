@@ -536,6 +536,29 @@
     wireChrome();
     tuckHeader();
     countVisit();
+    ACTIVE = active;
+    cloud().then(c => { if (c && c.onChange) c.onChange(() => adminNav(!!c.admin)); });
+  }
+
+  // Pages still in beta: a link in the main menu that only appears for
+  // a signed-in admin. The pages themselves also check, and their data is
+  // admin-only in the database rules.
+  const BETA_NAV = [{ id: 'league', label: 'League', href: 'league.html' }];
+  let ACTIVE = '';
+  function adminNav(on) {
+    const nav = document.getElementById('siteNav');
+    if (!nav) return;
+    nav.querySelectorAll('.nav-beta').forEach(a => a.remove());
+    if (!on) return;
+    const rp = nav.querySelector('.nav-rp');
+    BETA_NAV.forEach(n => {
+      const a = document.createElement('a');
+      a.href = BASE + n.href;
+      a.className = 'nav-beta' + (n.id === ACTIVE ? ' active' : '');
+      if (n.id === ACTIVE) a.setAttribute('aria-current', 'page');
+      a.innerHTML = `${esc(n.label)}<span class="beta-tag">Beta</span>`;
+      nav.insertBefore(a, rp || null);
+    });
   }
 
   // A phone on its side has little height to spare, so there the header

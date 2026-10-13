@@ -1,0 +1,79 @@
+/* BYTHERIM League (beta) admin page */
+.lg h1 .beta-tag { vertical-align: middle; margin-left: 0.35rem; }
+.lg h2 { font-family: 'Oswald', sans-serif; font-size: 1.15rem; margin: 0 0 0.7rem; display: flex; align-items: baseline; gap: 0.5rem; }
+.lg h2 small { font: 600 0.85rem 'Asap Condensed', sans-serif; color: var(--text-muted); }
+.lg .lg-h2-gap { margin-top: 1.4rem; }
+.lg-save { font-size: 0.88rem; color: var(--text-muted); align-self: center; max-width: 420px; text-align: right; }
+.lg-save.err { color: var(--loss); }
+.lg-panel { padding: 1rem 1.1rem; }
+.lg-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.lg-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr)); gap: 0.7rem; }
+.lg-wide { margin-top: 0.8rem; }
+.lg .site-field input[type=date], .lg .site-field input[type=number], .lg .site-field input[type=email] {
+  background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.5rem 0.65rem; font: 500 0.95rem 'Asap Condensed', sans-serif; width: 100%; box-sizing: border-box; }
+.lg-next { list-style: none; margin: 0 0 0.8rem; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
+.lg-next li { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.95rem; }
+.lg-next small { color: var(--text-muted); margin-left: auto; }
+.lg-chip { display: inline-block; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted); white-space: nowrap; }
+.lg-chip.ok { color: #3fbf7f; border-color: currentColor; }
+.lg-chip.warn { color: #e3bb4f; border-color: currentColor; }
+.lg-warn-text { color: #e3bb4f !important; }
+.lg-confs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem; }
+.lg-conf { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--r-md); opacity: 0.55; }
+.lg-conf.on { opacity: 1; border-color: var(--accent); }
+.lg-conf b { font-family: 'Oswald', sans-serif; }
+.lg-conf small { color: var(--text-muted); font-size: 0.75rem; }
+
+.lg-bar { margin-bottom: 0.9rem; }
+.lg-teams { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 0.8rem; }
+.lg-team { display: flex; gap: 0.9rem; align-items: center; text-align: left; padding: 0.8rem; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--card-bg); color: var(--text-main); cursor: pointer; font: inherit; }
+.lg-team:hover { border-color: var(--accent); }
+.lg-team .lg-jersey { flex: 0 0 auto; width: 96px; height: auto; }
+.lg-team-text { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.lg-team-text b { font-family: 'Oswald', sans-serif; font-size: 1.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lg-team-text > small { color: var(--text-muted); }
+.lg-swatches { display: flex; align-items: center; gap: 0.3rem; }
+.lg-swatches i { width: 18px; height: 18px; border-radius: 50%; border: 1px solid rgba(127,127,127,.5); display: inline-block; }
+.lg-swatches small { color: var(--text-muted); margin-left: 0.2rem; font-weight: 700; }
+.lg-badges { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+
+.lg-editor { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+.lg-color { display: flex; gap: 0.4rem; }
+.lg-color input[type=color] { width: 44px; height: 38px; padding: 2px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--card-bg); cursor: pointer; flex: 0 0 auto; }
+.lg-color input[type=text] { font-family: ui-monospace, monospace !important; text-transform: uppercase; }
+.lg-check { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.9rem; font-weight: 600; }
+.lg-check input { width: 18px; height: 18px; accent-color: var(--accent); }
+.lg-roster { width: 100%; border-collapse: collapse; margin-bottom: 0.6rem; }
+.lg-roster th { text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding: 0 0.3rem 0.3rem; }
+.lg-roster td { padding: 0.2rem 0.3rem; }
+.lg-roster td:first-child { width: 3.4rem; }
+.lg-roster td:nth-child(3) { width: 5rem; }
+.lg-roster td:last-child { width: 2rem; }
+.lg-roster input, .lg-roster select, .lg-checklist input[type=text], .lg-checklist input[type=date], .lg-add input, .lg-add select {
+  width: 100%; box-sizing: border-box; background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.42rem 0.55rem; font: 500 0.95rem 'Asap Condensed', sans-serif; }
+.lg-x { border: 0; background: none; color: var(--text-muted); font-size: 1.3rem; line-height: 1; cursor: pointer; padding: 0.2rem 0.4rem; border-radius: 6px; }
+.lg-x:hover { color: var(--loss); background: var(--hover, rgba(127,127,127,.12)); }
+.lg-danger { color: var(--loss) !important; border-color: var(--loss) !important; }
+.lg-preview { position: sticky; top: calc(var(--header-h, 64px) + 12px); }
+.lg-jerseys { display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap; }
+.lg-jerseys figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 0.3rem; flex: 1 1 140px; max-width: 220px; }
+.lg-jerseys .lg-jersey { width: 100%; height: auto; }
+.lg-jerseys figcaption { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.lg-num { max-width: 140px; margin-top: 0.6rem; }
+
+.lg-progress { height: 8px; border-radius: 999px; background: var(--border); overflow: hidden; margin-bottom: 1rem; }
+.lg-progress i { display: block; height: 100%; background: var(--accent); border-radius: 999px; transition: width .3s; }
+.lg-checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.lg-checklist li { display: grid; grid-template-columns: 22px minmax(0, 1fr) 150px 2rem; gap: 0.5rem; align-items: center; }
+.lg-checklist input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
+.lg-checklist li.done .lg-item-text { text-decoration: line-through; color: var(--text-muted); }
+.lg-add { display: grid; grid-template-columns: 130px minmax(0, 1fr) auto; gap: 0.5rem; align-items: center; }
+
+@media (max-width: 860px) {
+  .lg-grid, .lg-editor { grid-template-columns: 1fr; }
+  .lg-preview { position: static; }
+  .lg-checklist li { grid-template-columns: 22px minmax(0, 1fr) 2rem; }
+  .lg-checklist li input[type=date] { grid-column: 2 / 3; }
+  .lg-checklist li .lg-x { grid-row: 1; grid-column: 3; }
+  .lg-add { grid-template-columns: 1fr; }
+}
