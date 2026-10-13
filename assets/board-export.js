@@ -36,7 +36,12 @@
     // The board already showed these photos without asking for export
     // permission, and a browser may answer from that cached copy, so a
     // failed first try is retried as a fresh request.
-    const p = once(src).then(im => im || (cors ? once(src + (src.includes('?') ? '&' : '?') + 'btr-export=1') : null));
+    // Some school sites don't let other sites draw their photos into an
+    // image (and some block outside requests entirely), so a photo that
+    // fails directly is fetched again through wsrv.nl, a free image proxy
+    // that allows it. That also sidesteps a browser's cached copy.
+    const viaProxy = u => `https://wsrv.nl/?url=${encodeURIComponent(u)}&w=320&output=png`;
+    const p = once(src).then(im => im || (cors ? once(viaProxy(src)) : null));
     imgCache.set(src, p);
     return p;
   }
@@ -198,7 +203,9 @@
   }
 
   function layout(n) {
-    if (n <= 10) return { cols: 1, gap: 12 };
+    // A top 10 uses the top 20's row size in the left column, leaving
+    // the right half open for a featured photo added afterwards.
+    if (n <= 10) return { cols: 2, gap: 12, per: 10, fill: 1 };
     if (n <= 30) return { cols: 2, gap: n <= 20 ? 12 : 9 };
     return { cols: 3, gap: 7 };
   }
@@ -219,8 +226,9 @@
     header(ctx, o, logo);
     footer(ctx);
     const top = 286, bottom = H - 112;
-    const { cols, gap } = layout(list.length);
-    const per = Math.ceil(list.length / cols);
+    const L = layout(list.length);
+    const { cols, gap } = L;
+    const per = L.per || Math.ceil(list.length / cols);
     const colGap = cols > 1 ? 18 : 0;
     const cw = (W - M * 2 - colGap * (cols - 1)) / cols;
     const rh = Math.min(98, (bottom - top - gap * (per - 1)) / per);
