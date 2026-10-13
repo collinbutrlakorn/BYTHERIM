@@ -799,8 +799,14 @@
     } catch (e) { /* counting never gets in the way */ }
   }
 
+  // Calls fn(true) while an admin is signed in and fn(false) otherwise,
+  // again on every sign-in or sign-out. Used to show admin-only tools.
+  function whenAdmin(fn) {
+    cloud().then(c => { if (c && c.onChange) c.onChange(() => fn(!!c.admin)); else fn(false); });
+  }
+
   window.BTR = {
-    CONFIG, mount, track, toggleTheme, icon, esc, stripHtml, truncate, fmtDate, fmtDuration,
+    CONFIG, mount, track, whenAdmin, toggleTheme, icon, esc, stripHtml, truncate, fmtDate, fmtDuration,
     fetchFeed, loadPosts, parseCSV, schoolLogo, schoolKey, initialsBadge, socialButtons, postCard, hydrateIcons, xFeed, socialEmbed,
     cloud, slideHTML, heroRotator
   };

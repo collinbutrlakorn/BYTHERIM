@@ -48,5 +48,15 @@ const ROOT = path.join(RP, '..');
   w.Cloud.admin = false;
   await L.save();
   ok(/admin/.test(w.document.getElementById('lgSave').textContent), 'non-admins cannot save');
+
+  // The draft page's image export: admin-only button, drawing code on demand.
+  const draft = fs.readFileSync(path.join(ROOT, 'draft.html'), 'utf8');
+  ok(/id="exportBtn" type="button" hidden/.test(draft), 'draft: export button starts hidden');
+  ok(/BTR\.whenAdmin\(on => \{ exportBtn\.hidden = !on; \}\)/.test(draft), 'draft: export button only shows for admins');
+  ok(!/<script src="assets\/board-export\.js"/.test(draft), 'draft: export code loads only when used');
+  const exp = fs.readFileSync(path.join(ROOT, 'assets/board-export.js'), 'utf8');
+  ok(/W = 1080, H = 1350/.test(exp) && /\[10, 20, 30, 60\]/.test(exp), 'export: 1080x1350 at top 10/20/30/60');
+  ok(/whenAdmin/.test(fs.readFileSync(path.join(ROOT, 'assets/site.js'), 'utf8')), 'site.js exposes whenAdmin');
+  ['assets/site.css', 'assets/chrome.css'].forEach(f => ok(/\.beta-tag \{/.test(fs.readFileSync(path.join(ROOT, f), 'utf8')), `${f} styles the Beta tag`));
   console.log('league-page: done');
 })().catch(e => { console.error(e); process.exit(1); });

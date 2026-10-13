@@ -137,6 +137,7 @@
     <button class="btn btn-ghost btn-sm tier-info-btn" id="tierInfoBtn" type="button" aria-expanded="false" aria-controls="tierInfo">
       <span data-icon="info" data-size="15"></span> Tiers
     </button>
+    <button class="btn btn-ghost btn-sm export-btn" id="exportBtn" type="button" hidden>Export image</button>
   </div>
   <div class="tier-info card" id="tierInfo" hidden></div>
 
@@ -552,6 +553,27 @@
     btn.setAttribute('aria-expanded', String(open));
   }
   document.addEventListener('keydown', e => { if (e.key === 'Escape') setTierInfo(false); });
+
+  // ------------------------------------------------------------ export (admins)
+  // "Export image" turns the ranked board into a PNG for X / Instagram.
+  // Only shown to a signed-in admin; the drawing code loads on first use.
+  let exportScript = null;
+  const exportBtn = document.getElementById('exportBtn');
+  if (BTR.whenAdmin) BTR.whenAdmin(on => { exportBtn.hidden = !on; });
+  exportBtn.addEventListener('click', () => {
+    exportScript = exportScript || new Promise((ok, fail) => {
+      const sc = document.createElement('script');
+      sc.src = 'assets/board-export.js';
+      sc.onload = ok; sc.onerror = () => { exportScript = null; fail(); };
+      document.head.appendChild(sc);
+    });
+    exportScript.then(() => window.BoardExport.open({
+      rows: state.all, year: state.year, hasPrev: state.hasPrev, past: isPast(), future: isFuture(),
+      eyebrow: `${state.year} NBA Draft · ${isPast() ? 'Final board' : isFuture() ? 'Early look' : 'Big board'}`,
+      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      tierColor, logoFor
+    })).catch(() => {});
+  });
 
   // ------------------------------------------------------------ boards
   function renderYears() {
