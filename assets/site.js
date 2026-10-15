@@ -16,6 +16,7 @@
    ============================================================ */
 (function () {
   'use strict';
+  const SELF_SRC = (document.currentScript && document.currentScript.src) || '';
 
   const CONFIG = {
     social: {
@@ -140,9 +141,24 @@
       try { sessionStorage.setItem(key, JSON.stringify({ t: Date.now(), d: out })); } catch (e) {}
       return out;
     } catch (err) {
-      console.warn('Feed unavailable:', rssUrl, err.message);
+      console.warn('Feed unavailable, using saved copy:', rssUrl, err.message);
+      // rss2json is a free service and errors out now and then. data/feeds.json
+      // is a copy of both feeds, refreshed every few hours by GitHub Actions.
+      try {
+        const snap = await fetchSnapshot();
+        const name = Object.keys(CONFIG.feeds).find(k => CONFIG.feeds[k] === rssUrl);
+        if (snap[name] && snap[name].items) return Object.assign({ stale: true }, snap[name]);
+      } catch (e2) { console.warn('Saved feed copy unavailable:', e2.message); }
       return { feed: {}, items: [], failed: true };
     }
+  }
+  let snapshotPromise = null;
+  function fetchSnapshot() {
+    if (!snapshotPromise) {
+      const url = new URL('data/feeds.json', SELF_SRC ? new URL('../', SELF_SRC) : location.href).href;
+      snapshotPromise = fetch(url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+    }
+    return snapshotPromise;
   }
 
   // Every Substack post, typed and with real artwork. Podcast episodes are
