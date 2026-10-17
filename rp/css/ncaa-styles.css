@@ -63,13 +63,13 @@
 body {
   background-color: var(--bg-color);
   color: var(--text-main);
-  font-family: 'Asap Condensed', sans-serif;
+  font-family: 'Inter', sans-serif;
   line-height: 1.5;
 }
 
 /* Typography */
 h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
-  font-family: 'Oswald', 'Asap Condensed', sans-serif;
+  font-family: 'Oswald', 'Inter', sans-serif;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1054,7 +1054,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   color: var(--text-main);
-  font-family: 'Asap Condensed', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 0.95rem;
   text-align: left;
   cursor: pointer;
@@ -1216,7 +1216,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   border: 1px solid var(--border);
   border-radius: var(--r-sm);
   color: var(--text-muted);
-  font-family: 'Asap Condensed', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 0.85rem;
   padding: 0.45rem 0.3rem;
   cursor: pointer;
@@ -1444,7 +1444,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   border-radius: var(--r-md);
   cursor: pointer;
   color: var(--text-main);
-  font-family: 'Asap Condensed', sans-serif;
+  font-family: 'Inter', sans-serif;
   transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
@@ -1633,7 +1633,7 @@ h1, h2, h3, h4, .section-title, .season-title, .uppercase-title {
   padding: 0.4rem 0.7rem;
   cursor: pointer;
   color: var(--text-main);
-  font-family: 'Asap Condensed', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 0.85rem;
   transition: border-color 0.15s ease, background 0.15s ease;
 }
@@ -1869,7 +1869,7 @@ input[type="file"] {
   border-radius: var(--r-pill);
   padding: 0.32rem 0.62rem;
   font-size: 0.78rem;
-  font-family: 'Asap Condensed', sans-serif;
+  font-family: 'Inter', sans-serif;
   transition: background 0.15s ease, color 0.15s ease;
 }
 
@@ -2143,7 +2143,7 @@ body.offseason-open {
   border: 1px solid var(--border);
   border-radius: var(--r-pill);
   color: var(--text-muted);
-  font-family: 'Asap Condensed', sans-serif;
+  font-family: 'Inter', sans-serif;
   font-size: 0.85rem;
   padding: 0.4rem 0.85rem;
   cursor: pointer;
@@ -2600,7 +2600,7 @@ button, input, select, textarea { font-family: inherit; }
 .nb-ncaa .nb-team { padding: 0 4px; gap: 3px; }
 .nb-ncaa .nb-seed { width: 12px; }
 .nb-ncaa .nb-score { margin-left: 2px; }
-.nb-ncaa .nb-name { font-family: 'Asap Condensed', 'Arial Narrow', sans-serif; font-size: 0.78rem; letter-spacing: 0.01em; }
+.nb-ncaa .nb-name { font-family: 'Inter', 'Arial Narrow', sans-serif; font-size: 0.78rem; letter-spacing: 0.01em; }
 /* Short names inside the bracket itself; full names everywhere else. */
 .nb-short { display: none; }
 .nb-ncaa .nb-side .nb-short, .nb-ncaa .nb-final .nb-short { display: inline; }

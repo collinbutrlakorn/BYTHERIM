@@ -1,7 +1,7 @@
 /* BYTHERIM League (beta) admin page */
 .lg h1 .beta-tag { vertical-align: middle; margin-left: 0.35rem; }
 .lg h2 { font-family: 'Oswald', sans-serif; font-size: 1.15rem; margin: 0 0 0.7rem; display: flex; align-items: baseline; gap: 0.5rem; }
-.lg h2 small { font: 600 0.85rem 'Asap Condensed', sans-serif; color: var(--text-muted); }
+.lg h2 small { font: 600 0.85rem 'Inter', sans-serif; color: var(--text-muted); }
 .lg .lg-h2-gap { margin-top: 1.4rem; }
 .lg-save { font-size: 0.88rem; color: var(--text-muted); align-self: center; max-width: 420px; text-align: right; }
 .lg-save.err { color: var(--loss); }
@@ -10,7 +10,7 @@
 .lg-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr)); gap: 0.7rem; }
 .lg-wide { margin-top: 0.8rem; }
 .lg .site-field input[type=date], .lg .site-field input[type=number], .lg .site-field input[type=email] {
-  background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.5rem 0.65rem; font: 500 0.95rem 'Asap Condensed', sans-serif; width: 100%; box-sizing: border-box; }
+  background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.5rem 0.65rem; font: 500 0.95rem 'Inter', sans-serif; width: 100%; box-sizing: border-box; }
 .lg-next { list-style: none; margin: 0 0 0.8rem; padding: 0; display: flex; flex-direction: column; gap: 0.45rem; }
 .lg-next li { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.95rem; }
 .lg-next small { color: var(--text-muted); margin-left: auto; }
@@ -50,7 +50,7 @@
 .lg-roster td:nth-child(3) { width: 5rem; }
 .lg-roster td:last-child { width: 2rem; }
 .lg-roster input, .lg-roster select, .lg-checklist input[type=text], .lg-checklist input[type=date], .lg-add input, .lg-add select {
-  width: 100%; box-sizing: border-box; background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.42rem 0.55rem; font: 500 0.95rem 'Asap Condensed', sans-serif; }
+  width: 100%; box-sizing: border-box; background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.42rem 0.55rem; font: 500 0.95rem 'Inter', sans-serif; }
 .lg-x { border: 0; background: none; color: var(--text-muted); font-size: 1.3rem; line-height: 1; cursor: pointer; padding: 0.2rem 0.4rem; border-radius: 6px; }
 .lg-x:hover { color: var(--loss); background: var(--hover, rgba(127,127,127,.12)); }
 .lg-danger { color: var(--loss) !important; border-color: var(--loss) !important; }

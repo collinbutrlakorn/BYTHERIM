@@ -430,7 +430,7 @@ tr:hover td { background-color: var(--bg-hover); cursor: pointer; }
 body {
   background: var(--bg-color);
   color: var(--text-main);
-  font-family: 'Asap Condensed', 'Inter', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 

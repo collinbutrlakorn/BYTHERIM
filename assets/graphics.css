@@ -4,14 +4,14 @@
 .gx-panel { padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: 0.75rem; }
 .gx-row { display: flex; }
 .gx-seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 999px; padding: 3px; gap: 2px; }
-.gx-seg button { font: 600 0.92rem 'Asap Condensed', sans-serif; border: 0; background: none; color: var(--text-muted); padding: 0.4rem 0.95rem; border-radius: 999px; cursor: pointer; }
+.gx-seg button { font: 600 0.92rem 'Inter', sans-serif; border: 0; background: none; color: var(--text-muted); padding: 0.4rem 0.95rem; border-radius: 999px; cursor: pointer; }
 .gx-seg button.on { background: var(--accent); color: var(--bg-color); }
 .gx-fields2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; }
 .gx-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 .gx-danger { color: var(--loss) !important; border-color: var(--loss) !important; }
 .gx-h3 { font: 600 1rem 'Oswald', sans-serif; margin: 0.4rem 0 0; display: flex; align-items: baseline; gap: 0.5rem; }
-.gx-h3 small { font: 500 0.82rem 'Asap Condensed', sans-serif; color: var(--text-muted); }
-.gx input[type=text], .gx textarea { background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.45rem 0.6rem; font: 500 0.95rem 'Asap Condensed', sans-serif; width: 100%; box-sizing: border-box; min-width: 0; }
+.gx-h3 small { font: 500 0.82rem 'Inter', sans-serif; color: var(--text-muted); }
+.gx input[type=text], .gx textarea { background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.45rem 0.6rem; font: 500 0.95rem 'Inter', sans-serif; width: 100%; box-sizing: border-box; min-width: 0; }
 .gx-photo { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.6rem; align-items: end; }
 .gx-upload { cursor: pointer; white-space: nowrap; }
 .gx-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 0.5rem; }
@@ -25,7 +25,7 @@
 .gx-rowf { display: grid; gap: 0.35rem; }
 .gx-rowf.list { grid-template-columns: 1.5fr 1fr 4.5rem 6.5rem; }
 .gx-rowf.cols { grid-template-columns: 1.5fr 1fr 4.5rem 2.2rem; }
-.gx select { background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.42rem 0.4rem; font: 500 0.9rem 'Asap Condensed', sans-serif; min-width: 0; }
+.gx select { background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.42rem 0.4rem; font: 500 0.9rem 'Inter', sans-serif; min-width: 0; }
 .gx-num { text-align: center; font-family: 'Oswald', sans-serif !important; }
 .gx-rowbtns { display: flex; }
 .gx-rowbtns .lg-x:disabled { opacity: 0.3; cursor: default; }

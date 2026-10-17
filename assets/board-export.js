@@ -16,7 +16,7 @@
   const W = 1080, H = 1350, M = 56;
   const C = { night: '#06070a', surface: 'rgba(255,255,255,0.045)', line: 'rgba(255,255,255,0.10)', text: '#f4f5f7', muted: '#9aa3b2',
     purple: '#964282', lilac: '#c86fb4', gold: '#e3bb4f', up: '#4ade80', down: '#f87171' };
-  const FONT = { head: '"Exo 2", "Oswald", sans-serif', disp: '"Oswald", sans-serif', body: '"Asap Condensed", sans-serif' };
+  const FONT = { head: '"Exo 2", "Oswald", sans-serif', disp: '"Oswald", sans-serif', body: '"Inter", sans-serif' };
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const CLASS_LABEL = { FR: 'Freshman', SO: 'Sophomore', JR: 'Junior', SR: 'Senior', INTL: 'International' };
 
@@ -53,7 +53,7 @@
       document.head.appendChild(l);
     }
     if (!document.fonts || !document.fonts.load) return Promise.resolve();
-    const want = ['italic 800 70px "Exo 2"', '600 40px Oswald', '500 40px Oswald', '500 22px "Asap Condensed"', '700 22px "Asap Condensed"'];
+    const want = ['italic 800 70px "Exo 2"', '600 40px Oswald', '500 40px Oswald', '500 22px "Inter"', '700 22px "Inter"'];
     return Promise.race([
       new Promise(r => setTimeout(r, 3500)),
       new Promise(r => setTimeout(r, 150)).then(() => Promise.all(want.map(f => document.fonts.load(f).catch(() => null))))

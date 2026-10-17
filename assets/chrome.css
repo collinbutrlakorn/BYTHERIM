@@ -28,8 +28,8 @@
   --shadow-lift: 0 12px 32px rgba(0, 0, 0, 0.45);
   --maxw: 1180px;
   color: var(--text);
-  font-family: 'Asap Condensed', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 17px;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
@@ -131,7 +131,7 @@
 .site-footer .footer-brand img { height: 28px; width: auto; margin-bottom: 0.9rem; }
 .site-footer .footer-brand p { color: var(--muted); font-size: 0.95rem; max-width: 330px; margin: 0 0 1rem; }
 .site-footer .footer-col h4 {
-  font-family: 'Oswald', 'Asap Condensed', sans-serif;
+  font-family: 'Oswald', 'Inter', sans-serif;
   font-weight: 600;
   font-size: 0.78rem;
   line-height: 1.12;
@@ -216,4 +216,4 @@
 
 /* Admin-only beta pages in the main menu */
 .beta-tag { display: inline-block; margin-left: 0.35rem; padding: 1px 6px; border-radius: 999px; background: #e3bb4f; color: #181f40;
-  font: 700 0.6rem/1.5 'Asap Condensed', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; vertical-align: 2px; }
+  font: 700 0.6rem/1.5 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; vertical-align: 2px; }

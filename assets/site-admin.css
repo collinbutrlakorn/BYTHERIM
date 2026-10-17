@@ -21,7 +21,7 @@
 .site-field { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.9rem; }
 .site-field > span { font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
 .site-field input[type=text], .site-field input[type=url], .site-field select, .site-field textarea {
-  background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.5rem 0.65rem; font: 500 0.95rem 'Asap Condensed', sans-serif; width: 100%; box-sizing: border-box; }
+  background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.5rem 0.65rem; font: 500 0.95rem 'Inter', sans-serif; width: 100%; box-sizing: border-box; }
 .site-field textarea { resize: vertical; }
 .site-field small { color: var(--text-muted); }
 .site-preview { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }

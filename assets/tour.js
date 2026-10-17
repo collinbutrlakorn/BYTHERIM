@@ -36,7 +36,7 @@
   transition: top .28s ease, left .28s ease, width .28s ease, height .28s ease; pointer-events: none; }
 .tour-spot.none { width: 0 !important; height: 0 !important; outline: 0; left: 50% !important; top: 40% !important; }
 .tour-card { position: fixed; width: min(360px, calc(100vw - 24px)); background: var(--tour-surface); color: var(--tour-text); border: 1px solid var(--tour-border);
-  border-radius: 14px; padding: 18px 18px 14px; box-shadow: 0 18px 50px rgba(0,0,0,.4); pointer-events: auto; font-family: 'Asap Condensed', system-ui, sans-serif;
+  border-radius: 14px; padding: 18px 18px 14px; box-shadow: 0 18px 50px rgba(0,0,0,.4); pointer-events: auto; font-family: 'Inter', system-ui, sans-serif;
   transition: top .28s ease, left .28s ease; }
 .tour-card h2 { margin: 0 0 6px; font-family: 'Oswald', sans-serif; font-size: 1.25rem; letter-spacing: .02em; text-transform: uppercase; color: var(--tour-text); }
 .tour-card p { margin: 0; color: var(--tour-muted); font-size: 1rem; line-height: 1.5; }

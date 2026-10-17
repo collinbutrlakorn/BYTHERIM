@@ -9,7 +9,7 @@ body.cs-open { overflow: hidden; }
 .cs-show {
   --cs-a: #4FAEF5; --cs-a2: #9fd3ff; --cs-deep: #12305a; --cs-soft: rgba(79, 174, 245, 0.18);
   position: fixed; inset: 0; z-index: 400; display: flex; align-items: center; justify-content: center;
-  color: #fff; overflow: hidden; font-family: 'Asap Condensed', sans-serif;
+  color: #fff; overflow: hidden; font-family: 'Inter', sans-serif;
   animation: csFade 0.35s ease both;
 }
 .cs-show.cs-draft { --cs-a: #F0566F; --cs-a2: #ffb3c0; --cs-deep: #4a1020; --cs-soft: rgba(240, 86, 111, 0.18); }

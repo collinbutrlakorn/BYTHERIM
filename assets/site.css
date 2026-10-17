@@ -76,8 +76,8 @@ html { -webkit-text-size-adjust: 100%; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Asap Condensed', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 17px;
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
@@ -95,7 +95,7 @@ input, select { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 
 h1, h2, h3, h4, .display {
-  font-family: 'Oswald', 'Asap Condensed', sans-serif;
+  font-family: 'Oswald', 'Inter', sans-serif;
   font-weight: 600;
   line-height: 1.12;
   letter-spacing: 0.2px;
@@ -901,7 +901,7 @@ h1, h2, h3, h4, .display {
 .fact-pick small { color: var(--faint); font-weight: 500; }
 
 /* Movement since the last edition (sheet's Prev Rank column). */
-.bd-move { display: block; font-family: 'Asap Condensed', sans-serif; font-size: 0.68rem; font-weight: 600; line-height: 1; margin-top: 2px; letter-spacing: 0.2px; }
+.bd-move { display: block; font-family: 'Inter', sans-serif; font-size: 0.68rem; font-weight: 600; line-height: 1; margin-top: 2px; letter-spacing: 0.2px; }
 .bd-move.up { color: var(--win); }
 .bd-move.down { color: var(--loss); }
 .bd-move.new { color: var(--accent); text-transform: uppercase; font-size: 0.6rem; letter-spacing: 0.6px; }
@@ -1111,7 +1111,7 @@ a.card:hover { border-color: var(--border-strong); transform: translateY(-2px); 
 .export-group { display: flex; flex-direction: column; gap: 0.35rem; }
 .export-group > span { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .export-group .chip:disabled { opacity: 0.4; cursor: default; }
-.export-note input { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--r-sm, 8px); padding: 0.4rem 0.6rem; font: 500 0.92rem 'Asap Condensed', sans-serif; width: 220px; }
+.export-note input { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--r-sm, 8px); padding: 0.4rem 0.6rem; font: 500 0.92rem 'Inter', sans-serif; width: 220px; }
 .export-check { display: flex; align-items: center; gap: 0.45rem; font-size: 0.92rem; color: var(--text); }
 .export-check input { width: 17px; height: 17px; accent-color: var(--accent); }
 .export-preview { display: flex; justify-content: center; gap: 0.8rem; overflow: auto; max-height: 58vh; padding: 0.2rem; }
@@ -1133,4 +1133,4 @@ a.card:hover { border-color: var(--border-strong); transform: translateY(-2px); 
 
 /* Admin-only beta pages in the main menu (same as chrome.css) */
 .beta-tag { display: inline-block; margin-left: 0.35rem; padding: 1px 6px; border-radius: 999px; background: #e3bb4f; color: #181f40;
-  font: 700 0.6rem/1.5 'Asap Condensed', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; vertical-align: 2px; }
+  font: 700 0.6rem/1.5 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; vertical-align: 2px; }

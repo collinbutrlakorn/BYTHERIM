@@ -1,13 +1,13 @@
 /* RP admin page */
 body { background: var(--bg-color); color: var(--text-main); }
-.adm { max-width: 1280px; margin: 0 auto; padding: 1.25rem 16px 3rem; font-family: 'Asap Condensed', sans-serif; }
+.adm { max-width: 1280px; margin: 0 auto; padding: 1.25rem 16px 3rem; font-family: 'Inter', sans-serif; }
 .adm-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
 .adm-head h1 { font-family: 'Oswald', sans-serif; font-size: 1.8rem; margin: 0; }
 .adm-sub { color: var(--text-muted); margin: 0.2rem 0 0; }
 .adm-head-actions { display: flex; gap: 0.5rem; }
 .adm-tabs { display: flex; gap: 0.35rem; border-bottom: 1px solid var(--border); margin-bottom: 1rem; overflow-x: auto; }
 .adm-tabs[hidden] { display: none; }
-.adm-tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--text-muted); font: 600 0.95rem 'Asap Condensed', sans-serif; padding: 0.55rem 0.9rem; cursor: pointer; white-space: nowrap; }
+.adm-tabs button { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--text-muted); font: 600 0.95rem 'Inter', sans-serif; padding: 0.55rem 0.9rem; cursor: pointer; white-space: nowrap; }
 .adm-tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
 .adm-empty { color: var(--text-muted); padding: 2rem 0; text-align: center; }
 .adm .card { margin-bottom: 1rem; }
@@ -43,7 +43,7 @@ body { background: var(--bg-color); color: var(--text-main); }
 .adm-src.recruit { color: var(--win); border-color: var(--win); }
 .adm-src.sheet { color: var(--accent); border-color: var(--accent); }
 .adm-filters { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
-.adm-filters input, .adm-filters select { background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.45rem 0.7rem; font: 500 0.92rem 'Asap Condensed', sans-serif; min-width: 0; }
+.adm-filters input, .adm-filters select { background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.45rem 0.7rem; font: 500 0.92rem 'Inter', sans-serif; min-width: 0; }
 .adm-filters input { flex: 1 1 220px; }
 .adm-changes { list-style: none; padding: 0; margin: 0; columns: 2 320px; font-size: 0.9rem; }
 .adm-changes li { break-inside: avoid; padding: 0.2rem 0; }
@@ -71,7 +71,7 @@ body { background: var(--bg-color); color: var(--text-main); }
 .tk-bio { flex: 1 1 260px; line-height: 1.45; }
 .tk-lore { margin: 0.8rem 0 0.2rem; line-height: 1.5; max-width: 80ch; }
 .tk-attrs { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.6rem 1.2rem; margin-top: 0.6rem; }
-.tk-group h4 { margin: 0.5rem 0 0.3rem; font: 700 0.75rem 'Asap Condensed', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
+.tk-group h4 { margin: 0.5rem 0 0.3rem; font: 700 0.75rem 'Inter', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); }
 .tk-row { display: flex; justify-content: space-between; gap: 0.6rem; font-size: 0.88rem; padding: 0.12rem 0; border-bottom: 1px solid var(--border); }
 .tk-row b { font-variant-numeric: tabular-nums; }
 .tk-hi { color: var(--win, #22c55e); }
