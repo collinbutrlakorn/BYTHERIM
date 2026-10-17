@@ -15,7 +15,8 @@
    ============================================================ */
 (function (root) {
   'use strict';
-  const W = 1080, M = 56;
+  const W = 1080;
+  let M = 56; // side margin; wider when the graphic has a frame
   const SIZES = {
     '4x5': { h: 1350, label: 'Instagram post (4:5)' },
     '1x1': { h: 1080, label: 'Square (1:1)' },
@@ -224,12 +225,13 @@
     return y;
   }
   function footer(ctx, L, H) {
-    ctx.fillStyle = L.line; ctx.fillRect(M, H - 86, W - M * 2, 2);
+    const b = H - (M - 56); // the bottom edge, inside a frame if there is one
+    ctx.fillStyle = L.line; ctx.fillRect(M, b - 86, W - M * 2, 2);
     ctx.font = `600 24px ${FONT.disp}`; ctx.fillStyle = L.text;
-    spaced(ctx, L.foot, M, H - 42, 2);
+    spaced(ctx, L.foot, M, b - 42, 2);
     ctx.fillStyle = L.muted; ctx.font = `500 24px ${FONT.body}`; ctx.textAlign = 'right';
-    ctx.fillText('@bytherimhoops', W - M, H - 42); ctx.textAlign = 'left';
-    return H - 112; // content stops here
+    ctx.fillText('@bytherimhoops', W - M, b - 42); ctx.textAlign = 'left';
+    return b - 112; // content stops here
   }
 
   // ------------------------------------------------------------ templates
@@ -264,9 +266,15 @@
     const name = sized(ctx, String(f.player || '').toUpperCase(), s => `italic 800 ${s}px ${FONT.head}`, 80, 44, w - 64);
     // Dark text on a light strip (NCAA's sky blue), white on the rest.
     const n = parseInt(L.a.slice(1), 16), lightStrip = ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000 > 150;
-    ctx.fillStyle = lightStrip ? '#071226' : '#fff'; ctx.fillText(name.text, x + 30, top + ph - 70);
-    ctx.fillStyle = lightStrip ? 'rgba(7,18,38,0.8)' : 'rgba(255,255,255,0.88)'; ctx.font = `500 28px ${FONT.disp}`;
-    spaced(ctx, fit(ctx, [f.team, f.info].filter(Boolean).join('  ·  ').toUpperCase(), w - 80), x + 32, top + ph - 28, 2);
+    // The name (and the team line under it) sit centered in the strip.
+    const info = [f.team, f.info].filter(Boolean).join('  ·  ').toUpperCase();
+    const capH = name.size * 0.72, infoH = info ? 20 + 16 : 0, stripTop = top + ph - 128;
+    const nameY = stripTop + (128 - capH - infoH) / 2 + capH;
+    ctx.fillStyle = lightStrip ? '#071226' : '#fff'; ctx.fillText(name.text, x + 32, nameY);
+    if (info) {
+      ctx.fillStyle = lightStrip ? 'rgba(7,18,38,0.8)' : 'rgba(255,255,255,0.88)'; ctx.font = `500 28px ${FONT.disp}`;
+      spaced(ctx, fit(ctx, info, w - 80), x + 34, nameY + infoH, 2);
+    }
 
     let y = top + ph + 26;
     if (f.line) {
@@ -372,21 +380,21 @@
     if (!ctx) return canvas;
     const [wordmark] = await Promise.all([loadImg(opts.wordmark || 'assets/logo-header.png'), fontsReady()]);
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    // A frame is a solid border; the graphic is drawn a little smaller
-    // inside it so nothing gets covered.
-    if (L.frame) {
-      const F = 40, k = (W - F * 2) / W;
-      ctx.fillStyle = L.frame; ctx.fillRect(0, 0, W, H);
-      ctx.save();
-      ctx.beginPath(); ctx.rect(F, F, W - F * 2, H - F * 2); ctx.clip();
-      ctx.fillStyle = L.bg; ctx.fillRect(F, F, W - F * 2, H - F * 2);
-      ctx.translate(F, (H - H * k) / 2); ctx.scale(k, k);
-    }
+    // A frame is a solid border with a thin darker keyline inside it;
+    // the content moves in so it keeps the same breathing room.
+    const F = L.frame ? 38 : 0;
+    M = 56 + F;
+    if (F) { ctx.save(); ctx.beginPath(); ctx.rect(F, F, W - F * 2, H - F * 2); ctx.clip(); }
     background(ctx, L, g.look, H);
     const top = header(ctx, L, g.f || {}, wordmark);
     const bottom = footer(ctx, L, H);
     await (TEMPLATES[g.tpl] || statline)(ctx, L, { ...g, f: g.f || {} }, H, top, bottom);
-    if (L.frame) ctx.restore();
+    if (F) {
+      ctx.restore();
+      ctx.fillStyle = L.frame;
+      ctx.fillRect(0, 0, W, F); ctx.fillRect(0, H - F, W, F); ctx.fillRect(0, 0, F, H); ctx.fillRect(W - F, 0, F, H);
+      ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 3; ctx.strokeRect(F - 1.5, F - 1.5, W - F * 2 + 3, H - F * 2 + 3);
+    }
     return canvas;
   }
 
