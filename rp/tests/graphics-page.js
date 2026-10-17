@@ -31,14 +31,16 @@ const ROOT = path.join(RP, '..');
   const body = () => w.document.getElementById('gxBody');
   for (const look of ['nba', 'draft', 'ncaa']) {
     body().querySelector(`[data-set="look"][data-v="${look}"]`).click();
-    for (const tpl of ['statline', 'awards', 'list', 'single', 'columns']) {
+    for (const tpl of ['statline', 'awards', 'leaders']) {
       body().querySelector(`[data-set="tpl"][data-v="${tpl}"]`).click();
       ok(G.cur.look === look && G.cur.tpl === tpl && body().querySelector('#gxForm [data-k="title"]'), `${look} ${tpl} form builds`);
     }
   }
-  body().querySelector('[data-set="tpl"][data-v="list"]').click();
-  ok(G.cur.style.bg === D.LOOKS.ncaa.bg && G.cur.style.frame === D.LOOKS.ncaa.frame, 'a category brings its own colors and frame');
-  ok(G.upgrade({ id: 'x', look: 'nba', tpl: 'leaders', f: { title: 'Old', rows: [{ player: 'A', team: 'LAL' }] } }).tpl === 'list', 'graphics from the first version open in the new layouts');
+  body().querySelector('[data-set="tpl"][data-v="awards"]').click();
+  ok(/Player of the Week/.test(body().innerHTML) && !/Prospect of the Week/.test(body().innerHTML), 'NCAA awards use NCAA award names');
+  body().querySelector('button[data-bg="#c8122e"]').click();
+  ok(G.cur.style.bg === '#c8122e', 'background color can be changed');
+  ok(G.upgrade({ id: 'x', look: 'nba', tpl: 'list', f: { title: 'Old', rows: [{ player: 'A', team: 'LAL' }] } }).tpl === 'leaders', 'graphics saved in the in-between layouts still open');
   const player = body().querySelector('[data-k="rows.0.player"]');
   player.value = 'Test Player'; player.dispatchEvent(new w.Event('input', { bubbles: true }));
   ok(G.cur.f.rows[0].player === 'Test Player', 'row fields edit');
@@ -46,7 +48,7 @@ const ROOT = path.join(RP, '..');
   ok(G.cur.f.rows.length === 6, 'rows can be added');
   body().querySelector('[data-act="del-row"][data-i="5"]').click();
   await G.save();
-  ok(saved && saved.items.length === 1 && saved.items[0].tpl === 'list' && saved.items[0].name, 'saves to the database with a name');
+  ok(saved && saved.items.length === 1 && saved.items[0].tpl === 'awards' && saved.items[0].name, 'saves to the database with a name');
   G.cur.f.title = 'Changed'; await G.save(true);
   ok(saved.items.length === 2, 'save as copy adds a second graphic');
   w.Cloud.admin = false;

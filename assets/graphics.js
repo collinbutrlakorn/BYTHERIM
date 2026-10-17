@@ -1,73 +1,64 @@
 // BYTHERIM Graphics (beta): admin-only graphics maker (graphics.html).
-// Pick a category (NBA, Draft or NCAA) and a layout (one player, a
-// ranked list, or two columns), fill in the fields, and download a PNG
-// to finish in Canva. Each category has its own starting color, frame
-// and top logo so posts in it match; all of it can be changed per
-// graphic. Saved graphics are one document, graphics/library, which the
-// database rules let only admins read or write.
+// Pick a look (NBA, Draft or NCAA) and a template (statline, weekly
+// awards, top performances), fill in the fields, and download a PNG to
+// finish in Canva. Saved graphics are one document, graphics/library,
+// which the database rules let only admins read or write.
 (function (root) {
   const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const uid = () => Math.random().toString(36).slice(2, 10);
   const slug = s => String(s || 'graphic').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'graphic';
   const clone = o => JSON.parse(JSON.stringify(o));
-  const D = () => root.GraphicsDraw;
 
   const LOOKS = [['nba', 'NBA'], ['draft', 'Draft'], ['ncaa', 'NCAA']];
-  const TPLS = [['statline', 'Statline'], ['awards', 'Weekly awards'], ['list', 'Top performances'], ['single', 'Award winner'], ['columns', 'Two columns']];
-  const OLD_TPL = { leaders: 'list' };
-  const SIZE_KEYS = ['4x5', '5x4', '1x1', '9x16'];
-  const MOVES = [['', 'No arrow'], ['up', '▲ Up'], ['down', '▼ Down'], ['same', '– Same'], ['new', 'New']];
-  const season = () => { const d = new Date(), y = d.getMonth() >= 6 ? d.getFullYear() : d.getFullYear() - 1; return `${y}-${String(y + 1).slice(2)}`; };
-
-  const TITLES = {
-    statline: { nba: 'Big Night', draft: 'Prospect Watch', ncaa: 'Big Night' },
-    awards: { nba: 'Weekly Awards', draft: 'Weekly Awards', ncaa: 'Weekly Awards' },
-    single: { nba: 'Most Valuable Player', draft: 'Prospect of the Week', ncaa: 'Player of the Week' },
-    list: { nba: 'Top Performances', draft: 'Big Board Risers', ncaa: 'Top Performances' },
-    columns: { nba: 'Standings', draft: 'Big Board', ncaa: 'Power Rankings' }
-  };
-  const HEADS = { nba: ['West', 'East'], draft: ['1-10', '11-20'], ncaa: ['1-10', '11-20'] };
-  const row = () => ({ player: 'Player Name', team: '', value: '', move: '' });
+  const TPLS = [['statline', 'Statline'], ['awards', 'Weekly awards'], ['leaders', 'Top performances']];
+  const SIZE_KEYS = ['4x5', '1x1', '9x16'];
+  const today = () => new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
   const AWARDS = {
     nba: ['Player of the Week', 'Rookie of the Week', 'Performance of the Week', 'Defender of the Week', 'Sixth Man of the Week'],
     draft: ['Prospect of the Week', 'Riser of the Week', 'Performance of the Week', 'Defender of the Week', 'Freshman of the Week'],
     ncaa: ['Player of the Week', 'Freshman of the Week', 'Performance of the Week', 'Defender of the Week', 'Upset of the Week']
   };
+  const KICKER = { nba: 'NBA', draft: '2027 NBA Draft', ncaa: 'College basketball' };
+
   function defaults(look, tpl) {
-    const title = TITLES[tpl][look];
-    if (tpl === 'statline') return {
-      kicker: season(), title, player: 'Player Name', team: '', line: 'vs Opponent · W 00-00', photo: '',
-      stats: ['PTS', 'REB', 'AST', 'STL', 'BLK', 'FG%'].map(label => ({ label, value: '00' })), shooting: 'FG 0-0 · 3P 0-0 · FT 0-0'
+    const k = KICKER[look] || '';
+    if (tpl === 'awards') return {
+      kicker: `${k} · Week 1`, title: 'Weekly Awards', note: today(),
+      rows: AWARDS[look].map(award => ({ award, player: 'Player Name', team: '', detail: '00.0 PTS · 00.0 REB · 00.0 AST' }))
     };
-    if (tpl === 'awards') return { kicker: 'Week 1', title, photo: '', rows: AWARDS[look].map(award => ({ award, player: 'Player Name', team: '', detail: '00.0 PTS · 00.0 REB · 00.0 AST' })) };
-    if (tpl === 'list') return { kicker: season(), title, numbered: true, photo: '', rows: Array.from({ length: 5 }, row) };
-    if (tpl === 'columns') return {
-      kicker: `BYTHERIM ${season()}`, title, numbered: true, caps: false,
-      left: { heading: HEADS[look][0], rows: Array.from({ length: 5 }, row) },
-      right: { heading: HEADS[look][1], rows: Array.from({ length: 5 }, row) }
+    if (tpl === 'leaders') return {
+      kicker: `${k} · This week`, title: 'Top Performances', note: today(), valueLabel: 'PTS',
+      rows: Array.from({ length: 5 }, () => ({ player: 'Player Name', team: '', value: '00', detail: '00 REB · 00 AST' }))
     };
-    return { kicker: season(), title, player: 'Player Name', team: '', line: '', runnersLabel: 'Runner Ups', runners: '', photo: '' };
-  }
-  function lookStyle(look) {
-    const L = D().LOOKS[look];
-    return { bg: L.bg, bg2: L.bg2, frame: L.frame, pattern: L.pattern, topLogo: L.topLogo };
+    return {
+      kicker: look === 'draft' ? `${k} · Prospect watch` : `${k} · Big night`, title: 'Big Night', note: today(),
+      player: 'Player Name', team: '', info: '', line: 'vs Opponent · W 00-00', photo: '',
+      stats: ['PTS', 'REB', 'AST', 'STL', 'BLK'].map(label => ({ label, value: '00' })),
+      shooting: 'FG 0-0 · 3P 0-0 · FT 0-0', blurb: ''
+    };
   }
   function blank(look = 'nba', tpl = 'statline') {
-    return { id: null, name: '', look, tpl, size: '4x5', style: lookStyle(look), f: defaults(look, tpl) };
+    return { id: null, name: '', look, tpl, size: '4x5', style: { bg: '', frame: '' }, f: defaults(look, tpl) };
   }
-  // Graphics saved by the first version of this page used other templates.
+  // Graphics saved while the page tried other layouts open in these three.
+  const LATER = { single: 'statline', list: 'leaders', columns: 'leaders' };
   function upgrade(item) {
     const g = clone(item);
-    if (!OLD_TPL[g.tpl]) { g.style = Object.assign(lookStyle(g.look), g.style || {}); return g; }
-    const f = g.f || {}, nf = defaults(g.look, OLD_TPL[g.tpl]);
-    ['kicker', 'title', 'photo', 'player', 'team'].forEach(k => { if (f[k] != null && k in nf) nf[k] = f[k]; });
-    if (g.tpl === 'statline') nf.line = [f.line, (f.stats || []).filter(s => s.value).map(s => `${s.value} ${s.label}`).join(' · ')].filter(Boolean).join(' · ');
-    if (f.rows) nf.rows = f.rows.map(r => ({ player: r.player || '', team: r.team || '', value: r.value || '', move: '' }));
-    return Object.assign(g, { tpl: OLD_TPL[g.tpl], style: lookStyle(g.look), f: nf });
+    g.style = Object.assign({ bg: '', frame: '' }, g.style && LATER[g.tpl] ? {} : g.style || {});
+    if (!LATER[g.tpl]) return g;
+    const f = g.f || {}, nf = defaults(g.look, LATER[g.tpl]);
+    ['kicker', 'title', 'photo', 'player', 'team', 'line'].forEach(k => { if (f[k] && k in nf) nf[k] = f[k]; });
+    const rows = g.tpl === 'columns' ? [...((f.left && f.left.rows) || []), ...((f.right && f.right.rows) || [])] : f.rows;
+    if (rows) nf.rows = rows.slice(0, 10).map(r => ({ player: r.player || '', team: r.team || '', value: r.value || '', detail: '' }));
+    return Object.assign(g, { tpl: LATER[g.tpl], f: nf });
   }
 
-  function seasonOf(p) { return (p.seasons && p.seasons[0] && p.seasons[0].stats) || p.sheetStats || {}; }
+  // A board prospect's newest season as one short line.
+  function seasonOf(p) {
+    const s = (p.seasons && p.seasons[0] && p.seasons[0].stats) || p.sheetStats || {};
+    return s;
+  }
   function seasonLine(p) {
     const s = seasonOf(p);
     return ['PTS', 'REB', 'AST'].filter(k => s[k] != null).map(k => `${s[k]} ${k}`).join(' · ');
@@ -84,7 +75,7 @@
       this.newGraphic('nba', 'statline');
     },
     newGraphic(look, tpl) {
-      this.cur = blank(look || 'nba', tpl || 'statline');
+      this.cur = blank(look || (this.cur && this.cur.look) || 'nba', tpl || 'statline');
       this.byTpl = { [this.cur.tpl]: this.cur.f };
       this.uploaded = null;
       this.dirty = false;
@@ -102,7 +93,7 @@
       this.showMsg();
     },
     createHTML() {
-      const g = this.cur;
+      const g = this.cur, D = root.GraphicsDraw;
       const seg = (name, list, val) => `<div class="gx-seg" role="group">${list.map(([v, l]) => `<button type="button" data-set="${name}" data-v="${v}" class="${val === v ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>`;
       return `<div class="gx-grid">
         <div class="gx-edit">
@@ -110,8 +101,8 @@
             <div class="gx-row">${seg('look', LOOKS, g.look)}</div>
             <div class="gx-row">${seg('tpl', TPLS, g.tpl)}</div>
             <div class="gx-fields2">
-              <label class="site-field"><span>Size</span><select data-set-select="size">${SIZE_KEYS.map(k => `<option value="${k}"${g.size === k ? ' selected' : ''}>${esc(D().SIZES[k].label)}</option>`).join('')}</select></label>
-              <label class="site-field"><span>Saved as</span><input type="text" data-name value="${esc(g.name)}" placeholder="Name it to save (e.g. MVP race v1)"></label>
+              <label class="site-field"><span>Size</span><select data-set-select="size">${SIZE_KEYS.map(k => `<option value="${k}"${g.size === k ? ' selected' : ''}>${esc(D.SIZES[k].label)}</option>`).join('')}</select></label>
+              <label class="site-field"><span>Saved as</span><input type="text" data-name value="${esc(g.name)}" placeholder="Name it to save (e.g. NBA awards wk 1)"></label>
             </div>
             <div class="gx-actions">
               <button type="button" class="sim-btn btn-sm" data-act="save">${g.id ? 'Save' : 'Save graphic'}</button>
@@ -127,117 +118,77 @@
           <div class="gx-canvas-wrap gx-${g.size}"><canvas id="gxCanvas" aria-label="Graphic preview"></canvas></div>
           <div class="gx-actions gx-export">
             <button type="button" class="sim-btn" data-act="png">Download PNG</button>
-            <button type="button" class="sim-btn sim-btn-secondary" data-act="all-sizes">All sizes</button>
+            <button type="button" class="sim-btn sim-btn-secondary" data-act="all-sizes">All 3 sizes</button>
             <label class="gx-check"><input type="checkbox" data-hd ${this.hd ? 'checked' : ''}> 2x (sharper in Canva)</label>
           </div>
-          <p class="adm-note">No photo? The right side stays open for a cutout in Canva. In Canva: Uploads, then drag the PNG onto a design the same size.</p>
+          <p class="adm-note">In Canva: Uploads, then drag the PNG onto a 1080 px design. Leave the photo field empty to keep the panel open for a cutout.</p>
         </div>
       </div>`;
     },
+    // Background color and frame: the category's look is the starting point.
     styleHTML() {
-      const g = this.cur, st = g.style, L = D().LOOKS[g.look];
-      const sw = (attr, val, list, none) => `<div class="gx-swatches">${none ? `<button type="button" class="gx-sw gx-sw-none${!val ? ' on' : ''}" ${attr}="" aria-label="None">∅</button>` : ''}${list.map(c => `<button type="button" class="gx-sw${val === c ? ' on' : ''}" ${attr}="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}
-          <input type="color" ${attr}-pick value="${esc(val || '#000000')}" aria-label="Custom color"></div>`;
-      return `<h3 class="gx-h3">Look <small>starts from the ${esc(L.name)} look; changes apply to this graphic</small></h3>
-        <div class="gx-fields2">
-          <div class="site-field"><span>Background</span>${sw('data-bg', st.bg, L.swatches)}</div>
-          ${g.tpl === 'columns' ? `<div class="site-field"><span>Right half (split color)</span>${sw('data-bg2', st.bg2, ['#4a1ee0', '#1d42ba', '#c8122e', '#0d0d10'], true)}</div>` : ''}
-          <label class="site-field"><span>Frame</span><select data-style="frame">${[['none', 'No frame'], ['gold', 'Gold (awards)'], ['silver', 'Silver']].map(([v, l]) => `<option value="${v}"${st.frame === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
-          <label class="site-field"><span>Top logo</span><select data-style="topLogo">${[['none', 'None'], ['nba', 'NBA'], ['draft', 'NBA Draft']].map(([v, l]) => `<option value="${v}"${st.topLogo === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
-        </div>
-        <label class="gx-check"><input type="checkbox" data-style="pattern" ${st.pattern ? 'checked' : ''}> Court lines in the background</label>`;
+      const g = this.cur, D = root.GraphicsDraw, def = D.LOOKS[g.look].bg, cur = g.style.bg || def;
+      const list = [def, ...D.SWATCHES.filter(c => c !== def)];
+      return `<div class="gx-fields2">
+          <div class="site-field"><span>Background</span><div class="gx-swatches">${list.map(c => `<button type="button" class="gx-sw${cur.toLowerCase() === c.toLowerCase() ? ' on' : ''}" data-bg="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}
+            <input type="color" data-bg-pick value="${esc(cur)}" aria-label="Custom color"></div></div>
+          <label class="site-field"><span>Frame</span><select data-style="frame">${[['', 'No frame'], ['gold', 'Gold'], ['silver', 'Silver'], ['white', 'White']].map(([v, l]) => `<option value="${v}"${(g.style.frame || '') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+        </div>`;
     },
     formHTML() {
       const g = this.cur, f = g.f;
       const fld = (k, label, ph = '', extra = '') => `<label class="site-field"><span>${label}</span><input type="text" data-k="${k}" value="${esc(getPath(f, k))}" placeholder="${esc(ph)}" ${extra}></label>`;
-      const chk = (k, label) => `<label class="gx-check"><input type="checkbox" data-k="${k}" ${getPath(f, k) ? 'checked' : ''}> ${label}</label>`;
       const players = (g.look === 'draft' || g.look === 'ncaa') && this.board ? 'list="gxProspects"' : '';
       const teamPh = g.look === 'nba' ? 'Lakers, LAL, Boston Celtics…' : 'School (logo loads from the name)';
-      const datalist = players ? `<datalist id="gxProspects">${this.board.map(p => `<option value="${esc(p.name)}">${esc([p.rank ? '#' + p.rank : '', p.school].filter(Boolean).join(' · '))}</option>`).join('')}</datalist>` : '';
       const top = `<div class="gx-fields2">
-          ${fld('kicker', 'Small line above the title', season())}
-          ${fld('title', 'Title', TITLES[g.tpl][g.look])}
-        </div>`;
-      const photo = `<div class="gx-photo">
-          ${fld('photo', 'Background photo (optional)', 'https://… or leave empty for a color background')}
-          <label class="sim-btn sim-btn-secondary btn-sm gx-upload">Upload photo<input type="file" accept="image/*" data-upload hidden></label>
+          ${fld('kicker', 'Eyebrow', 'NBA · Week 1')}
+          ${fld('note', 'Top-right note', 'Date or week')}
         </div>
-        ${this.uploaded ? '<p class="adm-note">Using an uploaded photo. Uploads aren\'t saved with the graphic. <button type="button" class="gx-link" data-act="clear-photo">Remove</button></p>' : ''}`;
+        ${fld('title', 'Title', 'Weekly Awards')}`;
+      const datalist = players ? `<datalist id="gxProspects">${this.board.map(p => `<option value="${esc(p.name)}">${esc([p.rank ? '#' + p.rank : '', p.school].filter(Boolean).join(' · '))}</option>`).join('')}</datalist>` : '';
       if (g.tpl === 'statline') {
         return `${top}
+          <h3 class="gx-h3">Player</h3>
           <div class="gx-fields2">
-            ${fld('player', 'Player', 'Player name', players + ' data-pick="single"')}
+            ${fld('player', 'Name', 'Player name', players + ' data-pick="statline"')}
             ${fld('team', 'Team', teamPh)}
+            ${fld('info', 'Info line', g.look === 'draft' ? '#3 on the board · Wing · Freshman' : 'Guard · Year 3')}
+            ${fld('line', 'Game line', 'vs Duke · W 82-77')}
           </div>
-          ${fld('line', 'Game line', 'vs Denver · W 121-114')}
-          <h3 class="gx-h3">Stats <small>empty boxes are left off; up to 6</small></h3>
+          <div class="gx-photo">
+            ${fld('photo', 'Photo URL (optional)', 'https://… or leave empty for Canva')}
+            <label class="sim-btn sim-btn-secondary btn-sm gx-upload">Upload photo<input type="file" accept="image/*" data-upload hidden></label>
+          </div>
+          ${this.uploaded ? '<p class="adm-note">Using an uploaded photo. Uploads aren\'t saved with the graphic.</p>' : ''}
+          <h3 class="gx-h3">Stats <small>leave a box empty to drop it; up to 6</small></h3>
           <div class="gx-stats">${(f.stats || []).map((s, i) => `<div class="gx-stat">
-              <input type="text" data-k="stats.${i}.value" value="${esc(s.value)}" placeholder="00" aria-label="Number ${i + 1}">
+              <input type="text" data-k="stats.${i}.value" value="${esc(s.value)}" placeholder="00" aria-label="Value ${i + 1}">
               <input type="text" data-k="stats.${i}.label" value="${esc(s.label)}" placeholder="LABEL" aria-label="Label ${i + 1}">
-            </div>`).join('')}</div>
-          ${fld('shooting', 'Shooting line', 'FG 15-24 · 3P 4-7 · FT 7-8')}
-          ${photo}${datalist}`;
+            </div>`).join('')}
+            ${(f.stats || []).length < 6 ? '<button type="button" class="gx-add" data-act="add-stat" aria-label="Add a stat">+</button>' : ''}</div>
+          ${fld('shooting', 'Shooting line', 'FG 11-18 · 3P 4-7 · FT 5-6')}
+          <label class="site-field"><span>Blurb (optional)</span><textarea rows="3" data-k="blurb" placeholder="One or two sentences.">${esc(f.blurb)}</textarea></label>
+          ${datalist}`;
       }
-      if (g.tpl === 'awards') {
-        const rows = f.rows;
-        return `${top}
-          <h3 class="gx-h3">Awards <small>${rows.length} of 6</small></h3>
-          <ol class="gx-rows">${rows.map((r, i) => `<li>
-            <div class="gx-rowf awards">
-              <input type="text" data-k="rows.${i}.award" value="${esc(r.award)}" placeholder="Award" aria-label="Award">
-              <input type="text" data-k="rows.${i}.player" value="${esc(r.player)}" placeholder="Player" aria-label="Player" ${players} data-pick="row" data-path="rows.${i}">
-              <input type="text" data-k="rows.${i}.team" value="${esc(r.team)}" placeholder="Team" aria-label="Team">
-              <input type="text" data-k="rows.${i}.detail" value="${esc(r.detail)}" placeholder="Stat line" aria-label="Stat line">
-            </div>
-            <span class="gx-rowbtns">
-              <button type="button" class="lg-x" data-act="up" data-path="rows" data-i="${i}" aria-label="Move up"${i ? '' : ' disabled'}>↑</button>
-              <button type="button" class="lg-x" data-act="del-row" data-path="rows" data-i="${i}" aria-label="Remove">×</button>
-            </span></li>`).join('')}</ol>
-          ${rows.length < 6 ? '<button type="button" class="sim-btn sim-btn-secondary btn-sm" data-act="add-row" data-path="rows">Add award</button>' : ''}
-          ${photo}${datalist}`;
-      }
-      if (g.tpl === 'single') {
-        return `${top}
-          <div class="gx-fields2">
-            ${fld('player', 'Player', 'Player name', players + ' data-pick="single"')}
-            ${fld('team', 'Team', teamPh)}
-          </div>
-          ${fld('line', 'Stat line (optional)', '34 PTS · 10 REB · 5 AST')}
-          <div class="gx-fields2">
-            ${fld('runnersLabel', 'Runners-up heading', 'Runner Ups')}
-            <label class="site-field"><span>Runners-up (one per line, optional)</span><textarea rows="2" data-k="runners" placeholder="Darius Acuff&#10;Zuby Ejiofor">${esc(f.runners)}</textarea></label>
-          </div>
-          ${photo}${datalist}`;
-      }
-      const rowsHTML = (path, rows, kind) => `<ol class="gx-rows">${rows.map((r, i) => `<li>
-          <div class="gx-rowf ${kind}">
-            <input type="text" data-k="${path}.${i}.player" value="${esc(r.player)}" placeholder="Name" aria-label="Name" ${players} data-pick="row" data-path="${path}.${i}">
-            <input type="text" data-k="${path}.${i}.team" value="${esc(r.team)}" placeholder="Team" aria-label="Team">
-            <input type="text" data-k="${path}.${i}.value" value="${esc(r.value)}" placeholder="Stat" aria-label="Stat (optional)" class="gx-num">
-            ${kind === 'list'
-              ? `<select data-k="${path}.${i}.move" aria-label="Arrow">${MOVES.map(([v, l]) => `<option value="${v}"${r.move === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`
-              : `<label class="gx-star" title="Star"><input type="checkbox" data-k="${path}.${i}.mark" ${r.mark ? 'checked' : ''}>★</label>`}
+      const rows = f.rows || [];
+      const max = g.tpl === 'awards' ? 6 : 10;
+      return `${top}
+        ${g.tpl === 'leaders' ? `<div class="gx-fields2">${fld('valueLabel', 'Number label', 'PTS')}</div>` : ''}
+        <h3 class="gx-h3">${g.tpl === 'awards' ? 'Awards' : 'Rows'} <small>${rows.length} of ${max}${g.tpl === 'leaders' ? ' · in order, #1 first' : ''}</small></h3>
+        <ol class="gx-rows">${rows.map((r, i) => `<li>
+          <div class="gx-rowf ${g.tpl}">
+            ${g.tpl === 'awards' ? `<input type="text" data-k="rows.${i}.award" value="${esc(r.award)}" placeholder="Award" aria-label="Award">` : ''}
+            <input type="text" data-k="rows.${i}.player" value="${esc(r.player)}" placeholder="Player" aria-label="Player" ${players} data-pick="row" data-i="${i}">
+            <input type="text" data-k="rows.${i}.team" value="${esc(r.team)}" placeholder="Team" aria-label="Team">
+            ${g.tpl === 'leaders' ? `<input type="text" data-k="rows.${i}.value" value="${esc(r.value)}" placeholder="00" aria-label="Number" class="gx-num">` : ''}
+            <input type="text" data-k="rows.${i}.detail" value="${esc(r.detail)}" placeholder="Stat line" aria-label="Detail" class="gx-detail">
           </div>
           <span class="gx-rowbtns">
-            <button type="button" class="lg-x" data-act="up" data-path="${path}" data-i="${i}" aria-label="Move up"${i ? '' : ' disabled'}>↑</button>
-            <button type="button" class="lg-x" data-act="del-row" data-path="${path}" data-i="${i}" aria-label="Remove">×</button>
-          </span></li>`).join('')}</ol>`;
-      if (g.tpl === 'list') {
-        return `${top}
-          <div class="gx-checks">${chk('numbered', 'Numbered')}</div>
-          <h3 class="gx-h3">Rows <small>${f.rows.length} of 12 · #1 first · stat and arrow are optional</small></h3>
-          ${rowsHTML('rows', f.rows, 'list')}
-          ${f.rows.length < 12 ? '<button type="button" class="sim-btn sim-btn-secondary btn-sm" data-act="add-row" data-path="rows">Add row</button>' : ''}
-          ${photo}${datalist}`;
-      }
-      const side = (k, label) => `<div class="gx-side">
-          <div class="gx-fields2">${fld(k + '.heading', label + ' heading', label === 'Left' ? 'West' : 'East')}</div>
-          ${rowsHTML(k + '.rows', f[k].rows, 'cols')}
-          ${f[k].rows.length < 15 ? `<button type="button" class="sim-btn sim-btn-secondary btn-sm" data-act="add-row" data-path="${k}.rows">Add row</button>` : ''}
-        </div>`;
-      return `${top}
-        <div class="gx-checks">${chk('numbered', 'Numbered')}${chk('caps', 'Names in capitals')}</div>
-        ${side('left', 'Left')}${side('right', 'Right')}${datalist}`;
+            <button type="button" class="lg-x" data-act="up" data-i="${i}" aria-label="Move up"${i ? '' : ' disabled'}>↑</button>
+            <button type="button" class="lg-x" data-act="del-row" data-i="${i}" aria-label="Remove">×</button>
+          </span></li>`).join('')}</ol>
+        ${rows.length < max ? '<button type="button" class="sim-btn sim-btn-secondary btn-sm" data-act="add-row">Add row</button>' : ''}
+        ${datalist}`;
     },
     savedHTML() {
       const list = this.lib.filter(x => this.filter === 'all' || x.look === this.filter)
@@ -246,16 +197,12 @@
       return `<div class="site-bar gx-bar"><div class="gx-seg">${chips}</div>
           <button type="button" class="sim-btn btn-sm" data-act="new-open">New graphic</button></div>
         ${list.length ? `<div class="gx-lib">${list.map(x => `<button type="button" class="gx-item" data-open="${esc(x.id)}">
-            <span class="gx-item-top"><i class="gx-dot" style="background:${esc((x.style && x.style.bg) || '#333')}"></i><span class="gx-chip">${esc((LOOKS.find(l => l[0] === x.look) || ['', x.look])[1])}</span></span>
+            <span class="gx-item-top"><i class="gx-dot" style="background:${esc((x.style && x.style.bg) || root.GraphicsDraw.LOOKS[x.look].bg)}"></i><span class="gx-chip gx-chip-${esc(x.look)}">${esc((LOOKS.find(l => l[0] === x.look) || ['', x.look])[1])}</span></span>
             <b>${esc(x.name || 'Untitled')}</b>
             <small>${esc((TPLS.find(t => t[0] === x.tpl) || ['', x.tpl])[1])} · ${esc(x.f && x.f.title || '')}</small>
             <small>${x.updatedAt ? 'Saved ' + new Date(x.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</small>
           </button>`).join('')}</div>`
-        : `<p class="adm-empty">${this.lib.length ? 'Nothing saved in this category yet.' : 'No saved graphics yet. Make one and press Save graphic.'}</p>`}`;
-    },
-    refreshForm() {
-      const f = document.getElementById('gxForm'); if (f) f.innerHTML = this.formHTML();
-      const s = document.getElementById('gxStyle'); if (s) s.innerHTML = this.styleHTML();
+        : `<p class="adm-empty">${this.lib.length ? 'Nothing saved in this look yet.' : 'No saved graphics yet. Make one and press Save graphic.'}</p>`}`;
     },
 
     // ---------- preview
@@ -263,10 +210,10 @@
       clearTimeout(this.drawTimer);
       this.drawTimer = setTimeout(() => {
         const c = document.getElementById('gxCanvas');
-        if (!c || !D()) return;
+        if (!c || !root.GraphicsDraw) return;
         const token = this.drawToken = (this.drawToken || 0) + 1;
         const off = document.createElement('canvas');
-        D().draw(off, this.drawable()).then(() => {
+        root.GraphicsDraw.draw(off, this.drawable()).then(() => {
           if (token !== this.drawToken || !off.width) return;
           c.width = off.width; c.height = off.height;
           const ctx = c.getContext && c.getContext('2d');
@@ -277,14 +224,14 @@
     drawable(size) {
       const g = clone(this.cur);
       if (size) g.size = size;
-      if (this.uploaded && g.tpl !== 'columns') g.f.photo = this.uploaded;
+      if (this.uploaded && g.tpl === 'statline') g.f.photo = this.uploaded;
       return g;
     },
     async exportPNG(sizes) {
       const g = this.cur;
       for (const size of sizes) {
         const c = document.createElement('canvas');
-        await D().draw(c, this.drawable(size), { scale: this.hd ? 2 : 1 });
+        await root.GraphicsDraw.draw(c, this.drawable(size), { scale: this.hd ? 2 : 1 });
         let blob;
         try { blob = await new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('empty')), 'image/png')); }
         catch (e) { this.msg = 'That photo\'s site doesn\'t allow downloading it in an image. Upload the photo instead, or leave it empty and add it in Canva.'; this.showMsg(true); return; }
@@ -296,7 +243,7 @@
       }
     },
 
-    // ---------- board prospects (Draft and NCAA categories)
+    // ---------- board prospects (Draft and NCAA looks)
     ensureBoard() {
       if (this.board || this.boardLoading || !(this.cur.look === 'draft' || this.cur.look === 'ncaa')) return;
       const B = root.BOARD;
@@ -310,66 +257,71 @@
     pick(input) {
       const p = (this.board || []).find(x => x.name.toLowerCase() === input.value.trim().toLowerCase());
       if (!p) return false;
-      const f = this.cur.f, team = p.isPro ? 'Pro' : p.school;
-      if (input.dataset.pick === 'single') {
+      const f = this.cur.f, isPh = v => !v || /^(team|0+|00\.0.*|00 .*|player name)$/i.test(String(v).trim());
+      if (input.dataset.pick === 'statline') {
         f.player = p.name;
-        if (!f.team) f.team = team;
-        if (!f.line) f.line = seasonLine(p);
-        if (p.image && !this.uploaded && !f.photo) f.photo = p.image;
+        f.team = p.isPro ? 'Pro' : p.school;
+        f.info = [p.rank ? `#${p.rank} on the board` : '', p.pos, p.cls].filter(Boolean).join(' · ');
+        if (p.image && !this.uploaded) f.photo = p.image;
+        const s = seasonOf(p);
+        if (s.PTS != null && f.stats.every(x => isPh(x.value))) {
+          f.stats = ['PTS', 'REB', 'AST', 'STL', 'BLK'].map(label => ({ label, value: s[label] != null ? String(s[label]) : '' }));
+          const sh = [['TS%', 'TS'], ['3P%', '3P'], ['FT%', 'FT']].filter(([k]) => s[k] != null).map(([k, l]) => `${l} ${s[k]}${/%$/.test(s[k]) ? '' : '%'}`);
+          if (sh.length) f.shooting = sh.join(' · ');
+          if (p.seasons && p.seasons[0] && p.seasons[0].label) f.line = `${p.seasons[0].label} season · per game`;
+        }
       } else {
-        const r = getPath(f, input.dataset.path);
+        const r = f.rows[+input.dataset.i];
         r.player = p.name;
-        if (!r.team) r.team = team;
-        if ('detail' in r && (!r.detail || /^00/.test(r.detail))) r.detail = seasonLine(p) || r.detail;
+        if (isPh(r.team)) r.team = p.isPro ? 'Pro' : p.school;
+        if (isPh(r.detail)) r.detail = seasonLine(p);
       }
       return true;
     },
 
     // ---------- events
     onInput(e) {
-      const t = e.target, g = this.cur;
+      const t = e.target;
       if (t.matches('[data-hd]')) { this.hd = t.checked; return; }
-      if (t.matches('[data-name]')) { g.name = t.value; this.dirty = true; return; }
-      if (t.matches('[data-set-select]')) {
-        g.size = t.value; this.dirty = true;
-        const w = this.el.querySelector('.gx-canvas-wrap'); if (w) w.className = `gx-canvas-wrap gx-${t.value}`;
-        this.redraw(); return;
-      }
-      if (t.matches('[data-style]')) {
-        g.style[t.dataset.style] = t.type === 'checkbox' ? t.checked : t.value;
-        this.dirty = true; this.redraw(); return;
-      }
-      if (t.matches('[data-bg-pick], [data-bg2-pick]')) {
-        g.style[t.matches('[data-bg-pick]') ? 'bg' : 'bg2'] = t.value;
-        this.dirty = true; this.redraw();
+      if (t.matches('[data-style]')) { this.cur.style[t.dataset.style] = t.value; this.dirty = true; this.redraw(); return; }
+      if (t.matches('[data-bg-pick]')) {
+        this.cur.style.bg = t.value; this.dirty = true; this.redraw();
         if (e.type === 'change') document.getElementById('gxStyle').innerHTML = this.styleHTML();
         return;
+      }
+      if (t.matches('[data-name]')) { this.cur.name = t.value; this.dirty = true; return; }
+      if (t.matches('[data-set-select]')) {
+        this.cur.size = t.value; this.dirty = true;
+        const w = this.el.querySelector('.gx-canvas-wrap'); if (w) w.className = `gx-canvas-wrap gx-${t.value}`;
+        this.redraw(); return;
       }
       if (t.matches('[data-upload]') && e.type === 'change') {
         const file = t.files && t.files[0];
         if (!file) return;
         const rd = new FileReader();
-        rd.onload = () => { this.uploaded = rd.result; g.f.photo = ''; this.refreshForm(); this.redraw(); };
+        rd.onload = () => { this.uploaded = rd.result; this.cur.f.photo = ''; document.getElementById('gxForm').innerHTML = this.formHTML(); this.redraw(); };
         rd.readAsDataURL(file);
         return;
       }
       if (!t.dataset.k) return;
-      setPath(g.f, t.dataset.k, t.type === 'checkbox' ? t.checked : t.value);
+      setPath(this.cur.f, t.dataset.k, t.value);
       if (t.dataset.k === 'photo' && t.value) this.uploaded = null;
       this.dirty = true;
-      if (t.dataset.pick && e.type === 'change' && this.pick(t)) this.refreshForm();
+      if (t.dataset.pick && e.type === 'change' && this.pick(t)) document.getElementById('gxForm').innerHTML = this.formHTML();
       this.redraw();
     },
     async onClick(e) {
-      const g = this.cur;
       const set = e.target.closest('[data-set]');
       if (set) {
-        const v = set.dataset.v;
+        const g = this.cur, v = set.dataset.v;
         if (set.dataset.set === 'look' && g.look !== v) {
-          // A new category brings its own look; the words you typed stay,
-          // and untouched titles follow the new category.
-          const was = g.look; g.look = v; g.style = lookStyle(v);
-          Object.entries(this.byTpl).forEach(([tpl, f]) => { if (f.title === TITLES[tpl][was]) f.title = TITLES[tpl][v]; });
+          // A new look keeps everything you typed; only untouched eyebrows,
+          // award names and the default stat set follow the new look.
+          const was = g.look; g.look = v; g.style.bg = '';
+          Object.values(this.byTpl).forEach(f => {
+            if (f.kicker && f.kicker.startsWith(KICKER[was])) f.kicker = KICKER[v] + f.kicker.slice(KICKER[was].length);
+            (f.rows || []).forEach((r, i) => { if (r.award === AWARDS[was][i]) r.award = AWARDS[v][i]; });
+          });
         } else if (set.dataset.set === 'tpl' && g.tpl !== v) {
           this.byTpl[g.tpl] = g.f;
           g.tpl = v;
@@ -379,12 +331,10 @@
         this.render();
         return;
       }
-      const sw = e.target.closest('[data-bg], [data-bg2]');
-      if (sw && sw.tagName === 'BUTTON') {
-        if (sw.hasAttribute('data-bg')) g.style.bg = sw.getAttribute('data-bg'); else g.style.bg2 = sw.getAttribute('data-bg2');
-        this.dirty = true;
-        document.getElementById('gxStyle').innerHTML = this.styleHTML();
-        this.redraw(); return;
+      const sw = e.target.closest('button[data-bg]');
+      if (sw) {
+        this.cur.style.bg = sw.dataset.bg === root.GraphicsDraw.LOOKS[this.cur.look].bg ? '' : sw.dataset.bg;
+        this.dirty = true; document.getElementById('gxStyle').innerHTML = this.styleHTML(); this.redraw(); return;
       }
       const f = e.target.closest('[data-filter]');
       if (f) { this.filter = f.dataset.filter; this.render(); return; }
@@ -399,7 +349,7 @@
       }
       const b = e.target.closest('[data-act]');
       if (!b) return;
-      const rows = b.dataset.path ? getPath(g.f, b.dataset.path) : null;
+      const g = this.cur, rows = g.f.rows;
       switch (b.dataset.act) {
         case 'save': return this.save(false);
         case 'copy': return this.save(true);
@@ -413,8 +363,8 @@
           this.newGraphic(g.look, g.tpl); this.render(); return;
         case 'png': return this.exportPNG([g.size]);
         case 'all-sizes': return this.exportPNG(SIZE_KEYS);
-        case 'clear-photo': this.uploaded = null; break;
-        case 'add-row': rows.push(g.tpl === 'awards' ? { award: '', player: '', team: '', detail: '' } : { player: '', team: '', value: '', move: '' }); break;
+        case 'add-stat': g.f.stats.push({ label: '', value: '' }); break;
+        case 'add-row': rows.push(g.tpl === 'awards' ? { award: '', player: '', team: '', detail: '' } : { player: '', team: '', value: '', detail: '' }); break;
         case 'del-row': rows.splice(+b.dataset.i, 1); break;
         case 'up': { const i = +b.dataset.i; if (i > 0) [rows[i - 1], rows[i]] = [rows[i], rows[i - 1]]; break; }
         default: return;
@@ -490,7 +440,7 @@
       this.el = body;
       this.wire(body);
       if (tabs) tabs.hidden = false;
-      if (sum) sum.textContent = 'NBA, Draft and NCAA graphics · download a PNG and finish it in Canva · only admins can see this page';
+      if (sum) sum.textContent = 'NBA, Draft and NCAA templates · download a PNG and finish it in Canva · only admins can see this page';
       this.render();
     };
     if (opts.skipGate) return open();
