@@ -23,6 +23,7 @@
 .gx-rows li { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) auto; gap: 0.4rem; align-items: center; counter-increment: gx; }
 .gx-rows li::before { content: counter(gx); font: 600 0.95rem 'Oswald', sans-serif; color: var(--text-muted); text-align: center; }
 .gx-rowf { display: grid; gap: 0.35rem; }
+.gx-rowf.awards { grid-template-columns: 1.2fr 1.2fr 0.9fr 1.4fr; }
 .gx-rowf.list { grid-template-columns: 1.5fr 1fr 4.5rem 6.5rem; }
 .gx-rowf.cols { grid-template-columns: 1.5fr 1fr 4.5rem 2.2rem; }
 .gx select { background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.42rem 0.4rem; font: 500 0.9rem 'Inter', sans-serif; min-width: 0; }
@@ -63,6 +64,6 @@
   .gx-grid { grid-template-columns: 1fr; }
   .gx-preview { position: static; order: -1; }
   .gx-canvas-wrap:not(.gx-9x16) { max-width: 440px; margin: 0 auto; width: 100%; }
-  .gx-rowf.list, .gx-rowf.cols { grid-template-columns: 1fr 1fr; }
+  .gx-rowf.awards, .gx-rowf.list, .gx-rowf.cols { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 520px) { .gx-fields2 { grid-template-columns: 1fr; } }

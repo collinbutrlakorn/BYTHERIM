@@ -31,14 +31,14 @@ const ROOT = path.join(RP, '..');
   const body = () => w.document.getElementById('gxBody');
   for (const look of ['nba', 'draft', 'ncaa']) {
     body().querySelector(`[data-set="look"][data-v="${look}"]`).click();
-    for (const tpl of ['single', 'list', 'columns']) {
+    for (const tpl of ['statline', 'awards', 'list', 'single', 'columns']) {
       body().querySelector(`[data-set="tpl"][data-v="${tpl}"]`).click();
       ok(G.cur.look === look && G.cur.tpl === tpl && body().querySelector('#gxForm [data-k="title"]'), `${look} ${tpl} form builds`);
     }
   }
   body().querySelector('[data-set="tpl"][data-v="list"]').click();
   ok(G.cur.style.bg === D.LOOKS.ncaa.bg && G.cur.style.frame === D.LOOKS.ncaa.frame, 'a category brings its own colors and frame');
-  ok(G.upgrade({ id: 'x', look: 'nba', tpl: 'awards', f: { title: 'Old', rows: [{ player: 'A', team: 'LAL' }] } }).tpl === 'list', 'graphics from the first version open in the new layouts');
+  ok(G.upgrade({ id: 'x', look: 'nba', tpl: 'leaders', f: { title: 'Old', rows: [{ player: 'A', team: 'LAL' }] } }).tpl === 'list', 'graphics from the first version open in the new layouts');
   const player = body().querySelector('[data-k="rows.0.player"]');
   player.value = 'Test Player'; player.dispatchEvent(new w.Event('input', { bubbles: true }));
   ok(G.cur.f.rows[0].player === 'Test Player', 'row fields edit');

@@ -61,7 +61,7 @@
   }
   function fontsReady() {
     if (typeof document === 'undefined' || !document.fonts || !document.fonts.load) return Promise.resolve();
-    const want = ['900 80px Archivo', '800 60px Archivo', '500 40px "Barlow Condensed"', '600 40px "Barlow Condensed"'];
+    const want = ['900 80px Archivo', '800 60px Archivo', '500 40px "Barlow Condensed"', '600 40px "Barlow Condensed"', '700 40px "Barlow Condensed"'];
     return Promise.race([new Promise(r => setTimeout(r, 3500)), Promise.all(want.map(f => document.fonts.load(f).catch(() => null)))]);
   }
 
@@ -320,7 +320,7 @@
           if (mv) { setFont(ctx, 900, (mv[0] === 'NEW' ? 30 : 46) * k, HEAVY); ctx.fillStyle = mv[1]; ctx.textAlign = 'right'; shadow(ctx, true, 6, 2); ctx.fillText(mv[0], lineEnd, mid); shadow(ctx, false); right = lineEnd - ctx.measureText(mv[0]).width - 16; }
         }
         if (r.value) {
-          setFont(ctx, 800, 40 * k, HEAVY, -1); ctx.fillStyle = st.accent === '#ffffff' ? '#fff' : st.accent; ctx.textAlign = 'right';
+          setFont(ctx, 900, 58 * k, HEAVY, -2); ctx.fillStyle = st.accent === '#ffffff' ? '#fff' : st.accent; ctx.textAlign = 'right';
           shadow(ctx, true, 8, 2); ctx.fillText(r.value, right, mid); shadow(ctx, false);
           right -= ctx.measureText(r.value).width + 18;
         }
@@ -399,6 +399,95 @@
     drawBrand(ctx, im.brand, cx, A.y + A.h - 92, 270);
   }
 
+
+  // The stacked header both new layouts share: league logo, small line,
+  // big title. Returns the y under it.
+  function header(ctx, st, A, im, f, cx, maxW, lines, big = 118) {
+    let y = drawLeague(ctx, im.league, cx, A.y + 22, A.h > 1500 ? 170 : 130) + 8;
+    ctx.textAlign = 'center'; shadow(ctx, true, 10, 2);
+    if (f.kicker) { ctx.fillStyle = '#fff'; setFont(ctx, 500, 46, NARROW, -0.3); ctx.textBaseline = 'top'; ctx.fillText(fit(ctx, f.kicker, maxW), cx, y + 4); ctx.textBaseline = 'alphabetic'; y += 58; }
+    ctx.fillStyle = st.accent;
+    const words = String(f.title || '').split(/\s+/).filter(Boolean).length;
+    const t = fitLines(ctx, stack(String(f.title || '').toUpperCase(), Math.min(lines, words)), 900, HEAVY, Math.min(big, A.h * 0.095), 48, maxW, lines, s => -s * 0.06);
+    t.lines.forEach(l => { y += t.size * 0.9; ctx.fillText(l, cx, y); });
+    shadow(ctx, false); ctx.textAlign = 'left';
+    return y;
+  }
+
+  // Statline: one big game. Name and team, then the numbers in a grid
+  // with thin rules, and the shooting line.
+  async function statline(ctx, g, st, A, im) {
+    const f = g.f;
+    const [pic, team] = await Promise.all([loadImg(f.photo), loadImg(logoSrc(f.team))]);
+    if (pic) { photo(ctx, pic, A, { photoX: 72, ...f }, false); shadeSide(ctx, A, 'left', st.shade); }
+    const colW = A.w * 0.52, cx = A.x + A.w * 0.28, x0 = cx - colW / 2;
+    let y = header(ctx, st, A, im, f, cx, colW, 2) + 46;
+    ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; shadow(ctx, true, 10, 2);
+    const n = fitLines(ctx, stack(f.player, 2), 800, HEAVY, Math.min(70, A.h * 0.052), 36, colW, 2, s => -s * 0.06);
+    n.lines.forEach(l => { y += n.size * 0.95; ctx.fillText(l, cx, y); });
+    y += 18;
+    const sub = [f.team, f.line].filter(Boolean).join('  ·  ');
+    if (team) { teamMark(ctx, team, f.team, cx, y + 30, 58); y += 66; }
+    if (sub) { shadow(ctx, true, 8, 2); setFont(ctx, 500, 36, NARROW, 0); ctx.fillStyle = '#fff'; ctx.fillText(fit(ctx, sub, colW), cx, y + 32); y += 50; }
+    shadow(ctx, false);
+    const stats = (f.stats || []).filter(s => s && (s.value || s.label)).slice(0, 6);
+    const brandY = A.y + A.h - 100;
+    if (stats.length) {
+      fill(ctx, x0, y + 8, colW, 2, 'rgba(255,255,255,0.8)');
+      const cols = stats.length <= 2 ? stats.length : stats.length === 4 ? 2 : 3;
+      const rows = Math.ceil(stats.length / cols);
+      const room = brandY - (f.shooting ? 70 : 20) - (y + 14);
+      const ch = Math.min(rows > 1 ? 190 : 230, room / rows), cw = colW / cols;
+      stats.forEach((s, i) => {
+        const c = i % cols, r = Math.floor(i / cols), sx = x0 + cw * (c + 0.5), sy = y + 14 + r * ch;
+        shadow(ctx, true, 10, 3); ctx.textAlign = 'center';
+        ctx.fillStyle = i === 0 ? st.accent : '#fff';
+        let vs = Math.min(ch * 0.56, 150); setFont(ctx, 900, vs, HEAVY, -vs * 0.05); while (vs > 30 && ctx.measureText(String(s.value)).width > cw - 16) { vs -= 3; setFont(ctx, 900, vs, HEAVY, -vs * 0.05); } ctx.fillText(String(s.value || ''), sx, sy + ch * 0.62);
+        ctx.fillStyle = '#fff'; setFont(ctx, 600, Math.max(22, ch * 0.17), NARROW, 1.5);
+        ctx.fillText(fit(ctx, String(s.label || '').toUpperCase(), cw - 10), sx, sy + ch * 0.86);
+        shadow(ctx, false);
+        fill(ctx, x0, sy + ch - 2, colW, 2, 'rgba(255,255,255,0.8)');
+      });
+      y += 14 + rows * ch;
+    }
+    if (f.shooting) {
+      ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; shadow(ctx, true, 8, 2);
+      setFont(ctx, 600, 34, NARROW, 0.5); ctx.fillText(fit(ctx, f.shooting, colW), cx, y + 46); shadow(ctx, false);
+    }
+    ctx.textAlign = 'left';
+    drawBrand(ctx, im.brand, cx, brandY, 300);
+  }
+
+  // Weekly awards: several awards, one row each (award, winner, team logo,
+  // stat line) under the stacked title.
+  async function awards(ctx, g, st, A, im) {
+    const f = g.f;
+    const rows = (f.rows || []).filter(r => r && (r.player || r.award)).slice(0, 6);
+    const [pic, ...logos] = await Promise.all([loadImg(f.photo), ...rows.map(r => loadImg(logoSrc(r.team)))]);
+    const wide = !pic;
+    if (pic) { photo(ctx, pic, A, { photoX: 75, ...f }, false); shadeSide(ctx, A, 'left', st.shade); }
+    const colW = wide ? A.w - 120 : A.w * 0.56, cx = wide ? A.x + A.w / 2 : A.x + A.w * 0.3, x0 = cx - colW / 2;
+    const top = header(ctx, st, A, im, f, cx, colW, wide ? 1 : 2, wide ? 118 : 92) + 36;
+    const bottom = A.y + A.h - 130;
+    if (!rows.length) { drawBrand(ctx, im.brand, cx, A.y + A.h - 100, 300); return; }
+    const rh = Math.min(180, (bottom - top) / rows.length), k = Math.max(0.62, rh / 150);
+    rows.forEach((r, i) => {
+      const yy = top + i * rh;
+      const ls = 74 * k;
+      teamMark(ctx, logos[i], r.team, x0 + ls / 2 + 4, yy + rh * 0.5, ls);
+      const tx = x0 + ls + 26, tw = x0 + colW - tx;
+      shadow(ctx, true, 8, 2);
+      ctx.fillStyle = st.accent; setFont(ctx, 700, 28 * k, NARROW, 1.5);
+      ctx.fillText(fit(ctx, String(r.award || '').toUpperCase(), tw), tx, yy + rh * 0.3);
+      ctx.fillStyle = '#fff'; setFont(ctx, 800, 48 * k, HEAVY, -1.8);
+      ctx.fillText(fit(ctx, r.player, tw), tx, yy + rh * 0.3 + 52 * k);
+      if (r.detail) { setFont(ctx, 500, 32 * k, NARROW, 0); ctx.fillText(fit(ctx, r.detail, tw), tx, yy + rh * 0.3 + 92 * k); }
+      shadow(ctx, false);
+      fill(ctx, x0, yy + rh - 3, colW, 2, 'rgba(255,255,255,0.75)');
+    });
+    drawBrand(ctx, im.brand, cx, A.y + A.h - 100, 300);
+  }
+
   function isLight(hex) {
     const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
     if (!m) return false;
@@ -406,7 +495,7 @@
     return (r * 299 + g * 587 + b * 114) / 1000 > 160;
   }
 
-  const TEMPLATES = { single: award, list: ranking, columns };
+  const TEMPLATES = { statline, awards, list: ranking, single: award, columns };
 
   // ------------------------------------------------------------ draw
   async function draw(canvas, g, opts = {}) {

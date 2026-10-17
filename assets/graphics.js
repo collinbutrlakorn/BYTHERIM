@@ -13,22 +13,34 @@
   const D = () => root.GraphicsDraw;
 
   const LOOKS = [['nba', 'NBA'], ['draft', 'Draft'], ['ncaa', 'NCAA']];
-  const TPLS = [['single', 'One player'], ['list', 'Ranked list'], ['columns', 'Two columns']];
-  const OLD_TPL = { statline: 'single', awards: 'list', leaders: 'list' };
+  const TPLS = [['statline', 'Statline'], ['awards', 'Weekly awards'], ['list', 'Top performances'], ['single', 'Award winner'], ['columns', 'Two columns']];
+  const OLD_TPL = { leaders: 'list' };
   const SIZE_KEYS = ['4x5', '5x4', '1x1', '9x16'];
   const MOVES = [['', 'No arrow'], ['up', '▲ Up'], ['down', '▼ Down'], ['same', '– Same'], ['new', 'New']];
   const season = () => { const d = new Date(), y = d.getMonth() >= 6 ? d.getFullYear() : d.getFullYear() - 1; return `${y}-${String(y + 1).slice(2)}`; };
 
   const TITLES = {
+    statline: { nba: 'Big Night', draft: 'Prospect Watch', ncaa: 'Big Night' },
+    awards: { nba: 'Weekly Awards', draft: 'Weekly Awards', ncaa: 'Weekly Awards' },
     single: { nba: 'Most Valuable Player', draft: 'Prospect of the Week', ncaa: 'Player of the Week' },
-    list: { nba: 'MVP Race', draft: 'Big Board Risers', ncaa: 'Top Performers' },
+    list: { nba: 'Top Performances', draft: 'Big Board Risers', ncaa: 'Top Performances' },
     columns: { nba: 'Standings', draft: 'Big Board', ncaa: 'Power Rankings' }
   };
   const HEADS = { nba: ['West', 'East'], draft: ['1-10', '11-20'], ncaa: ['1-10', '11-20'] };
   const row = () => ({ player: 'Player Name', team: '', value: '', move: '' });
 
+  const AWARDS = {
+    nba: ['Player of the Week', 'Rookie of the Week', 'Performance of the Week', 'Defender of the Week', 'Sixth Man of the Week'],
+    draft: ['Prospect of the Week', 'Riser of the Week', 'Performance of the Week', 'Defender of the Week', 'Freshman of the Week'],
+    ncaa: ['Player of the Week', 'Freshman of the Week', 'Performance of the Week', 'Defender of the Week', 'Upset of the Week']
+  };
   function defaults(look, tpl) {
     const title = TITLES[tpl][look];
+    if (tpl === 'statline') return {
+      kicker: season(), title, player: 'Player Name', team: '', line: 'vs Opponent · W 00-00', photo: '',
+      stats: ['PTS', 'REB', 'AST', 'STL', 'BLK', 'FG%'].map(label => ({ label, value: '00' })), shooting: 'FG 0-0 · 3P 0-0 · FT 0-0'
+    };
+    if (tpl === 'awards') return { kicker: 'Week 1', title, photo: '', rows: AWARDS[look].map(award => ({ award, player: 'Player Name', team: '', detail: '00.0 PTS · 00.0 REB · 00.0 AST' })) };
     if (tpl === 'list') return { kicker: season(), title, numbered: true, photo: '', rows: Array.from({ length: 5 }, row) };
     if (tpl === 'columns') return {
       kicker: `BYTHERIM ${season()}`, title, numbered: true, caps: false,
@@ -41,7 +53,7 @@
     const L = D().LOOKS[look];
     return { bg: L.bg, bg2: L.bg2, frame: L.frame, pattern: L.pattern, topLogo: L.topLogo };
   }
-  function blank(look = 'nba', tpl = 'single') {
+  function blank(look = 'nba', tpl = 'statline') {
     return { id: null, name: '', look, tpl, size: '4x5', style: lookStyle(look), f: defaults(look, tpl) };
   }
   // Graphics saved by the first version of this page used other templates.
@@ -69,10 +81,10 @@
       let saved = null;
       try { saved = C && C.getGraphics ? await C.getGraphics() : null; } catch (e) { console.error('Loading graphics:', e); this.msg = explain(e); }
       this.lib = (saved && Array.isArray(saved.items)) ? saved.items.map(upgrade) : [];
-      this.newGraphic('nba', 'single');
+      this.newGraphic('nba', 'statline');
     },
     newGraphic(look, tpl) {
-      this.cur = blank(look || 'nba', tpl || 'single');
+      this.cur = blank(look || 'nba', tpl || 'statline');
       this.byTpl = { [this.cur.tpl]: this.cur.f };
       this.uploaded = null;
       this.dirty = false;
@@ -151,6 +163,39 @@
           <label class="sim-btn sim-btn-secondary btn-sm gx-upload">Upload photo<input type="file" accept="image/*" data-upload hidden></label>
         </div>
         ${this.uploaded ? '<p class="adm-note">Using an uploaded photo. Uploads aren\'t saved with the graphic. <button type="button" class="gx-link" data-act="clear-photo">Remove</button></p>' : ''}`;
+      if (g.tpl === 'statline') {
+        return `${top}
+          <div class="gx-fields2">
+            ${fld('player', 'Player', 'Player name', players + ' data-pick="single"')}
+            ${fld('team', 'Team', teamPh)}
+          </div>
+          ${fld('line', 'Game line', 'vs Denver · W 121-114')}
+          <h3 class="gx-h3">Stats <small>empty boxes are left off; up to 6</small></h3>
+          <div class="gx-stats">${(f.stats || []).map((s, i) => `<div class="gx-stat">
+              <input type="text" data-k="stats.${i}.value" value="${esc(s.value)}" placeholder="00" aria-label="Number ${i + 1}">
+              <input type="text" data-k="stats.${i}.label" value="${esc(s.label)}" placeholder="LABEL" aria-label="Label ${i + 1}">
+            </div>`).join('')}</div>
+          ${fld('shooting', 'Shooting line', 'FG 15-24 · 3P 4-7 · FT 7-8')}
+          ${photo}${datalist}`;
+      }
+      if (g.tpl === 'awards') {
+        const rows = f.rows;
+        return `${top}
+          <h3 class="gx-h3">Awards <small>${rows.length} of 6</small></h3>
+          <ol class="gx-rows">${rows.map((r, i) => `<li>
+            <div class="gx-rowf awards">
+              <input type="text" data-k="rows.${i}.award" value="${esc(r.award)}" placeholder="Award" aria-label="Award">
+              <input type="text" data-k="rows.${i}.player" value="${esc(r.player)}" placeholder="Player" aria-label="Player" ${players} data-pick="row" data-path="rows.${i}">
+              <input type="text" data-k="rows.${i}.team" value="${esc(r.team)}" placeholder="Team" aria-label="Team">
+              <input type="text" data-k="rows.${i}.detail" value="${esc(r.detail)}" placeholder="Stat line" aria-label="Stat line">
+            </div>
+            <span class="gx-rowbtns">
+              <button type="button" class="lg-x" data-act="up" data-path="rows" data-i="${i}" aria-label="Move up"${i ? '' : ' disabled'}>↑</button>
+              <button type="button" class="lg-x" data-act="del-row" data-path="rows" data-i="${i}" aria-label="Remove">×</button>
+            </span></li>`).join('')}</ol>
+          ${rows.length < 6 ? '<button type="button" class="sim-btn sim-btn-secondary btn-sm" data-act="add-row" data-path="rows">Add award</button>' : ''}
+          ${photo}${datalist}`;
+      }
       if (g.tpl === 'single') {
         return `${top}
           <div class="gx-fields2">
@@ -275,6 +320,7 @@
         const r = getPath(f, input.dataset.path);
         r.player = p.name;
         if (!r.team) r.team = team;
+        if ('detail' in r && (!r.detail || /^00/.test(r.detail))) r.detail = seasonLine(p) || r.detail;
       }
       return true;
     },
@@ -368,7 +414,7 @@
         case 'png': return this.exportPNG([g.size]);
         case 'all-sizes': return this.exportPNG(SIZE_KEYS);
         case 'clear-photo': this.uploaded = null; break;
-        case 'add-row': rows.push({ player: '', team: '', value: '', move: '' }); break;
+        case 'add-row': rows.push(g.tpl === 'awards' ? { award: '', player: '', team: '', detail: '' } : { player: '', team: '', value: '', move: '' }); break;
         case 'del-row': rows.splice(+b.dataset.i, 1); break;
         case 'up': { const i = +b.dataset.i; if (i > 0) [rows[i - 1], rows[i]] = [rows[i], rows[i - 1]]; break; }
         default: return;
