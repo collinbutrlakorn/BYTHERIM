@@ -559,7 +559,7 @@
   // Pages still in beta: a link in the main menu that only appears for
   // a signed-in admin. The pages themselves also check, and their data is
   // admin-only in the database rules.
-  const BETA_NAV = [{ id: 'league', label: 'League', href: 'league.html' }];
+  const BETA_NAV = [{ id: 'league', label: 'League', href: 'league.html' }, { id: 'graphics', label: 'Graphics', href: 'graphics.html' }];
   let ACTIVE = '';
   function adminNav(on) {
     const nav = document.getElementById('siteNav');

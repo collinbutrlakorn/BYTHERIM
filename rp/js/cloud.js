@@ -269,6 +269,20 @@
       return doc;
     },
 
+    // graphics/library: saved graphics from the Graphics page
+    // (assets/graphics.js). Only admins can read or write it.
+    async getGraphics() {
+      if (!this.db || !this.admin) return null;
+      const snap = await this.db.doc('graphics/library').get();
+      return snap.exists ? snap.data() : null;
+    },
+    async saveGraphics(data) {
+      if (!this.admin) throw new Error('Only an admin can save graphics.');
+      const doc = { ...data, updatedAt: Date.now(), by: this.user.email };
+      await this.db.doc('graphics/library').set(doc);
+      return doc;
+    },
+
     // ---------- generated recruits ----------
     // official/recruit_gen: { resets: { "2033": 1, ... } }, how many times
     // each class's generated players have been reset (recruit-gen.js).

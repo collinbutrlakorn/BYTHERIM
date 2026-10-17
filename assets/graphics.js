@@ -1,0 +1,427 @@
+// BYTHERIM Graphics (beta): admin-only graphics maker (graphics.html).
+// Pick a look (NBA, Draft or NCAA) and a template (statline, weekly
+// awards, top performances), fill in the fields, and download a PNG to
+// finish in Canva. Saved graphics are one document, graphics/library,
+// which the database rules let only admins read or write.
+(function (root) {
+  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const uid = () => Math.random().toString(36).slice(2, 10);
+  const slug = s => String(s || 'graphic').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'graphic';
+  const clone = o => JSON.parse(JSON.stringify(o));
+
+  const LOOKS = [['nba', 'NBA'], ['draft', 'Draft'], ['ncaa', 'NCAA']];
+  const TPLS = [['statline', 'Statline'], ['awards', 'Weekly awards'], ['leaders', 'Top performances']];
+  const SIZE_KEYS = ['4x5', '1x1', '9x16'];
+  const today = () => new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  const AWARDS = {
+    nba: ['Player of the Week', 'Rookie of the Week', 'Performance of the Week', 'Defender of the Week', 'Sixth Man of the Week'],
+    draft: ['Prospect of the Week', 'Riser of the Week', 'Performance of the Week', 'Defender of the Week', 'Freshman of the Week'],
+    ncaa: ['Player of the Week', 'Freshman of the Week', 'Performance of the Week', 'Defender of the Week', 'Upset of the Week']
+  };
+  const KICKER = { nba: 'NBA', draft: '2027 NBA Draft', ncaa: 'College basketball' };
+
+  function defaults(look, tpl) {
+    const k = KICKER[look] || '';
+    if (tpl === 'awards') return {
+      kicker: `${k} · Week 1`, title: 'Weekly Awards', note: today(),
+      rows: AWARDS[look].map(award => ({ award, player: 'Player Name', team: '', detail: '00.0 PTS · 00.0 REB · 00.0 AST' }))
+    };
+    if (tpl === 'leaders') return {
+      kicker: `${k} · This week`, title: 'Top Performances', note: today(), valueLabel: 'PTS',
+      rows: Array.from({ length: 5 }, () => ({ player: 'Player Name', team: '', value: '00', detail: '00 REB · 00 AST' }))
+    };
+    return {
+      kicker: look === 'draft' ? `${k} · Prospect watch` : `${k} · Big night`, title: 'Big Night', note: today(),
+      player: 'Player Name', team: '', info: '', line: 'vs Opponent · W 00-00', photo: '',
+      stats: ['PTS', 'REB', 'AST', 'STL', 'BLK'].map(label => ({ label, value: '00' })),
+      shooting: 'FG 0-0 · 3P 0-0 · FT 0-0', blurb: ''
+    };
+  }
+  function blank(look = 'nba', tpl = 'statline') {
+    return { id: null, name: '', look, tpl, size: '4x5', f: defaults(look, tpl) };
+  }
+
+  // A board prospect's newest season as one short line.
+  function seasonOf(p) {
+    const s = (p.seasons && p.seasons[0] && p.seasons[0].stats) || p.sheetStats || {};
+    return s;
+  }
+  function seasonLine(p) {
+    const s = seasonOf(p);
+    return ['PTS', 'REB', 'AST'].filter(k => s[k] != null).map(k => `${s[k]} ${k}`).join(' · ');
+  }
+
+  const Graphics = {
+    lib: [], cur: null, byTpl: {}, tab: 'create', filter: 'all', board: null, dirty: false, uploaded: null,
+
+    async load() {
+      const C = root.Cloud;
+      let saved = null;
+      try { saved = C && C.getGraphics ? await C.getGraphics() : null; } catch (e) { console.error('Loading graphics:', e); this.msg = explain(e); }
+      this.lib = (saved && Array.isArray(saved.items)) ? saved.items : [];
+      this.newGraphic('nba', 'statline');
+    },
+    newGraphic(look, tpl) {
+      this.cur = blank(look || (this.cur && this.cur.look) || 'nba', tpl || 'statline');
+      this.byTpl = { [this.cur.tpl]: this.cur.f };
+      this.uploaded = null;
+      this.dirty = false;
+    },
+
+    // ---------- rendering
+    render() {
+      const el = this.el;
+      if (!el) return;
+      document.querySelectorAll('#gxTabs [data-tab]').forEach(b => b.classList.toggle('active', b.dataset.tab === this.tab));
+      const n = document.querySelector('#gxTabs [data-tab="saved"]');
+      if (n) n.textContent = `Saved (${this.lib.length})`;
+      el.innerHTML = this.tab === 'saved' ? this.savedHTML() : this.createHTML();
+      if (this.tab === 'create') { this.ensureBoard(); this.redraw(); }
+      this.showMsg();
+    },
+    createHTML() {
+      const g = this.cur, D = root.GraphicsDraw;
+      const seg = (name, list, val) => `<div class="gx-seg" role="group">${list.map(([v, l]) => `<button type="button" data-set="${name}" data-v="${v}" class="${val === v ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>`;
+      return `<div class="gx-grid">
+        <div class="gx-edit">
+          <div class="card gx-panel">
+            <div class="gx-row">${seg('look', LOOKS, g.look)}</div>
+            <div class="gx-row">${seg('tpl', TPLS, g.tpl)}</div>
+            <div class="gx-fields2">
+              <label class="site-field"><span>Size</span><select data-set-select="size">${SIZE_KEYS.map(k => `<option value="${k}"${g.size === k ? ' selected' : ''}>${esc(D.SIZES[k].label)}</option>`).join('')}</select></label>
+              <label class="site-field"><span>Saved as</span><input type="text" data-name value="${esc(g.name)}" placeholder="Name it to save (e.g. NBA awards wk 1)"></label>
+            </div>
+            <div class="gx-actions">
+              <button type="button" class="sim-btn btn-sm" data-act="save">${g.id ? 'Save' : 'Save graphic'}</button>
+              ${g.id ? '<button type="button" class="sim-btn sim-btn-secondary btn-sm" data-act="copy">Save as copy</button>' : ''}
+              <button type="button" class="sim-btn sim-btn-secondary btn-sm" data-act="new">New</button>
+              ${g.id ? '<button type="button" class="sim-btn sim-btn-secondary btn-sm gx-danger" data-act="delete">Delete</button>' : ''}
+            </div>
+          </div>
+          <div class="card gx-panel" id="gxForm">${this.formHTML()}</div>
+        </div>
+        <div class="gx-preview">
+          <div class="gx-canvas-wrap gx-${g.size}"><canvas id="gxCanvas" aria-label="Graphic preview"></canvas></div>
+          <div class="gx-actions gx-export">
+            <button type="button" class="sim-btn" data-act="png">Download PNG</button>
+            <button type="button" class="sim-btn sim-btn-secondary" data-act="all-sizes">All 3 sizes</button>
+            <label class="gx-check"><input type="checkbox" data-hd ${this.hd ? 'checked' : ''}> 2x (sharper in Canva)</label>
+          </div>
+          <p class="adm-note">In Canva: Uploads, then drag the PNG onto a 1080 px design. Leave the photo field empty to keep the panel open for a cutout.</p>
+        </div>
+      </div>`;
+    },
+    formHTML() {
+      const g = this.cur, f = g.f;
+      const fld = (k, label, ph = '', extra = '') => `<label class="site-field"><span>${label}</span><input type="text" data-k="${k}" value="${esc(getPath(f, k))}" placeholder="${esc(ph)}" ${extra}></label>`;
+      const players = (g.look === 'draft' || g.look === 'ncaa') && this.board ? 'list="gxProspects"' : '';
+      const teamPh = g.look === 'nba' ? 'Lakers, LAL, Boston Celtics…' : 'School (logo loads from the name)';
+      const top = `<div class="gx-fields2">
+          ${fld('kicker', 'Eyebrow', 'NBA · Week 1')}
+          ${fld('note', 'Top-right note', 'Date or week')}
+        </div>
+        ${fld('title', 'Title', 'Weekly Awards')}`;
+      const datalist = players ? `<datalist id="gxProspects">${this.board.map(p => `<option value="${esc(p.name)}">${esc([p.rank ? '#' + p.rank : '', p.school].filter(Boolean).join(' · '))}</option>`).join('')}</datalist>` : '';
+      if (g.tpl === 'statline') {
+        return `${top}
+          <h3 class="gx-h3">Player</h3>
+          <div class="gx-fields2">
+            ${fld('player', 'Name', 'Player name', players + ' data-pick="statline"')}
+            ${fld('team', 'Team', teamPh)}
+            ${fld('info', 'Info line', g.look === 'draft' ? '#3 on the board · Wing · Freshman' : 'Guard · Year 3')}
+            ${fld('line', 'Game line', 'vs Duke · W 82-77')}
+          </div>
+          <div class="gx-photo">
+            ${fld('photo', 'Photo URL (optional)', 'https://… or leave empty for Canva')}
+            <label class="sim-btn sim-btn-secondary btn-sm gx-upload">Upload photo<input type="file" accept="image/*" data-upload hidden></label>
+          </div>
+          ${this.uploaded ? '<p class="adm-note">Using an uploaded photo. Uploads aren\'t saved with the graphic.</p>' : ''}
+          <h3 class="gx-h3">Stats <small>leave a box empty to drop it; up to 6</small></h3>
+          <div class="gx-stats">${(f.stats || []).map((s, i) => `<div class="gx-stat">
+              <input type="text" data-k="stats.${i}.value" value="${esc(s.value)}" placeholder="00" aria-label="Value ${i + 1}">
+              <input type="text" data-k="stats.${i}.label" value="${esc(s.label)}" placeholder="LABEL" aria-label="Label ${i + 1}">
+            </div>`).join('')}
+            ${(f.stats || []).length < 6 ? '<button type="button" class="gx-add" data-act="add-stat" aria-label="Add a stat">+</button>' : ''}</div>
+          ${fld('shooting', 'Shooting line', 'FG 11-18 · 3P 4-7 · FT 5-6')}
+          <label class="site-field"><span>Blurb (optional)</span><textarea rows="3" data-k="blurb" placeholder="One or two sentences.">${esc(f.blurb)}</textarea></label>
+          ${datalist}`;
+      }
+      const rows = f.rows || [];
+      const max = g.tpl === 'awards' ? 6 : 10;
+      return `${top}
+        ${g.tpl === 'leaders' ? `<div class="gx-fields2">${fld('valueLabel', 'Number label', 'PTS')}</div>` : ''}
+        <h3 class="gx-h3">${g.tpl === 'awards' ? 'Awards' : 'Rows'} <small>${rows.length} of ${max}${g.tpl === 'leaders' ? ' · in order, #1 first' : ''}</small></h3>
+        <ol class="gx-rows">${rows.map((r, i) => `<li>
+          <div class="gx-rowf ${g.tpl}">
+            ${g.tpl === 'awards' ? `<input type="text" data-k="rows.${i}.award" value="${esc(r.award)}" placeholder="Award" aria-label="Award">` : ''}
+            <input type="text" data-k="rows.${i}.player" value="${esc(r.player)}" placeholder="Player" aria-label="Player" ${players} data-pick="row" data-i="${i}">
+            <input type="text" data-k="rows.${i}.team" value="${esc(r.team)}" placeholder="Team" aria-label="Team">
+            ${g.tpl === 'leaders' ? `<input type="text" data-k="rows.${i}.value" value="${esc(r.value)}" placeholder="00" aria-label="Number" class="gx-num">` : ''}
+            <input type="text" data-k="rows.${i}.detail" value="${esc(r.detail)}" placeholder="Stat line" aria-label="Detail" class="gx-detail">
+          </div>
+          <span class="gx-rowbtns">
+            <button type="button" class="lg-x" data-act="up" data-i="${i}" aria-label="Move up"${i ? '' : ' disabled'}>↑</button>
+            <button type="button" class="lg-x" data-act="del-row" data-i="${i}" aria-label="Remove">×</button>
+          </span></li>`).join('')}</ol>
+        ${rows.length < max ? '<button type="button" class="sim-btn sim-btn-secondary btn-sm" data-act="add-row">Add row</button>' : ''}
+        ${datalist}`;
+    },
+    savedHTML() {
+      const list = this.lib.filter(x => this.filter === 'all' || x.look === this.filter)
+        .slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      const chips = [['all', 'All'], ...LOOKS].map(([v, l]) => `<button type="button" data-filter="${v}" class="${this.filter === v ? 'on' : ''}">${l}</button>`).join('');
+      return `<div class="site-bar gx-bar"><div class="gx-seg">${chips}</div>
+          <button type="button" class="sim-btn btn-sm" data-act="new-open">New graphic</button></div>
+        ${list.length ? `<div class="gx-lib">${list.map(x => `<button type="button" class="gx-item" data-open="${esc(x.id)}">
+            <span class="gx-chip gx-chip-${esc(x.look)}">${esc((LOOKS.find(l => l[0] === x.look) || ['', x.look])[1])}</span>
+            <b>${esc(x.name || 'Untitled')}</b>
+            <small>${esc((TPLS.find(t => t[0] === x.tpl) || ['', x.tpl])[1])} · ${esc(x.f && x.f.title || '')}</small>
+            <small>${x.updatedAt ? 'Saved ' + new Date(x.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}</small>
+          </button>`).join('')}</div>`
+        : `<p class="adm-empty">${this.lib.length ? 'Nothing saved in this look yet.' : 'No saved graphics yet. Make one and press Save graphic.'}</p>`}`;
+    },
+
+    // ---------- preview
+    redraw() {
+      clearTimeout(this.drawTimer);
+      this.drawTimer = setTimeout(() => {
+        const c = document.getElementById('gxCanvas');
+        if (!c || !root.GraphicsDraw) return;
+        const token = this.drawToken = (this.drawToken || 0) + 1;
+        const off = document.createElement('canvas');
+        root.GraphicsDraw.draw(off, this.drawable()).then(() => {
+          if (token !== this.drawToken || !off.width) return;
+          c.width = off.width; c.height = off.height;
+          const ctx = c.getContext && c.getContext('2d');
+          if (ctx) ctx.drawImage(off, 0, 0);
+        }).catch(e => console.warn('Preview:', e));
+      }, 90);
+    },
+    drawable(size) {
+      const g = clone(this.cur);
+      if (size) g.size = size;
+      if (this.uploaded && g.tpl === 'statline') g.f.photo = this.uploaded;
+      return g;
+    },
+    async exportPNG(sizes) {
+      const g = this.cur;
+      for (const size of sizes) {
+        const c = document.createElement('canvas');
+        await root.GraphicsDraw.draw(c, this.drawable(size), { scale: this.hd ? 2 : 1 });
+        let blob;
+        try { blob = await new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('empty')), 'image/png')); }
+        catch (e) { this.msg = 'That photo\'s site doesn\'t allow downloading it in an image. Upload the photo instead, or leave it empty and add it in Canva.'; this.showMsg(true); return; }
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `bytherim-${g.look}-${slug(g.name || g.f.title || g.tpl)}-${size}${this.hd ? '@2x' : ''}.png`;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      }
+    },
+
+    // ---------- board prospects (Draft and NCAA looks)
+    ensureBoard() {
+      if (this.board || this.boardLoading || !(this.cur.look === 'draft' || this.cur.look === 'ncaa')) return;
+      const B = root.BOARD;
+      if (!B || !B.loadBoard) return;
+      this.boardLoading = true;
+      B.loadBoard().then(rows => {
+        this.board = rows;
+        if (this.tab === 'create') { const form = document.getElementById('gxForm'); if (form) form.innerHTML = this.formHTML(); }
+      }).catch(() => {}).finally(() => { this.boardLoading = false; });
+    },
+    pick(input) {
+      const p = (this.board || []).find(x => x.name.toLowerCase() === input.value.trim().toLowerCase());
+      if (!p) return false;
+      const f = this.cur.f, isPh = v => !v || /^(team|0+|00\.0.*|00 .*|player name)$/i.test(String(v).trim());
+      if (input.dataset.pick === 'statline') {
+        f.player = p.name;
+        f.team = p.isPro ? 'Pro' : p.school;
+        f.info = [p.rank ? `#${p.rank} on the board` : '', p.pos, p.cls].filter(Boolean).join(' · ');
+        if (p.image && !this.uploaded) f.photo = p.image;
+        const s = seasonOf(p);
+        if (s.PTS != null && f.stats.every(x => isPh(x.value))) {
+          f.stats = ['PTS', 'REB', 'AST', 'STL', 'BLK'].map(label => ({ label, value: s[label] != null ? String(s[label]) : '' }));
+          const sh = [['TS%', 'TS'], ['3P%', '3P'], ['FT%', 'FT']].filter(([k]) => s[k] != null).map(([k, l]) => `${l} ${s[k]}${/%$/.test(s[k]) ? '' : '%'}`);
+          if (sh.length) f.shooting = sh.join(' · ');
+          if (p.seasons && p.seasons[0] && p.seasons[0].label) f.line = `${p.seasons[0].label} season · per game`;
+        }
+      } else {
+        const r = f.rows[+input.dataset.i];
+        r.player = p.name;
+        if (isPh(r.team)) r.team = p.isPro ? 'Pro' : p.school;
+        if (isPh(r.detail)) r.detail = seasonLine(p);
+      }
+      return true;
+    },
+
+    // ---------- events
+    onInput(e) {
+      const t = e.target;
+      if (t.matches('[data-hd]')) { this.hd = t.checked; return; }
+      if (t.matches('[data-name]')) { this.cur.name = t.value; this.dirty = true; return; }
+      if (t.matches('[data-set-select]')) {
+        this.cur.size = t.value; this.dirty = true;
+        const w = this.el.querySelector('.gx-canvas-wrap'); if (w) w.className = `gx-canvas-wrap gx-${t.value}`;
+        this.redraw(); return;
+      }
+      if (t.matches('[data-upload]') && e.type === 'change') {
+        const file = t.files && t.files[0];
+        if (!file) return;
+        const rd = new FileReader();
+        rd.onload = () => { this.uploaded = rd.result; this.cur.f.photo = ''; document.getElementById('gxForm').innerHTML = this.formHTML(); this.redraw(); };
+        rd.readAsDataURL(file);
+        return;
+      }
+      if (!t.dataset.k) return;
+      setPath(this.cur.f, t.dataset.k, t.value);
+      if (t.dataset.k === 'photo' && t.value) this.uploaded = null;
+      this.dirty = true;
+      if (t.dataset.pick && e.type === 'change' && this.pick(t)) document.getElementById('gxForm').innerHTML = this.formHTML();
+      this.redraw();
+    },
+    async onClick(e) {
+      const set = e.target.closest('[data-set]');
+      if (set) {
+        const g = this.cur, v = set.dataset.v;
+        if (set.dataset.set === 'look' && g.look !== v) {
+          // A new look keeps everything you typed; only untouched eyebrows,
+          // award names and the default stat set follow the new look.
+          const was = g.look; g.look = v;
+          Object.values(this.byTpl).forEach(f => {
+            if (f.kicker && f.kicker.startsWith(KICKER[was])) f.kicker = KICKER[v] + f.kicker.slice(KICKER[was].length);
+            (f.rows || []).forEach((r, i) => { if (r.award === AWARDS[was][i]) r.award = AWARDS[v][i]; });
+          });
+        } else if (set.dataset.set === 'tpl' && g.tpl !== v) {
+          this.byTpl[g.tpl] = g.f;
+          g.tpl = v;
+          g.f = this.byTpl[v] || (this.byTpl[v] = defaults(g.look, v));
+        } else return;
+        this.dirty = true;
+        this.render();
+        return;
+      }
+      const f = e.target.closest('[data-filter]');
+      if (f) { this.filter = f.dataset.filter; this.render(); return; }
+      const open = e.target.closest('[data-open]');
+      if (open) {
+        const item = this.lib.find(x => x.id === open.dataset.open);
+        if (item && (!this.dirty || confirm('Open this graphic? Unsaved changes to the current one will be lost.'))) {
+          this.cur = clone(item); this.byTpl = { [item.tpl]: this.cur.f }; this.uploaded = null; this.dirty = false;
+          this.tab = 'create'; this.render();
+        }
+        return;
+      }
+      const b = e.target.closest('[data-act]');
+      if (!b) return;
+      const g = this.cur, rows = g.f.rows;
+      switch (b.dataset.act) {
+        case 'save': return this.save(false);
+        case 'copy': return this.save(true);
+        case 'new': case 'new-open':
+          if (this.dirty && b.dataset.act === 'new' && !confirm('Start a new graphic? Unsaved changes will be lost.')) return;
+          this.newGraphic(g.look, g.tpl); this.tab = 'create'; this.render(); return;
+        case 'delete':
+          if (!confirm(`Delete "${g.name || 'this graphic'}" from your saved graphics?`)) return;
+          this.lib = this.lib.filter(x => x.id !== g.id);
+          await this.persist();
+          this.newGraphic(g.look, g.tpl); this.render(); return;
+        case 'png': return this.exportPNG([g.size]);
+        case 'all-sizes': return this.exportPNG(SIZE_KEYS);
+        case 'add-stat': g.f.stats.push({ label: '', value: '' }); break;
+        case 'add-row': rows.push(g.tpl === 'awards' ? { award: '', player: '', team: '', detail: '' } : { player: '', team: '', value: '', detail: '' }); break;
+        case 'del-row': rows.splice(+b.dataset.i, 1); break;
+        case 'up': { const i = +b.dataset.i; if (i > 0) [rows[i - 1], rows[i]] = [rows[i], rows[i - 1]]; break; }
+        default: return;
+      }
+      this.dirty = true;
+      document.getElementById('gxForm').innerHTML = this.formHTML();
+      this.redraw();
+    },
+
+    // ---------- saving
+    async save(asCopy) {
+      const g = this.cur;
+      if (!g.name.trim()) g.name = [LOOKS.find(l => l[0] === g.look)[1], g.f.title || TPLS.find(t => t[0] === g.tpl)[1], new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })].join(' · ');
+      const item = clone(g);
+      if (/^(data:|blob:)/.test(item.f.photo || '')) item.f.photo = '';
+      if (asCopy || !item.id) { item.id = uid(); if (asCopy) item.name = g.name + ' (copy)'; }
+      item.updatedAt = Date.now();
+      const i = this.lib.findIndex(x => x.id === item.id);
+      if (i >= 0) this.lib[i] = item; else this.lib.push(item);
+      if (await this.persist()) {
+        this.cur = clone(item); this.byTpl = { [item.tpl]: this.cur.f }; this.dirty = false;
+        this.msg = `Saved "${item.name}".`; this.render();
+      }
+    },
+    async persist() {
+      const C = root.Cloud;
+      if (!C || !C.admin || !C.saveGraphics) { this.msg = 'Sign in with an admin account to save.'; this.showMsg(true); return false; }
+      try { await C.saveGraphics({ items: this.lib }); return true; }
+      catch (e) { console.error('Saving graphics:', e); this.msg = 'Not saved: ' + explain(e); this.showMsg(true); return false; }
+    },
+    showMsg(err) {
+      const el = document.getElementById('gxMsg');
+      if (!el) return;
+      el.textContent = this.msg || '';
+      el.classList.toggle('err', !!err);
+      clearTimeout(this.msgTimer);
+      if (this.msg && !err) this.msgTimer = setTimeout(() => { this.msg = ''; el.textContent = ''; }, 4000);
+    },
+
+    wire(el) {
+      if (el.dataset.wired) return;
+      el.dataset.wired = '1';
+      el.addEventListener('input', e => this.onInput(e));
+      el.addEventListener('change', e => this.onInput(e));
+      el.addEventListener('click', e => this.onClick(e));
+      const tabs = document.getElementById('gxTabs');
+      if (tabs) tabs.addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { this.tab = b.dataset.tab; this.render(); } });
+      window.addEventListener('beforeunload', e => { if (this.dirty) { e.preventDefault(); e.returnValue = ''; } });
+    }
+  };
+
+  function getPath(o, p) { return p.split('.').reduce((a, k) => (a == null ? a : a[k]), o) ?? ''; }
+  function setPath(o, p, v) {
+    const ks = p.split('.'), last = ks.pop();
+    const t = ks.reduce((a, k) => a[k], o);
+    t[last] = v;
+  }
+  function explain(e) {
+    const code = (e && e.code) || '';
+    if (/permission/i.test(code) || /permission/i.test(e && e.message)) return 'the database rules don\'t allow it yet. Paste the updated firestore.rules into Firebase and publish.';
+    if (/unavailable|network/i.test(code)) return 'you seem to be offline.';
+    return (e && e.message) || 'something went wrong.';
+  }
+
+  // Admin accounts only: the page waits for sign-in, then loads.
+  Graphics.start = async function (opts = {}) {
+    const sum = document.getElementById('gxSummary');
+    const body = document.getElementById('gxBody');
+    const tabs = document.getElementById('gxTabs');
+    const gate = msg => { if (sum) sum.textContent = msg; if (body) body.innerHTML = `<p class="adm-empty">${esc(msg)}</p>`; if (tabs) tabs.hidden = true; this.el = null; };
+    const open = async () => {
+      if (!this.cur) await this.load();
+      this.el = body;
+      this.wire(body);
+      if (tabs) tabs.hidden = false;
+      if (sum) sum.textContent = 'NBA, Draft and NCAA templates · download a PNG and finish it in Canva · only admins can see this page';
+      this.render();
+    };
+    if (opts.skipGate) return open();
+    const on = root.Cloud ? await root.Cloud.init() : false;
+    if (!on) { gate('Accounts aren\'t available right now, so this page can\'t check who you are.'); return; }
+    root.Cloud.onChange(() => {
+      if (root.Cloud.admin) open();
+      else { this.cur = null; gate(root.Cloud.user ? 'This page isn\'t available for this account.' : 'Sign in with an admin account (top right) to view this page.'); }
+    });
+  };
+
+  Graphics.defaults = defaults;
+  root.Graphics = Graphics;
+  if (typeof document !== 'undefined' && !root.__GRAPHICS_NO_AUTOSTART && document.getElementById('gxBody')) {
+    const go = () => Graphics.start();
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go); else go();
+  }
+})(typeof window !== 'undefined' ? window : globalThis);
