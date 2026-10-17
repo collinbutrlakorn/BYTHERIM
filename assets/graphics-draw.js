@@ -2,35 +2,40 @@
    BYTHERIM — graphics renderer (admin Graphics page).
 
    Draws one graphic onto a canvas from plain data:
-     { look: 'nba' | 'draft' | 'ncaa',
-       tpl:  'statline' | 'awards' | 'leaders',
-       size: '4x5' | '1x1' | '9x16',
-       f:    { ...the template's fields } }
+     { look:  'nba' | 'draft' | 'ncaa',
+       tpl:   'award' | 'ranking' | 'columns' | 'statline' | 'cover',
+       size:  '4x5' | '1x1' | '9x16',
+       style: { overrides of the look: bg, bg2, accent, frame, gray, logo, logoUrl, shade },
+       f:     { ...the template's fields } }
 
-   Each look has its own colors, background and card shape, and every
-   template uses the same header and footer, so everything in one
-   category looks like a set. The output is a PNG meant to be finished
-   in Canva (a photo, a sticker, a tweak), not a locked design.
+   The style follows BYTHERIM's own posts: a big photo, flat color, heavy
+   type, a solid frame, thin white rules between rows. Each category has
+   a default look (NBA: gold frame; Draft: silver frame, black-and-white
+   photo; NCAA: royal blue and yellow), and any graphic can change its
+   colors. The PNG is meant to be finished in Canva.
    ============================================================ */
 (function (root) {
   'use strict';
-  const W = 1080, M = 56;
   const SIZES = {
-    '4x5': { h: 1350, label: 'Instagram post (4:5)' },
-    '1x1': { h: 1080, label: 'Square (1:1)' },
-    '9x16': { h: 1920, label: 'Story / video cover (9:16)' }
+    '4x5': { w: 1080, h: 1350, label: 'Instagram post (4:5)' },
+    '5x4': { w: 1350, h: 1080, label: 'Wide (5:4)' },
+    '1x1': { w: 1080, h: 1080, label: 'Square (1:1)' },
+    '9x16': { w: 1080, h: 1920, label: 'Story / video cover (9:16)' }
   };
-  const FONT = { head: '"Exo 2", "Oswald", sans-serif', disp: '"Oswald", sans-serif', body: '"Asap Condensed", sans-serif' };
+  const HEAVY = '"Archivo", "Arial Black", sans-serif';
+  const NARROW = '"Barlow Condensed", "Arial Narrow", sans-serif';
+  const FRAMES = { gold: '#e2b45a', silver: '#b8bbc1' };
+  const GOLD_TEXT = '#e0b255';
+  const SWATCHES = ['#c8122e', '#964282', '#1d42ba', '#4a1ee0', '#0f7a3d', '#e2b45a', '#1c1c1f', '#0d0d10'];
 
-  // One look per category. a = main color, b = highlight, shape = card style.
+  // One starting look per category. bg: the flat color (shows when there's
+  // no photo), frame: border, topLogo: logo at the top, pattern: court lines.
   const LOOKS = {
-    nba: { name: 'NBA', bg: '#05080f', a: '#3d7cff', b: '#ff5147', text: '#f5f7fb', muted: '#9fabc2',
-      card: 'rgba(255,255,255,0.055)', line: 'rgba(255,255,255,0.12)', shape: 'cut', foot: 'BYTHERIM.COM/NBA' },
-    draft: { name: 'Draft', bg: '#06070a', a: '#c86fb4', b: '#e3bb4f', text: '#f4f5f7', muted: '#9aa3b2',
-      card: 'rgba(255,255,255,0.05)', line: 'rgba(255,255,255,0.10)', shape: 'round', foot: 'BYTHERIM.COM/DRAFT' },
-    ncaa: { name: 'NCAA', bg: '#04080f', a: '#4faef5', b: '#d4af37', text: '#f5f8fc', muted: '#98a2b3',
-      card: 'rgba(79,174,245,0.07)', line: 'rgba(79,174,245,0.22)', shape: 'square', foot: 'BYTHERIM.COM' }
+    nba: { name: 'NBA', bg: '#c8122e', bg2: '', frame: 'gold', topLogo: 'nba', pattern: true, swatches: SWATCHES },
+    draft: { name: 'Draft', bg: '#1c1c1f', bg2: '', frame: 'silver', topLogo: 'draft', pattern: false, swatches: SWATCHES },
+    ncaa: { name: 'NCAA', bg: '#1d42ba', bg2: '', frame: 'none', topLogo: 'none', pattern: true, swatches: SWATCHES }
   };
+  const LEAGUE_LOGOS = { nba: 'nbalogos/NBA%20logo.png', draft: 'nbalogos/NBA%20Draft.png' };
 
   // ------------------------------------------------------------ images
   const imgCache = new Map();
@@ -40,24 +45,23 @@
     const once = (url, cors) => new Promise(res => {
       const im = new Image();
       if (cors) im.crossOrigin = 'anonymous';
-      const t = setTimeout(() => res(null), 8000);
+      const t = setTimeout(() => res(null), 9000);
       im.onload = () => { clearTimeout(t); res(im.naturalWidth ? im : null); };
       im.onerror = () => { clearTimeout(t); res(null); };
       im.src = url;
     });
     const local = /^(data:|blob:)/.test(src) || !/^https?:/i.test(src) || (typeof location !== 'undefined' && src.startsWith(location.origin));
-    // Photos from other sites need permission to be drawn into an image
-    // you can download; ones that refuse go through wsrv.nl, a free image
-    // proxy that allows it (same as the draft board export).
+    // Photos from other sites need permission to be drawn into an image you
+    // can download; ones that refuse go through wsrv.nl, a free image proxy.
     const p = local ? once(src, false)
-      : once(src, true).then(im => im || once(`https://wsrv.nl/?url=${encodeURIComponent(src)}&w=900&output=png`, true));
+      : once(src, true).then(im => im || once(`https://wsrv.nl/?url=${encodeURIComponent(src)}&w=1400&output=png`, true));
     imgCache.set(src, p);
     p.then(im => { if (!im) imgCache.delete(src); });
     return p;
   }
   function fontsReady() {
     if (typeof document === 'undefined' || !document.fonts || !document.fonts.load) return Promise.resolve();
-    const want = ['italic 800 70px "Exo 2"', '600 40px Oswald', '500 40px Oswald', '500 22px "Asap Condensed"', '700 22px "Asap Condensed"'];
+    const want = ['900 80px Archivo', '800 60px Archivo', '500 40px "Barlow Condensed"', '600 40px "Barlow Condensed"'];
     return Promise.race([new Promise(r => setTimeout(r, 3500)), Promise.all(want.map(f => document.fonts.load(f).catch(() => null)))]);
   }
 
@@ -80,38 +84,20 @@
       || NBA_TEAMS.find(t => { const nick = key(t.split(' ').pop()); return k.includes(nick) || (k.length >= 4 && key(t).includes(k)); })
       || null;
   }
-  function logoSrc(look, team) {
+  // A team name finds an NBA logo first; anything else is tried as a school.
+  function logoSrc(team) {
     if (!team) return null;
     if (/^(https?:|data:|blob:)/.test(team)) return team;
-    if (look === 'nba') { const t = nbaTeam(team); return t ? `nbalogos/${encodeURIComponent(t)}.png` : null; }
+    const t = nbaTeam(team);
+    if (t) return `nbalogos/${encodeURIComponent(t)}.png`;
     const B = root.BTR;
     return B && B.schoolLogo ? B.schoolLogo(team) : `schoollogos/${key(team)}.png`;
   }
 
-  // ------------------------------------------------------------ helpers
-  function rr(ctx, x, y, w, h, r) {
-    r = Math.min(r, h / 2, w / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
-  }
-  function shape(ctx, L, x, y, w, h) {
-    if (L.shape === 'cut') {
-      const c = Math.min(22, h * 0.22);
-      ctx.beginPath();
-      ctx.moveTo(x + c, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h - c); ctx.lineTo(x + w - c, y + h);
-      ctx.lineTo(x, y + h); ctx.lineTo(x, y + c); ctx.closePath();
-    } else rr(ctx, x, y, w, h, L.shape === 'round' ? 16 : 3);
-  }
-  function card(ctx, L, x, y, w, h, stripe) {
-    shape(ctx, L, x, y, w, h); ctx.fillStyle = L.card; ctx.fill();
-    ctx.strokeStyle = L.line; ctx.lineWidth = 1.5; ctx.stroke();
-    if (stripe) {
-      ctx.save(); shape(ctx, L, x, y, w, h); ctx.clip();
-      ctx.fillStyle = stripe;
-      if (L.shape === 'square') ctx.fillRect(x, y, w, 5); else ctx.fillRect(x, y, 8, h);
-      ctx.restore();
-    }
+  // ------------------------------------------------------------ text
+  function setFont(ctx, weight, size, family, track) {
+    ctx.font = `${weight} ${Math.round(size)}px ${family}`;
+    if ('letterSpacing' in ctx) ctx.letterSpacing = `${track || 0}px`;
   }
   function fit(ctx, text, max) {
     text = String(text || '');
@@ -119,32 +105,49 @@
     while (text.length > 1 && ctx.measureText(text + '…').width > max) text = text.slice(0, -1);
     return text.trimEnd() + '…';
   }
-  // Largest size from `start` down to `min` that fits; ellipsis below that.
-  function sized(ctx, text, font, start, min, max) {
-    let s = start;
-    for (; s > min; s -= 2) { ctx.font = font(s); if (ctx.measureText(text).width <= max) break; }
-    ctx.font = font(s);
-    return { size: s, text: fit(ctx, text, max) };
-  }
-  function spaced(ctx, text, x, y, sp, align = 'left') {
-    const chars = [...String(text)];
-    const w = chars.reduce((s, ch) => s + ctx.measureText(ch).width, 0) + sp * Math.max(0, chars.length - 1);
-    let cx = align === 'right' ? x - w : align === 'center' ? x - w / 2 : x;
-    const prev = ctx.textAlign; ctx.textAlign = 'left';
-    chars.forEach(ch => { ctx.fillText(ch, cx, y); cx += ctx.measureText(ch).width + sp; });
-    ctx.textAlign = prev;
-    return w;
-  }
+  // Wrap words onto at most `lines` lines; explicit line breaks are kept.
   function wrap(ctx, text, max, lines) {
-    const words = String(text || '').split(/\s+/).filter(Boolean), out = [];
-    let cur = '';
-    words.forEach(w => {
-      const t = cur ? cur + ' ' + w : w;
-      if (ctx.measureText(t).width <= max || !cur) cur = t; else { out.push(cur); cur = w; }
+    const out = [];
+    String(text || '').split(/\n/).forEach(par => {
+      let cur = '';
+      par.split(/\s+/).filter(Boolean).forEach(w => {
+        const t = cur ? cur + ' ' + w : w;
+        if (ctx.measureText(t).width <= max || !cur) cur = t; else { out.push(cur); cur = w; }
+      });
+      if (cur) out.push(cur);
     });
-    if (cur) out.push(cur);
-    if (out.length > lines) { out.length = lines; out[lines - 1] = fit(ctx, out[lines - 1] + ' …', max); }
-    return out;
+    if (out.length > lines) { const rest = out.splice(lines - 1).join(' '); out.push(fit(ctx, rest, max)); }
+    return out.map(l => fit(ctx, l, max));
+  }
+  // Splits words into up to `n` lines of similar length ("MVP RACE" ->
+  // MVP / RACE), the stacked look of BYTHERIM titles. Typed line breaks win.
+  function stack(text, n) {
+    text = String(text || '').trim();
+    if (/\n/.test(text) || n < 2) return text;
+    const w = text.split(/\s+/);
+    if (w.length < 2) return text;
+    n = Math.min(n, w.length);
+    let best = null;
+    const go = (start, left, acc) => {
+      if (left === 1) { const all = [...acc, w.slice(start).join(' ')]; const m = Math.max(...all.map(l => l.length)); if (!best || m < best.m) best = { m, all }; return; }
+      for (let i = start + 1; i <= w.length - left + 1; i++) go(i, left - 1, [...acc, w.slice(start, i).join(' ')]);
+    };
+    go(0, n, []);
+    return best.all.join('\n');
+  }
+  // Biggest size from `start` down to `min` where every line fits.
+  function fitLines(ctx, text, weight, family, start, min, max, lines, track) {
+    let s = start, out;
+    for (; s >= min; s -= 2) {
+      setFont(ctx, weight, s, family, track(s));
+      out = wrap(ctx, text, max, lines);
+      if (out.every(l => !/…$/.test(l) && ctx.measureText(l).width <= max)) break;
+    }
+    return { size: Math.max(s, min), lines: out };
+  }
+  function shadow(ctx, on, blur = 18, y = 4) {
+    ctx.shadowColor = on ? 'rgba(0,0,0,0.55)' : 'transparent';
+    ctx.shadowBlur = on ? blur : 0; ctx.shadowOffsetY = on ? y : 0; ctx.shadowOffsetX = 0;
   }
   function initials(name) {
     const w = String(name || '?').split(/\s+/).filter(Boolean);
@@ -154,231 +157,281 @@
     const s = Math.min(size / im.naturalWidth, size / im.naturalHeight);
     ctx.drawImage(im, cx - im.naturalWidth * s / 2, cy - im.naturalHeight * s / 2, im.naturalWidth * s, im.naturalHeight * s);
   }
-  function logoOrBadge(ctx, L, im, label, cx, cy, size) {
-    if (im) return drawContain(ctx, im, cx, cy, size);
+  function teamMark(ctx, im, label, cx, cy, size) {
+    if (im) { shadow(ctx, true, 10, 2); drawContain(ctx, im, cx, cy, size); shadow(ctx, false); return; }
     if (!label) return;
     ctx.save();
-    ctx.beginPath(); ctx.arc(cx, cy, size * 0.42, 0, Math.PI * 2); ctx.fillStyle = L.line; ctx.fill();
-    ctx.fillStyle = L.text; ctx.font = `600 ${Math.round(size * 0.3)}px ${FONT.disp}`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.beginPath(); ctx.arc(cx, cy, size * 0.4, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fill();
+    setFont(ctx, 800, size * 0.28, HEAVY); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(initials(label).slice(0, 3), cx, cy + 1);
     ctx.restore();
   }
 
-  // ------------------------------------------------------------ frame
-  function background(ctx, L, look, H) {
-    ctx.fillStyle = L.bg; ctx.fillRect(0, 0, W, H);
-    const glow = (x, y, r, c) => { const g = ctx.createRadialGradient(x, y, 30, x, y, r); g.addColorStop(0, c); g.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H); };
-    if (look === 'nba') {
-      glow(-60, -60, 900, 'rgba(61,124,255,0.42)');
-      glow(W + 80, H + 80, 760, 'rgba(255,81,71,0.20)');
-      // Three slanted bars in the top-right corner.
-      [[0, 'rgba(61,124,255,0.85)'], [46, 'rgba(255,81,71,0.85)'], [92, 'rgba(255,255,255,0.10)']].forEach(([o, c]) => {
-        ctx.beginPath();
-        ctx.moveTo(W - 250 + o, 0); ctx.lineTo(W - 222 + o, 0); ctx.lineTo(W - 362 + o, 230); ctx.lineTo(W - 390 + o, 230); ctx.closePath();
-        ctx.fillStyle = c; ctx.globalAlpha = 0.55; ctx.fill(); ctx.globalAlpha = 1;
-      });
-    } else if (look === 'draft') {
-      glow(W * 0.95, -60, 820, 'rgba(150,66,130,0.55)');
-      glow(-80, H + 80, 700, 'rgba(227,187,79,0.12)');
-      ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.035)'; ctx.lineWidth = 6;
-      ctx.beginPath(); ctx.arc(W + 40, H * 0.55, 520, Math.PI * 0.62, Math.PI * 1.38); ctx.stroke(); ctx.restore();
-    } else {
-      glow(W / 2, -200, 1000, 'rgba(79,174,245,0.30)');
-      ctx.save(); ctx.strokeStyle = 'rgba(79,174,245,0.05)'; ctx.lineWidth = 1;
-      for (let x = 0; x <= W; x += 54) { ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); ctx.stroke(); }
-      for (let y = 0; y <= H; y += 54) { ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); ctx.stroke(); }
-      ctx.restore();
-      ctx.fillStyle = L.a; ctx.fillRect(0, 0, W, 12);
-      ctx.fillStyle = L.b; ctx.fillRect(0, 12, W, 4);
-    }
+  // ------------------------------------------------------------ layers
+  function styleOf(g) {
+    const L = LOOKS[g.look] || LOOKS.nba, s = Object.assign({}, L, g.style || {});
+    const frameColor = FRAMES[s.frame] || null;
+    return { L, bg: s.bg || L.bg, bg2: s.bg2 || '', frame: s.frame, frameColor, pattern: !!s.pattern, topLogo: s.topLogo,
+      accent: s.frame === 'gold' ? GOLD_TEXT : '#ffffff', shade: s.shade != null ? +s.shade : 65 };
   }
-
-  // Returns the y where the template's content starts.
-  function header(ctx, L, f, wordmark) {
-    const top = M + 4;
-    if (wordmark) { const h = 40; ctx.drawImage(wordmark, M, top, wordmark.naturalWidth * h / wordmark.naturalHeight, h); }
-    else { ctx.fillStyle = L.text; ctx.font = `italic 800 40px ${FONT.head}`; ctx.textBaseline = 'top'; ctx.fillText('BYTHERIM', M, top); }
-    ctx.textBaseline = 'alphabetic';
-    if (f.note) {
-      ctx.fillStyle = L.muted; ctx.font = `500 24px ${FONT.body}`; ctx.textAlign = 'right';
-      ctx.fillText(fit(ctx, f.note, 430), W - M, top + 30); ctx.textAlign = 'left';
-    }
-    let y = top + 112;
-    if (f.kicker) {
-      ctx.fillStyle = L.b; ctx.font = `500 26px ${FONT.disp}`;
-      spaced(ctx, String(f.kicker).toUpperCase(), M, y, 3);
-      y += 22;
-    }
-    if (f.title) {
-      const t = sized(ctx, String(f.title).toUpperCase(), s => `italic 800 ${s}px ${FONT.head}`, 76, 44, W - M * 2);
-      y += t.size * 0.98;
-      ctx.fillStyle = L.text; ctx.fillText(t.text, M - 2, y);
-      // A short underline in the look's main color.
-      ctx.fillStyle = L.a; ctx.fillRect(M, y + 18, 84, 6);
-      y += 50;
-    } else y += 16;
-    return y;
+  function fill(ctx, x, y, w, h, color) { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); }
+  // The photo covers the area; photoX (0-100) picks which part shows,
+  // zoom (100-250) crops in.
+  function photo(ctx, im, box, f, gray) {
+    const z = Math.max(1, (+f.zoom || 100) / 100);
+    const s = Math.max(box.w / im.naturalWidth, box.h / im.naturalHeight) * z;
+    const iw = im.naturalWidth * s, ih = im.naturalHeight * s;
+    const px = (f.photoX != null && f.photoX !== '' ? +f.photoX : 50) / 100;
+    const py = (f.photoY != null && f.photoY !== '' ? +f.photoY : 20) / 100;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); ctx.clip();
+    if (gray) ctx.filter = 'grayscale(1) contrast(1.08)';
+    ctx.drawImage(im, box.x - (iw - box.w) * px, box.y - (ih - box.h) * py, iw, ih);
+    ctx.filter = 'none';
+    ctx.restore();
   }
-  function footer(ctx, L, H) {
-    ctx.fillStyle = L.line; ctx.fillRect(M, H - 86, W - M * 2, 2);
-    ctx.font = `600 24px ${FONT.disp}`; ctx.fillStyle = L.text;
-    spaced(ctx, L.foot, M, H - 42, 2);
-    ctx.fillStyle = L.muted; ctx.font = `500 24px ${FONT.body}`; ctx.textAlign = 'right';
-    ctx.fillText('@bytherimhoops', W - M, H - 42); ctx.textAlign = 'left';
-    return H - 112; // content stops here
+  // Darkens the side the text sits on so it reads over any photo.
+  function shadeSide(ctx, box, side, amount) {
+    const a = Math.max(0, Math.min(1, amount / 100));
+    if (!a) return;
+    let g;
+    if (side === 'left') { g = ctx.createLinearGradient(box.x, 0, box.x + box.w * 0.72, 0); }
+    else if (side === 'bottom') { g = ctx.createLinearGradient(0, box.y + box.h, 0, box.y + box.h * 0.35); }
+    else { fill(ctx, box.x, box.y, box.w, box.h, `rgba(0,0,0,${a * 0.55})`); return; }
+    g.addColorStop(0, `rgba(0,0,0,${0.85 * a})`); g.addColorStop(0.55, `rgba(0,0,0,${0.55 * a})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(box.x, box.y, box.w, box.h);
+  }
+  function frame(ctx, st, W, H) {
+    if (!st.frameColor) return;
+    const F = 46;
+    ctx.fillStyle = st.frameColor;
+    ctx.fillRect(0, 0, W, F); ctx.fillRect(0, H - F, W, F); ctx.fillRect(0, 0, F, H); ctx.fillRect(W - F, 0, F, H);
+  }
+  // Big court lines in a darker shade of the background (key, arc, circle).
+  function court(ctx, W, H) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = Math.max(W, H) * 0.022; ctx.lineJoin = 'round';
+    const u = Math.max(W, H) / 10;
+    ctx.translate(W * 0.62, H * 0.42); ctx.rotate(-0.42);
+    ctx.strokeRect(-1.6 * u, -6 * u, 3.2 * u, 5.2 * u);                 // the key
+    ctx.beginPath(); ctx.arc(0, -0.8 * u, 1.6 * u, 0, Math.PI * 2); ctx.stroke(); // free-throw circle
+    ctx.beginPath(); ctx.arc(0, -6 * u, 6.4 * u, 0.12 * Math.PI, 0.88 * Math.PI); ctx.stroke(); // three-point arc
+    ctx.beginPath(); ctx.arc(0, 4.6 * u, 1.9 * u, 0, Math.PI * 2); ctx.stroke(); // center circle
+    ctx.beginPath(); ctx.moveTo(-9 * u, 4.6 * u); ctx.lineTo(9 * u, 4.6 * u); ctx.stroke(); // half-court line
+    ctx.restore();
+  }
+  function leagueLogo(st) { return loadImg(LEAGUE_LOGOS[st.topLogo]); }
+  // League logo, centered on cx with its top at y; returns its bottom.
+  function drawLeague(ctx, im, cx, y, h) {
+    if (!im) return y;
+    const w = im.naturalWidth * h / im.naturalHeight;
+    const k = w > 330 ? 330 / w : 1;
+    shadow(ctx, true, 12, 3);
+    ctx.drawImage(im, cx - w * k / 2, y, w * k, h * k);
+    shadow(ctx, false);
+    return y + h * k;
+  }
+  function drawBrand(ctx, im, cx, y, w, align = 'center') {
+    if (!im) {
+      setFont(ctx, 900, w * 0.13, HEAVY, -1); ctx.fillStyle = '#fff'; ctx.textAlign = align; ctx.fillText('BYTHERIM', cx, y + w * 0.12); ctx.textAlign = 'left';
+      return;
+    }
+    const h = w * im.naturalHeight / im.naturalWidth;
+    const x = align === 'center' ? cx - w / 2 : align === 'right' ? cx - w : cx;
+    shadow(ctx, true, 10, 2);
+    ctx.drawImage(im, x, y, w, h);
+    shadow(ctx, false);
   }
 
   // ------------------------------------------------------------ templates
-  async function statline(ctx, L, g, H, top, bottom) {
+  // Award: one winner. Photo fills the frame, text stacked on the left.
+  async function award(ctx, g, st, A, im) {
     const f = g.f;
-    const [photo, logo] = await Promise.all([loadImg(f.photo), loadImg(logoSrc(g.look, f.team))]);
-    const x = M, w = W - M * 2;
-    // Everything under the photo has a set height, so the photo panel
-    // takes whatever room is left (more room for a cutout in Canva).
-    const stats = (f.stats || []).filter(s => s && (s.label || s.value));
-    const cols = stats.length <= 5 ? stats.length : 3, rows = stats.length ? Math.ceil(stats.length / cols) : 0, gap = 14;
-    const th = H > 1500 ? 200 : H > 1200 ? 164 : 132;
-    ctx.font = `500 32px ${FONT.body}`;
-    const blurbLines = f.blurb ? wrap(ctx, f.blurb, w, 3).length : 0;
-    const below = 26 + (f.line ? 50 : 0) + rows * (th + gap) + (rows ? 4 : 0) + (f.shooting ? 96 : 0) + (blurbLines ? blurbLines * 42 + 12 : 0);
-    const ph = Math.round(Math.max(H * 0.26, Math.min(H * 0.62, bottom - top - below)));
-    // Photo panel. With no photo it stays an empty, lit panel: room to
-    // drop a cutout in Canva.
-    ctx.save(); shape(ctx, L, x, top, w, ph); ctx.clip();
-    const g1 = ctx.createLinearGradient(0, top, 0, top + ph);
-    g1.addColorStop(0, L.card); g1.addColorStop(1, 'rgba(255,255,255,0.02)');
-    ctx.fillStyle = g1; ctx.fillRect(x, top, w, ph);
-    const spot = ctx.createRadialGradient(x + w * 0.62, top + ph * 0.35, 20, x + w * 0.62, top + ph * 0.35, ph);
-    spot.addColorStop(0, L.a + '40'); spot.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = spot; ctx.fillRect(x, top, w, ph);
-    if (photo) {
-      const s = Math.max(w / photo.naturalWidth, ph / photo.naturalHeight);
-      const iw = photo.naturalWidth * s, ih = photo.naturalHeight * s;
-      ctx.drawImage(photo, x + (w - iw) / 2, top - (ih - ph) * 0.18, iw, ih);
+    const [pic, team] = await Promise.all([loadImg(f.photo), loadImg(logoSrc(f.team))]);
+    if (pic) { photo(ctx, pic, A, { photoX: 70, ...f }, false); shadeSide(ctx, A, 'left', st.shade); }
+    const colW = A.w * 0.5, cx = A.x + A.w * 0.27;
+    let y = A.y + 22;
+    y = drawLeague(ctx, im.league, cx, y, A.h > 1500 ? 190 : 150) + 10;
+    ctx.textAlign = 'center'; ctx.fillStyle = st.accent; shadow(ctx, true, 10, 2);
+    if (f.kicker) { setFont(ctx, 400, 50, NARROW, -0.5); ctx.textBaseline = 'top'; ctx.fillText(fit(ctx, f.kicker, colW), cx, y + 6); y += 66; }
+    ctx.textBaseline = 'alphabetic';
+    const words = String(f.title || '').split(/\s+/).filter(Boolean).length;
+    const t = fitLines(ctx, stack(String(f.title || '').toUpperCase(), Math.min(3, words)), 900, HEAVY, Math.min(110, A.h * 0.085), 48, colW, 3, s => -s * 0.05);
+    t.lines.forEach(l => { y += t.size * 0.9; ctx.fillText(l, cx, y); });
+    // The winner's block sits in the middle of the graphic.
+    y = Math.max(y + 70, A.y + A.h * 0.47);
+    ctx.fillStyle = '#fff';
+    const n = fitLines(ctx, stack(f.player, 2), 800, HEAVY, Math.min(76, A.h * 0.058), 40, colW * 0.95, 2, s => -s * 0.06);
+    n.lines.forEach(l => { y += n.size * 0.95; ctx.fillText(l, cx, y); });
+    shadow(ctx, false);
+    y += 34;
+    fill(ctx, cx - colW * 0.43, y, colW * 0.86, 2, 'rgba(255,255,255,0.85)');
+    y += 26;
+    if (f.team) { shadow(ctx, true, 8, 2); setFont(ctx, 400, 42, NARROW, -0.5); ctx.textBaseline = 'top'; ctx.fillText(fit(ctx, f.team, colW), cx, y); ctx.textBaseline = 'alphabetic'; shadow(ctx, false); y += 58; }
+    if (team) { teamMark(ctx, team, f.team, cx, y + 40, 76); y += 96; }
+    if (f.line) { shadow(ctx, true, 8, 2); ctx.fillStyle = '#fff'; setFont(ctx, 600, 40, NARROW, 0); ctx.fillText(fit(ctx, f.line, colW), cx, y + 30); shadow(ctx, false); y += 56; }
+    const ups = String(f.runners || '').split('\n').map(s => s.trim()).filter(Boolean).slice(0, 3);
+    if (ups.length) {
+      shadow(ctx, true, 8, 2);
+      setFont(ctx, 800, 38, HEAVY, -1.5); ctx.fillText(fit(ctx, f.runnersLabel || 'Runner Ups', colW), cx, y + 40); y += 54;
+      setFont(ctx, 400, 38, NARROW, -0.5); ctx.textAlign = 'left';
+      const lx = cx - colW * 0.36;
+      ups.forEach((u, i) => { y += 50; ctx.fillText(fit(ctx, `${i + 2}. ${u}`, colW * 0.8), lx, y); });
+      shadow(ctx, false);
     }
-    const fade = ctx.createLinearGradient(0, top + ph * 0.45, 0, top + ph);
-    fade.addColorStop(0, 'rgba(0,0,0,0)'); fade.addColorStop(1, 'rgba(0,0,0,0.82)');
-    ctx.fillStyle = fade; ctx.fillRect(x, top, w, ph);
-    ctx.restore();
-    shape(ctx, L, x, top, w, ph); ctx.strokeStyle = L.line; ctx.lineWidth = 1.5; ctx.stroke();
-    if (logo || f.team) logoOrBadge(ctx, L, logo, f.team, x + w - 74, top + 74, 104);
-    // Name and info over the bottom of the panel.
-    const name = sized(ctx, String(f.player || '').toUpperCase(), s => `italic 800 ${s}px ${FONT.head}`, 80, 44, w - 64);
-    ctx.fillStyle = '#fff'; ctx.fillText(name.text, x + 30, top + ph - 70);
-    ctx.fillStyle = L.b; ctx.font = `500 28px ${FONT.disp}`;
-    spaced(ctx, fit(ctx, [f.team, f.info].filter(Boolean).join('  ·  ').toUpperCase(), w - 80), x + 32, top + ph - 28, 2);
-
-    let y = top + ph + 26;
-    if (f.line) {
-      ctx.fillStyle = L.muted; ctx.font = `500 30px ${FONT.body}`;
-      ctx.fillText(fit(ctx, f.line, w), x, y + 24); y += 50;
-    }
-    // Stat tiles: up to five in a row, a sixth starts a second row.
-    if (stats.length) {
-      const tw = (w - gap * (cols - 1)) / cols;
-      stats.forEach((s, i) => {
-        const c = i % cols, r = Math.floor(i / cols), tx = x + c * (tw + gap), ty = y + r * (th + gap);
-        card(ctx, L, tx, ty, tw, th, i === 0 ? L.a : null);
-        ctx.textAlign = 'center';
-        const v = sized(ctx, String(s.value || ''), z => `600 ${z}px ${FONT.disp}`, Math.round(th * 0.5), 30, tw - 24);
-        ctx.fillStyle = i === 0 ? L.a : L.text; ctx.fillText(v.text, tx + tw / 2, ty + th * 0.6);
-        ctx.fillStyle = L.muted; ctx.font = `500 ${Math.round(Math.max(18, th * 0.15))}px ${FONT.disp}`;
-        spaced(ctx, fit(ctx, String(s.label || '').toUpperCase(), tw - 20), tx + tw / 2, ty + th * 0.86, 2, 'center');
-        ctx.textAlign = 'left';
-      });
-      y += rows * (th + gap) + 4;
-    }
-    if (f.shooting && y + 70 <= bottom) {
-      card(ctx, L, x, y, w, 70);
-      ctx.fillStyle = L.text; ctx.font = `500 32px ${FONT.disp}`; ctx.textAlign = 'center';
-      ctx.fillText(fit(ctx, String(f.shooting).toUpperCase(), w - 40), x + w / 2, y + 46); ctx.textAlign = 'left';
-      y += 96;
-    }
-    if (f.blurb && y + 40 <= bottom) {
-      ctx.fillStyle = L.text; ctx.font = `500 32px ${FONT.body}`;
-      const lines = wrap(ctx, f.blurb, w, Math.max(1, Math.min(3, Math.floor((bottom - y) / 42))));
-      lines.forEach((l, i) => ctx.fillText(l, x, y + 30 + i * 42));
-    }
+    ctx.textAlign = 'left';
+    drawBrand(ctx, im.brand, cx, A.y + A.h - 100, 300);
   }
 
-  async function awards(ctx, L, g, H, top, bottom) {
-    const rows = (g.f.rows || []).filter(r => r && (r.player || r.award)).slice(0, 6);
-    if (!rows.length) return;
-    const logos = await Promise.all(rows.map(r => loadImg(logoSrc(g.look, r.team))));
-    const gap = 14, x = M, w = W - M * 2;
-    const rh = Math.min(H > 1500 ? 250 : 200, (bottom - top - gap * (rows.length - 1)) / rows.length);
-    const k = rh / 180;
-    rows.forEach((r, i) => {
-      const y = top + i * (rh + gap);
-      card(ctx, L, x, y, w, rh, L.a);
-      const ls = rh * 0.6, lx = x + w - 28 - ls / 2;
-      logoOrBadge(ctx, L, logos[i], r.team, lx, y + rh / 2, ls);
-      const tx = x + 40, tw = lx - ls / 2 - 24 - tx;
-      ctx.fillStyle = L.b; ctx.font = `500 ${Math.round(Math.max(17, 24 * k))}px ${FONT.disp}`;
-      spaced(ctx, fit(ctx, String(r.award || '').toUpperCase(), tw), tx, y + rh * 0.27, 2.5);
-      const n = sized(ctx, String(r.player || '').toUpperCase(), s => `600 ${s}px ${FONT.disp}`, Math.round(58 * k), 24, tw);
-      ctx.fillStyle = L.text; ctx.fillText(n.text, tx, y + rh * 0.27 + n.size * 1.05);
-      ctx.fillStyle = L.muted; ctx.font = `500 ${Math.round(Math.max(17, 27 * k))}px ${FONT.body}`;
-      ctx.fillText(fit(ctx, [r.team, r.detail].filter(Boolean).join('  ·  '), tw), tx, y + rh * 0.86);
-    });
-  }
-
-  async function leaders(ctx, L, g, H, top, bottom) {
+  // Ranking: numbered rows with team logos on the left, photo on the right.
+  async function ranking(ctx, g, st, A, im) {
     const f = g.f;
     const rows = (f.rows || []).filter(r => r && r.player).slice(0, 10);
-    if (!rows.length) return;
-    const logos = await Promise.all(rows.map(r => loadImg(logoSrc(g.look, r.team))));
-    const gap = rows.length > 6 ? 10 : 14, x = M, w = W - M * 2;
-    const rh = Math.min(H > 1500 ? 170 : 150, (bottom - top - gap * (rows.length - 1)) / rows.length);
-    const k = rh / 120;
-    rows.forEach((r, i) => {
-      const y = top + i * (rh + gap), mid = y + rh / 2;
-      card(ctx, L, x, y, w, rh, i === 0 ? L.b : L.a);
-      ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
-      ctx.fillStyle = i === 0 ? L.b : L.text; ctx.font = `600 ${Math.round(46 * k)}px ${FONT.disp}`;
-      ctx.fillText(String(i + 1), x + 52, mid + 2);
-      const ls = rh * 0.62;
-      logoOrBadge(ctx, L, logos[i], r.team, x + 104 + ls / 2, mid, ls);
-      // Value on the right, label under it.
-      const vx = x + w - 30;
-      ctx.textAlign = 'right';
-      const v = sized(ctx, String(r.value || ''), s => `600 ${s}px ${FONT.disp}`, Math.round(58 * k), 26, 260);
-      ctx.fillStyle = i === 0 ? L.b : L.a;
-      const hasLabel = f.valueLabel && rh >= 70;
-      ctx.fillText(v.text, vx, hasLabel ? mid - 8 * k : mid + 2);
-      const vw = Math.max(ctx.measureText(v.text).width, 60);
-      if (hasLabel) {
-        ctx.fillStyle = L.muted; ctx.font = `500 ${Math.round(Math.max(15, 19 * k))}px ${FONT.disp}`;
-        spaced(ctx, String(f.valueLabel).toUpperCase(), vx, mid + 30 * k, 2, 'right');
-      }
-      ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-      const tx = x + 104 + ls + 22, tw = vx - vw - 30 - tx;
-      const n = sized(ctx, String(r.player).toUpperCase(), s => `600 ${s}px ${FONT.disp}`, Math.round(38 * k), 18, tw);
-      ctx.fillStyle = L.text; ctx.fillText(n.text, tx, mid - 2 * k);
-      ctx.fillStyle = L.muted; ctx.font = `500 ${Math.round(Math.max(15, 24 * k))}px ${FONT.body}`;
-      ctx.fillText(fit(ctx, [r.team, r.detail].filter(Boolean).join('  ·  '), tw), tx, mid + 30 * k);
-    });
+    const [pic, ...logos] = await Promise.all([loadImg(f.photo), ...rows.map(r => loadImg(logoSrc(r.team)))]);
+    if (pic) { photo(ctx, pic, A, { photoX: 75, ...f }, false); shadeSide(ctx, A, 'left', st.shade); }
+    const cx = A.x + A.w * 0.3;
+    let y = A.y + 22;
+    y = drawLeague(ctx, im.league, cx, y, A.h > 1500 ? 170 : 130) + 8;
+    ctx.textAlign = 'center'; shadow(ctx, true, 10, 2);
+    if (f.kicker) { ctx.fillStyle = '#fff'; setFont(ctx, 400, 46, NARROW, -0.5); ctx.textBaseline = 'top'; ctx.fillText(fit(ctx, f.kicker, A.w * 0.55), cx, y + 4); ctx.textBaseline = 'alphabetic'; y += 58; }
+    ctx.fillStyle = st.accent === '#ffffff' ? '#fff' : st.accent;
+    const t = fitLines(ctx, stack(String(f.title || '').toUpperCase(), 2), 900, HEAVY, Math.min(124, A.h * 0.1), 50, A.w * 0.56, 2, s => -s * 0.06);
+    t.lines.forEach(l => { y += t.size * 0.9; ctx.fillText(l, cx, y); });
+    shadow(ctx, false);
+    ctx.textAlign = 'left';
+    const brandH = 120;
+    const top = y + 50, bottom = A.y + A.h - brandH - 30;
+    if (rows.length) {
+      const rh = Math.min(f.rows.length > 7 ? 120 : 140, (bottom - top) / rows.length);
+      const k = Math.max(0.7, rh / 138);
+      const x0 = A.x + 40, lineEnd = A.x + A.w * 0.52;
+      rows.forEach((r, i) => {
+        const yy = top + i * rh, mid = yy + rh * 0.46;
+        shadow(ctx, true, 8, 2);
+        ctx.fillStyle = '#fff'; setFont(ctx, 800, 66 * k, HEAVY, -2); ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+        const num = f.numbered !== false, nx = num ? 0 : -80;
+        if (num) ctx.fillText(String(i + 1), x0 + 32, mid + 2);
+        shadow(ctx, false);
+        teamMark(ctx, logos[i], r.team, x0 + 120 + nx, mid, 72 * k);
+        const tx = x0 + 172 * Math.max(0.85, k) + nx;
+        let right = lineEnd;
+        if (r.move) {
+          const mv = { up: ['▲', '#22c55e'], down: ['▼', '#ef4444'], same: ['—', '#ffffff'], new: ['NEW', st.accent] }[r.move];
+          if (mv) { setFont(ctx, 900, (mv[0] === 'NEW' ? 30 : 46) * k, HEAVY); ctx.fillStyle = mv[1]; ctx.textAlign = 'right'; shadow(ctx, true, 6, 2); ctx.fillText(mv[0], lineEnd, mid); shadow(ctx, false); right = lineEnd - ctx.measureText(mv[0]).width - 16; }
+        }
+        if (r.value) {
+          setFont(ctx, 800, 40 * k, HEAVY, -1); ctx.fillStyle = st.accent === '#ffffff' ? '#fff' : st.accent; ctx.textAlign = 'right';
+          shadow(ctx, true, 8, 2); ctx.fillText(r.value, right, mid); shadow(ctx, false);
+          right -= ctx.measureText(r.value).width + 18;
+        }
+        ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; shadow(ctx, true, 8, 2);
+        let ns = Math.max(34, 54 * k), lines;
+        for (; ns > 26; ns -= 2) { setFont(ctx, 500, ns, NARROW, -0.6); lines = wrap(ctx, r.player, right - tx, 2); if (lines.length === 1 || !lines.some(l => /…$/.test(l))) break; }
+        const lh = ns * 0.9;
+        lines.forEach((l, j) => ctx.fillText(l, tx, mid + (j - (lines.length - 1) / 2) * lh));
+        shadow(ctx, false);
+        ctx.textBaseline = 'alphabetic';
+        fill(ctx, x0 + (f.numbered !== false ? 70 : 0), yy + rh - 4, lineEnd - x0 - (f.numbered !== false ? 70 : 0), 2, 'rgba(255,255,255,0.75)');
+      });
+    }
+    drawBrand(ctx, im.brand, cx, A.y + A.h - brandH, 330);
   }
 
-  const TEMPLATES = { statline, awards, leaders };
+  // Columns: two lists side by side (standings, All-Stars, East vs West).
+  async function columns(ctx, g, st, A, im) {
+    const f = g.f;
+    const sides = [f.left, f.right].map(c => ((c && c.rows) || []).filter(r => r && r.player).slice(0, 15));
+    const all = await Promise.all([loadImg(f.photo), ...sides.flat().map(r => loadImg(logoSrc(r.team)))]);
+    const pic = all[0];
+    if (pic) { photo(ctx, pic, A, f, false); shadeSide(ctx, A, 'all', st.shade); }
+    const cx = A.x + A.w / 2;
+    let y = A.y + 26;
+    if (im.league) { drawLeague(ctx, im.league, A.x + 90, y + 10, 110); }
+    ctx.textAlign = 'center'; shadow(ctx, true, 12, 4); ctx.fillStyle = '#fff';
+    if (f.kicker) { setFont(ctx, 500, 48, NARROW, -0.5); ctx.textBaseline = 'top'; ctx.fillText(fit(ctx, f.kicker, A.w * 0.7), cx, y + 18); ctx.textBaseline = 'alphabetic'; y += 74; }
+    const t = fitLines(ctx, String(f.title || '').toUpperCase(), 900, HEAVY, 150, 70, A.w * 0.82, 1, s => -s * 0.06);
+    ctx.fillStyle = st.accent === '#ffffff' || st.frame === 'gold' ? '#fff' : st.accent;
+    y += t.size * 0.86; ctx.fillText(t.lines[0], cx, y);
+    shadow(ctx, false);
+    const colW = A.w * 0.43, gap = A.w * 0.05;
+    const xs = [A.x + (A.w - colW * 2 - gap) / 2, A.x + (A.w + gap) / 2];
+    const heads = [f.left && f.left.heading, f.right && f.right.heading];
+    y += 30;
+    const n = Math.max(sides[0].length, sides[1].length, 1);
+    const top = y + (heads.some(Boolean) ? 76 : 10), bottom = A.y + A.h - 116;
+    const rh = Math.min(n <= 8 ? 118 : 94, (bottom - top) / n), k = Math.min(1.35, rh / 76);
+    let li = 1;
+    sides.forEach((list, c) => {
+      const x = xs[c];
+      if (heads[c]) {
+        ctx.fillStyle = '#fff'; shadow(ctx, true, 10, 3); setFont(ctx, 800, 50, HEAVY, -2); ctx.textAlign = 'center';
+        ctx.fillText(String(heads[c]).toUpperCase(), x + colW / 2, y + 52); shadow(ctx, false);
+      }
+      list.forEach((r, i) => {
+        const yy = top + i * rh, mid = yy + rh / 2;
+        let tx = x;
+        ctx.textBaseline = 'middle';
+        if (f.numbered) {
+          ctx.textAlign = 'center'; ctx.fillStyle = '#fff'; shadow(ctx, true, 6, 2); setFont(ctx, 800, 50 * k, HEAVY, -2);
+          ctx.fillText(String(i + 1), x + 26 * k, mid + 2); shadow(ctx, false);
+          tx += 62 * k;
+        }
+        teamMark(ctx, all[li++], r.team, tx + 28 * k, mid, 56 * k);
+        tx += 64 * k;
+        ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; shadow(ctx, true, 6, 2);
+        const name = f.caps ? String(r.player).toUpperCase() : r.player;
+        let right = x + colW;
+        if (r.mark) { ctx.textAlign = 'right'; setFont(ctx, 800, 30 * k, HEAVY); ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fillText('★', right, mid); right -= 40 * k; }
+        if (r.value) { ctx.textAlign = 'right'; setFont(ctx, 600, 36 * k, NARROW, 0); ctx.fillStyle = '#fff'; ctx.fillText(r.value, right, mid); right -= ctx.measureText(r.value).width + 14; }
+        ctx.textAlign = 'left'; ctx.fillStyle = '#fff';
+        let ns = (f.caps ? 36 : 42) * k, lines;
+        for (; ns > 18; ns -= 1) {
+          if (f.caps) setFont(ctx, 800, ns, HEAVY, -ns * 0.05); else setFont(ctx, 500, ns, NARROW, -0.4);
+          lines = wrap(ctx, name, right - tx - 6, 2);
+          if (!lines.some(l => /…$/.test(l)) && lines.length * ns * 0.95 <= rh * 0.9) break;
+        }
+        const lh = ns * 0.92;
+        lines.forEach((l, j) => ctx.fillText(l, tx, mid + (j - (lines.length - 1) / 2) * lh));
+        shadow(ctx, false); ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+        fill(ctx, x + (f.numbered ? 56 * k : 0), yy + rh - 2, colW - (f.numbered ? 56 * k : 0), 2, 'rgba(255,255,255,0.6)');
+      });
+    });
+    drawBrand(ctx, im.brand, cx, A.y + A.h - 92, 270);
+  }
+
+  function isLight(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+    if (!m) return false;
+    const n = parseInt(m[1], 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+    return (r * 299 + g * 587 + b * 114) / 1000 > 160;
+  }
+
+  const TEMPLATES = { single: award, list: ranking, columns };
 
   // ------------------------------------------------------------ draw
   async function draw(canvas, g, opts = {}) {
-    const L = LOOKS[g.look] || LOOKS.draft;
-    const H = (SIZES[g.size] || SIZES['4x5']).h;
+    const sz = SIZES[g.size] || SIZES['4x5'], W = sz.w, H = sz.h;
     const scale = opts.scale || 1;
     canvas.width = W * scale; canvas.height = H * scale;
     const ctx = canvas.getContext && canvas.getContext('2d');
     if (!ctx) return canvas;
-    const [wordmark] = await Promise.all([loadImg(opts.wordmark || 'assets/logo-header.png'), fontsReady()]);
+    const st = styleOf(g);
+    const [brand, league] = await Promise.all([loadImg(opts.wordmark || 'assets/logo-header.png'), leagueLogo(st), fontsReady()]);
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    background(ctx, L, g.look, H);
-    const top = header(ctx, L, g.f || {}, wordmark);
-    const bottom = footer(ctx, L, H);
-    await (TEMPLATES[g.tpl] || statline)(ctx, L, { ...g, f: g.f || {} }, H, top, bottom);
+    // Flat color (or two, split down the middle), court lines, then the
+    // template, which lays a photo over it when there is one.
+    fill(ctx, 0, 0, W, H, st.bg);
+    if (st.bg2 && g.tpl === 'columns') fill(ctx, W / 2, 0, W / 2, H, st.bg2);
+    if (st.pattern) court(ctx, W, H);
+    const F = st.frameColor ? 46 : 0;
+    const A = { x: F, y: F, w: W - F * 2, h: H - F * 2 };
+    ctx.save();
+    await (TEMPLATES[g.tpl] || award)(ctx, { ...g, f: g.f || {} }, st, A, { brand, league });
+    ctx.restore();
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+    frame(ctx, st, W, H);
     return canvas;
   }
 
-  root.GraphicsDraw = { draw, LOOKS, SIZES, NBA_TEAMS, nbaTeam, logoSrc, W };
+  root.GraphicsDraw = { draw, LOOKS, SIZES, FRAMES, NBA_TEAMS, nbaTeam, logoSrc, styleOf };
 })(typeof window !== 'undefined' ? window : globalThis);

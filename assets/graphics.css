@@ -23,8 +23,9 @@
 .gx-rows li { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) auto; gap: 0.4rem; align-items: center; counter-increment: gx; }
 .gx-rows li::before { content: counter(gx); font: 600 0.95rem 'Oswald', sans-serif; color: var(--text-muted); text-align: center; }
 .gx-rowf { display: grid; gap: 0.35rem; }
-.gx-rowf.awards { grid-template-columns: 1.1fr 1.1fr 0.9fr 1.4fr; }
-.gx-rowf.leaders { grid-template-columns: 1.3fr 0.9fr 4.2rem 1.5fr; }
+.gx-rowf.list { grid-template-columns: 1.5fr 1fr 4.5rem 6.5rem; }
+.gx-rowf.cols { grid-template-columns: 1.5fr 1fr 4.5rem 2.2rem; }
+.gx select { background: var(--card-bg); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0.42rem 0.4rem; font: 500 0.9rem 'Asap Condensed', sans-serif; min-width: 0; }
 .gx-num { text-align: center; font-family: 'Oswald', sans-serif !important; }
 .gx-rowbtns { display: flex; }
 .gx-rowbtns .lg-x:disabled { opacity: 0.3; cursor: default; }
@@ -33,6 +34,7 @@
 .gx-canvas-wrap canvas { width: 100%; height: auto; display: block; aspect-ratio: 4 / 5; }
 .gx-1x1 canvas { aspect-ratio: 1 / 1; }
 .gx-9x16 canvas { aspect-ratio: 9 / 16; }
+.gx-5x4 canvas { aspect-ratio: 5 / 4; }
 .gx-9x16 { max-width: 330px; margin: 0 auto; width: 100%; }
 .gx-check { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; font-size: 0.9rem; color: var(--text-muted); }
 .gx-check input { width: 17px; height: 17px; accent-color: var(--accent); }
@@ -43,14 +45,24 @@
 .gx-item b { font-family: 'Oswald', sans-serif; font-size: 1.05rem; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gx-item small { color: var(--text-muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gx-chip { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
-.gx-chip-nba { color: #3d7cff; } .gx-chip-draft { color: #c86fb4; } .gx-chip-ncaa { color: #4faef5; }
+.gx-item-top { display: flex; align-items: center; gap: 0.4rem; }
+.gx-dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; border: 1px solid rgba(127,127,127,.5); }
+.gx-swatches { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
+.gx-sw { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; outline: 1px solid var(--border); cursor: pointer; padding: 0; }
+.gx-sw.on { border-color: var(--bg-color); outline: 2px solid var(--accent); }
+.gx-sw-none { background: var(--card-bg); color: var(--text-muted); font-size: 0.9rem; }
+.gx-swatches input[type=color] { width: 34px; height: 32px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--card-bg); cursor: pointer; }
+.gx-checks { display: flex; gap: 1.2rem; flex-wrap: wrap; }
+.gx-side { display: flex; flex-direction: column; gap: 0.5rem; padding-top: 0.6rem; border-top: 1px solid var(--border); }
+.gx-star { display: inline-flex; align-items: center; justify-content: center; gap: 2px; color: var(--text-muted); font-size: 0.85rem; cursor: pointer; }
+.gx-star input { width: 15px; height: 15px; accent-color: var(--accent); }
+.gx-link { border: 0; background: none; color: var(--accent); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
 .lg-save.err { color: var(--loss); }
 
 @media (max-width: 900px) {
   .gx-grid { grid-template-columns: 1fr; }
   .gx-preview { position: static; order: -1; }
   .gx-canvas-wrap:not(.gx-9x16) { max-width: 440px; margin: 0 auto; width: 100%; }
-  .gx-rowf.awards, .gx-rowf.leaders { grid-template-columns: 1fr 1fr; }
-  .gx-detail { grid-column: 1 / -1; }
+  .gx-rowf.list, .gx-rowf.cols { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 520px) { .gx-fields2 { grid-template-columns: 1fr; } }
