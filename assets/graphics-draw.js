@@ -16,22 +16,23 @@
 (function (root) {
   'use strict';
   const W = 1080;
-  let M = 56; // side margin; wider when the graphic has a frame
+  let M = 64; // side margin; wider when the graphic has a frame
   const SIZES = {
     '4x5': { h: 1350, label: 'Instagram post (4:5)' },
     '1x1': { h: 1080, label: 'Square (1:1)' },
     '9x16': { h: 1920, label: 'Story / video cover (9:16)' }
   };
-  const FONT = { head: '"Exo 2", "Oswald", sans-serif', disp: '"Oswald", sans-serif', body: '"Barlow Condensed", "Arial Narrow", sans-serif' };
+  // Exo 2 for names, numbers and titles; Inter for everything small.
+  const FONT = { head: '"Exo 2", "Arial Black", sans-serif', body: '"Inter", "Helvetica Neue", Arial, sans-serif' };
 
   // One look per category. a = main color, b = highlight, shape = card style.
-  // One look per category: a flat background color (changeable per
-  // graphic), a = main color, b = highlight, shape = card style. Cards are
-  // a darker tint of whatever the background is, so any color works.
+  // One look per category: a flat background color (shown when there's no
+  // photo, changeable per graphic), a = the accent for the first number,
+  // the label under the wordmark and the footer link.
   const LOOKS = {
-    nba: { name: 'NBA', bg: '#16296b', a: '#ff5147', b: '#ffd04a', shape: 'cut', foot: 'BYTHERIM.COM/NBA' },
-    draft: { name: 'Draft', bg: '#3b1541', a: '#e283cd', b: '#e3bb4f', shape: 'round', foot: 'BYTHERIM.COM/DRAFT' },
-    ncaa: { name: 'NCAA', bg: '#0d3f91', a: '#59b8ff', b: '#ffc72c', shape: 'square', foot: 'BYTHERIM.COM' }
+    nba: { name: 'NBA', bg: '#16296b', a: '#e5243b', foot: 'BYTHERIM.COM/NBA' },
+    draft: { name: 'Draft', bg: '#3b1541', a: '#e283cd', foot: 'BYTHERIM.COM/DRAFT' },
+    ncaa: { name: 'NCAA', bg: '#0d3f91', a: '#1d9bf0', foot: 'BYTHERIM.COM' }
   };
   const SWATCHES = ['#16296b', '#c8122e', '#3b1541', '#964282', '#0d3f91', '#4a1ee0', '#0f6b3a', '#d9661f', '#111216'];
   const FRAMES = { gold: '#e2b45a', silver: '#b8bbc1', white: '#f4f4f4' };
@@ -66,7 +67,7 @@
   }
   function fontsReady() {
     if (typeof document === 'undefined' || !document.fonts || !document.fonts.load) return Promise.resolve();
-    const want = ['italic 800 70px "Exo 2"', '600 40px Oswald', '500 40px Oswald', '500 22px "Barlow Condensed"', '600 22px "Barlow Condensed"'];
+    const want = ['italic 800 70px "Exo 2"', '800 70px "Exo 2"', '700 30px Inter', '800 30px Inter'];
     return Promise.race([new Promise(r => setTimeout(r, 3500)), Promise.all(want.map(f => document.fonts.load(f).catch(() => null)))]);
   }
 
@@ -98,30 +99,10 @@
   }
 
   // ------------------------------------------------------------ helpers
-  function rr(ctx, x, y, w, h, r) {
-    r = Math.min(r, h / 2, w / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
-  }
-  function shape(ctx, L, x, y, w, h) {
-    if (L.shape === 'cut') {
-      const c = Math.min(22, h * 0.22);
-      ctx.beginPath();
-      ctx.moveTo(x + c, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w, y + h - c); ctx.lineTo(x + w - c, y + h);
-      ctx.lineTo(x, y + h); ctx.lineTo(x, y + c); ctx.closePath();
-    } else rr(ctx, x, y, w, h, L.shape === 'round' ? 16 : 3);
-  }
-  function card(ctx, L, x, y, w, h, stripe) {
-    // Over a photo, cards are a slightly deeper tint with no outline.
-    shape(ctx, L, x, y, w, h); ctx.fillStyle = L.photo ? 'rgba(0,0,0,0.42)' : L.card; ctx.fill();
-    if (!L.photo) { ctx.strokeStyle = L.line; ctx.lineWidth = 1.5; ctx.stroke(); }
-    if (stripe) {
-      ctx.save(); shape(ctx, L, x, y, w, h); ctx.clip();
-      ctx.fillStyle = stripe;
-      if (L.shape === 'square') ctx.fillRect(x, y, w, 5); else ctx.fillRect(x, y, 8, h);
-      ctx.restore();
-    }
+  const num = (v, d) => (v === '' || v == null || isNaN(+v) ? d : +v);
+  function setFont(ctx, weight, size, family, italic, track) {
+    ctx.font = `${italic ? 'italic ' : ''}${weight} ${Math.round(size)}px ${family}`;
+    if ('letterSpacing' in ctx) ctx.letterSpacing = `${track || 0}px`;
   }
   function fit(ctx, text, max) {
     text = String(text || '');
@@ -129,264 +110,227 @@
     while (text.length > 1 && ctx.measureText(text + '…').width > max) text = text.slice(0, -1);
     return text.trimEnd() + '…';
   }
-  // Largest size from `start` down to `min` that fits; ellipsis below that.
-  function sized(ctx, text, font, start, min, max) {
+  // Largest size from `start` down to `min` that fits on one line.
+  function sized(ctx, text, start, min, max, set) {
     let s = start;
-    for (; s > min; s -= 2) { ctx.font = font(s); if (ctx.measureText(text).width <= max) break; }
-    ctx.font = font(s);
+    for (; s > min; s -= 2) { set(s); if (ctx.measureText(text).width <= max) break; }
+    set(s);
     return { size: s, text: fit(ctx, text, max) };
   }
-  function spacedWidth(ctx, text, sp) {
-    const chars = [...String(text)];
-    return chars.reduce((s, ch) => s + ctx.measureText(ch).width, 0) + sp * Math.max(0, chars.length - 1);
+  // The hard drop shadow BYTHERIM's own posts use under white type.
+  function shadow(ctx, on, d = 4) {
+    ctx.shadowColor = on ? 'rgba(0,0,0,0.55)' : 'transparent';
+    ctx.shadowOffsetX = on ? d : 0; ctx.shadowOffsetY = on ? d : 0; ctx.shadowBlur = on ? d * 1.5 : 0;
   }
-  function spaced(ctx, text, x, y, sp, align = 'left') {
-    const chars = [...String(text)];
-    const w = chars.reduce((s, ch) => s + ctx.measureText(ch).width, 0) + sp * Math.max(0, chars.length - 1);
-    let cx = align === 'right' ? x - w : align === 'center' ? x - w / 2 : x;
-    const prev = ctx.textAlign; ctx.textAlign = 'left';
-    chars.forEach(ch => { ctx.fillText(ch, cx, y); cx += ctx.measureText(ch).width + sp; });
-    ctx.textAlign = prev;
-    return w;
-  }
-  function wrap(ctx, text, max, lines) {
-    const words = String(text || '').split(/\s+/).filter(Boolean), out = [];
-    let cur = '';
-    words.forEach(w => {
-      const t = cur ? cur + ' ' + w : w;
-      if (ctx.measureText(t).width <= max || !cur) cur = t; else { out.push(cur); cur = w; }
-    });
-    if (cur) out.push(cur);
-    if (out.length > lines) { out.length = lines; out[lines - 1] = fit(ctx, out[lines - 1] + ' …', max); }
-    return out;
-  }
-  function initials(name) {
-    const w = String(name || '?').split(/\s+/).filter(Boolean);
-    return (w.length > 1 ? w[0][0] + w[w.length - 1][0] : (w[0] || '?').slice(0, 2)).toUpperCase();
-  }
-  function drawContain(ctx, im, cx, cy, size) {
+  function contain(ctx, im, cx, cy, size) {
     const s = Math.min(size / im.naturalWidth, size / im.naturalHeight);
     ctx.drawImage(im, cx - im.naturalWidth * s / 2, cy - im.naturalHeight * s / 2, im.naturalWidth * s, im.naturalHeight * s);
+    return im.naturalWidth * s;
   }
-  function logoOrBadge(ctx, L, im, label, cx, cy, size) {
-    if (im) return drawContain(ctx, im, cx, cy, size);
-    if (!label) return;
-    ctx.save();
-    ctx.beginPath(); ctx.arc(cx, cy, size * 0.42, 0, Math.PI * 2); ctx.fillStyle = L.line; ctx.fill();
-    ctx.fillStyle = L.text; ctx.font = `600 ${Math.round(size * 0.3)}px ${FONT.disp}`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(initials(label).slice(0, 3), cx, cy + 1);
-    ctx.restore();
+  function ordinal(n) { const v = n % 100; return n + (['th', 'st', 'nd', 'rd'][(v - 20) % 10] || ['th', 'st', 'nd', 'rd'][v] || 'th'); }
+  function prettyDate(d) {
+    return d.toLocaleDateString('en-US', { month: 'short' }) + ' ' + ordinal(d.getDate()) + ', ' + d.getFullYear();
   }
 
-  // ------------------------------------------------------------ frame
   // The photo covers the whole graphic. zoom (100-300) crops in; photoX
   // and photoY (0-100) pick which part shows.
   function drawPhoto(ctx, im, f, H) {
-    const z = Math.max(1, (+f.zoom || 100) / 100);
+    const z = Math.max(1, num(f.zoom, 100) / 100);
     const s = Math.max(W / im.naturalWidth, H / im.naturalHeight) * z;
     const iw = im.naturalWidth * s, ih = im.naturalHeight * s;
     const px = num(f.photoX, 50) / 100, py = num(f.photoY, 30) / 100;
     ctx.drawImage(im, -(iw - W) * px, -(ih - H) * py, iw, ih);
   }
-  const num = (v, d) => (v === '' || v == null || isNaN(+v) ? d : +v);
 
-  // Flat color, then the photo (if any) under a flat wash of that color so
-  // the text stays readable, then each category's one small signature.
-  function background(ctx, L, look, H, photo, f) {
+  // ------------------------------------------------------------ frame parts
+  // Flat color; a photo on top of it, darkened by a flat black wash.
+  function background(ctx, L, H, photo, f) {
     ctx.fillStyle = L.bg; ctx.fillRect(0, 0, W, H);
-    if (photo) {
-      drawPhoto(ctx, photo, f, H);
-      ctx.globalAlpha = Math.max(0, Math.min(0.95, num(f.tint, 55) / 100));
-      ctx.fillStyle = L.bg; ctx.fillRect(0, 0, W, H);
-      ctx.globalAlpha = 1;
-    }
-    if (look === 'nba') {
-      // Three slanted bars in the top-right corner.
-      [[0, L.a], [46, '#ffffff'], [92, 'rgba(0,0,0,0.28)']].forEach(([o, c]) => {
-        ctx.beginPath();
-        ctx.moveTo(W - 250 + o, 0); ctx.lineTo(W - 222 + o, 0); ctx.lineTo(W - 362 + o, 230); ctx.lineTo(W - 390 + o, 230); ctx.closePath();
-        ctx.fillStyle = c; ctx.fill();
-      });
-    } else if (look === 'draft') {
-      if (photo) return;
-      // A three-point line running off the right edge.
-      ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 26;
-      ctx.beginPath(); ctx.arc(W + 40, H * 0.55, 560, Math.PI * 0.6, Math.PI * 1.4); ctx.stroke(); ctx.restore();
-    } else {
-      ctx.fillStyle = L.b; ctx.fillRect(0, 0, W, 14);
-      if (photo) return;
-      ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
-      for (let x = 0; x <= W; x += 54) { ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); ctx.stroke(); }
-      for (let y = 0; y <= H; y += 54) { ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); ctx.stroke(); }
-      ctx.restore();
-      ctx.fillStyle = L.b; ctx.fillRect(0, 0, W, 14);
-    }
+    if (!photo) return;
+    drawPhoto(ctx, photo, f, H);
+    const t = Math.max(0, Math.min(0.95, num(f.tint, 35) / 100));
+    if (t) { ctx.fillStyle = `rgba(0,0,0,${t})`; ctx.fillRect(0, 0, W, H); }
   }
 
-  // Returns the y where the template's content starts.
-  function header(ctx, L, f, wordmark) {
-    const top = M + 4;
-    if (wordmark) { const h = 40; ctx.drawImage(wordmark, M, top, wordmark.naturalWidth * h / wordmark.naturalHeight, h); }
-    else { ctx.fillStyle = L.text; ctx.font = `italic 800 40px ${FONT.head}`; ctx.textBaseline = 'top'; ctx.fillText('BYTHERIM', M, top); }
-    ctx.textBaseline = 'alphabetic';
-    if (f.note) {
-      ctx.fillStyle = L.muted; ctx.font = `500 24px ${FONT.body}`; ctx.textAlign = 'right';
-      ctx.fillText(fit(ctx, f.note, 430), W - M, top + 30); ctx.textAlign = 'left';
+  // Top-left block: wordmark, the category between two thin lines, and
+  // the date. Returns the y under it.
+  function brandBlock(ctx, L, g, wordmark) {
+    const f = g.f, cx = M + 140, wmW = 280;
+    let y = M + 16;
+    shadow(ctx, true, 3);
+    if (wordmark) { const h = wmW * wordmark.naturalHeight / wordmark.naturalWidth; ctx.drawImage(wordmark, cx - wmW / 2, y, wmW, h); y += h; }
+    else { setFont(ctx, 800, 48, FONT.head, true); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText('BYTHERIM', cx, y + 44); y += 50; }
+    if (!f.noLabel) {
+      const label = L.name.toUpperCase();
+      setFont(ctx, 800, 20, FONT.body, false, 5); ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+      const tw = ctx.measureText(label).width;
+      ctx.fillText(label, cx + 2.5, y + 26);
+      shadow(ctx, false);
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.fillRect(cx - wmW / 2, y + 18, (wmW - tw) / 2 - 12, 2);
+      ctx.fillRect(cx + tw / 2 + 12, y + 18, (wmW - tw) / 2 - 12, 2);
+      shadow(ctx, true, 3);
+      y += 34;
     }
-    let y = top + 112;
-    if (f.kicker) {
-      ctx.fillStyle = L.b; ctx.font = `500 26px ${FONT.disp}`;
-      spaced(ctx, String(f.kicker).toUpperCase(), M, y, 3);
-      y += 22;
-    }
-    if (f.title) {
-      const t = sized(ctx, String(f.title).toUpperCase(), s => `italic 800 ${s}px ${FONT.head}`, 76, 44, W - M * 2);
-      y += t.size * 0.98;
-      ctx.fillStyle = L.text; ctx.fillText(t.text, M - 2, y);
-      // A short underline in the look's main color.
-      ctx.fillStyle = L.a; ctx.fillRect(M, y + 18, 84, 6);
-      y += 50;
-    } else y += 16;
+    const date = f.note === undefined ? prettyDate(new Date()) : f.note;
+    if (date) { setFont(ctx, 700, 32, FONT.body, false, -1); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(fit(ctx, date, 360), cx, y + 56); y += 66; }
+    shadow(ctx, false); ctx.textAlign = 'left';
     return y;
   }
+
   function footer(ctx, L, H) {
-    const b = H - (M - 56); // the bottom edge, inside a frame if there is one
-    ctx.fillStyle = L.line; ctx.fillRect(M, b - 86, W - M * 2, 2);
-    ctx.font = `600 24px ${FONT.disp}`; ctx.fillStyle = L.text;
-    spaced(ctx, L.foot, M, b - 42, 2);
-    ctx.fillStyle = L.muted; ctx.font = `500 24px ${FONT.body}`; ctx.textAlign = 'right';
-    ctx.fillText('@bytherimhoops', W - M, b - 42); ctx.textAlign = 'left';
-    return b - 112; // content stops here
+    const b = H - (M - 64) - 50;
+    shadow(ctx, true, 2);
+    setFont(ctx, 800, 22, FONT.body, false, -0.5); ctx.fillStyle = '#fff';
+    ctx.fillText(L.foot, M + 34, b);
+    setFont(ctx, 600, 22, FONT.body, false, -0.3); ctx.textAlign = 'right';
+    ctx.fillText('@bytherimhoops', W - M - 52, b); ctx.textAlign = 'left';
+    shadow(ctx, false);
+    return b - 40; // content stops here
+  }
+
+  // Title for list graphics: a small line in the accent color over a big
+  // italic title, both left-aligned.
+  function listTitle(ctx, L, f, y) {
+    const x = M + 4;
+    shadow(ctx, true, 4);
+    if (f.kicker) { setFont(ctx, 800, 34, FONT.body, false, -1); ctx.fillStyle = L.a; ctx.fillText(fit(ctx, f.kicker, W - M * 2), x, y + 70); y += 70; }
+    if (f.title) {
+      const t = sized(ctx, f.title, 104, 54, W - M * 2, s => setFont(ctx, 800, s, FONT.head, true, -1));
+      ctx.fillStyle = '#fff'; ctx.fillText(t.text, x, y + t.size * 0.95 + 8); y += t.size + 14;
+    }
+    shadow(ctx, false);
+    return y + 26;
   }
 
   // ------------------------------------------------------------ templates
-  async function statline(ctx, L, g, H, top, bottom) {
+  // Statline: matchup and result up top, the name low, then the numbers
+  // big across the bottom with labels and the shooting line.
+  async function statline(ctx, L, g, H, top, bottom, im) {
     const f = g.f;
-    const [photo, logo] = await Promise.all([loadImg(f.photo), loadImg(logoSrc(g.look, f.team))]);
-    const x = M, w = W - M * 2;
-    // Everything under the photo has a set height, so the photo panel
-    // takes whatever room is left (more room for a cutout in Canva).
-    const stats = (f.stats || []).filter(s => s && (s.label || s.value));
-    const cols = stats.length <= 5 ? stats.length : 3, rows = stats.length ? Math.ceil(stats.length / cols) : 0, gap = 14;
-    const th = H > 1500 ? 200 : H > 1200 ? 164 : 132;
-    ctx.font = `500 32px ${FONT.body}`;
-    const blurbLines = f.blurb ? wrap(ctx, f.blurb, w, 3).length : 0;
-    const below = 26 + (f.line ? 50 : 0) + rows * (th + gap) + (rows ? 4 : 0) + (f.shooting ? 96 : 0) + (blurbLines ? blurbLines * 42 + 12 : 0);
-    const ph = Math.round(Math.max(H * 0.26, Math.min(H * 0.62, bottom - top - below)));
-    // The space for the player. With a background photo it's simply open
-    // (no box, no outline) so the photo shows through; without one it's
-    // a soft empty panel, room to drop a cutout in Canva.
-    if (!photo) { shape(ctx, L, x, top, w, ph); ctx.fillStyle = L.card; ctx.fill(); }
-    if (logo || f.team) logoOrBadge(ctx, L, logo, f.team, x + w - 70, top + 70, 104);
-    // Name tag: a rounded, see-through dark box sized to the name, with a
-    // stripe of the main color on the left.
-    const info = [f.team, f.info].filter(Boolean).join('  ·  ').toUpperCase();
-    const name = sized(ctx, String(f.player || '').toUpperCase(), s => `600 ${s}px ${FONT.disp}`, 68, 36, w - 120);
-    const nameW = ctx.measureText(name.text).width;
-    ctx.font = `500 26px ${FONT.disp}`;
-    const infoW = info ? spacedWidth(ctx, fit(ctx, info, w - 120), 2) : 0;
-    const padX = 34, boxW = Math.min(w, Math.max(nameW, infoW) + padX * 2 + 8);
-    const boxH = name.size * 0.78 + (info ? 50 : 0) + 52;
-    const bx = x, by = top + ph - boxH - (photo ? 0 : 24) + (photo ? 0 : 0);
-    rr(ctx, photo ? bx : bx + 24, by, boxW, boxH, 14); ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fill();
-    ctx.save(); rr(ctx, photo ? bx : bx + 24, by, boxW, boxH, 14); ctx.clip(); ctx.fillStyle = L.a; ctx.fillRect(photo ? bx : bx + 24, by, 8, boxH); ctx.restore();
-    const tx = (photo ? bx : bx + 24) + padX, nameY = by + 26 + name.size * 0.78;
-    ctx.fillStyle = '#fff'; ctx.font = `600 ${name.size}px ${FONT.disp}`; ctx.fillText(name.text, tx, nameY);
-    if (info) {
-      ctx.fillStyle = L.b; ctx.font = `500 26px ${FONT.disp}`;
-      spaced(ctx, fit(ctx, info, w - 120), tx + 2, nameY + 42, 2);
+    const oppLogo = f.opp ? await loadImg(logoSrc(g.look, f.opp)) : null;
+    // Matchup ("vs ORL" + logo) and result ("L 122-118").
+    let y = top + 70;
+    shadow(ctx, true, 4);
+    if (f.opp) {
+      const text = `${f.where || 'vs'} ${f.opp}`;
+      const t = sized(ctx, text, 62, 34, 560, s => setFont(ctx, 800, s, FONT.body, false, -3));
+      ctx.fillStyle = '#fff'; ctx.fillText(t.text, M + 2, y + t.size * 0.8);
+      if (oppLogo) { shadow(ctx, false); contain(ctx, oppLogo, M + 2 + ctx.measureText(t.text).width + 62, y + t.size * 0.45, 100); shadow(ctx, true, 4); }
+      y += t.size + 22;
     }
+    if (f.result || f.score) {
+      setFont(ctx, 800, 42, FONT.body, false, -1.5);
+      let x = M + 62;
+      if (f.result) { ctx.fillStyle = /^w/i.test(f.result) ? '#22c55e' : /^l/i.test(f.result) ? '#ef4444' : '#fff'; ctx.fillText(f.result, x, y + 36); x += ctx.measureText(f.result).width + 28; }
+      if (f.score) { ctx.fillStyle = '#fff'; ctx.fillText(f.score, x, y + 36); }
+    }
+    shadow(ctx, false);
 
-    let y = top + ph + 26;
-    if (f.line) {
-      ctx.fillStyle = L.muted; ctx.font = `500 30px ${FONT.body}`;
-      ctx.fillText(fit(ctx, f.line, w), x, y + 24); y += 50;
+    // Bottom up: shooting line, labels, numbers, sub line, name.
+    const stats = (f.stats || []).filter(s => s && (s.value || s.label)).slice(0, 5);
+    const k = H < 1200 ? 0.82 : 1;
+    let yb = bottom;
+    if (f.shooting) {
+      shadow(ctx, true, 3); setFont(ctx, 800, 38 * k, FONT.body, false, -1.8); ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+      ctx.fillText(fit(ctx, f.shooting, W - M * 2), W / 2, yb - 4); ctx.textAlign = 'left'; shadow(ctx, false);
+      yb -= 76 * k;
     }
-    // Stat tiles: up to five in a row, a sixth starts a second row.
     if (stats.length) {
-      const tw = (w - gap * (cols - 1)) / cols;
+      const x0 = M + 30, x1 = W - M - 20, cw = (x1 - x0) / stats.length;
+      const labelY = yb - 8, numY = labelY - 58 * k;
+      // One size for every number: the largest that lets each fit its column.
+      let ns = Math.min(210 * k, stats.length > 4 ? 170 * k : 210 * k);
+      for (; ns > 60; ns -= 4) { setFont(ctx, 800, ns, FONT.head, false, -ns * 0.04); if (stats.every(s => ctx.measureText(String(s.value || '')).width <= cw - 8)) break; }
       stats.forEach((s, i) => {
-        const c = i % cols, r = Math.floor(i / cols), tx = x + c * (tw + gap), ty = y + r * (th + gap);
-        card(ctx, L, tx, ty, tw, th, i === 0 ? L.a : null);
+        const cx = x0 + cw * (i + 0.5);
         ctx.textAlign = 'center';
-        const v = sized(ctx, String(s.value || ''), z => `600 ${z}px ${FONT.disp}`, Math.round(th * 0.5), 30, tw - 24);
-        ctx.fillStyle = i === 0 ? L.a : L.text; ctx.fillText(v.text, tx + tw / 2, ty + th * 0.6);
-        ctx.fillStyle = L.muted; ctx.font = `500 ${Math.round(Math.max(18, th * 0.15))}px ${FONT.disp}`;
-        spaced(ctx, fit(ctx, String(s.label || '').toUpperCase(), tw - 20), tx + tw / 2, ty + th * 0.86, 2, 'center');
-        ctx.textAlign = 'left';
+        shadow(ctx, true, 6);
+        setFont(ctx, 800, ns, FONT.head, false, -ns * 0.04); ctx.fillStyle = i === 0 ? L.a : '#fff';
+        ctx.fillText(String(s.value || ''), cx, numY);
+        shadow(ctx, true, 3);
+        setFont(ctx, 800, 38 * k, FONT.head, true, 0); ctx.fillStyle = '#fff';
+        ctx.fillText(fit(ctx, String(s.label || '').toUpperCase(), cw - 6), cx, labelY);
       });
-      y += rows * (th + gap) + 4;
+      shadow(ctx, false); ctx.textAlign = 'left';
+      yb = numY - ns * 0.78 - 36 * k;
     }
-    if (f.shooting && y + 70 <= bottom) {
-      card(ctx, L, x, y, w, 70);
-      ctx.fillStyle = L.text; ctx.font = `500 32px ${FONT.disp}`; ctx.textAlign = 'center';
-      ctx.fillText(fit(ctx, String(f.shooting).toUpperCase(), w - 40), x + w / 2, y + 46); ctx.textAlign = 'left';
-      y += 96;
+    const sub = [f.team, f.info].filter(Boolean).join(' • ');
+    if (sub) {
+      shadow(ctx, true, 3); setFont(ctx, 700, 30 * k, FONT.body, false, -1.2); ctx.fillStyle = '#fff';
+      ctx.fillText(fit(ctx, sub, W - M * 2 - 60), M + 46, yb); shadow(ctx, false);
+      yb -= 50 * k;
     }
-    if (f.blurb && y + 40 <= bottom) {
-      ctx.fillStyle = L.text; ctx.font = `500 32px ${FONT.body}`;
-      const lines = wrap(ctx, f.blurb, w, Math.max(1, Math.min(3, Math.floor((bottom - y) / 42))));
-      lines.forEach((l, i) => ctx.fillText(l, x, y + 30 + i * 42));
+    if (f.player) {
+      shadow(ctx, true, 5);
+      const n = sized(ctx, f.player, 100 * k, 50, W - M * 2 - 60, s => setFont(ctx, 800, s, FONT.head, true, -1));
+      ctx.fillStyle = '#fff'; ctx.fillText(n.text, M + 44, yb);
+      shadow(ctx, false);
     }
   }
 
+  // Weekly awards: one block per award (team logo, award in the accent
+  // color, the winner big, his line under it).
   async function awards(ctx, L, g, H, top, bottom) {
-    const rows = (g.f.rows || []).filter(r => r && (r.player || r.award)).slice(0, 6);
-    if (!rows.length) return;
+    const f = g.f;
+    const rows = (f.rows || []).filter(r => r && (r.player || r.award)).slice(0, 6);
     const logos = await Promise.all(rows.map(r => loadImg(logoSrc(g.look, r.team))));
-    const gap = 14, x = M, w = W - M * 2;
-    const rh = Math.min(H > 1500 ? 250 : 200, (bottom - top - gap * (rows.length - 1)) / rows.length);
-    const k = rh / 180;
+    const y0 = listTitle(ctx, L, f, top);
+    if (!rows.length) return;
+    const rh = Math.min(200, (bottom - y0) / rows.length), k = Math.min(1, rh / 170);
     rows.forEach((r, i) => {
-      const y = top + i * (rh + gap);
-      card(ctx, L, x, y, w, rh, L.a);
-      const ls = rh * 0.6, lx = x + w - 28 - ls / 2;
-      logoOrBadge(ctx, L, logos[i], r.team, lx, y + rh / 2, ls);
-      const tx = x + 40, tw = lx - ls / 2 - 24 - tx;
-      ctx.fillStyle = L.b; ctx.font = `500 ${Math.round(Math.max(17, 24 * k))}px ${FONT.disp}`;
-      spaced(ctx, fit(ctx, String(r.award || '').toUpperCase(), tw), tx, y + rh * 0.27, 2.5);
-      const n = sized(ctx, String(r.player || '').toUpperCase(), s => `600 ${s}px ${FONT.disp}`, Math.round(58 * k), 24, tw);
-      ctx.fillStyle = L.text; ctx.fillText(n.text, tx, y + rh * 0.27 + n.size * 1.05);
-      ctx.fillStyle = L.muted; ctx.font = `500 ${Math.round(Math.max(17, 27 * k))}px ${FONT.body}`;
-      ctx.fillText(fit(ctx, [r.team, r.detail].filter(Boolean).join('  ·  '), tw), tx, y + rh * 0.86);
+      const y = y0 + i * rh, x = M + 4;
+      let tx = x;
+      if (logos[i]) { shadow(ctx, false); contain(ctx, logos[i], x + 48 * k, y + rh * 0.46, 92 * k); tx = x + 120 * k; }
+      shadow(ctx, true, 3);
+      setFont(ctx, 800, 30 * k, FONT.head, true, 0.5); ctx.fillStyle = L.a;
+      ctx.fillText(fit(ctx, String(r.award || '').toUpperCase(), W - M - tx), tx, y + rh * 0.24);
+      shadow(ctx, true, 4);
+      const n = sized(ctx, r.player || '', 64 * k, 30, W - M - tx - 10, s => setFont(ctx, 800, s, FONT.head, true, -1));
+      ctx.fillStyle = '#fff'; ctx.fillText(n.text, tx, y + rh * 0.24 + n.size * 0.98);
+      if (r.detail) {
+        shadow(ctx, true, 2); setFont(ctx, 700, 28 * k, FONT.body, false, -1);
+        ctx.fillText(fit(ctx, r.detail, W - M - tx), tx, y + rh * 0.24 + n.size * 0.98 + 40 * k);
+      }
+      shadow(ctx, false);
     });
   }
 
+  // Top performances: ranked rows (number, logo, name and line, the big
+  // number on the right with its label).
   async function leaders(ctx, L, g, H, top, bottom) {
     const f = g.f;
     const rows = (f.rows || []).filter(r => r && r.player).slice(0, 10);
-    if (!rows.length) return;
     const logos = await Promise.all(rows.map(r => loadImg(logoSrc(g.look, r.team))));
-    const gap = rows.length > 6 ? 10 : 14, x = M, w = W - M * 2;
-    const rh = Math.min(H > 1500 ? 170 : 150, (bottom - top - gap * (rows.length - 1)) / rows.length);
-    const k = rh / 120;
+    const y0 = listTitle(ctx, L, f, top);
+    if (!rows.length) return;
+    const rh = Math.min(170, (bottom - y0) / rows.length), k = Math.min(1, rh / 150);
     rows.forEach((r, i) => {
-      const y = top + i * (rh + gap), mid = y + rh / 2;
-      card(ctx, L, x, y, w, rh, i === 0 ? L.b : L.a);
-      ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
-      ctx.fillStyle = i === 0 ? L.b : L.text; ctx.font = `600 ${Math.round(46 * k)}px ${FONT.disp}`;
-      ctx.fillText(String(i + 1), x + 52, mid + 2);
-      const ls = rh * 0.62;
-      logoOrBadge(ctx, L, logos[i], r.team, x + 104 + ls / 2, mid, ls);
-      // Value on the right, label under it.
-      const vx = x + w - 30;
-      ctx.textAlign = 'right';
-      const v = sized(ctx, String(r.value || ''), s => `600 ${s}px ${FONT.disp}`, Math.round(58 * k), 26, 260);
-      ctx.fillStyle = i === 0 ? L.b : L.a;
-      const hasLabel = f.valueLabel && rh >= 70;
-      ctx.fillText(v.text, vx, hasLabel ? mid - 8 * k : mid + 2);
-      const vw = Math.max(ctx.measureText(v.text).width, 60);
-      if (hasLabel) {
-        ctx.fillStyle = L.muted; ctx.font = `500 ${Math.round(Math.max(15, 19 * k))}px ${FONT.disp}`;
-        spaced(ctx, String(f.valueLabel).toUpperCase(), vx, mid + 30 * k, 2, 'right');
+      const y = y0 + i * rh, mid = y + rh / 2, x = M + 4;
+      shadow(ctx, true, 5);
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      setFont(ctx, 800, 76 * k, FONT.head, false, -2); ctx.fillStyle = i === 0 ? L.a : '#fff';
+      ctx.fillText(String(i + 1), x + 34 * k, mid + 4 * k);
+      shadow(ctx, false);
+      let tx = x + 84 * k;
+      if (logos[i]) { contain(ctx, logos[i], tx + 40 * k, mid, 78 * k); tx += 98 * k; }
+      // Big number on the right.
+      let right = W - M - 10;
+      if (r.value) {
+        shadow(ctx, true, 5); ctx.textAlign = 'right';
+        setFont(ctx, 800, 84 * k, FONT.head, false, -3); ctx.fillStyle = i === 0 ? L.a : '#fff';
+        const vw = ctx.measureText(r.value).width;
+        ctx.fillText(r.value, right, mid - (f.valueLabel ? 12 * k : 0));
+        if (f.valueLabel) { shadow(ctx, true, 2); setFont(ctx, 800, 24 * k, FONT.head, true, 0); ctx.fillStyle = '#fff'; ctx.fillText(String(f.valueLabel).toUpperCase(), right, mid + 40 * k); }
+        right -= Math.max(vw, 60) + 30;
       }
-      ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
-      const tx = x + 104 + ls + 22, tw = vx - vw - 30 - tx;
-      const n = sized(ctx, String(r.player).toUpperCase(), s => `600 ${s}px ${FONT.disp}`, Math.round(38 * k), 18, tw);
-      ctx.fillStyle = L.text; ctx.fillText(n.text, tx, mid - 2 * k);
-      ctx.fillStyle = L.muted; ctx.font = `500 ${Math.round(Math.max(15, 24 * k))}px ${FONT.body}`;
-      ctx.fillText(fit(ctx, [r.team, r.detail].filter(Boolean).join('  ·  '), tw), tx, mid + 30 * k);
+      ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+      shadow(ctx, true, 4);
+      const n = sized(ctx, r.player, 54 * k, 26, right - tx, s => setFont(ctx, 800, s, FONT.head, true, -1));
+      ctx.fillStyle = '#fff'; ctx.fillText(n.text, tx, mid + (r.detail || r.team ? -2 : n.size * 0.35));
+      const sub = [r.team, r.detail].filter(Boolean).join(' • ');
+      if (sub) { shadow(ctx, true, 2); setFont(ctx, 700, 26 * k, FONT.body, false, -1); ctx.fillText(fit(ctx, sub, right - tx), tx, mid + 36 * k); }
+      shadow(ctx, false);
     });
   }
 
@@ -400,19 +344,19 @@
     canvas.width = W * scale; canvas.height = H * scale;
     const ctx = canvas.getContext && canvas.getContext('2d');
     if (!ctx) return canvas;
-    const [wordmark] = await Promise.all([loadImg(opts.wordmark || 'assets/logo-header.png'), fontsReady()]);
+    const f = g.f || {};
+    const [wordmark, photo] = await Promise.all([loadImg(opts.wordmark || 'assets/logo-header.png'), f.photo ? loadImg(f.photo) : null, fontsReady()]);
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    // A frame is a solid border with a thin darker keyline inside it;
-    // the content moves in so it keeps the same breathing room.
+    // A frame is a solid border with a thin darker keyline inside it; the
+    // content moves in so it keeps the same breathing room.
     const F = L.frame ? 38 : 0;
-    M = 56 + F;
+    M = 64 + F;
     if (F) { ctx.save(); ctx.beginPath(); ctx.rect(F, F, W - F * 2, H - F * 2); ctx.clip(); }
-    const photo = g.f && g.f.photo ? await loadImg(g.f.photo) : null;
-    L.photo = !!photo;
-    background(ctx, L, g.look, H, photo, g.f || {});
-    const top = header(ctx, L, g.f || {}, wordmark);
+    background(ctx, L, H, photo, f);
+    const top = brandBlock(ctx, L, { ...g, f }, wordmark);
     const bottom = footer(ctx, L, H);
-    await (TEMPLATES[g.tpl] || statline)(ctx, L, { ...g, f: g.f || {} }, H, top, bottom);
+    await (TEMPLATES[g.tpl] || statline)(ctx, L, { ...g, f }, H, top, bottom);
+    if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
     if (F) {
       ctx.restore();
       ctx.fillStyle = L.frame;
@@ -422,5 +366,5 @@
     return canvas;
   }
 
-  root.GraphicsDraw = { draw, LOOKS, SIZES, SWATCHES, FRAMES, NBA_TEAMS, nbaTeam, logoSrc, W };
+  root.GraphicsDraw = { draw, LOOKS, SIZES, SWATCHES, FRAMES, NBA_TEAMS, nbaTeam, logoSrc, prettyDate, W };
 })(typeof window !== 'undefined' ? window : globalThis);

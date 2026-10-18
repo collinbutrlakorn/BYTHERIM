@@ -12,30 +12,31 @@
   const LOOKS = [['nba', 'NBA'], ['draft', 'Draft'], ['ncaa', 'NCAA']];
   const TPLS = [['statline', 'Statline'], ['awards', 'Weekly awards'], ['leaders', 'Top performances']];
   const SIZE_KEYS = ['4x5', '1x1', '9x16'];
-  const today = () => new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const today = () => root.GraphicsDraw.prettyDate(new Date());
+  const CLASS = { FR: 'Freshman', SO: 'Sophomore', JR: 'Junior', SR: 'Senior', INTL: 'International' };
 
   const AWARDS = {
     nba: ['Player of the Week', 'Rookie of the Week', 'Performance of the Week', 'Defender of the Week', 'Sixth Man of the Week'],
     draft: ['Prospect of the Week', 'Riser of the Week', 'Performance of the Week', 'Defender of the Week', 'Freshman of the Week'],
     ncaa: ['Player of the Week', 'Freshman of the Week', 'Performance of the Week', 'Defender of the Week', 'Upset of the Week']
   };
-  const KICKER = { nba: 'NBA', draft: '2027 NBA Draft', ncaa: 'College basketball' };
+  const KICKER = { nba: '', draft: '', ncaa: '' };
 
   function defaults(look, tpl) {
     const k = KICKER[look] || '';
     if (tpl === 'awards') return {
-      kicker: `${k} · Week 1`, title: 'Weekly Awards', note: today(),
+      kicker: 'Week 1', title: 'Weekly Awards', note: today(),
       rows: AWARDS[look].map(award => ({ award, player: 'Player Name', team: '', detail: '00.0 PTS · 00.0 REB · 00.0 AST' }))
     };
     if (tpl === 'leaders') return {
-      kicker: `${k} · This week`, title: 'Top Performances', note: today(), valueLabel: 'PTS',
+      kicker: 'This week', title: 'Top Performances', note: today(), valueLabel: 'PTS',
       rows: Array.from({ length: 5 }, () => ({ player: 'Player Name', team: '', value: '00', detail: '00 REB · 00 AST' }))
     };
     return {
-      kicker: look === 'draft' ? `${k} · Prospect watch` : `${k} · Big night`, title: 'Big Night', note: today(),
-      player: 'Player Name', team: '', info: '', line: 'vs Opponent · W 00-00', photo: '',
-      stats: ['PTS', 'REB', 'AST', 'STL', 'BLK'].map(label => ({ label, value: '00' })),
-      shooting: 'FG 0-0 · 3P 0-0 · FT 0-0', blurb: ''
+      note: today(), where: 'vs', opp: 'Opponent', result: 'W', score: '00-00',
+      player: 'Player Name', team: '', info: '', photo: '',
+      stats: ['PTS', 'REB', 'AST', 'MIN'].map(label => ({ label, value: '00' })),
+      shooting: 'FG 0-0 • 3P 0-0 • FT 0-0'
     };
   }
   function blank(look = 'nba', tpl = 'statline') {
@@ -162,29 +163,35 @@
       const fld = (k, label, ph = '', extra = '') => `<label class="site-field"><span>${label}</span><input type="text" data-k="${k}" value="${esc(getPath(f, k))}" placeholder="${esc(ph)}" ${extra}></label>`;
       const players = (g.look === 'draft' || g.look === 'ncaa') && this.board ? 'list="gxProspects"' : '';
       const teamPh = g.look === 'nba' ? 'Lakers, LAL, Boston Celtics…' : 'School (logo loads from the name)';
-      const top = `<div class="gx-fields2">
-          ${fld('kicker', 'Eyebrow', 'NBA · Week 1')}
-          ${fld('note', 'Top-right note', 'Date or week')}
+      const label = `<label class="gx-check"><input type="checkbox" data-k="noLabel" ${f.noLabel ? 'checked' : ''}> Hide “${esc(root.GraphicsDraw.LOOKS[g.look].name.toUpperCase())}” under the logo</label>`;
+      const top = g.tpl === 'statline' ? `${fld('note', 'Date', 'Oct 7th, 2026')}${label}` : `<div class="gx-fields2">
+          ${fld('note', 'Date', 'Oct 7th, 2026')}
+          ${fld('kicker', 'Small line over the title', 'Week 1')}
         </div>
-        ${fld('title', 'Title', 'Weekly Awards')}`;
+        ${fld('title', 'Title', 'Weekly Awards')}${label}`;
       const datalist = players ? `<datalist id="gxProspects">${this.board.map(p => `<option value="${esc(p.name)}">${esc([p.rank ? '#' + p.rank : '', p.school].filter(Boolean).join(' · '))}</option>`).join('')}</datalist>` : '';
       if (g.tpl === 'statline') {
         return `${top}
-          <h3 class="gx-h3">Player</h3>
-          <div class="gx-fields2">
-            ${fld('player', 'Name', 'Player name', players + ' data-pick="statline"')}
-            ${fld('team', 'Team', teamPh)}
-            ${fld('info', 'Info line', g.look === 'draft' ? '#3 on the board · Wing · Freshman' : 'Guard · Year 3')}
-            ${fld('line', 'Game line', 'vs Duke · W 82-77')}
+          <h3 class="gx-h3">Game</h3>
+          <div class="gx-game">
+            <label class="site-field"><span>Where</span><select data-k="where">${[['vs', 'vs'], ['@', '@']].map(([v, l]) => `<option value="${v}"${(f.where || 'vs') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+            ${fld('opp', 'Opponent', g.look === 'nba' ? 'ORL (logo loads from the name)' : 'Pittsburgh St.')}
+            <label class="site-field"><span>Result</span><select data-k="result">${[['W', 'W'], ['L', 'L'], ['', 'None']].map(([v, l]) => `<option value="${v}"${(f.result || '') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+            ${fld('score', 'Score', '122-118')}
           </div>
-          <h3 class="gx-h3">Stats <small>leave a box empty to drop it; up to 6</small></h3>
+          <h3 class="gx-h3">Player</h3>
+          ${fld('player', 'Name', 'Player name', players + ' data-pick="statline"')}
+          <div class="gx-fields2">
+            ${fld('team', 'Team', teamPh)}
+            ${fld('info', 'More (optional)', g.look === 'nba' ? 'Guard' : 'SF • Freshman')}
+          </div>
+          <h3 class="gx-h3">Stats <small>leave a box empty to drop it; up to 5; the first is in the accent color</small></h3>
           <div class="gx-stats">${(f.stats || []).map((s, i) => `<div class="gx-stat">
               <input type="text" data-k="stats.${i}.value" value="${esc(s.value)}" placeholder="00" aria-label="Value ${i + 1}">
               <input type="text" data-k="stats.${i}.label" value="${esc(s.label)}" placeholder="LABEL" aria-label="Label ${i + 1}">
             </div>`).join('')}
-            ${(f.stats || []).length < 6 ? '<button type="button" class="gx-add" data-act="add-stat" aria-label="Add a stat">+</button>' : ''}</div>
-          ${fld('shooting', 'Shooting line', 'FG 11-18 · 3P 4-7 · FT 5-6')}
-          <label class="site-field"><span>Blurb (optional)</span><textarea rows="3" data-k="blurb" placeholder="One or two sentences.">${esc(f.blurb)}</textarea></label>
+            ${(f.stats || []).length < 5 ? '<button type="button" class="gx-add" data-act="add-stat" aria-label="Add a stat">+</button>' : ''}</div>
+          ${fld('shooting', 'Shooting line', 'FG 4-7 • 3P 2-3 • FT 6-7')}
           ${datalist}`;
       }
       const rows = f.rows || [];
@@ -278,13 +285,13 @@
       if (input.dataset.pick === 'statline') {
         f.player = p.name;
         f.team = p.isPro ? 'Pro' : p.school;
-        f.info = [p.rank ? `#${p.rank} on the board` : '', p.pos, p.cls].filter(Boolean).join(' · ');
+        f.info = [p.pos, CLASS[p.cls] || p.cls].filter(Boolean).join(' • ');
         if (p.image && !this.uploaded) f.photo = p.image;
         const s = seasonOf(p);
         if (s.PTS != null && f.stats.every(x => isPh(x.value))) {
-          f.stats = ['PTS', 'REB', 'AST', 'STL', 'BLK'].map(label => ({ label, value: s[label] != null ? String(s[label]) : '' }));
+          f.stats = ['PTS', 'REB', 'AST', 'MIN'].map(label => { const v = s[label === 'MIN' ? 'MP' : label]; return { label, value: v != null ? String(v) : '' }; });
           const sh = [['TS%', 'TS'], ['3P%', '3P'], ['FT%', 'FT']].filter(([k]) => s[k] != null).map(([k, l]) => `${l} ${s[k]}${/%$/.test(s[k]) ? '' : '%'}`);
-          if (sh.length) f.shooting = sh.join(' · ');
+          if (sh.length) f.shooting = sh.join(' • ');
           if (p.seasons && p.seasons[0] && p.seasons[0].label) f.line = `${p.seasons[0].label} season · per game`;
         }
       } else {
@@ -321,7 +328,7 @@
         return;
       }
       if (!t.dataset.k) return;
-      setPath(this.cur.f, t.dataset.k, t.value);
+      setPath(this.cur.f, t.dataset.k, t.type === 'checkbox' ? t.checked : t.value);
       if (t.dataset.k === 'photo' && t.value) this.uploaded = null;
       if (t.type === 'range') { const o = this.el.querySelector(`[data-out="${t.dataset.k}"]`); if (o) o.textContent = t.value; }
       if (t.dataset.k === 'photo' && e.type === 'change') document.getElementById('gxStyle').innerHTML = this.styleHTML();

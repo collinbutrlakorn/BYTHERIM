@@ -33,7 +33,7 @@ const ROOT = path.join(RP, '..');
     body().querySelector(`[data-set="look"][data-v="${look}"]`).click();
     for (const tpl of ['statline', 'awards', 'leaders']) {
       body().querySelector(`[data-set="tpl"][data-v="${tpl}"]`).click();
-      ok(G.cur.look === look && G.cur.tpl === tpl && body().querySelector('#gxForm [data-k="title"]'), `${look} ${tpl} form builds`);
+      ok(G.cur.look === look && G.cur.tpl === tpl && body().querySelector('#gxForm [data-k="note"]'), `${look} ${tpl} form builds`);
     }
   }
   body().querySelector('[data-set="tpl"][data-v="awards"]').click();

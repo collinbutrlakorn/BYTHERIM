@@ -77,3 +77,6 @@
 .gx-range input[type=range] { width: 100%; accent-color: var(--accent); }
 .gx-canvas-wrap canvas { touch-action: none; cursor: grab; }
 @media (max-width: 520px) { .gx-sliders { grid-template-columns: 1fr; } }
+.gx-game { display: grid; grid-template-columns: 4.5rem minmax(0, 1.6fr) 5.5rem minmax(0, 1fr); gap: 0.6rem; }
+.gx select { width: 100%; }
+@media (max-width: 520px) { .gx-game { grid-template-columns: 4.5rem minmax(0, 1fr); } }
