@@ -138,6 +138,16 @@ async function home(store, storage) {
   ok(!astore.images.i4 && astore.site.xPosts.length === 2, 'the deleted slide\'s banner is removed, the posts saved');
   const w1 = aw.Cloud.writes;
   ok(w1.indexOf('img+new1') < w1.indexOf('site') && w1.indexOf('site') < w1.indexOf('img-i4'), 'in an order that never leaves the page pointing at a missing image');
+  // Instagram tiles: an image and a link per post.
+  S.tileEdit('new'); S.tile.img = 'tl1'; S.images.tl1 = IMG + 't'; S.tileSet('url', 'https://www.instagram.com/p/ABC123/?utm_source=ig_web_copy_link&exln=xx'); S.tileSet('caption', 'Stokes: 31 points'); S.tileKeep();
+  ok(S.draft.igTiles.length === 1 && S.draft.igTiles[0].url === 'https://www.instagram.com/p/ABC123/' && S.tile === null, 'a tile takes the image and a cleaned Instagram link');
+  S.tileEdit('new'); S.tile.img = 'tl2'; S.images.tl2 = IMG + 'u'; S.tileSet('url', 'https://example.com/x'); S.tileKeep();
+  ok(S.draft.igTiles.length === 1 && S.tile && /Instagram/.test(aw.document.querySelector('.site-tile-msg').textContent), 'a link that isn\'t an Instagram post is refused');
+  S.tileCancel();
+  await S.publish();
+  ok(astore.site.igTiles.length === 1 && astore.images.tl1 === IMG + 't' && !astore.images.tl2, 'Publish saves the tile and uploads its image');
+  S.tileRemove(0); await S.publish();
+  ok(astore.site.igTiles.length === 0 && !astore.images.tl1, 'a deleted tile\'s image is removed');
   S.setPosts('instagramPosts', 'https://example.com/not-a-post');
   await S.publish();
   ok(/Fix this link/.test(S.status) && !astore.site.instagramPosts.includes('https://example.com/not-a-post'), 'a link that isn\'t a post isn\'t published');
@@ -147,6 +157,12 @@ async function home(store, storage) {
   const stamp = astore.site.updatedAt;
   await S.publish();
   ok(/admin/.test(S.status) && astore.site.updatedAt === stamp, 'only an admin can publish');
+
+  // The home page shows tiles (and not an error) when they're published.
+  const tstore = { site: { updatedAt: 9, showDefault: true, slides: [], xPosts: [], instagramPosts: ['https://www.instagram.com/p/COLLAB/'], igTiles: [{ id: 't1', img: 'ti1', url: 'https://www.instagram.com/p/ABC123/', caption: 'Stokes: 31 points' }] }, images: { ti1: IMG + 'tile' } };
+  const tw = await home(tstore); await wait(300);
+  const tiles = [...tw.document.querySelectorAll('[data-embed=instagram] a.ig-tile')];
+  ok(tiles.length === 1 && tiles[0].href === 'https://www.instagram.com/p/ABC123/' && /tile/.test(tiles[0].style.backgroundImage) && !tw.document.querySelector('[data-embed=instagram] .instagram-media'), 'home: Instagram tiles link to their posts and show their images');
 
   console.log('\nSite content verified.');
   process.exit(0);

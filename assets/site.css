@@ -1134,3 +1134,12 @@ a.card:hover { border-color: var(--border-strong); transform: translateY(-2px); 
 /* Admin-only beta pages in the main menu (same as chrome.css) */
 .beta-tag { display: inline-block; margin-left: 0.35rem; padding: 1px 6px; border-radius: 999px; background: #e3bb4f; color: #181f40;
   font: 700 0.6rem/1.5 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; vertical-align: 2px; }
+
+/* Instagram tiles: an image and a link per post */
+.ig-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; padding-top: 0.8rem; }
+.ig-tile { position: relative; display: block; aspect-ratio: 4 / 5; border-radius: var(--r-sm); overflow: hidden; background: var(--card-2, #14161c) center / cover no-repeat; }
+.ig-tile::after { content: ''; position: absolute; inset: 0; background: rgba(0, 0, 0, 0); transition: background 0.15s; }
+.ig-tile:hover::after, .ig-tile:focus-visible::after { background: rgba(0, 0, 0, 0.32); }
+.ig-tile-cap { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; padding: 0.4rem 0.5rem; font-size: 0.76rem; font-weight: 600; color: #fff; background: rgba(0, 0, 0, 0.62); opacity: 0; transition: opacity 0.15s; }
+.ig-tile:hover .ig-tile-cap, .ig-tile:focus-visible .ig-tile-cap { opacity: 1; }
+@media (hover: none) { .ig-tile-cap { opacity: 1; } }

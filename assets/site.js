@@ -49,6 +49,8 @@
     // doesn't allow embedding a whole profile, so without posts listed the
     // home page shows a profile card that links to Instagram instead.
     instagramPosts: [],
+    // Tiles (image + link) pinned from the admin page; filled from the database.
+    instagramTiles: [],
     feeds: {
       substack: 'https://collindunks.substack.com/feed',
       podcast: 'https://api.substack.com/feed/podcast/9314968.rss'
@@ -494,6 +496,20 @@
             <span><b>@${esc(handle)}</b><span>Follow BYTHERIM on Instagram.</span></span>
             <span class="ig-cta">Open Instagram ${icon('arrow', 14)}</span>
           </a>`;
+      // Tiles from the admin page (an image and a link per post) come first:
+      // they work for any post, including collabs that Instagram won't embed.
+      const tiles = (CONFIG.instagramTiles || []).filter(t => t && t.img && t.url).slice(0, 6);
+      if (tiles.length) {
+        el.innerHTML = embedHead('instagram', 'On Instagram') + `<div class="ig-tiles">${tiles.map(t =>
+          `<a class="ig-tile" href="${esc(t.url)}" target="_blank" rel="noopener" data-tile="${esc(t.id)}" aria-label="${esc(t.caption || 'View this post on Instagram')}">
+            <span class="ig-tile-ph"></span>${t.caption ? `<span class="ig-tile-cap">${esc(t.caption)}</span>` : ''}</a>`).join('')}</div>`;
+        tiles.forEach(async t => {
+          const d = await heroImage(t.img);
+          const a = [...el.querySelectorAll('.ig-tile')].find(x => x.dataset.tile === t.id);
+          if (d && a) a.style.backgroundImage = `url('${d}')`;
+        });
+        return;
+      }
       if (!posts.length) { el.innerHTML = card(); return; }
       el.innerHTML = embedHead('instagram', 'On Instagram') + `
         <div class="x-feed-body x-feed-posts ig-posts" style="min-height:240px">${posts.map(u =>
@@ -658,10 +674,11 @@
   // embed already drawn with the old list is drawn again.
   function applyPosts(site) {
     if (!site) return;
-    const next = { x: (site.xPosts || []).filter(Boolean), instagram: (site.instagramPosts || []).filter(Boolean) };
+    const next = { x: (site.xPosts || []).filter(Boolean), instagram: (site.instagramPosts || []).filter(Boolean), tiles: (site.igTiles || []).filter(t => t && t.img && t.url) };
     const changed = [];
     if (!sameList(next.x, CONFIG.xPosts)) { CONFIG.xPosts = next.x; changed.push('x'); }
     if (!sameList(next.instagram, CONFIG.instagramPosts)) { CONFIG.instagramPosts = next.instagram; changed.push('instagram'); }
+    if (!sameList(next.tiles, CONFIG.instagramTiles)) { CONFIG.instagramTiles = next.tiles; if (!changed.includes('instagram')) changed.push('instagram'); }
     document.querySelectorAll('[data-embed]').forEach(el => {
       if (changed.includes(el.dataset.embed || 'x') && (el.classList.contains('x-feed') || el.hasAttribute('data-only-posts'))) socialEmbed(el);
     });
@@ -741,7 +758,7 @@
     wrap.querySelectorAll('.hero-slide:not([data-default]), .hero-dots').forEach(n => n.remove());
     if (def) def.hidden = site.showDefault === false && slides.length > 0;
     if (!slides.length) { if (def) def.classList.add('is-active'); return; }
-    pruneImages(new Set(slides.map(s => s.img).filter(Boolean)));
+    pruneImages(new Set([...slides.map(s => s.img), ...(site.igTiles || []).map(t => t.img)].filter(Boolean)));
 
     // Newest first, then the original.
     const first = await heroImage(slides[0].img);

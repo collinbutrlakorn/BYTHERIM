@@ -74,14 +74,17 @@
       this.draft = JSON.parse(JSON.stringify(this.site || { slides: [], showDefault: true, xPosts: [], instagramPosts: [] }));
       this.draft.slides = this.draft.slides || [];
       if (this.draft.showDefault === undefined) this.draft.showDefault = true;
+      this.draft.igTiles = this.draft.igTiles || [];
       this.draft.slides.forEach(s => this.fetchImage(s.img));
+      this.draft.igTiles.forEach(t => this.fetchImage(t.img));
       this.rerender();
     },
     async fetchImage(id) {
       if (!id || this.images[id] || !root.Cloud) return;
       try { const d = await root.Cloud.getSiteImage(id); if (d) { this.images[id] = d; this.rerender(); } } catch (e) { /* shown without a thumbnail */ }
     },
-    dirty() { return JSON.stringify(this.draft) !== JSON.stringify(this.site || { slides: [], showDefault: true, xPosts: [], instagramPosts: [] }); },
+    norm(x) { x = x || {}; return JSON.stringify({ slides: x.slides || [], showDefault: x.showDefault !== false, xPosts: x.xPosts || [], instagramPosts: x.instagramPosts || [], igTiles: x.igTiles || [] }); },
+    dirty() { return this.norm(this.draft) !== this.norm(this.site); },
 
     el: null,
     render(el) {
@@ -129,8 +132,26 @@
       </div>
 
       <div class="card">
+        <div class="section-head"><h3 class="section-title">Instagram tiles</h3>
+          <button class="sim-btn btn-sm" onclick="SiteAdmin.tileEdit('new')">Add a tile</button></div>
+        <p class="adm-note">An image and a link to the post, shown as a small grid on the home page, newest first, up to 6. Works for any post, including collabs that Instagram won't embed. Use the post's cover or the graphic you made. When there are tiles, they show instead of the pinned Instagram posts below.</p>
+        ${this.tile ? this.tileFormHTML() : ''}
+        <ul class="site-slides site-tiles">
+          ${(d.igTiles || []).map((t, i) => `<li>
+            <span class="site-thumb" style="${this.images[t.img] ? `background-image:url('${this.images[t.img]}');` : ''}"></span>
+            <span class="site-slide-text"><b>${esc(t.caption || '(no caption)')}</b><small>${esc(t.url.replace('https://www.instagram.com', 'instagram.com'))}</small></span>
+            <span class="site-slide-actions">
+              <button class="outline-btn btn-sm" onclick="SiteAdmin.tileMove(${i},-1)" ${i ? '' : 'disabled'} aria-label="Move up">↑</button>
+              <button class="outline-btn btn-sm" onclick="SiteAdmin.tileMove(${i},1)" ${i < d.igTiles.length - 1 ? '' : 'disabled'} aria-label="Move down">↓</button>
+              <button class="outline-btn btn-sm" onclick="SiteAdmin.tileEdit('${esc(t.id)}')">Edit</button>
+              <button class="outline-btn btn-sm danger" onclick="SiteAdmin.tileRemove(${i})">Delete</button>
+            </span></li>`).join('') || '<li class="adm-empty">No tiles yet.</li>'}
+        </ul>
+      </div>
+
+      <div class="card">
         <div class="section-head"><h3 class="section-title">Pinned posts</h3></div>
-        <p class="adm-note">When a feed won't embed, paste the links to specific posts here, newest first, one per line. X posts show on the home page and the NBA page; Instagram posts and reels on the home page.</p>
+        <p class="adm-note">When a feed won't embed, paste the links to specific posts here, newest first, one per line. X posts show on the home page and the NBA page; Instagram posts and reels on the home page. Instagram won't embed a collab post (it says the post was removed): use a tile for those.</p>
         <div class="site-posts">
           ${this.postsField('xPosts', 'X posts', 'https://x.com/bytherimhoops/status/…', X_RE)}
           ${this.postsField('instagramPosts', 'Instagram posts or reels', 'https://www.instagram.com/p/…', IG_RE)}
@@ -161,6 +182,66 @@
       const bar = document.querySelector('.site-bar b');
       if (bar) bar.textContent = this.dirty() ? 'Unpublished changes' : 'Up to date';
       document.querySelectorAll('.site-bar-actions button').forEach(b => { b.disabled = !this.dirty(); });
+    },
+
+    // ---------- Instagram tiles ----------
+    tile: null,
+    tileEdit(id) {
+      const t = id === 'new' ? null : (this.draft.igTiles || []).find(x => x.id === id);
+      this.tile = t ? { ...t } : { id: newId(), img: null, url: '', caption: '' };
+      this.rerender();
+      const f = document.querySelector('.site-tile-form');
+      if (f && f.scrollIntoView) f.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    },
+    tileFormHTML() {
+      const t = this.tile, img = t.img && this.images[t.img];
+      return `<div class="site-form site-tile-form">
+        <div class="site-form-fields">
+          <label class="site-field"><span>Image</span>
+            <input type="file" accept="image/*" onchange="SiteAdmin.tilePick(this.files[0])">
+            <small>${img ? 'Uploaded. Pick another to replace it.' : 'The post\'s cover or your graphic. 4:5 (1080×1350) fits the tile best; other shapes are cropped to fit.'}</small></label>
+          ${img ? `<span class="site-thumb" style="background-image:url('${img}');width:84px;height:105px"></span>` : ''}
+          <label class="site-field"><span>Post link</span><input type="url" value="${esc(t.url)}" placeholder="https://www.instagram.com/p/…" oninput="SiteAdmin.tileSet('url', this.value)"></label>
+          <label class="site-field"><span>Caption (optional, shows on hover)</span><input type="text" maxlength="60" value="${esc(t.caption)}" placeholder="Tyran Stokes: 31 points" oninput="SiteAdmin.tileSet('caption', this.value)"></label>
+        </div>
+        <div class="site-form-actions">
+          <button class="outline-btn btn-sm" onclick="SiteAdmin.tileCancel()">Cancel</button>
+          <button class="sim-btn btn-sm" onclick="SiteAdmin.tileKeep()">${(this.draft.igTiles || []).some(x => x.id === t.id) ? 'Keep changes' : 'Add the tile'}</button>
+          <span class="site-form-msg site-tile-msg"></span>
+        </div>
+      </div>`;
+    },
+    tileSet(k, v) { this.tile[k] = v; },
+    async tilePick(file) {
+      if (!file) return;
+      const msg = document.querySelector('.site-tile-msg');
+      if (msg) msg.textContent = 'Preparing the image…';
+      try {
+        const url = await this.shrink(file, 260000, 720);
+        const id = newId();
+        this.images[id] = url;
+        this.tile.img = id;
+        this.rerender();
+      } catch (e) { if (msg) msg.textContent = e.message || String(e); }
+    },
+    tileKeep() {
+      const t = this.tile, msg = document.querySelector('.site-tile-msg');
+      const url = cleanPost(t.url);
+      if (!t.img) { if (msg) msg.textContent = 'Add an image first.'; return; }
+      if (!IG_RE.test(url)) { if (msg) msg.textContent = 'Paste the link to an Instagram post or reel (instagram.com/p/…).'; return; }
+      const next = { id: t.id, img: t.img, url, caption: (t.caption || '').trim() };
+      const list = this.draft.igTiles = this.draft.igTiles || [];
+      const i = list.findIndex(x => x.id === t.id);
+      if (i >= 0) list[i] = next;
+      else { if (list.length >= 6) { if (msg) msg.textContent = 'The home page shows 6 tiles. Delete one first.'; return; } list.unshift(next); }
+      this.tile = null; this.rerender();
+    },
+    tileCancel() { this.tile = null; this.rerender(); },
+    tileMove(i, d) { const a = this.draft.igTiles; const j = i + d; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; this.rerender(); },
+    tileRemove(i) {
+      const t = this.draft.igTiles[i];
+      if (typeof confirm === 'function' && !confirm(`Delete "${t.caption || 'this tile'}"? It comes off the home page when you publish.`)) return;
+      this.draft.igTiles.splice(i, 1); this.rerender();
     },
 
     linkName(link) {
@@ -240,10 +321,10 @@
         if (msg) msg.textContent = e.message || String(e);
       }
     },
-    async shrink(file, limit = 700000) {
+    async shrink(file, limit = 700000, maxW = 1920) {
       const src = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('Couldn\'t read that file.')); r.readAsDataURL(file); });
       const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('That file isn\'t an image this browser can read.')); i.src = src; });
-      let w = Math.min(1920, img.naturalWidth || img.width);
+      let w = Math.min(maxW, img.naturalWidth || img.width);
       for (let pass = 0; pass < 6; pass++) {
         const h = Math.round(w * (img.naturalHeight || img.height) / (img.naturalWidth || img.width));
         const c = document.createElement('canvas');
@@ -305,7 +386,8 @@
     },
     discard() {
       this.draft = JSON.parse(JSON.stringify(this.site || { slides: [], showDefault: true, xPosts: [], instagramPosts: [] }));
-      this.editing = null; this.form = null; this.status = '';
+      this.draft.igTiles = this.draft.igTiles || [];
+      this.editing = null; this.form = null; this.tile = null; this.status = '';
       this.rerender();
     },
 
@@ -319,10 +401,10 @@
       if (bad.length) { this.status = `Fix this link first: ${bad[0]}`; this.rerender(); return; }
       this.status = 'Publishing…'; this.rerender();
       try {
-        const before = new Set(((this.site || {}).slides || []).map(s => s.img).filter(Boolean));
-        const now = new Set(this.draft.slides.map(s => s.img).filter(Boolean));
+        const before = new Set([...((this.site || {}).slides || []).map(s => s.img), ...((this.site || {}).igTiles || []).map(t => t.img)].filter(Boolean));
+        const now = new Set([...this.draft.slides.map(s => s.img), ...(this.draft.igTiles || []).map(t => t.img)].filter(Boolean));
         for (const id of now) if (!before.has(id)) await C.putSiteImage(id, this.images[id]);
-        const saved = await C.saveSite({ slides: this.draft.slides, showDefault: this.draft.showDefault !== false, xPosts: this.draft.xPosts || [], instagramPosts: this.draft.instagramPosts || [] });
+        const saved = await C.saveSite({ slides: this.draft.slides, showDefault: this.draft.showDefault !== false, xPosts: this.draft.xPosts || [], instagramPosts: this.draft.instagramPosts || [], igTiles: this.draft.igTiles || [] });
         for (const id of before) if (!now.has(id)) await C.deleteSiteImage(id);
         this.site = saved;
         this.draft = JSON.parse(JSON.stringify(saved));
