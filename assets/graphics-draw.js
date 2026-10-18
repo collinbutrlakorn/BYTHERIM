@@ -127,6 +127,21 @@
     ctx.drawImage(im, cx - im.naturalWidth * s / 2, cy - im.naturalHeight * s / 2, im.naturalWidth * s, im.naturalHeight * s);
     return im.naturalWidth * s;
   }
+  // Logos vary a lot in shape. Scale each so its area, not its longest
+  // side, matches (a wide logo gets wider, a tall one taller), within a slot.
+  function logoFit(ctx, im, cx, cy, box) {
+    const a = im.naturalWidth / im.naturalHeight;
+    let dw = box * 0.92 * Math.sqrt(a), dh = box * 0.92 / Math.sqrt(a);
+    const sc = Math.min(1, box * 1.3 / dw, box * 1.05 / dh);
+    dw *= sc; dh *= sc;
+    ctx.drawImage(im, cx - dw / 2, cy - dh / 2, dw, dh);
+    return dw;
+  }
+  // Number in the category color gets a thin dark edge so it holds up on any photo.
+  function accentText(ctx, text, x, y, size, on) {
+    if (on) { ctx.save(); ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(5, size * 0.05); ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.strokeText(text, x, y); ctx.restore(); }
+    ctx.fillText(text, x, y);
+  }
   function ordinal(n) { const v = n % 100; return n + (['th', 'st', 'nd', 'rd'][(v - 20) % 10] || ['th', 'st', 'nd', 'rd'][v] || 'th'); }
   function prettyDate(d) {
     return d.toLocaleDateString('en-US', { month: 'short' }) + ' ' + ordinal(d.getDate()) + ', ' + d.getFullYear();
@@ -165,6 +180,7 @@
 
   // Top-left block: wordmark, the category between two thin lines, and
   // the date. Returns the y under it.
+  const LX = M + 2; // the shared left edge for everything left-aligned
   function brandBlock(ctx, L, g, wordmark) {
     const f = g.f, cx = M + 140, wmW = 280;
     let y = M + 16;
@@ -184,7 +200,7 @@
       y += 34;
     }
     const date = f.note === undefined ? prettyDate(new Date()) : f.note;
-    if (date) { setFont(ctx, 700, 32, FONT.body, false, -1); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.fillText(fit(ctx, date, 360), cx, y + 56); y += 66; }
+    if (date) { setFont(ctx, 700, 32, FONT.body, false, -1); ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(fit(ctx, date, 560), LX, y + 56); y += 66; }
     shadow(ctx, false); ctx.textAlign = 'left';
     return y;
   }
@@ -193,9 +209,9 @@
     const b = H - (M - 64) - 50;
     shadow(ctx, true, 2);
     setFont(ctx, 800, 22, FONT.body, false, -0.5); ctx.fillStyle = '#fff';
-    ctx.fillText(L.foot, M + 34, b);
+    ctx.fillText(L.foot, LX, b);
     setFont(ctx, 600, 22, FONT.body, false, -0.3); ctx.textAlign = 'right';
-    ctx.fillText('@bytherimhoops', W - M - 52, b); ctx.textAlign = 'left';
+    ctx.fillText('@bytherimhoops', W - M - 2, b); ctx.textAlign = 'left';
     shadow(ctx, false);
     return b - 40; // content stops here
   }
@@ -203,11 +219,11 @@
   // Title for list graphics: a small line in the accent color over a big
   // italic title, both left-aligned.
   function listTitle(ctx, L, f, y) {
-    const x = M + 4;
+    const x = LX;
     shadow(ctx, true, 4);
     if (f.kicker) { setFont(ctx, 800, 34, FONT.body, false, -1); ctx.fillStyle = L.a; ctx.fillText(fit(ctx, f.kicker, W - M * 2), x, y + 70); y += 70; }
     if (f.title) {
-      const t = sized(ctx, f.title, 104, 54, W - M * 2, s => setFont(ctx, 800, s, FONT.head, true, -1));
+      const t = sized(ctx, f.title, 88, 50, W - M * 2, s => setFont(ctx, 800, s, FONT.head, true, -1));
       ctx.fillStyle = '#fff'; ctx.fillText(t.text, x, y + t.size * 0.95 + 8); y += t.size + 14;
     }
     shadow(ctx, false);
@@ -226,15 +242,15 @@
     if (f.opp) {
       const text = `${f.where || 'vs'} ${f.opp}`;
       const t = sized(ctx, text, 62, 34, 560, s => setFont(ctx, 800, s, FONT.body, false, -3));
-      ctx.fillStyle = '#fff'; ctx.fillText(t.text, M + 2, y + t.size * 0.8);
-      if (oppLogo) { shadow(ctx, false); contain(ctx, oppLogo, M + 2 + ctx.measureText(t.text).width + 62, y + t.size * 0.45, 100); shadow(ctx, true, 4); }
+      ctx.fillStyle = '#fff'; ctx.fillText(t.text, LX, y + t.size * 0.8);
+      if (oppLogo) { shadow(ctx, false); logoFit(ctx, oppLogo, LX + ctx.measureText(t.text).width + 66, y + t.size * 0.45, 104); shadow(ctx, true, 4); }
       y += t.size + 22;
     }
     if (f.result || f.score) {
-      setFont(ctx, 800, 42, FONT.body, false, -1.5);
-      let x = M + 62;
-      if (f.result) { ctx.fillStyle = /^w/i.test(f.result) ? '#22c55e' : /^l/i.test(f.result) ? '#ef4444' : '#fff'; ctx.fillText(f.result, x, y + 36); x += ctx.measureText(f.result).width + 28; }
-      if (f.score) { ctx.fillStyle = '#fff'; ctx.fillText(f.score, x, y + 36); }
+      setFont(ctx, 800, 66, FONT.body, false, -2.5);
+      let x = LX;
+      if (f.result) { ctx.fillStyle = /^w/i.test(f.result) ? '#22c55e' : /^l/i.test(f.result) ? '#ef4444' : '#fff'; ctx.fillText(f.result, x, y + 52); x += ctx.measureText(f.result).width + 24; }
+      if (f.score) { ctx.fillStyle = '#fff'; ctx.fillText(f.score, x, y + 52); }
     }
     shadow(ctx, false);
 
@@ -258,7 +274,7 @@
         ctx.textAlign = 'center';
         shadow(ctx, true, 6);
         setFont(ctx, 800, ns, FONT.head, false, -ns * 0.04); ctx.fillStyle = i === 0 ? L.a : '#fff';
-        ctx.fillText(String(s.value || ''), cx, numY);
+        accentText(ctx, String(s.value || ''), cx, numY, ns, i === 0);
         shadow(ctx, true, 3);
         setFont(ctx, 800, 38 * k, FONT.head, true, 0); ctx.fillStyle = '#fff';
         ctx.fillText(fit(ctx, String(s.label || '').toUpperCase(), cw - 6), cx, labelY);
@@ -269,13 +285,13 @@
     const sub = [f.team, f.info].filter(Boolean).join(' • ');
     if (sub) {
       shadow(ctx, true, 3); setFont(ctx, 700, 30 * k, FONT.body, false, -1.2); ctx.fillStyle = '#fff';
-      ctx.fillText(fit(ctx, sub, W - M * 2 - 60), M + 46, yb); shadow(ctx, false);
+      ctx.fillText(fit(ctx, sub, W - M * 2 - 60), LX, yb); shadow(ctx, false);
       yb -= 50 * k;
     }
     if (f.player) {
       shadow(ctx, true, 5);
       const n = sized(ctx, f.player, 100 * k, 50, W - M * 2 - 60, s => setFont(ctx, 800, s, FONT.head, true, -1));
-      ctx.fillStyle = '#fff'; ctx.fillText(n.text, M + 44, yb);
+      ctx.fillStyle = '#fff'; ctx.fillText(n.text, LX, yb);
       shadow(ctx, false);
     }
   }
@@ -290,9 +306,9 @@
     if (!rows.length) return;
     const rh = Math.min(200, (bottom - y0) / rows.length), k = Math.min(1, rh / 170);
     rows.forEach((r, i) => {
-      const y = y0 + i * rh, x = M + 4;
+      const y = y0 + i * rh, x = LX;
       let tx = x;
-      if (logos[i]) { shadow(ctx, false); contain(ctx, logos[i], x + 48 * k, y + rh * 0.46, 92 * k); tx = x + 120 * k; }
+      if (logos[i]) { shadow(ctx, false); logoFit(ctx, logos[i], x + 54 * k, y + rh * 0.46, 88 * k); tx = x + 128 * k; }
       shadow(ctx, true, 3);
       setFont(ctx, 800, 30 * k, FONT.head, true, 0.5); ctx.fillStyle = L.a;
       ctx.fillText(fit(ctx, String(r.award || '').toUpperCase(), W - M - tx), tx, y + rh * 0.24);
@@ -317,21 +333,22 @@
     if (!rows.length) return;
     const rh = Math.min(170, (bottom - y0) / rows.length), k = Math.min(1, rh / 150);
     rows.forEach((r, i) => {
-      const y = y0 + i * rh, mid = y + rh / 2, x = M + 4;
+      const y = y0 + i * rh, mid = y + rh / 2, x = LX;
+      if (i) { ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fillRect(x, y, W - M - 10 - x, 2); }
       shadow(ctx, true, 5);
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       setFont(ctx, 800, 76 * k, FONT.head, false, -2); ctx.fillStyle = i === 0 ? L.a : '#fff';
-      ctx.fillText(String(i + 1), x + 34 * k, mid + 4 * k);
+      accentText(ctx, String(i + 1), x + 34 * k, mid + 4 * k, 76 * k, i === 0);
       shadow(ctx, false);
       let tx = x + 84 * k;
-      if (logos[i]) { contain(ctx, logos[i], tx + 40 * k, mid, 78 * k); tx += 98 * k; }
+      if (logos[i]) { logoFit(ctx, logos[i], tx + 46 * k, mid, 76 * k); tx += 110 * k; }
       // Big number on the right.
       let right = W - M - 10;
       if (r.value) {
         shadow(ctx, true, 5); ctx.textAlign = 'right';
         setFont(ctx, 800, 84 * k, FONT.head, false, -3); ctx.fillStyle = i === 0 ? L.a : '#fff';
         const vw = ctx.measureText(r.value).width;
-        ctx.fillText(r.value, right, mid - (f.valueLabel ? 12 * k : 0));
+        accentText(ctx, String(r.value), right, mid - (f.valueLabel ? 12 * k : 0), 84 * k, i === 0);
         if (f.valueLabel) { shadow(ctx, true, 2); setFont(ctx, 800, 24 * k, FONT.head, true, 0); ctx.fillStyle = '#fff'; ctx.fillText(String(f.valueLabel).toUpperCase(), right, mid + 40 * k); }
         right -= Math.max(vw, 60) + 30;
       }

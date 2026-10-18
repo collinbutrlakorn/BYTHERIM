@@ -165,8 +165,9 @@
       const players = (g.look === 'draft' || g.look === 'ncaa') && this.board ? 'list="gxProspects"' : '';
       const teamPh = g.look === 'nba' ? 'Lakers, LAL, Boston Celtics…' : 'School (logo loads from the name)';
       const label = `<label class="gx-check"><input type="checkbox" data-k="noLabel" ${f.noLabel ? 'checked' : ''}> Hide “${esc(root.GraphicsDraw.LOOKS[g.look].name.toUpperCase())}” under the logo</label>`;
+      const weekBtn = '<button type="button" class="gx-link" data-act="week-of">Use “Week of …” for the date</button>';
       const top = g.tpl === 'statline' ? `${fld('note', 'Date', 'Oct 7th, 2026')}${label}` : `<div class="gx-fields2">
-          ${fld('note', 'Date', 'Oct 7th, 2026')}
+          <div>${fld('note', 'Date', 'Oct 7th, 2026')}${weekBtn}</div>
           ${fld('kicker', 'Small line over the title', 'Week 1')}
         </div>
         ${fld('title', 'Title', 'Weekly Awards')}${label}`;
@@ -395,6 +396,12 @@
         case 'all-sizes': return this.exportPNG(SIZE_KEYS);
         case 'clear-photo': this.uploaded = null; document.getElementById('gxStyle').innerHTML = this.styleHTML(); this.redraw(); return;
         case 'reset-photo': Object.assign(g.f, { zoom: '', photoX: '', photoY: '', tint: '', shade: '' }); document.getElementById('gxStyle').innerHTML = this.styleHTML(); this.redraw(); return;
+        case 'week-of': {
+          const d = new Date(), day = (d.getDay() + 6) % 7, a = new Date(d.getFullYear(), d.getMonth(), d.getDate() - day), z = new Date(a.getFullYear(), a.getMonth(), a.getDate() + 6);
+          const m = x => x.toLocaleDateString('en-US', { month: 'short' });
+          g.f.note = `Week of ${m(a)} ${a.getDate()}–${m(z) === m(a) ? '' : m(z) + ' '}${z.getDate()}`;
+          break;
+        }
         case 'add-stat': g.f.stats.push({ label: '', value: '' }); break;
         case 'add-row': rows.push(g.tpl === 'awards' ? { award: '', player: '', team: '', detail: '' } : { player: '', team: '', value: '', detail: '' }); break;
         case 'del-row': rows.splice(+b.dataset.i, 1); break;
