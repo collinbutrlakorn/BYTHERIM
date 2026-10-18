@@ -488,21 +488,25 @@
     instagram(el) {
       const handle = handleOf('instagram');
       const posts = CONFIG.instagramPosts || [];
-      if (!posts.length) {
-        el.innerHTML = embedHead('instagram', 'On Instagram', false) + `
+      const card = () => embedHead('instagram', 'On Instagram', false) + `
           <a class="ig-card" href="${CONFIG.social.instagram.url}" target="_blank" rel="noopener">
             <span class="ig-mark">${icon('instagram', 30)}</span>
             <span><b>@${esc(handle)}</b><span>Follow BYTHERIM on Instagram.</span></span>
             <span class="ig-cta">Open Instagram ${icon('arrow', 14)}</span>
           </a>`;
-        return;
-      }
+      if (!posts.length) { el.innerHTML = card(); return; }
       el.innerHTML = embedHead('instagram', 'On Instagram') + `
         <div class="x-feed-body x-feed-posts ig-posts" style="min-height:240px">${posts.map(u =>
           `<blockquote class="instagram-media" data-instgrm-permalink="${esc(u)}" data-instgrm-version="14"><a href="${esc(u)}" target="_blank" rel="noopener">View this post on Instagram</a></blockquote>`).join('')}
         </div>`;
       const body = el.querySelector('.x-feed-body');
-      const fallback = embedFallback(body, 'instagram', 'Posts');
+      // Instagram answers "removed" for a post that was deleted, archived or
+      // made private, and the embed collapses to nothing. When none of the
+      // pinned posts show, fall back to the profile card instead of an error.
+      const fallback = () => {
+        if ([...body.querySelectorAll('iframe')].some(f => f.offsetHeight > 80)) return;
+        el.innerHTML = card();
+      };
       whenVisible(el, () => {
         if (!loadScript('ig-embed', 'https://www.instagram.com/embed.js', fallback) && window.instgrm) window.instgrm.Embeds.process();
         setTimeout(fallback, 10000);
