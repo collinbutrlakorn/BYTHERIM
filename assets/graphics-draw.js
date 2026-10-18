@@ -175,9 +175,27 @@
   }
 
   // ------------------------------------------------------------ frame
-  // Flat color, no gradients; each category keeps one small signature.
-  function background(ctx, L, look, H) {
+  // The photo covers the whole graphic. zoom (100-300) crops in; photoX
+  // and photoY (0-100) pick which part shows.
+  function drawPhoto(ctx, im, f, H) {
+    const z = Math.max(1, (+f.zoom || 100) / 100);
+    const s = Math.max(W / im.naturalWidth, H / im.naturalHeight) * z;
+    const iw = im.naturalWidth * s, ih = im.naturalHeight * s;
+    const px = num(f.photoX, 50) / 100, py = num(f.photoY, 30) / 100;
+    ctx.drawImage(im, -(iw - W) * px, -(ih - H) * py, iw, ih);
+  }
+  const num = (v, d) => (v === '' || v == null || isNaN(+v) ? d : +v);
+
+  // Flat color, then the photo (if any) under a flat wash of that color so
+  // the text stays readable, then each category's one small signature.
+  function background(ctx, L, look, H, photo, f) {
     ctx.fillStyle = L.bg; ctx.fillRect(0, 0, W, H);
+    if (photo) {
+      drawPhoto(ctx, photo, f, H);
+      ctx.globalAlpha = Math.max(0, Math.min(0.95, num(f.tint, 55) / 100));
+      ctx.fillStyle = L.bg; ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+    }
     if (look === 'nba') {
       // Three slanted bars in the top-right corner.
       [[0, L.a], [46, '#ffffff'], [92, 'rgba(0,0,0,0.28)']].forEach(([o, c]) => {
@@ -250,13 +268,11 @@
     const ph = Math.round(Math.max(H * 0.26, Math.min(H * 0.62, bottom - top - below)));
     // Photo panel. With no photo it stays an empty, lit panel: room to
     // drop a cutout in Canva.
+    // With a background photo the panel is a window onto it at full
+    // strength (same photo, same position, just without the wash).
     ctx.save(); shape(ctx, L, x, top, w, ph); ctx.clip();
-    ctx.fillStyle = L.card; ctx.fillRect(x, top, w, ph);
-    if (photo) {
-      const s = Math.max(w / photo.naturalWidth, ph / photo.naturalHeight);
-      const iw = photo.naturalWidth * s, ih = photo.naturalHeight * s;
-      ctx.drawImage(photo, x + (w - iw) / 2, top - (ih - ph) * 0.18, iw, ih);
-    }
+    if (photo) drawPhoto(ctx, photo, f, H);
+    else { ctx.fillStyle = L.card; ctx.fillRect(x, top, w, ph); }
     // A solid strip of the main color under the name.
     ctx.fillStyle = L.a; ctx.fillRect(x, top + ph - 128, w, 128);
     ctx.restore();
@@ -385,7 +401,8 @@
     const F = L.frame ? 38 : 0;
     M = 56 + F;
     if (F) { ctx.save(); ctx.beginPath(); ctx.rect(F, F, W - F * 2, H - F * 2); ctx.clip(); }
-    background(ctx, L, g.look, H);
+    const photo = g.f && g.f.photo ? await loadImg(g.f.photo) : null;
+    background(ctx, L, g.look, H, photo, g.f || {});
     const top = header(ctx, L, g.f || {}, wordmark);
     const bottom = footer(ctx, L, H);
     await (TEMPLATES[g.tpl] || statline)(ctx, L, { ...g, f: g.f || {} }, H, top, bottom);

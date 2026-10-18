@@ -70,3 +70,10 @@
   .gx-detail { grid-column: 1 / -1; }
 }
 @media (max-width: 520px) { .gx-fields2 { grid-template-columns: 1fr; } }
+
+.gx-sliders { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem 1rem; }
+.gx-range span { display: flex; justify-content: space-between; }
+.gx-range b { font-weight: 700; color: var(--text-main); }
+.gx-range input[type=range] { width: 100%; accent-color: var(--accent); }
+.gx-canvas-wrap canvas { touch-action: none; cursor: grab; }
+@media (max-width: 520px) { .gx-sliders { grid-template-columns: 1fr; } }

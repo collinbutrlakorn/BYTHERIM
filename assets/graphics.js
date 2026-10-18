@@ -121,7 +121,7 @@
             <button type="button" class="sim-btn sim-btn-secondary" data-act="all-sizes">All 3 sizes</button>
             <label class="gx-check"><input type="checkbox" data-hd ${this.hd ? 'checked' : ''}> 2x (sharper in Canva)</label>
           </div>
-          <p class="adm-note">In Canva: Uploads, then drag the PNG onto a 1080 px design. Leave the photo field empty to keep the panel open for a cutout.</p>
+          <p class="adm-note">In Canva: Uploads, then drag the PNG onto a 1080 px design. A background photo sits behind everything; drag the preview to move it. With no photo, the statline panel stays open for a cutout.</p>
         </div>
       </div>`;
     },
@@ -133,7 +133,29 @@
           <div class="site-field"><span>Background</span><div class="gx-swatches">${list.map(c => `<button type="button" class="gx-sw${cur.toLowerCase() === c.toLowerCase() ? ' on' : ''}" data-bg="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}
             <input type="color" data-bg-pick value="${esc(cur)}" aria-label="Custom color"></div></div>
           <label class="site-field"><span>Frame</span><select data-style="frame">${[['', 'No frame'], ['gold', 'Gold'], ['silver', 'Silver'], ['white', 'White']].map(([v, l]) => `<option value="${v}"${(g.style.frame || '') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
-        </div>`;
+        </div>
+        ${this.photoHTML()}`;
+    },
+    // One background photo for every template: full size, behind
+    // everything, moved by dragging the preview or with the sliders.
+    photoHTML() {
+      const f = this.cur.f;
+      const fld = (k, label, ph = '') => `<label class="site-field"><span>${label}</span><input type="text" data-k="${k}" value="${esc(getPath(f, k))}" placeholder="${esc(ph)}"></label>`;
+      const has = !!(f.photo || this.uploaded);
+      const rng = (k, label, min, max, def) => `<label class="site-field gx-range"><span>${label} <b data-out="${k}">${esc(getPath(f, k) === '' ? def : getPath(f, k))}</b></span><input type="range" min="${min}" max="${max}" step="1" data-k="${k}" value="${esc(getPath(f, k) === '' ? def : getPath(f, k))}"></label>`;
+      return `<h3 class="gx-h3">Background photo <small>fills the graphic behind everything; drag the preview to move it, scroll on it to zoom</small></h3>
+          <div class="gx-photo">
+            ${fld('photo', 'Photo URL', 'https://… (optional)')}
+            <label class="sim-btn sim-btn-secondary btn-sm gx-upload">Upload photo<input type="file" accept="image/*" data-upload hidden></label>
+          </div>
+          ${this.uploaded ? '<p class="adm-note">Using an uploaded photo. Uploads aren\'t saved with the graphic. <button type="button" class="gx-link" data-act="clear-photo">Remove</button></p>' : ''}
+          ${has ? `<div class="gx-sliders">
+            ${rng('zoom', 'Size %', 100, 300, 100)}
+            ${rng('tint', 'Darken %', 0, 95, 55)}
+            ${rng('photoX', 'Left ↔ right', 0, 100, 50)}
+            ${rng('photoY', 'Top ↕ bottom', 0, 100, 30)}
+          </div>
+          <button type="button" class="gx-link" data-act="reset-photo">Reset size and position</button>` : ''}`;
     },
     formHTML() {
       const g = this.cur, f = g.f;
@@ -155,11 +177,6 @@
             ${fld('info', 'Info line', g.look === 'draft' ? '#3 on the board · Wing · Freshman' : 'Guard · Year 3')}
             ${fld('line', 'Game line', 'vs Duke · W 82-77')}
           </div>
-          <div class="gx-photo">
-            ${fld('photo', 'Photo URL (optional)', 'https://… or leave empty for Canva')}
-            <label class="sim-btn sim-btn-secondary btn-sm gx-upload">Upload photo<input type="file" accept="image/*" data-upload hidden></label>
-          </div>
-          ${this.uploaded ? '<p class="adm-note">Using an uploaded photo. Uploads aren\'t saved with the graphic.</p>' : ''}
           <h3 class="gx-h3">Stats <small>leave a box empty to drop it; up to 6</small></h3>
           <div class="gx-stats">${(f.stats || []).map((s, i) => `<div class="gx-stat">
               <input type="text" data-k="stats.${i}.value" value="${esc(s.value)}" placeholder="00" aria-label="Value ${i + 1}">
@@ -224,7 +241,7 @@
     drawable(size) {
       const g = clone(this.cur);
       if (size) g.size = size;
-      if (this.uploaded && g.tpl === 'statline') g.f.photo = this.uploaded;
+      if (this.uploaded) g.f.photo = this.uploaded;
       return g;
     },
     async exportPNG(sizes) {
@@ -299,15 +316,17 @@
         const file = t.files && t.files[0];
         if (!file) return;
         const rd = new FileReader();
-        rd.onload = () => { this.uploaded = rd.result; this.cur.f.photo = ''; document.getElementById('gxForm').innerHTML = this.formHTML(); this.redraw(); };
+        rd.onload = () => { this.uploaded = rd.result; this.cur.f.photo = ''; document.getElementById('gxStyle').innerHTML = this.styleHTML(); this.redraw(); };
         rd.readAsDataURL(file);
         return;
       }
       if (!t.dataset.k) return;
       setPath(this.cur.f, t.dataset.k, t.value);
       if (t.dataset.k === 'photo' && t.value) this.uploaded = null;
+      if (t.type === 'range') { const o = this.el.querySelector(`[data-out="${t.dataset.k}"]`); if (o) o.textContent = t.value; }
+      if (t.dataset.k === 'photo' && e.type === 'change') document.getElementById('gxStyle').innerHTML = this.styleHTML();
       this.dirty = true;
-      if (t.dataset.pick && e.type === 'change' && this.pick(t)) document.getElementById('gxForm').innerHTML = this.formHTML();
+      if (t.dataset.pick && e.type === 'change' && this.pick(t)) { document.getElementById('gxForm').innerHTML = this.formHTML(); document.getElementById('gxStyle').innerHTML = this.styleHTML(); }
       this.redraw();
     },
     async onClick(e) {
@@ -324,8 +343,11 @@
           });
         } else if (set.dataset.set === 'tpl' && g.tpl !== v) {
           this.byTpl[g.tpl] = g.f;
+          const was0 = g.tpl;
           g.tpl = v;
           g.f = this.byTpl[v] || (this.byTpl[v] = defaults(g.look, v));
+          // The background photo comes along to the new template.
+          ['photo', 'zoom', 'photoX', 'photoY', 'tint'].forEach(k => { g.f[k] = this.byTpl[was0][k] ?? ''; });
         } else return;
         this.dirty = true;
         this.render();
@@ -363,6 +385,8 @@
           this.newGraphic(g.look, g.tpl); this.render(); return;
         case 'png': return this.exportPNG([g.size]);
         case 'all-sizes': return this.exportPNG(SIZE_KEYS);
+        case 'clear-photo': this.uploaded = null; document.getElementById('gxStyle').innerHTML = this.styleHTML(); this.redraw(); return;
+        case 'reset-photo': Object.assign(g.f, { zoom: '', photoX: '', photoY: '', tint: '' }); document.getElementById('gxStyle').innerHTML = this.styleHTML(); this.redraw(); return;
         case 'add-stat': g.f.stats.push({ label: '', value: '' }); break;
         case 'add-row': rows.push(g.tpl === 'awards' ? { award: '', player: '', team: '', detail: '' } : { player: '', team: '', value: '', detail: '' }); break;
         case 'del-row': rows.splice(+b.dataset.i, 1); break;
@@ -404,12 +428,42 @@
       if (this.msg && !err) this.msgTimer = setTimeout(() => { this.msg = ''; el.textContent = ''; }, 4000);
     },
 
+    syncSliders() {
+      ['zoom', 'photoX', 'photoY', 'tint'].forEach(k => {
+        const v = this.cur.f[k];
+        if (v === '' || v == null) return;
+        const r = this.el.querySelector(`input[type=range][data-k="${k}"]`); if (r) r.value = v;
+        const o = this.el.querySelector(`[data-out="${k}"]`); if (o) o.textContent = v;
+      });
+    },
     wire(el) {
       if (el.dataset.wired) return;
       el.dataset.wired = '1';
       el.addEventListener('input', e => this.onInput(e));
       el.addEventListener('change', e => this.onInput(e));
       el.addEventListener('click', e => this.onClick(e));
+      // Drag the preview to move the background photo; scroll to zoom it.
+      el.addEventListener('pointerdown', e => {
+        if (e.target.id !== 'gxCanvas' || !(this.cur.f.photo || this.uploaded)) return;
+        const f = this.cur.f, num = (v, d) => (v === '' || v == null ? d : +v);
+        const start = { x: e.clientX, y: e.clientY, px: num(f.photoX, 50), py: num(f.photoY, 30), w: e.target.clientWidth, h: e.target.clientHeight };
+        e.target.setPointerCapture(e.pointerId);
+        const move = ev => {
+          const k = 1.4;
+          f.photoX = String(Math.round(Math.max(0, Math.min(100, start.px - (ev.clientX - start.x) / start.w * 100 * k))));
+          f.photoY = String(Math.round(Math.max(0, Math.min(100, start.py - (ev.clientY - start.y) / start.h * 100 * k))));
+          this.syncSliders(); this.dirty = true; this.redraw();
+        };
+        const up = () => { e.target.removeEventListener('pointermove', move); e.target.removeEventListener('pointerup', up); };
+        e.target.addEventListener('pointermove', move); e.target.addEventListener('pointerup', up);
+      });
+      el.addEventListener('wheel', e => {
+        if (e.target.id !== 'gxCanvas' || !(this.cur.f.photo || this.uploaded)) return;
+        e.preventDefault();
+        const f = this.cur.f, z = f.zoom === '' || f.zoom == null ? 100 : +f.zoom;
+        f.zoom = String(Math.max(100, Math.min(300, Math.round(z - Math.sign(e.deltaY) * 5))));
+        this.syncSliders(); this.dirty = true; this.redraw();
+      }, { passive: false });
       const tabs = document.getElementById('gxTabs');
       if (tabs) tabs.addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { this.tab = b.dataset.tab; this.render(); } });
       window.addEventListener('beforeunload', e => { if (this.dirty) { e.preventDefault(); e.returnValue = ''; } });
