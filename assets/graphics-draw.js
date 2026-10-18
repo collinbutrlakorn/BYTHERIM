@@ -150,6 +150,17 @@
     drawPhoto(ctx, photo, f, H);
     const t = Math.max(0, Math.min(0.95, num(f.tint, 35) / 100));
     if (t) { ctx.fillStyle = `rgba(0,0,0,${t})`; ctx.fillRect(0, 0, W, H); }
+    // Soft shadow that builds up from the bottom (under the numbers) and a
+    // lighter one from the top (under the logo), clear in between.
+    const sh = Math.max(0, Math.min(1, num(f.shade, 70) / 100));
+    if (sh) {
+      const gb = ctx.createLinearGradient(0, H, 0, H * 0.35);
+      for (let i = 0; i <= 8; i++) { const u = i / 8; gb.addColorStop(u, `rgba(0,0,0,${(0.92 * sh * (1 - u * u * (3 - 2 * u))).toFixed(3)})`); }
+      ctx.fillStyle = gb; ctx.fillRect(0, H * 0.35, W, H * 0.65);
+      const gt = ctx.createLinearGradient(0, 0, 0, H * 0.28);
+      for (let i = 0; i <= 8; i++) { const u = i / 8; gt.addColorStop(u, `rgba(0,0,0,${(0.6 * sh * (1 - u * u * (3 - 2 * u))).toFixed(3)})`); }
+      ctx.fillStyle = gt; ctx.fillRect(0, 0, W, H * 0.28);
+    }
   }
 
   // Top-left block: wordmark, the category between two thin lines, and

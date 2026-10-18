@@ -152,7 +152,8 @@
           ${this.uploaded ? '<p class="adm-note">Using an uploaded photo. Uploads aren\'t saved with the graphic. <button type="button" class="gx-link" data-act="clear-photo">Remove</button></p>' : ''}
           ${has ? `<div class="gx-sliders">
             ${rng('zoom', 'Size %', 100, 300, 100)}
-            ${rng('tint', 'Darken %', 0, 95, 55)}
+            ${rng('tint', 'Darken %', 0, 95, 35)}
+            ${rng('shade', 'Edge shadow %', 0, 100, 70)}
             ${rng('photoX', 'Left ↔ right', 0, 100, 50)}
             ${rng('photoY', 'Top ↕ bottom', 0, 100, 30)}
           </div>
@@ -354,7 +355,7 @@
           g.tpl = v;
           g.f = this.byTpl[v] || (this.byTpl[v] = defaults(g.look, v));
           // The background photo comes along to the new template.
-          ['photo', 'zoom', 'photoX', 'photoY', 'tint'].forEach(k => { g.f[k] = this.byTpl[was0][k] ?? ''; });
+          ['photo', 'zoom', 'photoX', 'photoY', 'tint', 'shade'].forEach(k => { g.f[k] = this.byTpl[was0][k] ?? ''; });
         } else return;
         this.dirty = true;
         this.render();
@@ -393,7 +394,7 @@
         case 'png': return this.exportPNG([g.size]);
         case 'all-sizes': return this.exportPNG(SIZE_KEYS);
         case 'clear-photo': this.uploaded = null; document.getElementById('gxStyle').innerHTML = this.styleHTML(); this.redraw(); return;
-        case 'reset-photo': Object.assign(g.f, { zoom: '', photoX: '', photoY: '', tint: '' }); document.getElementById('gxStyle').innerHTML = this.styleHTML(); this.redraw(); return;
+        case 'reset-photo': Object.assign(g.f, { zoom: '', photoX: '', photoY: '', tint: '', shade: '' }); document.getElementById('gxStyle').innerHTML = this.styleHTML(); this.redraw(); return;
         case 'add-stat': g.f.stats.push({ label: '', value: '' }); break;
         case 'add-row': rows.push(g.tpl === 'awards' ? { award: '', player: '', team: '', detail: '' } : { player: '', team: '', value: '', detail: '' }); break;
         case 'del-row': rows.splice(+b.dataset.i, 1); break;
@@ -436,7 +437,7 @@
     },
 
     syncSliders() {
-      ['zoom', 'photoX', 'photoY', 'tint'].forEach(k => {
+      ['zoom', 'photoX', 'photoY', 'tint', 'shade'].forEach(k => {
         const v = this.cur.f[k];
         if (v === '' || v == null) return;
         const r = this.el.querySelector(`input[type=range][data-k="${k}"]`); if (r) r.value = v;
