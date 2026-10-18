@@ -113,8 +113,9 @@
     } else rr(ctx, x, y, w, h, L.shape === 'round' ? 16 : 3);
   }
   function card(ctx, L, x, y, w, h, stripe) {
-    shape(ctx, L, x, y, w, h); ctx.fillStyle = L.card; ctx.fill();
-    ctx.strokeStyle = L.line; ctx.lineWidth = 1.5; ctx.stroke();
+    // Over a photo, cards are a slightly deeper tint with no outline.
+    shape(ctx, L, x, y, w, h); ctx.fillStyle = L.photo ? 'rgba(0,0,0,0.42)' : L.card; ctx.fill();
+    if (!L.photo) { ctx.strokeStyle = L.line; ctx.lineWidth = 1.5; ctx.stroke(); }
     if (stripe) {
       ctx.save(); shape(ctx, L, x, y, w, h); ctx.clip();
       ctx.fillStyle = stripe;
@@ -134,6 +135,10 @@
     for (; s > min; s -= 2) { ctx.font = font(s); if (ctx.measureText(text).width <= max) break; }
     ctx.font = font(s);
     return { size: s, text: fit(ctx, text, max) };
+  }
+  function spacedWidth(ctx, text, sp) {
+    const chars = [...String(text)];
+    return chars.reduce((s, ch) => s + ctx.measureText(ch).width, 0) + sp * Math.max(0, chars.length - 1);
   }
   function spaced(ctx, text, x, y, sp, align = 'left') {
     const chars = [...String(text)];
@@ -204,10 +209,13 @@
         ctx.fillStyle = c; ctx.fill();
       });
     } else if (look === 'draft') {
+      if (photo) return;
       // A three-point line running off the right edge.
       ctx.save(); ctx.strokeStyle = 'rgba(0,0,0,0.22)'; ctx.lineWidth = 26;
       ctx.beginPath(); ctx.arc(W + 40, H * 0.55, 560, Math.PI * 0.6, Math.PI * 1.4); ctx.stroke(); ctx.restore();
     } else {
+      ctx.fillStyle = L.b; ctx.fillRect(0, 0, W, 14);
+      if (photo) return;
       ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
       for (let x = 0; x <= W; x += 54) { ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); ctx.stroke(); }
       for (let y = 0; y <= H; y += 54) { ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(W, y + 0.5); ctx.stroke(); }
@@ -266,30 +274,28 @@
     const blurbLines = f.blurb ? wrap(ctx, f.blurb, w, 3).length : 0;
     const below = 26 + (f.line ? 50 : 0) + rows * (th + gap) + (rows ? 4 : 0) + (f.shooting ? 96 : 0) + (blurbLines ? blurbLines * 42 + 12 : 0);
     const ph = Math.round(Math.max(H * 0.26, Math.min(H * 0.62, bottom - top - below)));
-    // Photo panel. With no photo it stays an empty, lit panel: room to
-    // drop a cutout in Canva.
-    // With a background photo the panel is a window onto it at full
-    // strength (same photo, same position, just without the wash).
-    ctx.save(); shape(ctx, L, x, top, w, ph); ctx.clip();
-    if (photo) drawPhoto(ctx, photo, f, H);
-    else { ctx.fillStyle = L.card; ctx.fillRect(x, top, w, ph); }
-    // A solid strip of the main color under the name.
-    ctx.fillStyle = L.a; ctx.fillRect(x, top + ph - 128, w, 128);
-    ctx.restore();
-    shape(ctx, L, x, top, w, ph); ctx.strokeStyle = L.line; ctx.lineWidth = 1.5; ctx.stroke();
-    if (logo || f.team) logoOrBadge(ctx, L, logo, f.team, x + w - 74, top + 74, 104);
-    // Name and info over the bottom of the panel.
-    const name = sized(ctx, String(f.player || '').toUpperCase(), s => `italic 800 ${s}px ${FONT.head}`, 80, 44, w - 64);
-    // Dark text on a light strip (NCAA's sky blue), white on the rest.
-    const n = parseInt(L.a.slice(1), 16), lightStrip = ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000 > 150;
-    // The name (and the team line under it) sit centered in the strip.
+    // The space for the player. With a background photo it's simply open
+    // (no box, no outline) so the photo shows through; without one it's
+    // a soft empty panel, room to drop a cutout in Canva.
+    if (!photo) { shape(ctx, L, x, top, w, ph); ctx.fillStyle = L.card; ctx.fill(); }
+    if (logo || f.team) logoOrBadge(ctx, L, logo, f.team, x + w - 70, top + 70, 104);
+    // Name tag: a rounded, see-through dark box sized to the name, with a
+    // stripe of the main color on the left.
     const info = [f.team, f.info].filter(Boolean).join('  ·  ').toUpperCase();
-    const capH = name.size * 0.72, infoH = info ? 20 + 16 : 0, stripTop = top + ph - 128;
-    const nameY = stripTop + (128 - capH - infoH) / 2 + capH;
-    ctx.fillStyle = lightStrip ? '#071226' : '#fff'; ctx.fillText(name.text, x + 32, nameY);
+    const name = sized(ctx, String(f.player || '').toUpperCase(), s => `600 ${s}px ${FONT.disp}`, 68, 36, w - 120);
+    const nameW = ctx.measureText(name.text).width;
+    ctx.font = `500 26px ${FONT.disp}`;
+    const infoW = info ? spacedWidth(ctx, fit(ctx, info, w - 120), 2) : 0;
+    const padX = 34, boxW = Math.min(w, Math.max(nameW, infoW) + padX * 2 + 8);
+    const boxH = name.size * 0.78 + (info ? 50 : 0) + 52;
+    const bx = x, by = top + ph - boxH - (photo ? 0 : 24) + (photo ? 0 : 0);
+    rr(ctx, photo ? bx : bx + 24, by, boxW, boxH, 14); ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fill();
+    ctx.save(); rr(ctx, photo ? bx : bx + 24, by, boxW, boxH, 14); ctx.clip(); ctx.fillStyle = L.a; ctx.fillRect(photo ? bx : bx + 24, by, 8, boxH); ctx.restore();
+    const tx = (photo ? bx : bx + 24) + padX, nameY = by + 26 + name.size * 0.78;
+    ctx.fillStyle = '#fff'; ctx.font = `600 ${name.size}px ${FONT.disp}`; ctx.fillText(name.text, tx, nameY);
     if (info) {
-      ctx.fillStyle = lightStrip ? 'rgba(7,18,38,0.8)' : 'rgba(255,255,255,0.88)'; ctx.font = `500 28px ${FONT.disp}`;
-      spaced(ctx, fit(ctx, info, w - 80), x + 34, nameY + infoH, 2);
+      ctx.fillStyle = L.b; ctx.font = `500 26px ${FONT.disp}`;
+      spaced(ctx, fit(ctx, info, w - 120), tx + 2, nameY + 42, 2);
     }
 
     let y = top + ph + 26;
@@ -402,6 +408,7 @@
     M = 56 + F;
     if (F) { ctx.save(); ctx.beginPath(); ctx.rect(F, F, W - F * 2, H - F * 2); ctx.clip(); }
     const photo = g.f && g.f.photo ? await loadImg(g.f.photo) : null;
+    L.photo = !!photo;
     background(ctx, L, g.look, H, photo, g.f || {});
     const top = header(ctx, L, g.f || {}, wordmark);
     const bottom = footer(ctx, L, H);
