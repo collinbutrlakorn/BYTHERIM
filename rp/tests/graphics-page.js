@@ -31,9 +31,10 @@ const ROOT = path.join(RP, '..');
   const body = () => w.document.getElementById('gxBody');
   for (const look of ['nba', 'draft', 'ncaa']) {
     body().querySelector(`[data-set="look"][data-v="${look}"]`).click();
-    for (const tpl of ['statline', 'awards', 'leaders']) {
+    for (const tpl of ['statline', 'awards', 'leaders', 'overlay']) {
       body().querySelector(`[data-set="tpl"][data-v="${tpl}"]`).click();
-      ok(G.cur.look === look && G.cur.tpl === tpl && body().querySelector('#gxForm [data-k="note"]'), `${look} ${tpl} form builds`);
+      ok(G.cur.look === look && G.cur.tpl === tpl && body().querySelector(tpl === 'overlay' ? '#gxForm [data-k="player"]' : '#gxForm [data-k="note"]'), `${look} ${tpl} form builds`);
+      if (tpl === 'overlay') ok(G.cur.size === '9x16' && /transparent/.test(body().innerHTML) && !body().querySelector('[data-act="all-sizes"]'), `${look} overlay is 9:16 and transparent`);
     }
   }
   body().querySelector('[data-set="tpl"][data-v="awards"]').click();

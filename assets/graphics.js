@@ -10,7 +10,7 @@
   const clone = o => JSON.parse(JSON.stringify(o));
 
   const LOOKS = [['nba', 'NBA'], ['draft', 'Draft'], ['ncaa', 'NCAA']];
-  const TPLS = [['statline', 'Statline'], ['awards', 'Weekly awards'], ['leaders', 'Top performances']];
+  const TPLS = [['statline', 'Statline'], ['awards', 'Weekly awards'], ['leaders', 'Top performances'], ['overlay', 'Video overlay']];
   const SIZE_KEYS = ['4x5', '1x1', '9x16'];
   const today = () => root.GraphicsDraw.prettyDate(new Date());
   const CLASS = { FR: 'Freshman', SO: 'Sophomore', JR: 'Junior', SR: 'Senior', INTL: 'International' };
@@ -31,6 +31,12 @@
     if (tpl === 'leaders') return {
       kicker: 'This week', title: 'Top Performances', note: today(), valueLabel: 'PTS',
       rows: Array.from({ length: 5 }, () => ({ player: 'Player Name', team: '', value: '00', detail: '00 REB · 00 AST' }))
+    };
+    if (tpl === 'overlay') return {
+      layout: 'stat', pos: 'low', opacity: '', where: 'vs', opp: 'Opponent', result: 'W', score: '00-00',
+      player: 'Player Name', team: '', info: '', photo: '',
+      stats: ['PTS', 'REB', 'AST', 'MIN'].map(label => ({ label, value: '00' })),
+      shooting: 'FG 0-0 • 3P 0-0 • FT 0-0'
     };
     return {
       note: today(), where: 'vs', opp: 'Opponent', result: 'W', score: '00-00',
@@ -102,7 +108,7 @@
             <div class="gx-row">${seg('look', LOOKS, g.look)}</div>
             <div class="gx-row">${seg('tpl', TPLS, g.tpl)}</div>
             <div class="gx-fields2">
-              <label class="site-field"><span>Size</span><select data-set-select="size">${SIZE_KEYS.map(k => `<option value="${k}"${g.size === k ? ' selected' : ''}>${esc(D.SIZES[k].label)}</option>`).join('')}</select></label>
+              ${g.tpl === 'overlay' ? '<div class="site-field"><span>Size</span><div class="gx-fixed">1080 × 1920, transparent</div></div>' : `<label class="site-field"><span>Size</span><select data-set-select="size">${SIZE_KEYS.map(k => `<option value="${k}"${g.size === k ? ' selected' : ''}>${esc(D.SIZES[k].label)}</option>`).join('')}</select></label>`}
               <label class="site-field"><span>Saved as</span><input type="text" data-name value="${esc(g.name)}" placeholder="Name it to save (e.g. NBA awards wk 1)"></label>
             </div>
             <div class="gx-actions">
@@ -116,12 +122,14 @@
           <div class="card gx-panel" id="gxForm">${this.formHTML()}</div>
         </div>
         <div class="gx-preview">
-          <div class="gx-canvas-wrap gx-${g.size}"><canvas id="gxCanvas" aria-label="Graphic preview"></canvas></div>
+          <div class="gx-canvas-wrap gx-${g.tpl === 'overlay' ? '9x16' : g.size}${g.tpl === 'overlay' ? ' gx-clear' : ''}"><canvas id="gxCanvas" aria-label="Graphic preview"></canvas></div>
           <div class="gx-actions gx-export">
             <button type="button" class="sim-btn" data-act="png">Download PNG</button>
-            <button type="button" class="sim-btn sim-btn-secondary" data-act="all-sizes">All 3 sizes</button>
+            ${g.tpl === 'overlay' ? '' : '<button type="button" class="sim-btn sim-btn-secondary" data-act="all-sizes">All 3 sizes</button>'}
             <label class="gx-check"><input type="checkbox" data-hd ${this.hd ? 'checked' : ''}> 2x (sharper in Canva)</label>
           </div>
+          ${g.tpl === 'overlay' ? `<label class="gx-check"><input type="checkbox" data-guides ${this.guides === false ? '' : 'checked'}> Show the TikTok / Reels safe area (preview only)</label>
+          <p class="adm-note">The PNG is transparent. Drop it on top of your clip in CapCut, Premiere or Canva video. Keep it inside the dashed lines so the app's buttons and caption don't cover it.</p>` : ''}
           <p class="adm-note">In Canva: Uploads, then drag the PNG onto a 1080 px design. A background photo sits behind everything; drag the preview to move it. With no photo, the statline panel stays open for a cutout.</p>
         </div>
       </div>`;
@@ -130,6 +138,14 @@
     styleHTML() {
       const g = this.cur, D = root.GraphicsDraw, def = D.LOOKS[g.look].bg, cur = g.style.bg || def;
       const list = [def, ...D.SWATCHES.filter(c => c !== def)];
+      if (g.tpl === 'overlay') return `<div class="site-field"><span>Card color</span><div class="gx-swatches">${list.map(c => `<button type="button" class="gx-sw${cur.toLowerCase() === c.toLowerCase() ? ' on' : ''}" data-bg="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}
+            <input type="color" data-bg-pick value="${esc(cur)}" aria-label="Custom color"></div></div>
+        <h3 class="gx-h3">Headshot <small>optional, shows in the top-left of the card (Stat card layout)</small></h3>
+        <div class="gx-photo">
+          <label class="site-field"><span>Photo URL</span><input type="text" data-k="photo" value="${esc(getPath(g.f, 'photo'))}" placeholder="https://… (optional)"></label>
+          <label class="sim-btn sim-btn-secondary btn-sm gx-upload">Upload photo<input type="file" accept="image/*" data-upload hidden></label>
+        </div>
+        ${this.uploaded ? '<p class="adm-note">Using an uploaded photo. Uploads aren\'t saved with the graphic. <button type="button" class="gx-link" data-act="clear-photo">Remove</button></p>' : ''}`;
       return `<div class="gx-fields2">
           <div class="site-field"><span>Background</span><div class="gx-swatches">${list.map(c => `<button type="button" class="gx-sw${cur.toLowerCase() === c.toLowerCase() ? ' on' : ''}" data-bg="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}
             <input type="color" data-bg-pick value="${esc(cur)}" aria-label="Custom color"></div></div>
@@ -166,13 +182,16 @@
       const teamPh = g.look === 'nba' ? 'Lakers, LAL, Boston Celtics…' : 'School (logo loads from the name)';
       const label = `<label class="gx-check"><input type="checkbox" data-k="noLabel" ${f.noLabel ? 'checked' : ''}> Hide “${esc(root.GraphicsDraw.LOOKS[g.look].name.toUpperCase())}” under the logo</label>`;
       const weekBtn = '<button type="button" class="gx-link" data-act="week-of">Use “Week of …” for the date</button>';
-      const top = g.tpl === 'statline' ? `${fld('note', 'Date', 'Oct 7th, 2026')}${label}` : `<div class="gx-fields2">
+      const sel = (k, label, opts, def) => `<label class="site-field"><span>${label}</span><select data-k="${k}">${opts.map(([v, l]) => `<option value="${v}"${(f[k] || def) === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>`;
+      const ovTop = `<div class="gx-fields2">${sel('layout', 'Layout', [['stat', 'Stat card'], ['big', 'Big number']], 'stat')}${sel('pos', 'Where it sits', [['low', 'Lower (above the caption)'], ['mid', 'Middle'], ['top', 'Top']], 'low')}</div>
+        <label class="site-field gx-range"><span>Card opacity <b data-out="opacity">${esc(f.opacity === '' || f.opacity == null ? 96 : f.opacity)}</b></span><input type="range" min="40" max="100" step="1" data-k="opacity" value="${esc(f.opacity === '' || f.opacity == null ? 96 : f.opacity)}"></label>`;
+      const top = g.tpl === 'overlay' ? ovTop : g.tpl === 'statline' ? `${fld('note', 'Date', 'Oct 7th, 2026')}${label}` : `<div class="gx-fields2">
           <div>${fld('note', 'Date', 'Oct 7th, 2026')}${weekBtn}</div>
           ${fld('kicker', 'Small line over the title', 'Week 1')}
         </div>
         ${fld('title', 'Title', 'Weekly Awards')}${label}`;
       const datalist = players ? `<datalist id="gxProspects">${this.board.map(p => `<option value="${esc(p.name)}">${esc([p.rank ? '#' + p.rank : '', p.school].filter(Boolean).join(' · '))}</option>`).join('')}</datalist>` : '';
-      if (g.tpl === 'statline') {
+      if (g.tpl === 'statline' || g.tpl === 'overlay') {
         return `${top}
           <h3 class="gx-h3">Game</h3>
           <div class="gx-game">
@@ -187,13 +206,13 @@
             ${fld('team', 'Team', teamPh)}
             ${fld('info', 'More (optional)', g.look === 'nba' ? 'Guard' : 'SF • Freshman')}
           </div>
-          <h3 class="gx-h3">Stats <small>leave a box empty to drop it; up to 5; the first is in the accent color</small></h3>
+          <h3 class="gx-h3">Stats <small>leave a box empty to drop it; up to ${g.tpl === 'overlay' ? 4 : 5}; the first is in the accent color${g.tpl === 'overlay' ? ' (the Big number layout features the first)' : ''}</small></h3>
           <div class="gx-stats">${(f.stats || []).map((s, i) => `<div class="gx-stat">
               <input type="text" data-k="stats.${i}.value" value="${esc(s.value)}" placeholder="00" aria-label="Value ${i + 1}">
               <input type="text" data-k="stats.${i}.label" value="${esc(s.label)}" placeholder="LABEL" aria-label="Label ${i + 1}">
             </div>`).join('')}
-            ${(f.stats || []).length < 5 ? '<button type="button" class="gx-add" data-act="add-stat" aria-label="Add a stat">+</button>' : ''}</div>
-          ${fld('shooting', 'Shooting line', 'FG 4-7 • 3P 2-3 • FT 6-7')}
+            ${(f.stats || []).length < (g.tpl === 'overlay' ? 4 : 5) ? '<button type="button" class="gx-add" data-act="add-stat" aria-label="Add a stat">+</button>' : ''}</div>
+          ${g.tpl === 'overlay' && f.layout === 'big' ? '' : fld('shooting', 'Shooting line', 'FG 4-7 • 3P 2-3 • FT 6-7')}
           ${datalist}`;
       }
       const rows = f.rows || [];
@@ -243,7 +262,16 @@
           if (token !== this.drawToken || !off.width) return;
           c.width = off.width; c.height = off.height;
           const ctx = c.getContext && c.getContext('2d');
-          if (ctx) ctx.drawImage(off, 0, 0);
+          if (ctx) {
+            ctx.clearRect(0, 0, c.width, c.height);
+            ctx.drawImage(off, 0, 0);
+            if (this.cur.tpl === 'overlay' && this.guides !== false) {
+              const S = root.GraphicsDraw.SAFE, k = c.width / root.GraphicsDraw.W;
+              ctx.save(); ctx.setLineDash([14 * k, 10 * k]); ctx.lineWidth = 3 * k; ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+              ctx.strokeRect(S.left * k, S.top * k, (root.GraphicsDraw.W - S.left - S.right) * k, (c.height - (S.top + S.bottom) * k));
+              ctx.restore();
+            }
+          }
         }).catch(e => console.warn('Preview:', e));
       }, 90);
     },
@@ -309,6 +337,7 @@
     onInput(e) {
       const t = e.target;
       if (t.matches('[data-hd]')) { this.hd = t.checked; return; }
+      if (t.matches('[data-guides]')) { this.guides = t.checked; this.redraw(); return; }
       if (t.matches('[data-style]')) { this.cur.style[t.dataset.style] = t.value; this.dirty = true; this.redraw(); return; }
       if (t.matches('[data-bg-pick]')) {
         this.cur.style.bg = t.value; this.dirty = true; this.redraw();
@@ -335,6 +364,7 @@
       if (t.type === 'range') { const o = this.el.querySelector(`[data-out="${t.dataset.k}"]`); if (o) o.textContent = t.value; }
       if (t.dataset.k === 'photo' && e.type === 'change') document.getElementById('gxStyle').innerHTML = this.styleHTML();
       this.dirty = true;
+      if (t.dataset.k === 'layout' && e.type === 'change') document.getElementById('gxForm').innerHTML = this.formHTML();
       if (t.dataset.pick && e.type === 'change' && this.pick(t)) { document.getElementById('gxForm').innerHTML = this.formHTML(); document.getElementById('gxStyle').innerHTML = this.styleHTML(); }
       this.redraw();
     },
@@ -354,9 +384,13 @@
           this.byTpl[g.tpl] = g.f;
           const was0 = g.tpl;
           g.tpl = v;
+          const fresh = !this.byTpl[v];
           g.f = this.byTpl[v] || (this.byTpl[v] = defaults(g.look, v));
           // The background photo comes along to the new template.
           ['photo', 'zoom', 'photoX', 'photoY', 'tint', 'shade'].forEach(k => { g.f[k] = this.byTpl[was0][k] ?? ''; });
+          // Statline and Video overlay share a player, so a new one starts from the other's.
+          if (fresh && ['statline', 'overlay'].includes(was0) && ['statline', 'overlay'].includes(v)) ['where', 'opp', 'result', 'score', 'player', 'team', 'info', 'stats', 'shooting'].forEach(k => { g.f[k] = clone(this.byTpl[was0][k]); });
+          if (v === 'overlay') { this.sizeBefore = g.size; g.size = '9x16'; } else if (was0 === 'overlay') g.size = this.sizeBefore && this.sizeBefore !== '9x16' ? this.sizeBefore : '4x5';
         } else return;
         this.dirty = true;
         this.render();
@@ -459,7 +493,7 @@
       el.addEventListener('click', e => this.onClick(e));
       // Drag the preview to move the background photo; scroll to zoom it.
       el.addEventListener('pointerdown', e => {
-        if (e.target.id !== 'gxCanvas' || !(this.cur.f.photo || this.uploaded)) return;
+        if (e.target.id !== 'gxCanvas' || this.cur.tpl === 'overlay' || !(this.cur.f.photo || this.uploaded)) return;
         const f = this.cur.f, num = (v, d) => (v === '' || v == null ? d : +v);
         const start = { x: e.clientX, y: e.clientY, px: num(f.photoX, 50), py: num(f.photoY, 30), w: e.target.clientWidth, h: e.target.clientHeight };
         e.target.setPointerCapture(e.pointerId);
@@ -473,7 +507,7 @@
         e.target.addEventListener('pointermove', move); e.target.addEventListener('pointerup', up);
       });
       el.addEventListener('wheel', e => {
-        if (e.target.id !== 'gxCanvas' || !(this.cur.f.photo || this.uploaded)) return;
+        if (e.target.id !== 'gxCanvas' || this.cur.tpl === 'overlay' || !(this.cur.f.photo || this.uploaded)) return;
         e.preventDefault();
         const f = this.cur.f, z = f.zoom === '' || f.zoom == null ? 100 : +f.zoom;
         f.zoom = String(Math.max(100, Math.min(300, Math.round(z - Math.sign(e.deltaY) * 5))));

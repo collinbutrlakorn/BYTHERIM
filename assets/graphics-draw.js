@@ -362,12 +362,132 @@
     });
   }
 
+
+  // ------------------------------------------------------------ video overlay
+  // A transparent 1080x1920 graphic to lay over a TikTok / Reel. Everything
+  // sits inside the app's safe area: clear of the top bar, the caption
+  // block at the bottom (about 520 px) and the buttons down the right (150).
+  const SAFE = { left: 48, right: 150, top: 230, bottom: 520 };
+  function rrect(ctx, x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  async function overlay(ctx, L, g, H, photo) {
+    const f = g.f, X = SAFE.left, CW = W - SAFE.left - SAFE.right, pad = 38, inner = CW - pad * 2, bar = 12;
+    const [oppLogo, teamLogo] = await Promise.all([f.opp ? loadImg(logoSrc(g.look, f.opp)) : null, f.team ? loadImg(logoSrc(g.look, f.team)) : null]);
+    const stats = (f.stats || []).filter(s => s && (s.value || s.label)).slice(0, 4);
+    const big = f.layout === 'big';
+    const sub = [f.team, f.info].filter(Boolean).join(' • ');
+    const resColor = /^w/i.test(f.result || '') ? '#22c55e' : /^l/i.test(f.result || '') ? '#ef4444' : '#fff';
+    const hasGame = !!(f.opp || f.score || f.result);
+    const logoW = teamLogo ? 110 : 0;
+    // ---- measure
+    let cardH;
+    const headH = big ? 0 : (photo ? 132 : 108);
+    if (big) cardH = bar + pad + 250 + pad;
+    else cardH = bar + pad + headH + (stats.length ? 30 + 160 : 0) + (hasGame ? 22 + 44 : 0) + (f.shooting ? (hasGame ? 8 : 22) + 38 : 0) + pad;
+    const anchor = f.pos || 'low';
+    const top = anchor === 'top' ? SAFE.top : anchor === 'mid' ? Math.round((H - cardH) / 2 - 60) : H - SAFE.bottom - cardH;
+    // ---- card
+    ctx.save();
+    ctx.globalAlpha = Math.max(0.3, Math.min(1, num(f.opacity, 96) / 100));
+    ctx.fillStyle = L.bg; rrect(ctx, X, top, CW, cardH, 34); ctx.fill();
+    ctx.restore();
+    ctx.save(); rrect(ctx, X, top, CW, cardH, 34); ctx.clip(); ctx.fillStyle = L.a; ctx.fillRect(X, top, CW, bar); ctx.restore();
+    const x0 = X + pad, right = X + CW - pad;
+    let y = top + bar + pad;
+    ctx.textAlign = 'left';
+    const stat = (v, i) => String(v || '');
+    if (!big) {
+      // header: headshot, name, team line, team logo
+      let nx = x0;
+      if (photo) {
+        ctx.save(); rrect(ctx, x0, y, 132, 132, 22); ctx.clip();
+        const s = Math.max(132 / photo.naturalWidth, 132 / photo.naturalHeight);
+        ctx.drawImage(photo, x0 - (photo.naturalWidth * s - 132) * 0.5, y - (photo.naturalHeight * s - 132) * 0.12, photo.naturalWidth * s, photo.naturalHeight * s);
+        ctx.restore(); nx = x0 + 132 + 26;
+      }
+      const maxN = right - nx - (logoW ? logoW + 12 : 0);
+      const off = (headH - 108) / 2;
+      if (f.player) {
+        shadow(ctx, true, 3);
+        const n = sized(ctx, f.player, 68, 34, maxN, s => setFont(ctx, 800, s, FONT.head, true, -1));
+        ctx.fillStyle = '#fff'; ctx.fillText(n.text, nx, y + off + 66);
+      }
+      if (sub) { shadow(ctx, true, 2); setFont(ctx, 700, 30, FONT.body, false, -1); ctx.fillStyle = 'rgba(255,255,255,0.88)'; ctx.fillText(fit(ctx, sub, maxN), nx, y + off + 106); }
+      shadow(ctx, false);
+      if (teamLogo) logoFit(ctx, teamLogo, right - logoW / 2, y + headH / 2, 92);
+      y += headH;
+      if (stats.length) {
+        y += 30;
+        const cw = inner / stats.length;
+        let ns = 108;
+        for (; ns > 50; ns -= 4) { setFont(ctx, 800, ns, FONT.head, false, -ns * 0.04); if (stats.every(s => ctx.measureText(stat(s.value)).width <= cw - 10)) break; }
+        shadow(ctx, true, 4); ctx.textAlign = 'center';
+        stats.forEach((s, i) => {
+          const cx = x0 + cw * (i + 0.5);
+          setFont(ctx, 800, ns, FONT.head, false, -ns * 0.04); ctx.fillStyle = i === 0 ? L.a : '#fff';
+          accentText(ctx, stat(s.value), cx, y + 104, ns, i === 0);
+          setFont(ctx, 800, 30, FONT.head, true, 0); ctx.fillStyle = '#fff';
+          ctx.fillText(fit(ctx, String(s.label || '').toUpperCase(), cw - 8), cx, y + 148);
+        });
+        ctx.textAlign = 'left'; shadow(ctx, false);
+        y += 160;
+      }
+    } else {
+      // big number on the left, the name and context on the right
+      const s0 = stats[0];
+      const bw = 330;
+      if (s0) {
+        shadow(ctx, true, 5); ctx.textAlign = 'center';
+        let ns = 230;
+        for (; ns > 70; ns -= 4) { setFont(ctx, 800, ns, FONT.head, false, -ns * 0.05); if (ctx.measureText(stat(s0.value)).width <= bw - 10) break; }
+        ctx.fillStyle = L.a; accentText(ctx, stat(s0.value), x0 + bw / 2, y + 168, ns, true);
+        shadow(ctx, true, 3); setFont(ctx, 800, 44, FONT.head, true, 1); ctx.fillStyle = '#fff';
+        ctx.fillText(fit(ctx, String(s0.label || '').toUpperCase(), bw), x0 + bw / 2, y + 226);
+        ctx.textAlign = 'left'; shadow(ctx, false);
+      }
+      const tx = s0 ? x0 + bw + 30 : x0, maxT = right - tx - (logoW ? logoW + 10 : 0);
+      ctx.fillStyle = 'rgba(255,255,255,0.28)'; if (s0) ctx.fillRect(x0 + bw + 8, y + 10, 3, 220);
+      shadow(ctx, true, 3);
+      if (f.player) { const n = sized(ctx, f.player, 62, 30, maxT, s => setFont(ctx, 800, s, FONT.head, true, -1)); ctx.fillStyle = '#fff'; ctx.fillText(n.text, tx, y + 62); }
+      if (sub) { setFont(ctx, 700, 28, FONT.body, false, -1); ctx.fillStyle = 'rgba(255,255,255,0.88)'; ctx.fillText(fit(ctx, sub, maxT), tx, y + 104); }
+      const more = stats.slice(1).map(s => `${stat(s.value)} ${String(s.label || '').toUpperCase()}`.trim()).join(' • ');
+      if (more) { setFont(ctx, 800, 34, FONT.body, false, -1); ctx.fillStyle = '#fff'; ctx.fillText(fit(ctx, more, right - tx), tx, y + 158); }
+      if (hasGame) {
+        let gx = tx; setFont(ctx, 800, 32, FONT.body, false, -1.2);
+        if (f.result) { ctx.fillStyle = resColor; ctx.fillText(f.result, gx, y + 218); gx += ctx.measureText(f.result).width + 12; }
+        ctx.fillStyle = '#fff';
+        const line = [f.score, f.opp ? `${f.where || 'vs'} ${f.opp}` : ''].filter(Boolean).join('  ');
+        ctx.fillText(fit(ctx, line, right - gx), gx, y + 218);
+      }
+      shadow(ctx, false);
+      if (teamLogo) logoFit(ctx, teamLogo, right - logoW / 2, y + 44, 84);
+    }
+    if (!big) {
+      shadow(ctx, true, 2);
+      if (hasGame) {
+        y += 22; let gx = x0; setFont(ctx, 800, 40, FONT.body, false, -1.5);
+        if (f.result) { ctx.fillStyle = resColor; ctx.fillText(f.result, gx, y + 34); gx += ctx.measureText(f.result).width + 14; }
+        ctx.fillStyle = '#fff';
+        const line = [f.score, f.opp ? `${f.where || 'vs'} ${f.opp}` : ''].filter(Boolean).join('  ');
+        const lw = fit(ctx, line, inner - (gx - x0) - (oppLogo ? 60 : 0));
+        ctx.fillText(lw, gx, y + 34);
+        if (oppLogo) { shadow(ctx, false); logoFit(ctx, oppLogo, gx + ctx.measureText(lw).width + 38, y + 22, 50); shadow(ctx, true, 2); }
+        y += 44;
+      }
+      if (f.shooting) { y += hasGame ? 8 : 22; setFont(ctx, 700, 30, FONT.body, false, -1); ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillText(fit(ctx, f.shooting, inner), x0, y + 28); }
+    }
+    shadow(ctx, false);
+  }
+
   const TEMPLATES = { statline, awards, leaders };
 
   // ------------------------------------------------------------ draw
   async function draw(canvas, g, opts = {}) {
     const L = lookFor(g);
-    const H = (SIZES[g.size] || SIZES['4x5']).h;
+    const H = g.tpl === 'overlay' ? SIZES['9x16'].h : (SIZES[g.size] || SIZES['4x5']).h;
     const scale = opts.scale || 1;
     canvas.width = W * scale; canvas.height = H * scale;
     const ctx = canvas.getContext && canvas.getContext('2d');
@@ -375,6 +495,12 @@
     const f = g.f || {};
     const [wordmark, photo] = await Promise.all([loadImg(opts.wordmark || 'assets/logo-header.png'), f.photo ? loadImg(f.photo) : null, fontsReady()]);
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    if (g.tpl === 'overlay') {
+      // Transparent: only the card is drawn.
+      await overlay(ctx, L, { ...g, f }, H, photo);
+      if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+      return canvas;
+    }
     // A frame is a solid border with a thin darker keyline inside it; the
     // content moves in so it keeps the same breathing room.
     const F = L.frame ? 38 : 0;
@@ -394,5 +520,5 @@
     return canvas;
   }
 
-  root.GraphicsDraw = { draw, LOOKS, SIZES, SWATCHES, FRAMES, NBA_TEAMS, nbaTeam, logoSrc, prettyDate, W };
+  root.GraphicsDraw = { draw, SAFE, LOOKS, SIZES, SWATCHES, FRAMES, NBA_TEAMS, nbaTeam, logoSrc, prettyDate, W };
 })(typeof window !== 'undefined' ? window : globalThis);

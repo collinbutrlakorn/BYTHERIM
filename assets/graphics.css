@@ -80,3 +80,7 @@
 .gx-game { display: grid; grid-template-columns: 4.5rem minmax(0, 1.6fr) 5.5rem minmax(0, 1fr); gap: 0.6rem; }
 .gx select { width: 100%; }
 @media (max-width: 520px) { .gx-game { grid-template-columns: 4.5rem minmax(0, 1fr); } }
+
+/* Video overlay: transparent, shown over a checkerboard */
+.gx-clear canvas { cursor: default; touch-action: auto; background: repeating-conic-gradient(#2a2d35 0% 25%, #1b1d23 0% 50%) 50% / 28px 28px; }
+.gx-fixed { padding: .55rem .75rem; border: 1px solid var(--border); border-radius: var(--r-md); font-size: .9rem; opacity: .85; }
