@@ -482,7 +482,62 @@
     shadow(ctx, false);
   }
 
-  const TEMPLATES = { statline, awards, leaders };
+
+  // ------------------------------------------------------------ cover
+  // Cover art: the photo, the wordmark small at the top, and one huge
+  // word along the bottom with a stacked shadow. Meant to read from a
+  // grid thumbnail and make people swipe. Kept clear of the 3:4 grid crop.
+  async function cover(ctx, L, g, H, top, bottom, im, wordmark) {
+    const f = g.f, mx = Math.max(M, 76);
+    if (wordmark) {
+      const w = 300, h = w * wordmark.naturalHeight / wordmark.naturalWidth;
+      shadow(ctx, true, 3); ctx.drawImage(wordmark, (W - w) / 2, M - 10, w, h); shadow(ctx, false);
+    }
+    const text = String(f.title || '').toUpperCase().replace(/\s+/g, ' ').trim();
+    const swipe = f.swipe !== false;
+    let yb = H - M - (swipe ? 84 : 22);   // baseline of the last line
+    ctx.textAlign = 'center';
+    if (text) {
+      const maxW = W - mx * 2;
+      const one = sized(ctx, text, 380, 40, maxW, s => setFont(ctx, 800, s, FONT.head, true, 0));
+      let lines = [text], size = one.size;
+      const words = text.split(' ');
+      if (words.length > 1 && one.size < 190) {
+        let best = null;
+        for (let i = 1; i < words.length; i++) {
+          const a = words.slice(0, i).join(' '), b = words.slice(i).join(' ');
+          const sa = sized(ctx, a, 380, 40, maxW, s => setFont(ctx, 800, s, FONT.head, true, 0)).size;
+          const sb = sized(ctx, b, 380, 40, maxW, s => setFont(ctx, 800, s, FONT.head, true, 0)).size;
+          const sz = Math.min(sa, sb);
+          if (!best || sz > best.sz) best = { lines: [a, b], sz };
+        }
+        if (best && best.sz > one.size * 1.15) { lines = best.lines; size = best.sz; }
+      }
+      const lh = size * 0.9, depth = Math.max(10, size * 0.07);
+      setFont(ctx, 800, size, FONT.head, true, -size * 0.01);
+      lines.forEach((ln, i) => {
+        const y = yb - (lines.length - 1 - i) * lh;
+        shadow(ctx, false);
+        ctx.fillStyle = 'rgba(8,10,24,0.8)';
+        for (let d = depth; d >= 2; d -= 2) ctx.fillText(ln, W / 2 + d, y + d);
+        ctx.fillStyle = '#fff'; ctx.fillText(ln, W / 2, y);
+      });
+      yb -= (lines.length - 1) * lh + size * 0.78 + 34;
+      if (f.sub) {
+        shadow(ctx, true, 4);
+        const t = sized(ctx, String(f.sub).toUpperCase(), 58, 30, maxW, s => setFont(ctx, 800, s, FONT.head, true, 1));
+        ctx.fillStyle = L.a; accentText(ctx, t.text, W / 2, yb, t.size, true); shadow(ctx, false);
+      }
+    }
+    if (swipe) {
+      shadow(ctx, true, 3); setFont(ctx, 800, 26, FONT.body, false, 5); ctx.fillStyle = '#fff';
+      ctx.fillText(fit(ctx, String(f.swipeText || 'SWIPE FOR THE STATS').toUpperCase() + '  →', W - mx * 2), W / 2, H - M - 14);
+      shadow(ctx, false);
+    }
+    ctx.textAlign = 'left';
+  }
+
+  const TEMPLATES = { statline, awards, leaders, cover };
 
   // ------------------------------------------------------------ draw
   async function draw(canvas, g, opts = {}) {
@@ -507,9 +562,12 @@
     M = 64 + F;
     if (F) { ctx.save(); ctx.beginPath(); ctx.rect(F, F, W - F * 2, H - F * 2); ctx.clip(); }
     background(ctx, L, H, photo, f);
-    const top = brandBlock(ctx, L, { ...g, f }, wordmark);
-    const bottom = footer(ctx, L, H);
-    await (TEMPLATES[g.tpl] || statline)(ctx, L, { ...g, f }, H, top, bottom);
+    if (g.tpl === 'cover') await cover(ctx, L, { ...g, f }, H, 0, 0, photo, wordmark);
+    else {
+      const top = brandBlock(ctx, L, { ...g, f }, wordmark);
+      const bottom = footer(ctx, L, H);
+      await (TEMPLATES[g.tpl] || statline)(ctx, L, { ...g, f }, H, top, bottom);
+    }
     if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
     if (F) {
       ctx.restore();

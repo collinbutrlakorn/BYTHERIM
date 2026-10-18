@@ -10,7 +10,7 @@
   const clone = o => JSON.parse(JSON.stringify(o));
 
   const LOOKS = [['nba', 'NBA'], ['draft', 'Draft'], ['ncaa', 'NCAA']];
-  const TPLS = [['statline', 'Statline'], ['awards', 'Weekly awards'], ['leaders', 'Top performances'], ['overlay', 'Video overlay']];
+  const TPLS = [['statline', 'Statline'], ['awards', 'Weekly awards'], ['leaders', 'Top performances'], ['overlay', 'Video overlay'], ['cover', 'Cover']];
   const SIZE_KEYS = ['4x5', '1x1', '9x16'];
   const today = () => root.GraphicsDraw.prettyDate(new Date());
   const CLASS = { FR: 'Freshman', SO: 'Sophomore', JR: 'Junior', SR: 'Senior', INTL: 'International' };
@@ -32,6 +32,7 @@
       kicker: 'This week', title: 'Top Performances', note: today(), valueLabel: 'PTS',
       rows: Array.from({ length: 5 }, () => ({ player: 'Player Name', team: '', value: '00', detail: '00 REB · 00 AST' }))
     };
+    if (tpl === 'cover') return { title: 'BEAST', sub: '', swipe: true, swipeText: 'Swipe for the stats', player: '', photo: '', tint: '0' };
     if (tpl === 'overlay') return {
       layout: 'stat', pos: 'low', opacity: '', where: 'vs', opp: 'Opponent', result: 'W', score: '00-00',
       player: 'Player Name', team: '', info: '', photo: '',
@@ -191,6 +192,12 @@
         </div>
         ${fld('title', 'Title', 'Weekly Awards')}${label}`;
       const datalist = players ? `<datalist id="gxProspects">${this.board.map(p => `<option value="${esc(p.name)}">${esc([p.rank ? '#' + p.rank : '', p.school].filter(Boolean).join(' · '))}</option>`).join('')}</datalist>` : '';
+      if (g.tpl === 'cover') return `${fld('player', 'Player (fills the photo from the board)', 'Optional', players + ' data-pick="cover"')}
+        ${fld('title', 'Big word', 'BEAST')}
+        <p class="adm-note">Two or more words split onto two lines on their own. Keep it short so it reads on the grid.</p>
+        ${fld('sub', 'Small line over it (optional)', '48 PTS ON 17 SHOTS')}
+        <label class="gx-check"><input type="checkbox" data-k="swipe" ${f.swipe !== false ? 'checked' : ''}> Show the swipe line</label>
+        ${f.swipe !== false ? fld('swipeText', 'Swipe line', 'Swipe for the stats') : ''}${datalist}`;
       if (g.tpl === 'statline' || g.tpl === 'overlay') {
         return `${top}
           <h3 class="gx-h3">Game</h3>
@@ -312,7 +319,10 @@
       const p = (this.board || []).find(x => x.name.toLowerCase() === input.value.trim().toLowerCase());
       if (!p) return false;
       const f = this.cur.f, isPh = v => !v || /^(team|0+|00\.0.*|00 .*|player name)$/i.test(String(v).trim());
-      if (input.dataset.pick === 'statline') {
+      if (input.dataset.pick === 'cover') {
+        f.player = p.name;
+        if (p.image && !this.uploaded) f.photo = p.image;
+      } else if (input.dataset.pick === 'statline') {
         f.player = p.name;
         f.team = p.isPro ? 'Pro' : p.school;
         f.info = [p.pos, CLASS[p.cls] || p.cls].filter(Boolean).join(' • ');
@@ -364,7 +374,7 @@
       if (t.type === 'range') { const o = this.el.querySelector(`[data-out="${t.dataset.k}"]`); if (o) o.textContent = t.value; }
       if (t.dataset.k === 'photo' && e.type === 'change') document.getElementById('gxStyle').innerHTML = this.styleHTML();
       this.dirty = true;
-      if (t.dataset.k === 'layout' && e.type === 'change') document.getElementById('gxForm').innerHTML = this.formHTML();
+      if ((t.dataset.k === 'layout' || t.dataset.k === 'swipe') && e.type === 'change') document.getElementById('gxForm').innerHTML = this.formHTML();
       if (t.dataset.pick && e.type === 'change' && this.pick(t)) { document.getElementById('gxForm').innerHTML = this.formHTML(); document.getElementById('gxStyle').innerHTML = this.styleHTML(); }
       this.redraw();
     },
@@ -387,7 +397,7 @@
           const fresh = !this.byTpl[v];
           g.f = this.byTpl[v] || (this.byTpl[v] = defaults(g.look, v));
           // The background photo comes along to the new template.
-          ['photo', 'zoom', 'photoX', 'photoY', 'tint', 'shade'].forEach(k => { g.f[k] = this.byTpl[was0][k] ?? ''; });
+          (fresh && v === 'cover' ? ['photo', 'zoom', 'photoX', 'photoY'] : ['photo', 'zoom', 'photoX', 'photoY', 'tint', 'shade']).forEach(k => { g.f[k] = this.byTpl[was0][k] ?? ''; });
           // Statline and Video overlay share a player, so a new one starts from the other's.
           if (fresh && ['statline', 'overlay'].includes(was0) && ['statline', 'overlay'].includes(v)) ['where', 'opp', 'result', 'score', 'player', 'team', 'info', 'stats', 'shooting'].forEach(k => { g.f[k] = clone(this.byTpl[was0][k]); });
           if (v === 'overlay') { this.sizeBefore = g.size; g.size = '9x16'; } else if (was0 === 'overlay') g.size = this.sizeBefore && this.sizeBefore !== '9x16' ? this.sizeBefore : '4x5';
