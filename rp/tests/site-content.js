@@ -164,6 +164,13 @@ async function home(store, storage) {
   const tiles = [...tw.document.querySelectorAll('[data-embed=instagram] a.ig-tile')];
   ok(tiles.length === 1 && tiles[0].href === 'https://www.instagram.com/p/ABC123/' && /tile/.test(tiles[0].style.backgroundImage) && !tw.document.querySelector('[data-embed=instagram] .instagram-media'), 'home: Instagram tiles link to their posts and show their images');
 
+  // A return visit: the cached copy is the live one. The banner must still be drawn (it once fell back to the original hero).
+  const cs = { updatedAt: 77, showDefault: false, slides: [{ id: 'c1', img: 'ci1', title: 'Cached banner' }] };
+  const rstore = { site: cs, images: { ci1: IMG + 'c' } };
+  const rw = await home(rstore, { 'btr-site-home': JSON.stringify(cs), 'btr-img-ci1': IMG + 'c' });
+  const rh = [...rw.document.querySelectorAll('[data-hero-slides] .hero')].filter(n => !n.hidden);
+  ok(rh.length === 1 && /Cached banner/.test(rh[0].textContent) && !rw.document.querySelector('.hero[data-default]:not([hidden])'), 'a return visit still shows the published banner, not the original hero');
+
   console.log('\nSite content verified.');
   process.exit(0);
 })().catch(e => { console.error(e.stack || e.message); process.exit(1); });

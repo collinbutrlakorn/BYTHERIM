@@ -689,16 +689,25 @@
     if (siteApplied) return;
     siteApplied = true;
     const cached = readCache(SITE_KEY);
-    if (cached) { applyPosts(cached); heroRotator(cached); }
+    // This runs from the top of <body>, before the hero exists, so what's
+    // cached is drawn once the page is parsed.
+    if (cached) {
+      const draw = () => { applyPosts(cached); heroRotator(cached); };
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', draw); else draw();
+    }
     cloud().then(async c => {
       if (!c || !c.getSite) return;
       let site = null;
       try { site = await c.getSite('home'); } catch (e) { return; }
       if (!site) return;
       writeCache(SITE_KEY, site);
-      if (cached && cached.updatedAt === site.updatedAt) return;
-      applyPosts(site);
-      heroRotator(site);
+      // Nothing to redraw only if the cached copy is the live one AND it was drawn.
+      const draw = () => {
+        if (cached && cached.updatedAt === site.updatedAt && heroDrawnFor === site.updatedAt) return;
+        applyPosts(site);
+        heroRotator(site);
+      };
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', draw); else draw();
     });
   }
 
@@ -748,10 +757,11 @@
   // The home page hero: the newest slides from the admin page, fading one
   // into the next, with the original hero kept as a slide unless it's
   // been switched off.
-  let rot = null;
+  let rot = null, heroDrawnFor = null;
   async function heroRotator(site) {
     const wrap = document.querySelector('[data-hero-slides]');
     if (!wrap || !site) return;
+    heroDrawnFor = site.updatedAt;
     const slides = (site.slides || []).filter(s => s && !s.hidden).slice(0, 8);
     const def = wrap.querySelector('.hero[data-default]');
     if (rot) { clearInterval(rot.timer); rot = null; }
