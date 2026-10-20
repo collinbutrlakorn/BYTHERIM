@@ -537,12 +537,195 @@
     ctx.textAlign = 'left';
   }
 
+
+  // ------------------------------------------------------------ reel / tiktok thumbnails
+  // 1080x1920 covers for the four series. Profile grids crop a 9:16 cover
+  // to roughly 3:4, so everything that matters stays between TOP and BOTTOM.
+  const TSAFE = { l: 76, top: 300, bottom: 1600 };
+  const lum = hex => { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return 0; const v = parseInt(m[1], 16); return (0.299 * (v >> 16) + 0.587 * ((v >> 8) & 255) + 0.114 * (v & 255)) / 255; };
+  function stackText(ctx, text, x, y, depth, color) {
+    shadow(ctx, false); ctx.fillStyle = color;
+    for (let d = depth; d >= 2; d -= 2) ctx.fillText(text, x + d, y + d);
+  }
+  // Rounded tag. y is the top; returns its width and height.
+  function pillTag(ctx, text, x, y, fill, color, size = 30) {
+    setFont(ctx, 800, size, FONT.body, false, 4);
+    const tw = ctx.measureText(text).width, h = size + 30, w = tw + 60;
+    shadow(ctx, false); ctx.fillStyle = fill; rrect(ctx, x, y, w, h, h / 2); ctx.fill();
+    ctx.fillStyle = color; ctx.textAlign = 'left'; ctx.fillText(text, x + 30, y + h / 2 + size * 0.36);
+    return { w, h };
+  }
+  // Words split into lines to fit maxW, in the font already set. Words
+  // wrapped in *asterisks* are marked to be highlighted.
+  function wordsOf(text) {
+    const out = []; let hi = false;
+    String(text || '').split(/(\*)/).forEach(part => {
+      if (part === '*') { hi = !hi; return; }
+      part.split(/\s+/).filter(Boolean).forEach(w => out.push({ w, hi }));
+    });
+    return out;
+  }
+  function wrapWords(ctx, words, maxW) {
+    const sp = ctx.measureText(' ').width, lines = [[]]; let cur = 0;
+    words.forEach(wd => {
+      const w = ctx.measureText(wd.w).width;
+      if (cur && cur + sp + w > maxW) { lines.push([]); cur = 0; }
+      lines[lines.length - 1].push(wd); cur += (cur ? sp : 0) + w;
+    });
+    return lines.filter(l => l.length);
+  }
+  function thumbMark(ctx, wordmark) {
+    if (!wordmark) return TSAFE.top + 50;
+    const w = 300, h = w * wordmark.naturalHeight / wordmark.naturalWidth;
+    shadow(ctx, true, 3); ctx.drawImage(wordmark, (W - w) / 2, TSAFE.top - 10, w, h); shadow(ctx, false);
+    return TSAFE.top - 10 + h;
+  }
+
+  async function thumb(ctx, L, g, H, im, wordmark) {
+    const f = g.f, X = TSAFE.l, maxW = W - X * 2, series = f.series || 'perf';
+    const onA = lum(L.a) > 0.62 ? '#16081a' : '#fff';
+    const pill = (t, y, fill = L.a, col = onA) => pillTag(ctx, String(t).toUpperCase(), X, y, fill, col);
+    ctx.textAlign = 'left';
+    if (series === 'numbers') {
+      // Top: a block of the category color with the term huge on it.
+      const split = 980;
+      ctx.fillStyle = L.a; ctx.fillRect(0, 0, W, split);
+      ctx.fillStyle = 'rgba(0,0,0,0.0)';
+      const my = thumbMark(ctx, wordmark);
+      pillTag(ctx, String(f.kicker || 'Learning the numbers').toUpperCase(), X, my + 36, L.bg, '#fff');
+      const term = String(f.term || '').toUpperCase().trim();
+      if (term) {
+        const t = sized(ctx, term, 400, 90, maxW - 20, s => setFont(ctx, 800, s, FONT.head, true, -s * 0.01));
+        const by = Math.round((my + 36 + 90 + split) / 2 + t.size * 0.36);
+        ctx.textAlign = 'center';
+        stackText(ctx, t.text, W / 2, by, Math.max(10, t.size * 0.05), L.bg);
+        ctx.fillStyle = '#fff'; ctx.fillText(t.text, W / 2, by);
+        ctx.textAlign = 'left';
+      }
+      let y = split + 80;
+      if (f.explain) {
+        shadow(ctx, true, 3); setFont(ctx, 800, 64, FONT.body, false, -2);
+        const lines = wrapWords(ctx, wordsOf(f.explain), maxW).slice(0, 4), sp = ctx.measureText(' ').width;
+        lines.forEach((ln, i) => {
+          let x = X; ln.forEach(wd => { ctx.fillStyle = wd.hi ? L.a : '#fff'; ctx.fillText(wd.w, x, y + 64 + i * 80); x += ctx.measureText(wd.w).width + sp; });
+        });
+        y += lines.length * 80 + 50;
+      }
+      shadow(ctx, false);
+      if (f.formula) {
+        setFont(ctx, 700, 34, FONT.body, false, -0.5);
+        const w = Math.min(maxW, ctx.measureText(f.formula).width + 64), h = 82;
+        ctx.strokeStyle = L.a; ctx.lineWidth = 4; rrect(ctx, X, y, w, h, h / 2); ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.fillText(fit(ctx, f.formula, w - 64), X + 32, y + h / 2 + 12);
+      }
+      return;
+    }
+
+    const my = thumbMark(ctx, wordmark);
+    if (series === 'recap') {
+      pill(f.kicker || 'Game recap', my + 36);
+      const rows = [[f.teamA, f.scoreA], [f.teamB, f.scoreB]];
+      const a = parseFloat(f.scoreA), b = parseFloat(f.scoreB);
+      const logos = await Promise.all(rows.map(r => r[0] ? loadImg(logoSrc(g.look, r[0])) : null));
+      const y0 = my + 36 + 90 + 50, rh = 290;
+      rows.forEach((r, i) => {
+        const cy = y0 + i * rh + rh / 2, win = !isNaN(a) && !isNaN(b) ? (i === 0 ? a >= b : b >= a) : true;
+        if (i) { ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fillRect(X, y0 + i * rh, maxW, 2); }
+        if (logos[i]) { shadow(ctx, false); logoFit(ctx, logos[i], X + 110, cy, 200); }
+        shadow(ctx, true, 5);
+        const right = W - X, sc = String(r[1] || '');
+        setFont(ctx, 800, 250, FONT.head, false, -8); ctx.textAlign = 'right';
+        ctx.globalAlpha = win ? 1 : 0.55; ctx.fillStyle = win ? '#fff' : '#fff'; ctx.fillText(sc, right, cy + 90);
+        const sw = ctx.measureText(sc).width; ctx.globalAlpha = 1;
+        ctx.textAlign = 'left';
+        const nx = X + 250, nm = sized(ctx, String(r[0] || '').toUpperCase(), 76, 36, right - sw - nx - 30, s => setFont(ctx, 800, s, FONT.head, true, -1));
+        ctx.fillStyle = '#fff'; ctx.fillText(nm.text, nx, cy + nm.size * 0.34);
+        if (win && sc) { ctx.fillStyle = L.a; ctx.fillRect(nx, cy + nm.size * 0.34 + 16, 90, 8); }
+      });
+      let y = y0 + rh * 2 + 70;
+      if (f.headline) {
+        shadow(ctx, true, 4);
+        let size = 100, lines;
+        for (; size > 56; size -= 4) { setFont(ctx, 800, size, FONT.head, true, -1); lines = wrapWords(ctx, wordsOf(f.headline), maxW); if (lines.length <= 2) break; }
+        lines.slice(0, 2).forEach((ln, i) => {
+          let x = X; const sp = ctx.measureText(' ').width;
+          ln.forEach(wd => { ctx.fillStyle = wd.hi ? L.a : '#fff'; ctx.fillText(wd.w, x, y + size * 0.8 + i * size * 0.98); x += ctx.measureText(wd.w).width + sp; });
+        });
+        y += Math.min(2, lines.length) * size * 0.98 + 30;
+      }
+      if (f.context) { shadow(ctx, true, 3); setFont(ctx, 800, 42, FONT.body, false, -1); ctx.fillStyle = L.a; accentText(ctx, String(f.context).toUpperCase(), X, y + 44, 42, true); }
+      shadow(ctx, false);
+      return;
+    }
+
+    if (series === 'news') {
+      const t = pill(f.kicker || 'Player news', my + 36);
+      if (f.note) { shadow(ctx, true, 3); setFont(ctx, 700, 32, FONT.body, false, -0.5); ctx.fillStyle = '#fff'; ctx.textAlign = 'right'; ctx.fillText(f.note, W - X, my + 36 + t.h / 2 + 11); ctx.textAlign = 'left'; shadow(ctx, false); }
+      let yb = TSAFE.bottom - 20;
+      const who = [f.player, f.team].filter(Boolean).join('  •  ').toUpperCase();
+      if (who) {
+        shadow(ctx, true, 3); ctx.fillStyle = L.a; ctx.fillRect(X, yb - 44, 10, 56);
+        setFont(ctx, 800, 40, FONT.body, false, 2); ctx.fillStyle = '#fff'; ctx.fillText(fit(ctx, who, maxW - 30), X + 30, yb);
+        yb -= 110;
+      }
+      if (f.headline) {
+        shadow(ctx, false);
+        let size = 140, lines;
+        for (; size > 60; size -= 4) { setFont(ctx, 800, size, FONT.head, true, -size * 0.02); lines = wrapWords(ctx, wordsOf(String(f.headline).toUpperCase()), maxW); if (lines.length <= 4 && lines.every(l => ctx.measureText(l.map(x => x.w).join(' ')).width <= maxW)) break; }
+        const lh = size * 0.94, n = Math.min(4, lines.length), depth = Math.max(8, size * 0.06);
+        lines.slice(0, 4).forEach((ln, i) => {
+          const y = yb - (n - 1 - i) * lh, text = ln.map(x => x.w).join(' ');
+          let x = X; const sp = ctx.measureText(' ').width;
+          ln.forEach(wd => {
+            stackText(ctx, wd.w, x, y, depth, 'rgba(8,10,24,0.8)');
+            ctx.fillStyle = wd.hi ? L.a : '#fff'; ctx.fillText(wd.w, x, y);
+            x += ctx.measureText(wd.w).width + sp;
+          });
+        });
+      }
+      return;
+    }
+
+    // Standout performance
+    pill(f.kicker || 'Standout performance', my + 36);
+    let yb = TSAFE.bottom - 30;
+    const game = [f.result, f.score].filter(Boolean).join(' ');
+    const opp = f.opp ? `${f.where || 'vs'} ${f.opp}` : '';
+    if (game || opp) {
+      shadow(ctx, true, 3); let x = X; setFont(ctx, 800, 48, FONT.body, false, -1.5);
+      if (f.result) { ctx.fillStyle = /^w/i.test(f.result) ? '#22c55e' : /^l/i.test(f.result) ? '#ef4444' : '#fff'; ctx.fillText(f.result, x, yb); x += ctx.measureText(f.result + ' ').width; }
+      ctx.fillStyle = '#fff'; ctx.fillText(fit(ctx, [f.score, opp].filter(Boolean).join('   '), W - X - x), x, yb);
+      yb -= 84;
+    }
+    if (f.player) {
+      shadow(ctx, true, 5);
+      const n = sized(ctx, f.player, 130, 56, maxW, s => setFont(ctx, 800, s, FONT.head, true, -1));
+      ctx.fillStyle = '#fff'; ctx.fillText(n.text, X, yb);
+      yb -= n.size * 0.82 + 30;
+    }
+    if (f.line) {
+      shadow(ctx, true, 3); setFont(ctx, 800, 46, FONT.body, false, -1); ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.fillText(fit(ctx, f.line, maxW), X, yb); yb -= 46 * 0.9 + 50;
+    }
+    if (f.value) {
+      const label = String(f.label || '').toUpperCase();
+      setFont(ctx, 800, 150, FONT.head, true, 0);
+      const lw = label ? ctx.measureText(label).width + 28 : 0;
+      const v = sized(ctx, String(f.value), 560, 160, maxW - lw, s => setFont(ctx, 800, s, FONT.head, false, -s * 0.04));
+      const vw = ctx.measureText(v.text).width;
+      stackText(ctx, v.text, X, yb, Math.max(10, v.size * 0.04), 'rgba(8,10,24,0.8)');
+      ctx.fillStyle = L.a; accentText(ctx, v.text, X, yb, v.size, true);
+      if (label) { setFont(ctx, 800, 150, FONT.head, true, 0); shadow(ctx, true, 5); ctx.fillStyle = '#fff'; ctx.fillText(label, X + vw + 28, yb); }
+    }
+    shadow(ctx, false);
+  }
+
   const TEMPLATES = { statline, awards, leaders, cover };
 
   // ------------------------------------------------------------ draw
   async function draw(canvas, g, opts = {}) {
     const L = lookFor(g);
-    const H = g.tpl === 'overlay' ? SIZES['9x16'].h : (SIZES[g.size] || SIZES['4x5']).h;
+    const H = (g.tpl === 'overlay' || g.tpl === 'thumb') ? SIZES['9x16'].h : (SIZES[g.size] || SIZES['4x5']).h;
     const scale = opts.scale || 1;
     canvas.width = W * scale; canvas.height = H * scale;
     const ctx = canvas.getContext && canvas.getContext('2d');
@@ -558,11 +741,12 @@
     }
     // A frame is a solid border with a thin darker keyline inside it; the
     // content moves in so it keeps the same breathing room.
-    const F = L.frame ? 38 : 0;
+    const F = L.frame && g.tpl !== 'thumb' ? 38 : 0;
     M = 64 + F;
     if (F) { ctx.save(); ctx.beginPath(); ctx.rect(F, F, W - F * 2, H - F * 2); ctx.clip(); }
     background(ctx, L, H, photo, f);
-    if (g.tpl === 'cover') await cover(ctx, L, { ...g, f }, H, 0, 0, photo, wordmark);
+    if (g.tpl === 'thumb') await thumb(ctx, L, { ...g, f }, H, photo, wordmark);
+    else if (g.tpl === 'cover') await cover(ctx, L, { ...g, f }, H, 0, 0, photo, wordmark);
     else {
       const top = brandBlock(ctx, L, { ...g, f }, wordmark);
       const bottom = footer(ctx, L, H);
@@ -578,5 +762,5 @@
     return canvas;
   }
 
-  root.GraphicsDraw = { draw, SAFE, LOOKS, SIZES, SWATCHES, FRAMES, NBA_TEAMS, nbaTeam, logoSrc, prettyDate, W };
+  root.GraphicsDraw = { draw, SAFE, TSAFE, LOOKS, SIZES, SWATCHES, FRAMES, NBA_TEAMS, nbaTeam, logoSrc, prettyDate, W };
 })(typeof window !== 'undefined' ? window : globalThis);

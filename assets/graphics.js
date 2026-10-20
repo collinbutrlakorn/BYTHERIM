@@ -10,7 +10,7 @@
   const clone = o => JSON.parse(JSON.stringify(o));
 
   const LOOKS = [['nba', 'NBA'], ['draft', 'Draft'], ['ncaa', 'NCAA']];
-  const TPLS = [['statline', 'Statline'], ['awards', 'Weekly awards'], ['leaders', 'Top performances'], ['overlay', 'Video overlay'], ['cover', 'Cover']];
+  const TPLS = [['statline', 'Statline'], ['awards', 'Weekly awards'], ['leaders', 'Top performances'], ['overlay', 'Video overlay'], ['cover', 'Cover'], ['thumb', 'Reel thumbnail']];
   const SIZE_KEYS = ['4x5', '1x1', '9x16'];
   const today = () => root.GraphicsDraw.prettyDate(new Date());
   const CLASS = { FR: 'Freshman', SO: 'Sophomore', JR: 'Junior', SR: 'Senior', INTL: 'International' };
@@ -31,6 +31,13 @@
     if (tpl === 'leaders') return {
       kicker: 'This week', title: 'Top Performances', note: today(), valueLabel: 'PTS',
       rows: Array.from({ length: 5 }, () => ({ player: 'Player Name', team: '', value: '00', detail: '00 REB · 00 AST' }))
+    };
+    if (tpl === 'thumb') return {
+      series: 'perf', kicker: '', photo: '', tint: '35',
+      player: 'Player Name', result: 'W', score: '00-00', where: 'vs', opp: 'Opponent', line: '', value: '00', label: 'PTS',
+      term: 'TS%', explain: 'Why *scoring efficiency* beats points per game', formula: '',
+      teamA: 'Team A', scoreA: '00', teamB: 'Team B', scoreB: '00', headline: 'What *happened* in the game', context: '',
+      team: '', note: ''
     };
     if (tpl === 'cover') return { title: 'BEAST', sub: '', swipe: true, swipeText: 'Swipe for the stats', player: '', photo: '', tint: '0' };
     if (tpl === 'overlay') return {
@@ -109,7 +116,7 @@
             <div class="gx-row">${seg('look', LOOKS, g.look)}</div>
             <div class="gx-row">${seg('tpl', TPLS, g.tpl)}</div>
             <div class="gx-fields2">
-              ${g.tpl === 'overlay' ? '<div class="site-field"><span>Size</span><div class="gx-fixed">1080 × 1920, transparent</div></div>' : `<label class="site-field"><span>Size</span><select data-set-select="size">${SIZE_KEYS.map(k => `<option value="${k}"${g.size === k ? ' selected' : ''}>${esc(D.SIZES[k].label)}</option>`).join('')}</select></label>`}
+              ${(g.tpl === 'overlay' || g.tpl === 'thumb') ? `<div class="site-field"><span>Size</span><div class="gx-fixed">1080 × 1920${g.tpl === 'overlay' ? ', transparent' : ''}</div></div>` : `<label class="site-field"><span>Size</span><select data-set-select="size">${SIZE_KEYS.map(k => `<option value="${k}"${g.size === k ? ' selected' : ''}>${esc(D.SIZES[k].label)}</option>`).join('')}</select></label>`}
               <label class="site-field"><span>Saved as</span><input type="text" data-name value="${esc(g.name)}" placeholder="Name it to save (e.g. NBA awards wk 1)"></label>
             </div>
             <div class="gx-actions">
@@ -123,10 +130,10 @@
           <div class="card gx-panel" id="gxForm">${this.formHTML()}</div>
         </div>
         <div class="gx-preview">
-          <div class="gx-canvas-wrap gx-${g.tpl === 'overlay' ? '9x16' : g.size}${g.tpl === 'overlay' ? ' gx-clear' : ''}"><canvas id="gxCanvas" aria-label="Graphic preview"></canvas></div>
+          <div class="gx-canvas-wrap gx-${g.tpl === 'overlay' || g.tpl === 'thumb' ? '9x16' : g.size}${g.tpl === 'overlay' ? ' gx-clear' : ''}"><canvas id="gxCanvas" aria-label="Graphic preview"></canvas></div>
           <div class="gx-actions gx-export">
             <button type="button" class="sim-btn" data-act="png">Download PNG</button>
-            ${g.tpl === 'overlay' ? '' : '<button type="button" class="sim-btn sim-btn-secondary" data-act="all-sizes">All 3 sizes</button>'}
+            ${g.tpl === 'overlay' || g.tpl === 'thumb' ? '' : '<button type="button" class="sim-btn sim-btn-secondary" data-act="all-sizes">All 3 sizes</button>'}
             <label class="gx-check"><input type="checkbox" data-hd ${this.hd ? 'checked' : ''}> 2x (sharper in Canva)</label>
           </div>
           ${g.tpl === 'overlay' ? `<label class="gx-check"><input type="checkbox" data-guides ${this.guides === false ? '' : 'checked'}> Show the TikTok / Reels safe area (preview only)</label>
@@ -192,6 +199,35 @@
         </div>
         ${fld('title', 'Title', 'Weekly Awards')}${label}`;
       const datalist = players ? `<datalist id="gxProspects">${this.board.map(p => `<option value="${esc(p.name)}">${esc([p.rank ? '#' + p.rank : '', p.school].filter(Boolean).join(' · '))}</option>`).join('')}</datalist>` : '';
+      if (g.tpl === 'thumb') {
+        const ser = f.series || 'perf';
+        const tabs = [['perf', 'Standout performance'], ['numbers', 'Learning the numbers'], ['recap', 'Game / series recap'], ['news', 'Player news']];
+        const hl = '<p class="adm-note">Put *asterisks* around words to color them.</p>';
+        const body = {
+          perf: `${fld('kicker', 'Tag', 'Standout performance')}${fld('player', 'Player', 'Player name', players + ' data-pick="statline"')}
+            ${fld('line', 'Small line (optional)', 'Career night in a big one')}
+            <div class="gx-fields2">${fld('value', 'Big number', '48')}${fld('label', 'Label', 'PTS')}</div>
+            <div class="gx-game"><label class="site-field"><span>Where</span><select data-k="where">${[['vs', 'vs'], ['@', '@']].map(([v, l]) => `<option value="${v}"${(f.where || 'vs') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+            ${fld('opp', 'Opponent', 'Duke')}
+            <label class="site-field"><span>Result</span><select data-k="result">${[['W', 'W'], ['L', 'L'], ['', 'None']].map(([v, l]) => `<option value="${v}"${(f.result || '') === v ? ' selected' : ''}>${l}</option>`).join('')}</select></label>
+            ${fld('score', 'Score', '92-88')}</div>`,
+          numbers: `${fld('kicker', 'Series tag', 'Learning the numbers')}${fld('term', 'Term', 'TS%')}
+            ${fld('explain', 'One line explaining it', 'Why *scoring efficiency* beats points per game')}${hl}
+            ${fld('formula', 'Formula or example (optional)', 'PTS / (2 × (FGA + 0.44 × FTA))')}
+            <p class="adm-note">This one is mostly flat color. A photo is optional and sits behind the lower part.</p>`,
+          recap: `${fld('kicker', 'Tag', 'Game recap')}
+            <div class="gx-fields2">${fld('teamA', 'Team', 'Kansas', 'data-logo')}${fld('scoreA', 'Score', '78')}</div>
+            <div class="gx-fields2">${fld('teamB', 'Team', 'Duke', 'data-logo')}${fld('scoreB', 'Score', '74')}</div>
+            ${fld('headline', 'Headline', 'Kansas *survives* a late run')}${hl}
+            ${fld('context', 'Small line (optional)', 'Series tied 1-1')}`,
+          news: `${fld('kicker', 'Tag', 'Player news')}
+            ${fld('headline', 'Headline', '*Declares* for the draft')}${hl}
+            <div class="gx-fields2">${fld('player', 'Player', 'Player name', players + ' data-pick="statline"')}${fld('team', 'Team', 'Kentucky')}</div>
+            ${fld('note', 'Top-right note (optional)', 'Oct 20')}`
+        }[ser];
+        return `<div class="gx-seg" role="tablist">${tabs.map(([v, l]) => `<button type="button" class="gx-seg-b${ser === v ? ' on' : ''}" data-series="${v}">${l}</button>`).join('')}</div>
+          ${body}<p class="adm-note">Everything important stays inside the middle of the cover so it survives the profile-grid crop.</p>${datalist}`;
+      }
       if (g.tpl === 'cover') return `${fld('player', 'Player (fills the photo from the board)', 'Optional', players + ' data-pick="cover"')}
         ${fld('title', 'Big word', 'BEAST')}
         <p class="adm-note">Two or more words split onto two lines on their own. Keep it short so it reads on the grid.</p>
@@ -400,12 +436,15 @@
           (fresh && v === 'cover' ? ['photo', 'zoom', 'photoX', 'photoY'] : ['photo', 'zoom', 'photoX', 'photoY', 'tint', 'shade']).forEach(k => { g.f[k] = this.byTpl[was0][k] ?? ''; });
           // Statline and Video overlay share a player, so a new one starts from the other's.
           if (fresh && ['statline', 'overlay'].includes(was0) && ['statline', 'overlay'].includes(v)) ['where', 'opp', 'result', 'score', 'player', 'team', 'info', 'stats', 'shooting'].forEach(k => { g.f[k] = clone(this.byTpl[was0][k]); });
-          if (v === 'overlay') { this.sizeBefore = g.size; g.size = '9x16'; } else if (was0 === 'overlay') g.size = this.sizeBefore && this.sizeBefore !== '9x16' ? this.sizeBefore : '4x5';
+          const fixed = t => t === 'overlay' || t === 'thumb';
+          if (fixed(v)) { if (!fixed(was0)) this.sizeBefore = g.size; g.size = '9x16'; } else if (fixed(was0)) g.size = this.sizeBefore && this.sizeBefore !== '9x16' ? this.sizeBefore : '4x5';
         } else return;
         this.dirty = true;
         this.render();
         return;
       }
+      const sb = e.target.closest('button[data-series]');
+      if (sb) { this.cur.f.series = sb.dataset.series; this.dirty = true; this.render(); return; }
       const sw = e.target.closest('button[data-bg]');
       if (sw) {
         this.cur.style.bg = sw.dataset.bg === root.GraphicsDraw.LOOKS[this.cur.look].bg ? '' : sw.dataset.bg;
