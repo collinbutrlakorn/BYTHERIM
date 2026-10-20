@@ -61,13 +61,30 @@ def convert(raw):
         })
     return {"feed": feed, "items": items}
 
-out = {}
+import os, time
+old = {}
+try:
+    old = json.load(open("data/feeds.json"))
+except Exception:
+    pass
+out, failed = dict(old), []
 for key, url in FEEDS.items():
-    try:
-        out[key] = convert(fetch(url))
-    except Exception as ex:
-        print(f"{key}: failed ({ex})", file=sys.stderr)
-        sys.exit(1)
-    print(key, len(out[key]["items"]), "items")
+    err = None
+    for attempt in range(3):
+        try:
+            out[key] = convert(fetch(url))
+            print(key, len(out[key]["items"]), "items")
+            err = None
+            break
+        except Exception as ex:
+            err = ex
+            time.sleep(4 * (attempt + 1))
+    if err is not None:
+        # Some hosts block GitHub's servers. Keep the last good copy
+        # instead of failing the whole run; say so in the log.
+        print(f"{key}: could not fetch ({err}); keeping the previous snapshot", file=sys.stderr)
+        failed.append(key)
+if len(failed) == len(FEEDS) and not old:
+    sys.exit(1)
 json.dump(out, open("data/feeds.json", "w"), indent=1, ensure_ascii=False)
 open("data/feeds.json", "a").write("\n")
