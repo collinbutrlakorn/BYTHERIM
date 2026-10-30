@@ -192,7 +192,7 @@ function applyRecruitFlips() {
   const flips = (Portal.universe && Portal.universe.recruitFlips) || [];
   const live = Portal.universe && Portal.universe.recruitingLive;
   const summer = summerSnap();
-  if (!flips.length && !live && !summer) return;
+  if (!flips.length && !live && !summer && !clubSnap()) return;
   if (typeof recruits === 'undefined' || !recruits.length) { Portal.flipsPending = true; return; }
   let moved = 0;
   flips.forEach(f => {
@@ -272,7 +272,8 @@ function summerTier(line, team) {
 // "2029 Peach Jam champion" -> "Peach Jam Champion": one accolade per honor.
 const summerAccolade = h => String(h).replace(/^\d{4}\s+/, '').replace(/\b(champion|gold|silver|bronze|first team|scoring leader|all-star five)\b/gi, m => m.replace(/\b\w/g, c => c.toUpperCase()));
 
-function applySummer() {
+function applySummer() { return applySummerLines() + applyClub(); }
+function applySummerLines() {
   const sm = summerSnap();
   if (typeof recruits === 'undefined' || !recruits.length) return 0;
   // Back to the sheet's lines first: the summer shown can change (a step
@@ -347,7 +348,9 @@ async function loadLocalSummer() {
   if (typeof db === 'undefined' || !db.leagueState || typeof SummerCore === 'undefined') return false;
   let s;
   try { s = await db.leagueState.get(1); } catch (e) { return false; }
-  if (!s || !s.summer || s.summer.v !== 2) return false;
+  // The club seasons (international prospects) as the save has them.
+  if (s && s.clubSeason && s.clubSeason.view) Portal.localClub = { season: s.clubSeason.season, players: Object.values(s.clubSeason.view) };
+  if (!s || !s.summer || s.summer.v !== 2) return !!Portal.localClub;
   Portal.local = { P: s.summer, recruits: s.allRecruits || [], history: s.summerHistory || [], year: s.currentYear };
   // The recruits' lines for this summer, as played so far.
   SummerCore.applyLines(s.summer, Portal.local.recruits);
@@ -355,6 +358,52 @@ async function loadLocalSummer() {
   if (!Portal.summerSource) Portal.summerSource = 'local';
   return true;
 }
+// ---------- Club seasons (internationals, from the NCAA RP) ----------
+//
+// Every international still in high school, and every international pro,
+// plays a season for his club in the NCAA RP, game by game, in his club's
+// league (see rp/js/club-season.js). His season so far becomes his
+// Intl / Pro line; last season's and what the database says stay below it.
+function clubSnap() {
+  const official = Portal.universe && Portal.universe.club;
+  if (Portal.localClub && (summerSource() === 'local' || !official)) return Portal.localClub;
+  return official || Portal.localClub || null;
+}
+function applyClub() {
+  if (typeof recruits === 'undefined' || !recruits.length) return 0;
+  // Back to the database's line first.
+  recruits.forEach(r => {
+    if (!r.stats) return;
+    if (!('_writtenIntl' in r)) r._writtenIntl = r.stats.intl || null;
+    else r.stats.intl = r._writtenIntl;
+    if (r.statsHistory) delete r.statsHistory.intl;
+  });
+  const cs = clubSnap();
+  if (!cs || !cs.players) return 0;
+  const byKey = new Map();
+  recruits.forEach(r => byKey.set(`${portalKey(r.name)}|${r.classYear}`, r));
+  let n = 0;
+  cs.players.forEach(x => {
+    const r = byKey.get(`${portalKey(x.n)}|${x.c}`);
+    if (!r) return;
+    r.stats = r.stats || {};
+    const team = (t, lg) => `${t || ''}${lg ? ` (${lg})` : ''}`;
+    const hist = [];
+    if (x.line) {
+      r.stats.intl = { ...summerTier(x.line, team(x.t, x.lg)), sim: true, label: `${x.lb}${x.live ? ' (so far)' : ''}` };
+      if (x.prev && x.prev.line) hist.push({ label: x.prev.lb, team: team(x.prev.t, x.prev.lg), line: summerTier(x.prev.line, team(x.prev.t, x.prev.lg)) });
+    } else if (x.prev && x.prev.line) {
+      r.stats.intl = { ...summerTier(x.prev.line, team(x.prev.t, x.prev.lg)), sim: true, label: x.prev.lb };
+    } else return;
+    const w = r._writtenIntl;
+    if (w && w.gp) hist.push({ label: 'Database', team: w.team || '', line: w });
+    r.statsHistory = r.statsHistory || {};
+    if (hist.length) r.statsHistory.intl = hist;
+    n++;
+  });
+  return n;
+}
+
 function summerSource() {
   const official = Portal.universe && Portal.universe.summer;
   if (Portal.local && (Portal.summerSource === 'local' || !official)) return 'local';

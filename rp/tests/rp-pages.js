@@ -255,6 +255,24 @@ function bootRecruiting(universe) {
     ok(/Peach Jam Champion/.test(d.getElementById('profileContainer').textContent), 'recruiting: the profile lists his summer honors');
   }
 
+  // ---- Recruiting: international club seasons from the published universe ----
+  {
+    const pro = RECRUITS.find(r => r.name === 'Javier Bautista');
+    const line = (ppg, gp) => ({ gp, mpg: 14.2, ppg, rpg: 3.1, apg: 0.8, spg: 0.6, bpg: 0.7, topg: 1.1, fg: '47.0%', fg2: '54.0%', fg3: '33.0%', ft: '71.0%', bpm: -1.2, obpm: -0.8, dbpm: -0.4, ts: '55.0%', rts: '1.0%', efg: '51.0%', oreb: '7.0%', dreb: '14.0%', trb: '10.5%', ast: '8.0%', tov: '12.0%', stl: '1.5%', blk: '3.0%', usg: '17.0%', ftr: '.300', p3ar: '.250', ortg: 108.2, drtg: 104.5, fga2: 4, rimFga: 2.5, rimPct: '63.0%', shortMidFga: 0.8, shortMidPct: '45.0%', longMidFga: 0.7, longMidPct: '41.0%', rimMidRatio: '1.67', fga3: 1.3, fta: 1.4 });
+    const u = clone(UNIVERSE);
+    u.club = { season: 2029, label: '2029-30', players: [
+      { n: pro.name, c: Number(pro.classYear), k: 'pro', t: 'FC Barcelona', lg: 'EuroLeague', s: 2029, lb: '2029-30', live: 1, line: line(5.4, 9),
+        prev: { s: 2028, lb: '2028-29', t: 'FC Barcelona', lg: 'EuroLeague', line: line(3.2, 31) } }
+    ] };
+    const { d, ev } = await bootRecruiting(u);
+    const r = ev(`(() => { const r = recruits.find(r => r.name === 'Javier Bautista'); return { st: r.stats.intl, hist: (r.statsHistory.intl || []).map(h => h.label) }; })()`);
+    ok(r.st && r.st.ppg === 5.4 && r.st.sim && /FC Barcelona \(EuroLeague\)/.test(r.st.team) && r.st.label === '2029-30 (so far)', 'recruiting: an international\'s club season is his Intl / Pro line, with his league');
+    ok(r.hist[0] === '2028-29', 'recruiting: and last season stays below it');
+    ev(`openRecruitProfile(recruits.find(r => r.name === 'Javier Bautista'))`);
+    const txt = d.getElementById('profileContainer').textContent;
+    ok(/Intl \/ Pro/.test(txt) && /2029-30 \(so far\)/.test(txt) && /EuroLeague/.test(txt), 'recruiting: the profile shows the club season');
+  }
+
   // ---- Recruiting: the summer as a season, game by game ----
   {
     const two = RECRUITS.filter(r => String(r.classYear) === '2029').slice(20, 24);

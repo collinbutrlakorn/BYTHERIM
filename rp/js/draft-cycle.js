@@ -598,7 +598,7 @@
       seasons: (p.seasonHistory || []).slice(-4).map(h => ({ year: h.year, school: h.school, class: h.class, stats: line(h.stats) })),
       predraft: pd ? { meas: pd.meas || null, tests: pd.tests || null, shooting: pd.shooting || null, pct: pd.pct || null,
         profile: pd.profile || null, grade: pd.grade || null, personality: pd.personality || null, workoutGrade: pd.workoutGrade || null } : null,
-      isPro: !!p.isPro, club: p.club || null, proYears: p.proYears || 0, accolades: (p.accolades || []).slice(-8)
+      isPro: !!p.isPro, club: p.club || null, proLeague: p.proLeague || null, proLevel: p.proLevel || null, proYears: p.proYears || 0, accolades: (p.accolades || []).slice(-8)
     };
   }
 

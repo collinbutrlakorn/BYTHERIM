@@ -62,8 +62,11 @@ const STRONG_MID = new Set(['American', 'A-10', 'Mountain West', 'West Coast', '
 // stronger signal than the same numbers in college.
 const PRO_LEVEL = 1.25;
 
-function competitionFactor(conference) {
-  if (conference === 'Pro') return PRO_LEVEL;
+// A pro's league sets it when it's known (club-season.js): a teenager's
+// minutes in the EuroLeague say more than the same minutes in a junior
+// league.
+function competitionFactor(conference, player) {
+  if (conference === 'Pro') return player && Number(player.proLevel) > 0 ? Number(player.proLevel) : PRO_LEVEL;
   if (POWER_SIX.has(conference)) return 1.0;
   if (STRONG_MID.has(conference)) return 0.80;
   return 0.62;
@@ -147,7 +150,7 @@ function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
   // high-major doesn't need gaudy numbers to rank highly and a mid-major
   // does. Ability, pedigree and physical tools are level-independent and
   // are not discounted.
-  const level = competitionFactor(player.conference);
+  const level = competitionFactor(player.conference, player);
   const scaledProduction = (production + efficiency + winning) * level;
 
   // Production counts for less as a player gets older: a freshman's

@@ -232,6 +232,7 @@ window.SimEngine = {
     this.state.rosterArchive = {};
     this.state.pendingWire = [];
     this.state.proPlayers = [];
+    this.state.clubSeason = null;
     this.state.recruitsClassView = 'incoming';
     this.state.year = 2028;
     this.state.week = 0;
@@ -324,6 +325,7 @@ window.SimEngine = {
           this.state.scheduleViewWeek = savedState.scheduleViewWeek || 1;
           this.state.hsCalendar = savedState.hsCalendar || null;
           this.state.proPlayers = savedState.proPlayers || [];
+          this.state.clubSeason = savedState.clubSeason || null;
           // The generated classes this save was built with (see
           // applyGeneratedResets for classes an admin has reset since).
           this.state.genResets = savedState.genResets || {};
@@ -469,6 +471,7 @@ window.SimEngine = {
           scheduleViewWeek: this.state.scheduleViewWeek,
           hsCalendar: this.state.hsCalendar || null,
           proPlayers: this.state.proPlayers || [],
+          clubSeason: this.state.clubSeason || null,
           genResets: this.state.genResets || {}
         });
         await db.teams.clear();
@@ -598,7 +601,10 @@ window.SimEngine = {
     if (star && !this.findTeam(schoolName)) return `../schoollogos/${star.logo}.png`;
     if (this._logoCache[schoolName]) return this._logoCache[schoolName];
     // A national team (FIBA): its flag.
-    if (typeof Flags !== 'undefined' && !this.findTeam(schoolName)) {
+    // A school always wins over a country of the same name (Georgia).
+    const isSchool = this.findTeam(schoolName) || (typeof TeamsMaster !== 'undefined' && Array.isArray(TeamsMaster) && TeamsMaster.some(t => t.name === schoolName || (t.aliases || []).includes(schoolName))) ||
+      this.KNOWN_LOGO_FILES.has(this.LOGO_ALIASES[String(schoolName).toLowerCase().replace(/[^a-z0-9]/g, '')] || String(schoolName).toLowerCase().replace(/[^a-z0-9]/g, ''));
+    if (typeof Flags !== 'undefined' && !isSchool) {
       const fc = Flags.code(schoolName);
       if (fc) return (this._logoCache[schoolName] = `${Flags.BASE}${fc}.svg`);
     }
@@ -1264,15 +1270,16 @@ window.SimEngine = {
   // Column names here mirror the recruiting page's own schema exactly
   // (hs_ppg, aau_usg, hs_rimFga and so on), so the whole tier is read
   // rather than the handful of names that happened to overlap.
-  // His written lines by level (high school, AAU, FIBA), kept compact in
-  // the save: what his summers are modeled on (SummerCore.LINE_KEYS order).
+  // His written lines by level (high school, AAU, FIBA, his club), kept
+  // compact in the save: what his summers and club seasons are modeled on
+  // (SummerCore.LINE_KEYS order).
   // Impossible cells (a percentage over 100, sixty threes a game) are left
   // out rather than believed.
   readWrittenTiers(raw) {
     const KEYS = ['gp', 'mpg', 'ppg', 'rpg', 'apg', 'spg', 'bpg', 'topg', 'fg2', 'fg3', 'ft', 'fga2', 'fga3', 'fta'];
     const MAX = { mpg: 48, ppg: 60, rpg: 30, apg: 20, spg: 10, bpg: 10, topg: 12, fg2: 100, fg3: 100, ft: 100, fga2: 30, fga3: 15, fta: 20 };
     const out = {};
-    ['hs', 'aau', 'fiba'].forEach(t => {
+    ['hs', 'aau', 'fiba', 'intl'].forEach(t => {
       const n = k => {
         const v = raw[t + k.toLowerCase()];
         if (v === undefined || v === null || v === '') return null;
@@ -3322,6 +3329,12 @@ window.SimEngine = {
         e.ppg = (parseFloat(e.ppg) || 0) * f;
         e.fta = (parseFloat(e.fta) || 0) * f;
         e._scaled = f;
+        // Scaling a low-scoring roster down takes points, not boards, so
+        // the rebounds-against-points check runs again on the new line.
+        if (parseFloat(e.mpg) >= 12) {
+          const cap = e.ppg * 0.78 + 0.3, r = parseFloat(e.rpg) || 0;
+          if (r > cap) e.rpg = cap + (r - cap) * 0.2;
+        }
       });
     });
   },
@@ -3856,8 +3869,8 @@ window.SimEngine = {
     // one purely on position.
     const scoutedInterior = arch && (ps.archetype === 'rollBig' || ps.archetype === 'postHub');
     const positionalInterior = !arch && ['C', 'F/C', 'PF'].includes(pos);
-    if (scoutedInterior) ppg = Math.max(ppg, mpg * 0.30);
-    else if (positionalInterior) ppg = Math.max(ppg, mpg * 0.22);
+    if (scoutedInterior) ppg = Math.max(ppg, mpg * 0.31);
+    else if (positionalInterior) ppg = Math.max(ppg, mpg * 0.26);
 
     // Rebounding scales partly with involvement. A big who barely touches
     // the ball shouldn't still post double-digit boards; the flat
@@ -4049,6 +4062,17 @@ window.SimEngine = {
     dbpm += tr.dbpm;
     bpm += tr.dbpm;
 
+    // Boards against points once everything above has had its say
+    // (playstyle, scouting and the coach all move rebounding after the
+    // first check). A rotation player out-rebounding his own scoring is
+    // rare, so past about four-fifths of his points the extra boards are
+    // mostly taken back. Short minutes are left alone: a backup big in for
+    // eight minutes can grab four and score two.
+    if (mpg >= 12) {
+      const cap = ppg * 0.78 + 0.3;
+      if (rpg > cap) rpg = cap + (rpg - cap) * 0.2;
+    }
+
     let ortg = 95 + (obpm * 3.2);
     let drtg = 105 - (dbpm * 3.2);
 
@@ -4122,7 +4146,7 @@ window.SimEngine = {
     if (this._skipping) { this._skipDirty = true; return; }
     try {
       if (typeof db !== 'undefined' && db.leagueState && db.leagueState.update) {
-        await db.leagueState.update(1, { hsCalendar: this.state.hsCalendar || null, proPlayers: this.state.proPlayers || [] });
+        await db.leagueState.update(1, { hsCalendar: this.state.hsCalendar || null, proPlayers: this.state.proPlayers || [], clubSeason: this.state.clubSeason || null });
       }
     } catch (e) { console.warn('Saving the high-school calendar:', e); }
   },
@@ -4598,7 +4622,7 @@ window.SimEngine = {
       // draft board does: a mid-major has to clearly outproduce a
       // high-major to win a national honour.
       const level = (typeof DraftCore !== 'undefined')
-        ? DraftCore.competitionFactor(p.conference) : 1;
+        ? DraftCore.competitionFactor(p.conference, p) : 1;
       p.awardScore = ((bpm * 2.5) + (ppg * 0.8) + (apg * 0.4) + (rpg * 0.4)) * level + (teamWinPct * 15);
       p.defensiveScore = ((dbpm * 3.5) + (stl * 2.5) + (blk * 2.5)) * level + (teamWinPct * 10);
     });
@@ -5880,14 +5904,104 @@ window.SimEngine = {
     return moved;
   },
 
-  // Each pro's season so far: a seeded pro-league line, played out over
+  // Each pro's season so far, and every international still in high
+  // school: his club season, played game by game (see club-season.js) on
   // the same calendar as the college season.
   updateProSeasons() {
     if (!this.hsReady()) return;
-    const p = this.seasonProgress();
-    (this.state.proPlayers || []).forEach(pl => {
-      pl.stats = { ...this.getZeroStats(), ...HSCore.proStats(HSCore.proLine(pl, this.state.year, pl.proYears || 0), p) };
+    if (typeof ClubSeason === 'undefined' || typeof GameCore === 'undefined' || typeof SummerCore === 'undefined') {
+      // Without the club simulation: the seeded season line of old.
+      const p = this.seasonProgress();
+      (this.state.proPlayers || []).forEach(pl => {
+        pl.stats = { ...this.getZeroStats(), ...HSCore.proStats(HSCore.proLine(pl, this.state.year, pl.proYears || 0), p) };
+      });
+      return;
+    }
+    this.updateClubSeasons();
+  },
+
+  // Who plays club ball this season: the international pros, and the
+  // internationals in the high-school classes (at an academy, a club's
+  // junior team, or already with the senior team).
+  clubPlayers() {
+    const s = this.state, year = s.year, out = [];
+    const isD1 = n => this.isD1School(n);
+    const proIds = new Set((s.proPlayers || []).map(p => p.id));
+    (s.proPlayers || []).forEach(p => {
+      out.push({ obj: p, kind: 'pro', id: p.id, name: p.name, pos: p.pos, written: p.written || null, recRating: Number(p.recRating) || 0,
+        talent: (Number(HSCore.proTalent(p)) || 75) + (Number(p.breakout) || 0), club: p.club, years: p.proYears || 0 });
     });
+    (s.allRecruits || []).forEach(r => {
+      const c = Number(r.recClassYear);
+      if (r.fromOthers || !c || c <= year || c > year + 4 || proIds.has(r.id) || r.enrolled) return;
+      if (!HSCore.isInternational(r) || this.isDepartedRecruit(r)) return;
+      out.push({ obj: r, kind: 'hs', id: r.id, name: r.name, pos: r.pos, written: r.written || null, recRating: Number(r.recRating) || 0,
+        // Younger classes are a step behind his final rating.
+        talent: (Number(HSCore.proTalent(r)) || 74) - Math.max(0, c - year - 1) * 2.5, club: this.youthClubOf(r, isD1), years: 0 });
+    });
+    return out;
+  },
+
+  // A high-school international's club: the team the sheet lists him
+  // with, else his pro club's junior side, else a club from his country's.
+  youthClubOf(r, isD1) {
+    const NOT = /^(n\/a|none|-|tbd|pro|overseas|international|uncommitted)$/i;
+    const own = String(r.intlTeam || '').trim();
+    if (own && !NOT.test(own)) return own;
+    const club = HSCore.clubFor(r, isD1 || (n => this.isD1School(n)));
+    if (/\(BAL\)/.test(club)) return 'NBA Academy Africa';
+    return /u1\d|u2\d|junior|youth|academy|prep|elite/i.test(club) ? club : `${club} U18`;
+  },
+
+  updateClubSeasons() {
+    const s = this.state, year = s.year, prog = this.seasonProgress();
+    let cs = s.clubSeason;
+    if (!cs || cs.season !== year) {
+      // A new season: last season's lines are kept as each player's history.
+      const prev = {};
+      if (cs && cs.recs) Object.values(cs.recs).forEach(rec => {
+        const line = ClubSeason.lineOf(rec);
+        if (line) prev[rec.id] = { season: cs.season, club: rec.team || rec.club, lg: rec.lg, line };
+      });
+      cs = s.clubSeason = { season: year, recs: {}, prev };
+    }
+    const label = this.seasonLabelFor(year);
+    const keep = new Set();
+    // What the recruiting page shows: each player's line this season (and
+    // last), kept small so it saves with the week.
+    cs.view = {};
+    this.clubPlayers().forEach(x => {
+      keep.add(x.id);
+      let rec = cs.recs[x.id];
+      if (!rec || rec.club !== x.club) rec = cs.recs[x.id] = ClubSeason.startRecord(x, year);
+      ClubSeason.playTo(rec, year, rec.gp * prog);
+      const L = ClubSeason.leagueInfo(rec.lg);
+      const line = ClubSeason.lineOf(rec);
+      const prev = cs.prev[x.id] || null;
+      const old = prev ? { s: prev.season, lb: this.seasonLabelFor(prev.season), t: prev.club, lg: ClubSeason.leagueInfo(prev.lg).name, line: prev.line } : null;
+      if (line || old) {
+        cs.view[x.id] = { n: x.name, c: Number(x.obj.recClassYear) || null, k: x.kind, t: rec.team || rec.club, lg: L.name, s: year, lb: label,
+          live: prog < 1 ? 1 : 0, line: line || null, prev: old };
+      }
+      // A pro's stats are what the NCAA RP and the Draft RP read.
+      if (x.kind === 'pro') {
+        const p = x.obj;
+        p.proLeague = L.name;
+        p.proTeam = rec.team || rec.club;
+        p.proLevel = L.comp;
+        p.stats = { ...this.getZeroStats(), ...(ClubSeason.statsOf(rec) || {}) };
+        p.statsFull = p.stats;
+        p.gameLog = ClubSeason.gameLogOf(rec, year);
+      }
+    });
+    Object.keys(cs.recs).forEach(id => { if (!keep.has(id)) delete cs.recs[id]; });
+  },
+
+  // The club seasons for the published universe (see updateClubSeasons).
+  clubSnapshot() {
+    const cs = this.state.clubSeason;
+    if (!cs || !cs.view) return null;
+    return { season: cs.season, label: this.seasonLabelFor(cs.season), players: Object.values(cs.view) };
   },
 
   // Everyone the draft can see: college players and eligible pros.
@@ -9471,7 +9585,7 @@ window.SimEngine = {
       traits: p.traits || null,
       isPro: !!p.isPro, draftClass: p.draftClass || null, dob: p.dob || null,
       // What the board reads to value an international pro.
-      ...(p.isPro ? { recRating: p.recRating || null, proYears: p.proYears || 0, breakout: p.breakout || 0, club: p.club || null } : {}),
+      ...(p.isPro ? { recRating: p.recRating || null, proYears: p.proYears || 0, breakout: p.breakout || 0, club: p.club || null, proLeague: p.proLeague || null, proLevel: p.proLevel || null, proTeam: p.proTeam || null } : {}),
       // The sheet's Draft column, so the Draft RP's mock agrees with draft night.
       scriptedDraft: this.scriptedDraftFor(p) || null
     };
@@ -9585,6 +9699,7 @@ window.SimEngine = {
       // commitments and the lists still being decided (see recruit-live.js).
       recruitingLive: this.liveRecruitingSnapshot(),
       summer: this.summerSnapshot(),
+      club: typeof ClubSeason !== 'undefined' ? this.clubSnapshot() : null,
       champions: (this.state.seasonHistory || []).map(h => ({
         year: h.year, season: this.seasonLabelFor(h.year),
         champion: h.champion && (h.champion.school || h.champion), runnerUp: h.runnerUp && (h.runnerUp.school || h.runnerUp),
