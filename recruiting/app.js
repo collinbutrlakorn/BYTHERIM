@@ -141,8 +141,8 @@ const NO_COMMIT = /^(uncommitted|uncommited|undecided|open|tbd|n\/a|none|-)$/i;
 function commitSchoolOf(p) {
   const c = String(p.committedSchool || '').trim();
   if (c) return NO_COMMIT.test(c) ? null : c;
-  const st = String(p.status || '');
-  const m = st.match(/(?:committed|signed)\s+(?:to|with)\s+(.+)/i);
+  // Older sheets that still have a Status column: "Committed to Duke".
+  const m = String(p.status || '').match(/(?:committed|signed)\s+(?:to|with)\s+(.+)/i);
   return m ? m[1].trim() : null;
 }
 
@@ -203,8 +203,16 @@ function buildRecruitRow(p, opts = {}) {
         <img src="${logo}" class="school-logo" loading="lazy" alt="${escAttr(school)}" onerror="schoolLogoFallback(this, '${escAttr(school)}')">
         <span class="commit-name desktop-only">${school}</span>
       </div>`;
+  } else if (p.proClub) {
+    commitHTML = `<div class="commit-cell" title="Playing pro for ${escAttr(p.proClub)}">
+        <img src="${proLogoPath(p.proClub)}" class="school-logo" loading="lazy" alt="${escAttr(p.proClub)}">
+        <span class="commit-name desktop-only">${p.proClub}</span>
+      </div>`;
   } else {
-    commitHTML = `<span class="commit-none"><span class="desktop-only">${p.status || 'Uncommitted'}</span><span class="mobile-only">—</span></span>`;
+    // Same layout as a commit — an empty logo slot and plain text — so the
+    // column lines up.
+    commitHTML = `<div class="commit-cell commit-open"><span class="school-logo school-logo-empty" aria-hidden="true"></span>
+        <span class="commit-name desktop-only">Uncommitted</span><span class="mobile-only commit-dash">—</span></div>`;
   }
 
   tr.innerHTML = `
@@ -353,9 +361,11 @@ window.onload = () => {
           stars: (() => { const rt = parseInt(row.rating); return isNaN(rt) ? ((row.stars !== undefined && row.stars !== "" && !isNaN(parseInt(row.stars))) ? parseInt(row.stars) : 0) : rt >= 90 ? 5 : rt >= 80 ? 4 : rt >= 70 ? 3 : 0; })(),
           // A club only once he's signed: an overseas prospect still at an
           // academy is open to college.
-          proClub: /playing pro/i.test(String(row.status || '')) ? String(row.proClub || '') : '',
+          // A club in the Pro Club column means he's playing pro. (A sheet
+          // that still has a Status column keeps its old rule.)
+          proClub: row.status && !/playing pro/i.test(String(row.status)) ? '' : String(row.proClub || '').trim(),
           rating: (row.rating !== undefined && row.rating !== "" && !isNaN(parseInt(row.rating))) ? parseInt(row.rating) : 70,
-          status: String(row.status || "Uncommitted"),
+          status: String(row.status || ''),
           committedSchool: row.committedSchool ? String(row.committedSchool) : null,
           commitLogo: formatImagePath(row.commitLogo),
           accolades: parseArray(row.accolades),
@@ -543,6 +553,10 @@ function generateSchoolBadge(schoolName) {
     `<text x="32" y="33" font-family="Arial,sans-serif" font-weight="700" font-size="${initials.length >= 3 ? 19 : 23}" ` +
     `fill="#fff" text-anchor="middle" dominant-baseline="middle">${initials}</text></svg>`;
   return 'data:image/svg+xml;base64,' + btoa(svg);
+}
+
+function proLogoPath(club) {
+  return (typeof ProLogos !== 'undefined') ? ProLogos.path(club, ASSET_BASE_PATH) : ASSET_BASE_PATH + 'schoollogos/pro.png';
 }
 
 function getSchoolLogoPath(schoolName) {
@@ -1218,7 +1232,7 @@ function renderProfile(p) {
     </div>` : p.proClub ? `
     <div class="uncommitted-box">
       <div class="commit-label" style="margin-bottom: 4px;">Playing Pro</div>
-      <div class="commit-main-info"><span class="commit-school-name">${p.proClub}</span></div>
+      <div class="commit-main-info"><img src="${proLogoPath(p.proClub)}" class="commit-standout-logo" alt=""><span class="commit-school-name">${p.proClub}</span></div>
     </div>` : `
     <div class="uncommitted-box">
       <div class="commit-label" style="margin-bottom: 4px;">Status</div>

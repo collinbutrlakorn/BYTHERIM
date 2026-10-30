@@ -200,7 +200,6 @@ function applyRecruitFlips() {
     if (!r || r.committedSchool === f.to) return;
     r.flippedFrom = f.from;
     r.committedSchool = f.to;
-    r.status = `Committed to ${f.to}`;
     r.commitLogo = '';
     moved++;
   });
@@ -233,11 +232,11 @@ function applyLiveRecruiting() {
     if (x.g) { r.rating = x.g; r.stars = x.g >= 90 ? 5 : x.g >= 80 ? 4 : x.g >= 70 ? 3 : 0; }
     if (x.live) {
       if (x.s) {
-        r.committedSchool = x.s; r.status = `Committed to ${x.s}`; r.commitLogo = '';
+        r.committedSchool = x.s; r.commitLogo = '';
         const list = [x.s].concat(x.o || []);
         r.finalList = { title: `Final ${list.length}`, schools: list };
       } else {
-        r.committedSchool = null; r.status = 'Uncommitted'; r.commitLogo = '';
+        r.committedSchool = null; r.commitLogo = '';
         if (x.l && x.l.length) r.finalList = { title: x.l.length <= 5 ? `Top ${x.l.length}` : `Top ${x.l.length} list`, schools: x.l };
       }
       if (x.d) r.decommittedFrom = x.d;
@@ -248,7 +247,7 @@ function applyLiveRecruiting() {
   if (live.openFrom) {
     recruits.forEach(r => {
       if (r.generated && Number(r.classYear) >= live.openFrom && r.committedSchool) {
-        r.committedSchool = null; r.status = 'Uncommitted'; r.commitLogo = ''; n++;
+        r.committedSchool = null; r.commitLogo = ''; n++;
       }
     });
   }

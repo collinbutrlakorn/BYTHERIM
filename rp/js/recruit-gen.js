@@ -511,7 +511,7 @@
       put('hs', id.hs); put('pos', id.pos); put('height', id.height); put('weight', id.weight); put('wingspan', id.wingspan);
       put('hometown', id.hometown); put('state', id.state); put('stars', String(starsFor(rating))); put('rating', String(rating));
       if (id.country) put('country', id.country);
-      put('committedSchool', school); put('status', school ? `Committed to ${school}` : 'Uncommitted');
+      put('committedSchool', school);
       put('commitLogo', ''); put('avatar', '');
       put('offers', offerList.join(', '));
       put('finalListTitle', school ? `Final ${finalList.length}` : `Top ${finalList.length}`);
@@ -589,8 +589,10 @@
       put('hs', YOUTH[id.country] || club); put('pos', id.pos); put('height', id.height); put('weight', id.weight); put('wingspan', id.wingspan);
       put('hometown', id.hometown); put('state', 'INT'); put('country', id.country);
       put('stars', String(starsFor(rating))); put('rating', String(rating));
-      put('committedSchool', school); put('status', school ? `Committed to ${school}` : commits ? `Playing pro: ${club}` : 'Uncommitted');
-      put('proClub', school ? '' : club);
+      put('committedSchool', school);
+      // A club only when he's signed pro; otherwise it's where he last played.
+      put('proClub', !school && commits ? club : '');
+      if (!school && !commits) put('intlTeam', club);
       put('commitLogo', ''); put('avatar', ''); put('offers', offers.join(', '));
       put('finalListTitle', offers.length ? `Top ${Math.min(3, offers.length)}` : ''); put('finalList', offers.slice(0, 3).join(', '));
       put('accolades', '');

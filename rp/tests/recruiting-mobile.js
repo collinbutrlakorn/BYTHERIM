@@ -85,10 +85,13 @@ ok(nc30.length===0||nc30[0]===1,'the next class starts its own state count at 1'
 ok(firstRow.querySelector('.player-meta')&&/·/.test(firstRow.querySelector('.player-meta').textContent),'mobile meta line (pos · ht/wt): '+firstRow.querySelector('.player-meta').textContent.trim());
 const hsLine=firstRow.querySelectorAll('.player-sub.mobile-only')[0].textContent;
 ok(/\(.+\)/.test(hsLine),'mobile school (hometown) line: '+hsLine);
-const committed=$$('#recruitsTableBody .commit-cell')[0];
+const committed=$$('#recruitsTableBody .commit-cell:not(.commit-open)')[0];
 ok(!committed.textContent.includes('Committed to'),'commit cell no longer says "Committed to …"');
 ok(committed.querySelector('img.school-logo')&&committed.querySelector('.commit-name.desktop-only'),'logo always, school name desktop-only');
 ok(committed.querySelector('img').getAttribute('src').includes('tcu.png')||committed.querySelector('img').getAttribute('src').includes('duke.png'),'commit logo resolves through aliases');
+// Uncommitted rows use the same cell: a logo slot and text, not bold.
+const open1=$$('#recruitsTableBody .commit-cell.commit-open')[0];
+ok(open1&&open1.querySelector('.school-logo-empty')&&/Uncommitted/.test(open1.textContent),'an uncommitted row has the same cell layout as a commit');
 // Search every phone-width block, not just the last one — refinements
 // may add later @media blocks.
 const m=(css.match(/@media \(max-width: 760px\)[\s\S]*?\n\}/g)||[]).join('\n');

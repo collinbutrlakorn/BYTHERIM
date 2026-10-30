@@ -1009,7 +1009,9 @@ tbody tr:last-child td { border-bottom: none; }
 
 .commit-cell { display: flex; align-items: center; gap: 0.5rem; }
 .commit-name { font-weight: 600; font-size: 0.86rem; white-space: nowrap; }
-.commit-none { color: var(--text-muted); font-size: 0.84rem; }
+.commit-open .commit-name { font-weight: 400; color: var(--text-muted); }
+.commit-open .commit-dash { color: var(--text-muted); }
+.school-logo-empty { display: inline-block; flex-shrink: 0; border: 1px dashed var(--border); border-radius: 50%; background: none; box-sizing: border-box; }
 
 /* ---- School rankings ---- */
 .school-table .col-srank { width: 56px; }

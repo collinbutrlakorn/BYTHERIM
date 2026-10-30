@@ -92,7 +92,7 @@ ok(genC.every((nm, i) => nm === genA[i]) && genC.length === genA.length - 1, 'ad
 // A class the sheet hasn't committed stays uncommitted; stubs get filled in.
 const stubs = Array.from({ length: 12 }, (_, i) => ({ __tab: '2038', rank: String(i + 1), classYear: '2038', name: `Stub ${i + 1}` }));
 const d = G.augment(stubs, { classes: ['2038'] });
-ok(d.filter(r => r.generated).every(r => !r.committedSchool && /Uncommitted/.test(r.status)), 'an uncommitted class stays uncommitted, overseas players too');
+ok(d.filter(r => r.generated).every(r => !r.committedSchool && !r.proClub && !('status' in r)), 'an uncommitted class stays uncommitted, overseas players too (and there is no Status column)');
 const st = d.find(r => r.name === 'Stub 1');
 ok(st.pos && st.rating && st.height && st.rank === '1', 'a sheet player with only a name gets a build and bio, and keeps his rank');
 

@@ -594,6 +594,11 @@ window.SimEngine = {
   // A team's name, with its flag when it's a national team.
   teamTag(name) { return typeof Flags !== 'undefined' ? Flags.team(name) : this.esc(name); },
 
+  // A pro club's logo (proteamlogos/), else the generic pro icon.
+  proLogo(club) {
+    return typeof ProLogos !== 'undefined' && club ? ProLogos.path(club, '../') : '../schoollogos/pro.png';
+  },
+
   getTeamLogo(schoolName) {
     if (!schoolName || schoolName === 'Free Agent' || schoolName === 'Uncommitted') return '';
     // The all-star teams (East/West, Team Air/Team Flight, USA/World).
@@ -612,8 +617,11 @@ window.SimEngine = {
     const normalized = String(schoolName).toLowerCase().replace(/[^a-z0-9]/g, '');
     const fileBase = this.LOGO_ALIASES[normalized] || normalized;
 
+    // A pro club (Real Madrid, Perth Wildcats): its logo, else the pro icon.
+    const isClub = !this.KNOWN_LOGO_FILES.has(fileBase) && !isSchool && typeof ClubSeason !== 'undefined' && ClubSeason.leagueOf(schoolName) !== 'domestic';
     const result = this.KNOWN_LOGO_FILES.has(fileBase)
       ? `../schoollogos/${fileBase}.png`
+      : isClub ? this.proLogo(schoolName)
       : this.generateFallbackLogo(schoolName);
 
     this._logoCache[schoolName] = result;
@@ -5844,7 +5852,7 @@ window.SimEngine = {
       p.club = p.club || HSCore.clubFor(r, isD1);
       p.school = p.club;
       p.conference = 'Pro';
-      p.school_logo = '../schoollogos/pro.png';
+      p.school_logo = this.proLogo(p.club);
       p.collegeHistory = [p.club];
       p.proYears = draftYear - (c + 1);
       p.breakout = HSCore.proBreakout ? HSCore.proBreakout(r, this.state.year) : 0;
@@ -5890,7 +5898,6 @@ window.SimEngine = {
       for (const y of w) { x -= y.w; if (x <= 0) { dest = y.t; break; } }
       rec.school = dest.school;
       rec.committedSchool = dest.school;
-      rec.status = `Committed to ${dest.school}`;
       rec.formerClub = pro.club || null;
       d.college = dest.school;
       moved.push({ name: d.name, club: pro.club, to: dest.school, classYear: Number(rec.recClassYear) || null });
@@ -5988,6 +5995,7 @@ window.SimEngine = {
         const p = x.obj;
         p.proLeague = L.name;
         p.proTeam = rec.team || rec.club;
+        p.school_logo = this.proLogo(p.proTeam);
         p.proLevel = L.comp;
         p.stats = { ...this.getZeroStats(), ...(ClubSeason.statsOf(rec) || {}) };
         p.statsFull = p.stats;
@@ -10056,7 +10064,7 @@ window.SimEngine = {
     const picked = cal ? Object.keys(cal.events).filter(k => Object.values(cal.events[k].rosters || {}).some(ids => ids.includes(r.id)))
       .map(k => { const t = Object.keys(cal.events[k].rosters).find(n => cal.events[k].rosters[n].includes(r.id)); return `${HSCore.EVENTS[k].name} · ${t}`; }) : [];
     const commit = e.school ? `<div class="rc-commit"><img src="${this.getTeamLogo(e.school)}" class="sm-logo" alt=""><div><small>Committed to</small><b>${this.esc(e.school)}</b></div></div>`
-      : e.club ? `<div class="rc-commit"><img src="../schoollogos/pro.png" class="sm-logo" alt=""><div><small>Turning pro</small><b>${this.esc(e.club)}</b></div></div>`
+      : e.club ? `<div class="rc-commit"><img src="${this.proLogo(e.club)}" class="sm-logo" alt=""><div><small>Turning pro</small><b>${this.esc(e.club)}</b></div></div>`
       : `<div class="rc-commit open"><div><small>Status</small><b>Uncommitted</b></div></div>`;
     const move = e.arrived ? '<span class="rec-move new">NEW</span>' : e.delta >= 1 ? `<span class="rec-move up">▲${e.delta} since the preseason</span>` : e.delta <= -1 ? `<span class="rec-move down">▼${-e.delta} since the preseason</span>` : '';
     const sc = r.scout || {};

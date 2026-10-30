@@ -78,6 +78,11 @@ const { boot, ok } = require('./harness');
   const snap = Sim.clubSnapshot();
   ok(snap && snap.players.length > 0 && snap.players.every(x => x.n && x.t && x.lg), 'the universe carries every club line');
 
+  // Pro clubs get a logo file name, or the generic pro icon.
+  const PL = require(path.join(__dirname, '..', '..', 'assets', 'pro-logos.js'));
+  ok(PL.path('Real Madrid U18', '../') === '../proteamlogos/realmadrid.png' && PL.path('', '../') === '../schoollogos/pro.png', 'pro logos are named after the senior club');
+  ok(/pro(teamlogos\/realmadrid|\.png)/.test(Sim.getTeamLogo('Real Madrid')) && !/^data:/.test(Sim.getTeamLogo('Perth Wildcats')), 'a pro club gets a pro logo, not an initials badge');
+
   // A school beats a country of the same name.
   ok(/schoollogos\/georgia\.png$/.test(Sim.getTeamLogo('Georgia')), 'Georgia is the Bulldogs, not the flag');
 

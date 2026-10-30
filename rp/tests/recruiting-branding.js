@@ -56,4 +56,22 @@ vm.runInContext(fs.readFileSync(R+'app.js','utf8'),c,{filename:'app.js'});
 w.onload();
 ok(vm.runInContext('recruits.length',c)===1,'page still parses recruits after the restructure');
 ok(!/function submitFeedback/.test(fs.readFileSync(R+'app.js','utf8')),'feedback handler removed from app.js');
+
+// --- no Status column: committed, pro and open rows read from their own columns ---
+const d2=new JSDOM(html,{url:"http://localhost/recruiting/",runScripts:"outside-only"});
+const w2=d2.window,c2=d2.getInternalVMContext();
+Object.defineProperty(w2,'localStorage',{value:{getItem:()=>null,setItem:()=>{},removeItem:()=>{}},configurable:true});
+const base={pos:"C",classYear:"2029",rating:"90",hs_gp:"20",hs_ppg:"18"};
+w2.Papa={parse:(u,o)=>o.complete({data:[{...base,id:"1",name:"A",rank:"1",committedSchool:"Duke"},{...base,id:"2",name:"B",rank:"2",proClub:"Real Madrid"},{...base,id:"3",name:"C",rank:"3"}]})};
+w2.alert=()=>{};
+if(fs.existsSync(R+'../assets/pro-logos.js'))vm.runInContext(fs.readFileSync(R+'../assets/pro-logos.js','utf8'),c2);
+vm.runInContext(fs.readFileSync(R+'app.js','utf8'),c2,{filename:'app.js'});
+w2.onload();
+const cf=w2.document.getElementById('classFilter');cf.innerHTML+='<option value="OVERALL">o</option>';cf.value='OVERALL';vm.runInContext('filterRecruits()',c2);
+const cells=[...w2.document.querySelectorAll('#recruitsTableBody .commit-cell')];
+ok(cells.length===3,'every row, committed or not, has the same commit cell');
+ok(/duke/.test(cells[0].querySelector('img').src)&&!cells[0].classList.contains('commit-open'),'a school in Committed School shows the school');
+ok(/proteamlogos\/realmadrid\.png/.test(cells[1].querySelector('img').src)&&/Real Madrid/.test(cells[1].textContent),'a Pro Club shows the club and its logo');
+ok(cells[2].classList.contains('commit-open')&&/Uncommitted/.test(cells[2].textContent),'no school and no club reads Uncommitted');
+ok(/\.commit-open \.commit-name\s*\{[^}]*font-weight:\s*400/.test(css)&&/\.commit-name\s*\{[^}]*font-weight:\s*600/.test(css),'committed names are bold, uncommitted regular');
 console.log("\nHeader, footer and branding verified.");
