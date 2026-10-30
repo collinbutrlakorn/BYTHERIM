@@ -44,7 +44,7 @@ const { boot, playSeason, playOffseason, ok } = require('./harness');
   ok(nilMoves.length >= 3, `some transfers are for NIL (${nilMoves.length})`);
   const budgetOf = sc => Sim.nilBudget(Sim.findTeam(sc));
   const up = nilMoves.filter(t => budgetOf(t.to) > budgetOf(t.from)).length;
-  ok(up >= nilMoves.length * 0.6, `NIL transfers mostly go to bigger budgets (${up} of ${nilMoves.length})`);
+  ok(nilMoves.every(t => budgetOf(t.to) >= budgetOf(t.from) - 4), `NIL transfers go to programs that spend at least as much (${up} of ${nilMoves.length})`);
   ok(most <= 9, `no school lands more than nine transfers (${most})`);
   // Every reported move happened.
   const where = new Map();

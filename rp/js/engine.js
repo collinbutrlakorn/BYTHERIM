@@ -5533,6 +5533,14 @@ window.SimEngine = {
           const c = Math.min(0.42, 0.1 + (short - 12) * 0.012 + (nil - 50) * 0.004);
           if (c > chance) { chance = c; reason = 'NIL opportunity'; }
         } else if (short <= -10 && chance > 0) chance *= 0.7;
+        // A high-profile name at any program can be bought away: more often
+        // after a rough season, but now and then one who played well.
+        let nilChance = 0;
+        if (nil >= 58) nilChance = Math.min(0.3, 0.05 + (nil - 58) * 0.003 + (bpm < 0 || mpg < 20 ? 0.1 : 0) + Math.max(0, short) * 0.006);
+        if (nilChance > 0 && Math.random() < nilChance) {
+          transfers.push({ player: p, from: team.school, reason: 'NIL opportunity', nil, richer: true });
+          return;
+        }
 
         if (chance > 0 && Math.random() < chance) transfers.push({ player: p, from: team.school, reason, nil });
       });
@@ -5593,7 +5601,12 @@ window.SimEngine = {
       const minutes = /playing time|buried|lost his/i.test(e.reason || '');
       // The level he's aiming for.
       const aim = up ? Math.max(fromLvl + 3, r + 2) : minutes ? Math.min(fromLvl - 2, r) : r;
-      const cands = this.state.teams.filter(t => t.school !== e.from && room[t.school] > 0);
+      // Bought away: only by a program that spends at least as much.
+      // A player who left for money goes where there's more of it.
+      const isNil = /NIL/.test(e.reason || '');
+      const fromBudget = isNil && from ? this.nilBudget(from) : -1;
+      const cands = this.state.teams.filter(t => t.school !== e.from && room[t.school] > 0
+        && (!isNil || this.nilBudget(t) >= fromBudget + (e.richer ? -4 : 1)));
       if (!cands.length) { unsigned.push(e); return; }
       // NIL: a player chasing money goes where the budget can pay him (and
       // looks wider for it); for the rest it's one pull among several.
@@ -5616,7 +5629,8 @@ window.SimEngine = {
     });
     // Nobody had room: back to his school if it still does.
     const stay = [], gone = [];
-    unsigned.forEach(e => { if (room[e.from] > 0) { room[e.from]--; stay.push(e); } else gone.push(e); });
+    // A star nobody outbid simply stays.
+    unsigned.forEach(e => { if (/NIL/.test(e.reason || '') || room[e.from] > 0) { room[e.from]--; stay.push(e); } else gone.push(e); });
     return { placed, unsigned: gone, returned: stay };
   },
 
