@@ -725,7 +725,7 @@ function portalRow(t) {
         <img src="${avatar}" class="player-avatar-sm" loading="lazy" decoding="async" alt="" onerror="this.src='${EMPTY_PFP}';">
         <div class="player-text">
           <span class="player-name">${portalEsc(t.name)}</span>
-          <span class="player-sub">${portalEsc(meta)}${t.ppg != null && t.ppg !== '' ? ` · ${portalEsc(t.ppg)} PPG` : ''}</span>
+          <span class="player-sub">${portalEsc(meta)}${t.ppg != null && t.ppg !== '' ? ` · ${portalEsc(t.ppg)} PPG` : ''}${t.nil ? ` · NIL: ${portalEsc(t.nil)}` : ''}</span>
         </div>
       </div>
     </td>
@@ -734,7 +734,7 @@ function portalRow(t) {
       <div class="portal-move">${schoolChip(t.from, 'from')}<span class="portal-arrow" aria-label="to">&rarr;</span>${schoolChip(t.to, 'to')}</div>
     </td>
     <td class="col-season"><span class="badge-class">${portalEsc(t.season)}</span></td>
-    <td class="col-type">${badge}${upcoming ? '<span class="portal-badge upcoming" title="Takes effect next season">Upcoming</span>' : ''}</td>
+    <td class="col-type">${badge}${/NIL/.test(t.reason || '') ? '<span class="portal-badge nil" title="Transferred for a bigger NIL deal">NIL</span>' : ''}${upcoming ? '<span class="portal-badge upcoming" title="Takes effect next season">Upcoming</span>' : ''}</td>
   </tr>`;
 }
 

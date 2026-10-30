@@ -1798,6 +1798,15 @@ window.SimEngine = {
     const count = {};
     all.forEach(r => { const c = HSCore.committedTo(r); if (c) count[`${r.recClassYear}|${c}`] = (count[`${r.recClassYear}|${c}`] || 0) + 1; });
     const mates = RecruitLive.teammateIndex(all.filter(r => Number(r.recClassYear) >= year), r => HSCore.committedTo(r));
+    // NIL matters, but less than prestige, opportunity and winning, and
+    // least to the surest NBA prospects.
+    const budgets = {};
+    const nilPull = (r, school) => {
+      if (typeof NilCore === 'undefined') return 1;
+      if (budgets[school] == null) budgets[school] = this.nilBudget(this.findTeam(school));
+      const serious = Math.max(0, Math.min(1, ((Number(r.recRating || r.rating) || 76) - 86) / 10));
+      return 1 + 0.3 * (1 - serious * 0.7) * Math.max(-1, Math.min(1, (budgets[school] - 50) / 40));
+    };
     const made = [];
     live.forEach(r => {
       const c = Number(r.recClassYear);
@@ -1815,7 +1824,7 @@ window.SimEngine = {
         school,
         mates: mates(r, school),
         full: full(school),
-        v: RecruitLive.interest(rec(r), school, sc, { friends: mates(r, school).length, full: full(school) })
+        v: RecruitLive.interest(rec(r), school, sc, { friends: mates(r, school).length, full: full(school) }) * nilPull(r, school)
       })).sort((a, b) => b.v - a.v);
       const size = RecruitLive.listSize(cp);
       const keep = scored.slice(0, size);
@@ -4905,6 +4914,10 @@ window.SimEngine = {
       else if (this.listedNextSeason(p)) declares = false;
       // Too young for this draft (the sheet's scripted pick still stands).
       if (declares && !(scripted && scripted.year === draftYear) && typeof DraftCore !== 'undefined' && !DraftCore.ageEligible(p, draftYear)) declares = false;
+      // NIL money keeps fringe prospects in school. A projected first-round
+      // pick goes about 99 times in 100, whatever he's paid.
+      p.nil = this.nilValue(p);
+      if (declares && !mandatory && !(scripted && scripted.year === draftYear) && Math.random() < this.nilStayChance(p.nil, rank)) declares = false;
 
       if (declares) {
         declarations.push({
@@ -4955,6 +4968,16 @@ window.SimEngine = {
     // can regroup by school.
     declarations.sort((a, b) => a.boardRank - b.boardRank);
     return declarations;
+  },
+
+  // How likely NIL money keeps an early entrant in school: about 1 in 100
+  // for a projected first-rounder with an elite deal, more the further
+  // down the board he is and the more he's paid.
+  nilStayChance(nil, rank) {
+    if (!(nil > 40)) return 0;
+    if (rank <= 30) return nil >= 80 ? 0.01 : 0;
+    const k = Math.min(1, (nil - 40) / 50);
+    return rank <= 60 ? 0.3 * k : 0.55 * k;
   },
 
   setDeclarationSort(mode) {
@@ -5503,12 +5526,25 @@ window.SimEngine = {
 
         // In the portal; where he lands is settled once every entrant is
         // known (placePortalEntrants), against the room each roster has.
-        if (chance > 0 && Math.random() < chance) transfers.push({ player: p, from: team.school, reason });
+        // NIL: a name worth more than his school can pay is courted, even
+        // when he's playing well; a well-paid player is harder to pry loose.
+        const nil = this.nilValue(p), short = nil - this.nilBudget(team);
+        if (nil >= 50 && short >= 12) {
+          const c = Math.min(0.42, 0.1 + (short - 12) * 0.012 + (nil - 50) * 0.004);
+          if (c > chance) { chance = c; reason = 'NIL opportunity'; }
+        } else if (short <= -10 && chance > 0) chance *= 0.7;
+
+        if (chance > 0 && Math.random() < chance) transfers.push({ player: p, from: team.school, reason, nil });
       });
     });
 
     return transfers;
   },
+
+  // NIL (see nil-core.js): a player's value and a program's budget, 0-100.
+  nilValue(p) { return typeof NilCore !== 'undefined' ? NilCore.playerValue(p) : 0; },
+  nilBudget(team) { return typeof NilCore !== 'undefined' && team ? NilCore.teamBudget(team) : 50; },
+  nilTier(v) { return typeof NilCore !== 'undefined' ? NilCore.tierOf(v) : ''; },
 
   // Next season's scholarships at each school: fifteen, less everyone
   // coming back (not a senior, not in the draft, not in the portal) and
@@ -5559,10 +5595,17 @@ window.SimEngine = {
       const aim = up ? Math.max(fromLvl + 3, r + 2) : minutes ? Math.min(fromLvl - 2, r) : r;
       const cands = this.state.teams.filter(t => t.school !== e.from && room[t.school] > 0);
       if (!cands.length) { unsigned.push(e); return; }
+      // NIL: a player chasing money goes where the budget can pay him (and
+      // looks wider for it); for the rest it's one pull among several.
+      const nil = e.nil != null ? e.nil : this.nilValue(p);
+      const forNil = /NIL/.test(e.reason || '');
+      const sigma = forNil ? 7 : 4.5;
       const w = cands.map(t => {
         const d = level(t) - aim;
         const need = this.rosterNeeds(t).neediest.slice(0, 2).some(slot => (this.SLOT_ELIGIBILITY[slot] || []).includes(posUp)) ? 1.6 : 1;
-        return { t, w: Math.exp(-(d * d) / (2 * 4.5 * 4.5)) * need * Math.sqrt(room[t.school]) };
+        const pay = this.nilBudget(t) - nil;
+        const money = forNil ? Math.max(0.03, Math.min(6, Math.exp(pay / 9))) : nil >= 40 ? 1 + 0.35 * Math.max(-1, Math.min(1, pay / 25)) : 1;
+        return { t, w: Math.exp(-(d * d) / (2 * sigma * sigma)) * need * money * Math.sqrt(room[t.school]) };
       });
       const total = w.reduce((n, x) => n + x.w, 0);
       if (total < 1e-6) { unsigned.push(e); return; }
@@ -6228,7 +6271,8 @@ window.SimEngine = {
       id: t.player.id, name: t.player.name, pos: t.player.pos, class: t.player.class,
       rating: parseFloat(t.player.rating) || 0,
       ppg: t.player.stats ? t.player.stats.ppg : '0.0',
-      from: t.from, to: t.to, reason: t.reason
+      from: t.from, to: t.to, reason: t.reason,
+      nil: this.nilTier(t.nil != null ? t.nil : this.nilValue(t.player))
     })));
     this.applyTransfers(transfers.slice(followers.length), { counted: true });   // followers already moved
 
@@ -7486,6 +7530,7 @@ window.SimEngine = {
             ${chip('Hometown', player.hometown && player.hometown !== 'N/A' ? player.hometown : '')}
             ${chip('High school', player.hs)}
             ${chip('RSCI', player.rsci ? '#' + Math.round(player.rsci) + (player.recClassYear ? ' (' + player.recClassYear + ')' : '') : 'Unranked')}
+            ${!player.departed && !player.isPro && typeof NilCore !== 'undefined' ? chip('NIL', this.nilTier(this.nilValue(player))) : ''}
           </div>
         </div>
         <button class="outline-btn btn-sm pp-team-btn" onclick="SimEngine.goToTeamFromPlayer('${this.jsArg(player.school || '')}')">Team page</button>
@@ -9170,7 +9215,7 @@ window.SimEngine = {
 
       <div class="team-stats-grid mb-1-5${team.prestige != null ? ' five' : ''}">
         <div class="stat-box"><span class="stat-label">RECORD</span><span class="stat-value">${team.simData.wins}-${team.simData.losses}</span><span class="sub-text-sm">(${team.simData.confWins}-${team.simData.confLosses} conf)</span></div>
-        ${team.prestige != null ? `<div class="stat-box"><span class="stat-label">PRESTIGE</span><span class="stat-value">${team.prestige}</span><span class="sub-text-sm">${Prestige.label(team.prestige, team.prestigeHistory)}${team.prestigeHistory != null && Math.abs(team.prestige - team.prestigeHistory) >= 3 ? ` (${team.prestige > team.prestigeHistory ? '▲' : '▼'} from ${team.prestigeHistory})` : ''}</span></div>` : ''}
+        ${team.prestige != null ? `<div class="stat-box"><span class="stat-label">PRESTIGE</span><span class="stat-value">${team.prestige}</span><span class="sub-text-sm">${Prestige.label(team.prestige, team.prestigeHistory)}${team.prestigeHistory != null && Math.abs(team.prestige - team.prestigeHistory) >= 3 ? ` (${team.prestige > team.prestigeHistory ? '▲' : '▼'} from ${team.prestigeHistory})` : ''}${typeof NilCore !== 'undefined' ? ` &middot; NIL: ${this.nilTier(this.nilBudget(team))}` : ''}</span></div>` : ''}
         <div class="stat-box"><span class="stat-label">PRESEASON</span><span class="stat-value">${team.preseasonRank ? '#' + team.preseasonRank : '—'}</span><span class="sub-text-sm">roster strength</span></div>
         <div class="stat-box"><span class="stat-label">SOS</span><span class="stat-value">${team.sosRank ? this.ordinal(team.sosRank) : '—'}</span><span class="sub-text-sm">of ${this.state.teams.length}</span></div>
         <div class="stat-box"><span class="stat-label">GAMES</span><span class="stat-value">${st.gp}</span><span class="sub-text-sm">played</span></div>
@@ -9679,6 +9724,7 @@ window.SimEngine = {
       stats: this.slimStats(p.stats), draft: p.draft || null,
       predraft: p.predraft && p.predraft.year === this.upcomingDraftYear() ? p.predraft : null,
       bigGameStock: p.bigGameStock || 0, bigGames: (p.bigGames || []).slice(-6),
+      nil: this.nilValue(p),
       // So the Draft RP's board weighs upside the same way this one does.
       potentialGrade: p.potentialGrade || null,
       traits: p.traits || null,
@@ -9788,7 +9834,7 @@ window.SimEngine = {
       },
       transfers: (this.state.transferHistory || []).map(t => ({
         name: t.name, pos: t.pos, class: t.class, rating: t.rating, ppg: t.ppg,
-        from: t.from, to: t.to, season: t.season, scheduled: !!t.scheduled, reason: t.reason
+        from: t.from, to: t.to, season: t.season, scheduled: !!t.scheduled, reason: t.reason, ...(t.nil ? { nil: t.nil } : {})
       })),
       alumni,
       // Recruits whose commitment the sim moved (a program ran out of

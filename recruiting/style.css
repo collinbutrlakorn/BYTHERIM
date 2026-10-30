@@ -1274,6 +1274,7 @@ body.modal-open { overflow: hidden; }
 .portal-badge.scheduled { color: var(--accent); border-color: var(--accent-soft-strong); background: var(--accent-soft); }
 .portal-badge.portal { color: var(--text-main); background: var(--card-hover); }
 .portal-badge.upcoming { color: var(--win); border-color: currentColor; }
+.portal-badge.nil { color: var(--gold, #d4a017); border-color: currentColor; }
 .portal-empty { color: var(--text-muted); padding: 2rem 1rem !important; white-space: normal !important; }
 .portal-more td { padding: 1rem !important; }
 .portal-row:hover td { background-color: var(--bg-hover); }

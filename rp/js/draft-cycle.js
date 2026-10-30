@@ -457,7 +457,12 @@
       if (!isNaN(rsci) && rsci <= 20 && ppg >= 15) return keep();
       const pd = p && p.predraft && p.predraft.year === ctx.draftYear ? p.predraft : null;
       const feedback = pd ? num(pd.stock) : 0;
-      const stayChance = clamp((rank <= 40 ? 0.9 : rank <= 60 ? 0.6 : 0.22) + feedback * 0.07, 0.05, 0.98);
+      let stayChance = clamp((rank <= 40 ? 0.9 : rank <= 60 ? 0.6 : 0.22) + feedback * 0.07, 0.05, 0.98);
+      // NIL: a big deal back at school pulls a fringe prospect out of the
+      // draft (a projected first-rounder still goes nearly every time).
+      const nil = p ? num(p.nil) : 0;
+      if (nil > 40 && rank > 30) stayChance *= 1 - Math.min(0.45, (nil - 40) / 110);
+      else if (nil >= 80 && rng() < 0.01) stayChance = 0;
       if (rng() < stayChance) return keep();
       returning.push({ ...d, boardRank: rank, feedback: pd ? pd.workoutGrade || pd.grade || null : null });
     });

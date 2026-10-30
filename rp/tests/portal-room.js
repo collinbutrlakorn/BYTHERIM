@@ -13,6 +13,15 @@ const { boot, playSeason, playOffseason, ok } = require('./harness');
   ok(Sim.proLastDraft({ dob: '3/1/2010', recClassYear: 2028 }) === 2032 && Sim.proLastDraft({ recClassYear: 2028 }) === 2032, 'an international is automatically eligible the year he turns 22');
   ok(Sim.proLastDraft({ dob: '3/1/2011', recClassYear: 2028 }) === 2033, 'a young one has an extra draft as an early entrant');
 
+  // NIL: hidden tiers, hype on top of ranking.
+  const N = w.NilCore;
+  const base = { name: 'Test Guard', pos: 'SG', rating: 80, class: 'FR', rsci: 60, stats: { gp: 30, ppg: 12 } };
+  ok(N.playerValue({ ...base, hs: 'Overtime Elite' }) >= 52 && N.playerValue({ ...base, hs: 'Overtime Elite' }) > N.playerValue(base), 'Overtime Elite raises a player\'s NIL floor');
+  ok(N.playerValue({ ...base, allStar: { mcd: true } }) > N.playerValue(base), 'so does the McDonald\'s game');
+  ok(['Elite', 'High', 'Solid', 'Modest', 'Minimal'].includes(Sim.nilTier(50)) && !/\$/.test(Sim.nilTier(90)), 'shown as tiers, never dollars');
+  ok(Sim.nilBudget(Sim.findTeam('Kentucky')) > Sim.nilBudget(Sim.findTeam('Siena')), 'Kentucky outspends Siena');
+  ok(Sim.nilStayChance(95, 10) <= 0.01 && Sim.nilStayChance(95, 80) > 0.3, 'a projected first-rounder takes the NBA ~99 times in 100; a fringe prospect with a big deal often stays');
+
   await playSeason(Sim);
   // Watch the portal place its entrants.
   let seen = null;
@@ -31,6 +40,11 @@ const { boot, playSeason, playOffseason, ok } = require('./harness');
   ok(!over.length, `no school signs more transfers than it has scholarships open${over.length ? ': ' + JSON.stringify(over.slice(0, 3)) : ''}`);
   const most = Math.max(...Object.values(into));
   ok(Object.keys(into).length >= Math.min(seen.out.placed.length, 25) * 0.6, `transfers spread across ${Object.keys(into).length} schools (most to one: ${most})`);
+  const nilMoves = seen.out.placed.filter(t => /NIL/.test(t.reason || ''));
+  ok(nilMoves.length >= 3, `some transfers are for NIL (${nilMoves.length})`);
+  const budgetOf = sc => Sim.nilBudget(Sim.findTeam(sc));
+  const up = nilMoves.filter(t => budgetOf(t.to) > budgetOf(t.from)).length;
+  ok(up >= nilMoves.length * 0.6, `NIL transfers mostly go to bigger budgets (${up} of ${nilMoves.length})`);
   ok(most <= 9, `no school lands more than nine transfers (${most})`);
   // Every reported move happened.
   const where = new Map();
