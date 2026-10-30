@@ -1758,10 +1758,14 @@ window.SimEngine = {
     if (HSCore.isInternational(r) && !(Number(r.rsci) > 0)) return !!r.genRecruit;
     return true;
   },
-  liveQuota(school) {
+  // How many of a class a program signs: its usual class size, and for
+  // the class arriving next season no more than the scholarships it will
+  // have open.
+  liveQuota(school, classYear) {
     const t = this.findTeam(school);
     const pres = t && t.prestige != null ? t.prestige : 50;
-    return typeof RecruitGen !== 'undefined' && RecruitGen.quotaFor ? RecruitGen.quotaFor(pres) : 4;
+    const q = typeof RecruitGen !== 'undefined' && RecruitGen.quotaFor ? RecruitGen.quotaFor(pres) : 4;
+    return t && Number(classYear) === this.state.year + 1 ? Math.min(q, this.projectedRoom(t)) : q;
   },
   // Offers for a prospect who has none on file: programs around his level.
   liveOffersFor(r, sc) {
@@ -1806,21 +1810,31 @@ window.SimEngine = {
       if (HSCore.isInternational(r) && !(Number(r.rsci) > 0) && HSCore.staysPro && HSCore.staysPro(r)) { r.liveList = []; r.liveProBound = true; return; }
       const cp = HSCore.classProgress(c, year, p);
       if (cp <= 0 || !r.liveList.length) return;
+      const full = school => (count[`${c}|${school}`] || 0) >= this.liveQuota(school, c);
       const scored = r.liveList.map(school => ({
         school,
         mates: mates(r, school),
-        v: RecruitLive.interest(rec(r), school, sc, { friends: mates(r, school).length, full: (count[`${c}|${school}`] || 0) >= this.liveQuota(school) })
+        full: full(school),
+        v: RecruitLive.interest(rec(r), school, sc, { friends: mates(r, school).length, full: full(school) })
       })).sort((a, b) => b.v - a.v);
       const size = RecruitLive.listSize(cp);
       const keep = scored.slice(0, size);
       r.liveList = keep.map(x => x.school);
       if (cp >= 1 || cp >= HSCore.commitAt(r)) {
-        const pick = RecruitLive.choose(keep);
+        // A program whose class is full has no scholarship to offer him.
+        let open = keep.filter(y => !y.full);
+        if (!open.length) {
+          // Late in his senior year: whoever around his level still has room.
+          if (cp < 1) return;
+          open = Object.keys(sc).filter(x => !full(x))
+            .map(school => ({ school, mates: [], v: RecruitLive.interest(rec(r), school, sc) })).sort((a, b) => b.v - a.v).slice(0, 3);
+        }
+        const pick = RecruitLive.choose(open);
         if (!pick) return;
-        const x = keep.find(y => y.school === pick);
+        const x = open.find(y => y.school === pick);
         r.school = pick;
         r.committedSchool = pick;
-        r.liveOver = keep.map(y => y.school).filter(y => y !== pick).slice(0, 2);
+        r.liveOver = open.map(y => y.school).filter(y => y !== pick).slice(0, 2);
         r.liveWith = x && x.mates.length ? x.mates[0].name : null;
         r.liveCommitted = { year, week: s.week };
         count[`${c}|${pick}`] = (count[`${c}|${pick}`] || 0) + 1;
@@ -4912,13 +4926,20 @@ window.SimEngine = {
     // automatically eligible is in for good.
     (this.state.proPlayers || []).forEach(p => {
       const rank = boardRank[p.id] || 999;
-      const last = (p.proYears || 0) >= 3;
-      const scripted = this.scriptedDraftFor(p);
       const draftYear = this.upcomingDraftYear();
+      // Automatically eligible (the year he turns 22): in, like a senior.
+      const last = draftYear >= this.proLastDraft(p);
+      const scripted = this.scriptedDraftFor(p);
+      const rating = parseFloat(p.rating) || 0;
+      const rsci = parseFloat(p.rsci) || null;
+      // Otherwise an early entrant, on the same terms as a college
+      // underclassman: his place on the board decides it.
       let declares = last || rank <= 30
-        || (rank <= 60 && Math.random() < 0.7)
-        || (rank <= 120 && Math.random() < 0.35)
-        || (parseFloat(p.recRating) >= 85 && Math.random() < 0.25);
+        || (rsci && rsci <= 10 && rank <= 40)
+        || (rating >= 84 && rank <= 100)
+        || (rank <= 60 && Math.random() < 0.55)
+        || (rank <= 100 && Math.random() < 0.4)
+        || (rank <= 200 && Math.random() < 0.15);
       if (scripted && scripted.year === draftYear) declares = true;
       else if (scripted && scripted.year > draftYear && !last) declares = false;
       if (!declares) return;
@@ -5436,12 +5457,6 @@ window.SimEngine = {
     const transfers = [];
     const declaredIds = new Set((this.state.draftDeclarations || []).map(d => d.id));
 
-    // Destination pool, best programs first.
-    // A program's pull is its talent plus its name: players move up to
-    // better teams, and toward the programs with prestige.
-    const pull = t => (t.simData.teamOvr || 0) + ((t.prestige != null ? t.prestige : 50) - 50) * 0.1;
-    const destinations = [...this.state.teams].sort((a, b) => pull(b) - pull(a));
-
     this.state.teams.forEach(team => {
       const sosPercentile = team.sosRank ? 1 - (team.sosRank / this.state.teams.length) : 0.5;
 
@@ -5486,36 +5501,90 @@ window.SimEngine = {
           reason = reason || 'Buried in the rotation';
         }
 
-        if (chance > 0 && Math.random() < chance) {
-          // Land somewhere plausibly better, with some randomness so it
-          // isn't always the single strongest program.
-          const better = destinations.filter(d =>
-            d.school !== team.school && pull(d) > pull(team));
-          let pool = better.length > 0 ? better.slice(0, Math.max(5, Math.floor(better.length * 0.25))) : destinations.slice(0, 10);
-          // Only schools with a scholarship open, and preferably ones that
-          // actually need this position.
-          pool = pool.filter(d => (d.roster || []).length < this.ROSTER_LIMIT);
-          const posUp = (p.pos || '').toUpperCase();
-          const needy = pool.filter(d => this.rosterNeeds(d).neediest.slice(0, 2)
-            .some(slot => (this.SLOT_ELIGIBILITY[slot] || []).includes(posUp)));
-          const choices = needy.length > 0 ? needy : pool;
-          if (choices.length === 0) return;
-          const dest = choices[Math.floor(Math.random() * choices.length)];
-          if (dest) transfers.push({ player: p, from: team.school, to: dest.school, reason });
-        }
+        // In the portal; where he lands is settled once every entrant is
+        // known (placePortalEntrants), against the room each roster has.
+        if (chance > 0 && Math.random() < chance) transfers.push({ player: p, from: team.school, reason });
       });
     });
 
     return transfers;
   },
 
-  applyTransfers(transfers) {
+  // Next season's scholarships at each school: fifteen, less everyone
+  // coming back (not a senior, not in the draft, not in the portal) and
+  // the freshmen signed to arrive.
+  nextSeasonRoom(leaving = new Set()) {
+    const declared = new Set((this.state.draftDeclarations || []).map(d => d.id));
+    const incoming = this.state.year + 1;
+    const signed = {};
+    (this.state.recruits || []).forEach(r => {
+      if (r.fromOthers || r.enrolled || Number(r.recClassYear) !== incoming) return;
+      const sc = r.school;
+      if (sc && sc !== 'Uncommitted' && sc !== 'Free Agent') signed[sc] = (signed[sc] || 0) + 1;
+    });
+    const room = {};
+    this.state.teams.forEach(t => {
+      const back = (t.roster || []).filter(p => {
+        if (declared.has(p.id) || leaving.has(p.id)) return false;
+        const cls = this.normalizeClassStanding(p.class);
+        return !['SR', 'GR'].includes(cls) || !!this.listedNextSeason(p);
+      }).length;
+      room[t.school] = this.ROSTER_LIMIT - back - (signed[t.school] || 0);
+    });
+    return room;
+  },
+
+  // Where portal entrants land. The best go first. Each picks among the
+  // schools with a scholarship open next season, toward programs at his
+  // level (a little above it when he's moving up, at or below it when he
+  // wants minutes) that need his position. Every signing takes a spot, so
+  // no school takes more than it has room for. An entrant nobody has room
+  // for goes back to his school if his spot is still there; otherwise he
+  // leaves Division I.
+  placePortalEntrants(entrants) {
+    if (!entrants.length) return { placed: [], unsigned: [] };
+    const room = this.nextSeasonRoom(new Set(entrants.map(e => e.player.id)));
+    const level = t => (typeof Prestige !== 'undefined' && t.prestige != null) ? Prestige.programLevel(t.prestige)
+      : (parseFloat(t.simData && t.simData.teamOvr) || 72);
+    const bySchool = new Map(this.state.teams.map(t => [t.school, t]));
+    const placed = [], unsigned = [];
+    entrants.slice().sort((a, b) => (parseFloat(b.player.rating) || 0) - (parseFloat(a.player.rating) || 0)).forEach(e => {
+      const p = e.player, r = parseFloat(p.rating) || 70;
+      const from = bySchool.get(e.from);
+      const fromLvl = from ? level(from) : r;
+      const posUp = (p.pos || '').toUpperCase();
+      const up = /higher level|underperformed/i.test(e.reason || '');
+      const minutes = /playing time|buried|lost his/i.test(e.reason || '');
+      // The level he's aiming for.
+      const aim = up ? Math.max(fromLvl + 3, r + 2) : minutes ? Math.min(fromLvl - 2, r) : r;
+      const cands = this.state.teams.filter(t => t.school !== e.from && room[t.school] > 0);
+      if (!cands.length) { unsigned.push(e); return; }
+      const w = cands.map(t => {
+        const d = level(t) - aim;
+        const need = this.rosterNeeds(t).neediest.slice(0, 2).some(slot => (this.SLOT_ELIGIBILITY[slot] || []).includes(posUp)) ? 1.6 : 1;
+        return { t, w: Math.exp(-(d * d) / (2 * 4.5 * 4.5)) * need * Math.sqrt(room[t.school]) };
+      });
+      const total = w.reduce((n, x) => n + x.w, 0);
+      if (total < 1e-6) { unsigned.push(e); return; }
+      let x = Math.random() * total, dest = w[w.length - 1].t;
+      for (const y of w) { x -= y.w; if (x <= 0) { dest = y.t; break; } }
+      room[dest.school]--;
+      placed.push({ ...e, to: dest.school });
+    });
+    // Nobody had room: back to his school if it still does.
+    const stay = [], gone = [];
+    unsigned.forEach(e => { if (room[e.from] > 0) { room[e.from]--; stay.push(e); } else gone.push(e); });
+    return { placed, unsigned: gone, returned: stay };
+  },
+
+  applyTransfers(transfers, opts = {}) {
     transfers.forEach(({ player, from, to }) => {
       const fromTeam = this.state.teams.find(t => t.school === from);
       const toTeam = this.state.teams.find(t => t.school === to);
       if (!fromTeam || !toTeam) return;
-      // Destination has to have a scholarship free.
-      if ((toTeam.roster || []).length >= this.ROSTER_LIMIT) return;
+      // Destination has to have a scholarship free. (The portal counts
+      // next season's room itself, departures and incoming freshmen in.)
+      if (!opts.counted && (toTeam.roster || []).length >= this.ROSTER_LIMIT) return;
       fromTeam.roster = fromTeam.roster.filter(x => x.id !== player.id);
       player.school = to;
       player.conference = toTeam.conference;
@@ -5598,7 +5667,7 @@ window.SimEngine = {
     await this.runOffseasonStage(stage.key);
     let ran = stage.key;
     this.state.offseasonStageIndex = idx + 1;
-    // The spring all-star games that follow the title game, one a step.
+    // Catches up any all-star game a skip-ahead jumped past.
     if (this.state.offseasonStageIndex <= 2) this.advanceHsCalendar();
 
     // Coming back from draft night, one click opens the portal: the draft
@@ -5842,10 +5911,12 @@ window.SimEngine = {
     (this.state.allRecruits || []).forEach(r => {
       if (r.fromOthers || !r.recClassYear || this.isDepartedRecruit(r)) return;
       // Like a one-and-done freshman: a pro from the class of 2028 is first
-      // in the 2029 draft, and he has four drafts to be taken in, provided
-      // he's old enough.
+      // in the 2029 draft, provided he's old enough. Until the draft of the
+      // year he turns 22 he's an early entrant (he declares, and can
+      // withdraw and go back to his club); that year he's automatically
+      // eligible, like a college senior. Without a birthdate: four drafts.
       const c = Number(r.recClassYear);
-      if (c + 1 > draftYear || c + 4 < draftYear || !HSCore.turnsPro(r, isD1)) return;
+      if (c + 1 > draftYear || draftYear > this.proLastDraft(r) || !HSCore.turnsPro(r, isD1)) return;
       if (typeof DraftCore !== 'undefined' && !DraftCore.ageEligible(r, draftYear)) return;
       const p = have.get(r.id) || { ...r, isRecruit: false, gameLog: [], accolades: [], seasonHistory: [] };
       p.isPro = true;
@@ -5867,6 +5938,14 @@ window.SimEngine = {
     this.state.proPlayers = out;
   },
 
+  // The draft an international is automatically eligible for: the year he
+  // turns 22 (four drafts after his class without a birthdate).
+  proLastDraft(r) {
+    const m = String((r && r.dob) || '').match(/(\d{4})/);
+    const c = Number(r && r.recClassYear) || 0;
+    return m ? Math.max(c + 1, parseInt(m[1], 10) + 22) : c + 4;
+  },
+
   // An international pro who withdraws from the draft usually goes back to
   // his club, but now and then one commits to a college instead and
   // enrolls as a freshman next season. Seeded per player and draft, so
@@ -5878,7 +5957,7 @@ window.SimEngine = {
     const draftYear = this.upcomingDraftYear();
     const recById = new Map((this.state.allRecruits || []).map(r => [r.id, r]));
     const pros = new Map((this.state.proPlayers || []).map(p => [p.id, p]));
-    const moved = [];
+    const moved = [], back2club = [];
     back.forEach(d => {
       if (d.college !== undefined) return;            // already settled
       const rec = recById.get(d.id), pro = pros.get(d.id);
@@ -5887,7 +5966,7 @@ window.SimEngine = {
       const rng = HSCore.rngFor(`pro-to-college|${d.id}|${draftYear}`);
       // Rare, likelier for a younger pro and one whose stock didn't land.
       const chance = 0.10 + ((pro.proYears || 0) === 0 ? 0.06 : 0) + ((d.boardRank || 999) > 60 ? 0.04 : 0);
-      if (rng() >= chance) return;
+      if (rng() >= chance) { back2club.push(d.name + (pro.club ? ` returns to ${pro.club}` : ' returns to his club')); return; }
       const rating = parseFloat(pro.rating) || 70;
       const base = Math.max(35, Math.min(95, 50 + (rating - 74) * 2.2));
       const open = this.state.teams.filter(t => (t.roster || []).length <= this.ROSTER_LIMIT - 2
@@ -5908,6 +5987,7 @@ window.SimEngine = {
       }))).slice(-400);
       moved.forEach(m => this.logNews(`${m.name} withdraws from the ${draftYear} NBA Draft and leaves ${m.club || 'his club'} to commit to ${m.to}`));
     }
+    back2club.forEach(t => this.logNews(`${t.replace(' returns', ` withdraws from the ${draftYear} NBA Draft and returns`)} for another season`));
     return moved;
   },
 
@@ -6131,15 +6211,26 @@ window.SimEngine = {
     const followers = this.runCoachingCarousel().filter(f => !scripted.some(t => t.id === f.player.id));
     this.applyTransfers(followers);
 
-    // Then the random portal, which skips anyone already moved.
-    const transfers = followers.concat(this.computeTransfers(new Set(scripted.map(t => t.id).concat(followers.map(f => f.player.id)))));
+    // Then the random portal, which skips anyone already moved. Entrants
+    // land only where next season has a scholarship open.
+    const entrants = this.computeTransfers(new Set(scripted.map(t => t.id).concat(followers.map(f => f.player.id))));
+    const { placed, unsigned } = this.placePortalEntrants(entrants);
+    // Unsigned, with no spot to go back to: out of Division I.
+    unsigned.forEach(e => {
+      const team = this.state.teams.find(t => t.school === e.from);
+      if (team) team.roster = team.roster.filter(x => x.id !== e.player.id);
+      this.archiveDeparted(e.player, 'unsigned in the portal');
+      this.markDeparted(e.player);
+    });
+    this.state.portalUnsigned = unsigned.length;
+    const transfers = followers.concat(placed);
     this.state.lastTransfers = scripted.concat(transfers.map(t => ({
       id: t.player.id, name: t.player.name, pos: t.player.pos, class: t.player.class,
       rating: parseFloat(t.player.rating) || 0,
       ppg: t.player.stats ? t.player.stats.ppg : '0.0',
       from: t.from, to: t.to, reason: t.reason
     })));
-    this.applyTransfers(transfers.slice(followers.length));   // followers already moved
+    this.applyTransfers(transfers.slice(followers.length), { counted: true });   // followers already moved
 
     // Every move is kept (the recruiting page's Transfer Portal reads the
     // full history), labelled with the season the player transfers into.
@@ -10111,11 +10202,12 @@ window.SimEngine = {
     if (!card) return;
     const el = document.createElement('div');
     el.className = 'spotlight';
-    el.innerHTML = `<div class="spotlight-card" role="dialog" aria-modal="true">
+    el.innerHTML = `<div class="spotlight-card${card.roster && card.roster.length ? ' has-roster' : ''}" role="dialog" aria-modal="true">
       ${card.logo ? `<img src="${card.logo}" alt="" class="spotlight-logo">` : ''}
       <span class="spotlight-kicker">${this.esc(card.kicker || '')}</span>
       <h2>${this.esc(card.title)}</h2>
       ${card.sub ? `<p>${this.esc(card.sub)}</p>` : ''}
+      ${card.roster && card.roster.length ? this.rosterRevealHTML(card.roster) : ''}
       <div class="spotlight-actions">${(card.actions || []).map((a, i) => `<button type="button" class="${a.primary ? 'spot-primary' : 'spot-secondary'}" data-i="${i}">${this.esc(a.label)}</button>`).join('')}</div>
     </div>`;
     const close = () => { el.remove(); this._spotQueue.shift(); this.showNextSpotlight(); };
@@ -10126,12 +10218,37 @@ window.SimEngine = {
     });
     document.body.appendChild(el);
   },
+  // The two teams for the announcement card: logo, colour and players
+  // (best first), each with his commitment.
+  allStarRosterReveal(rosters) {
+    const byId = new Map((this.state.allRecruits || []).map(r => [r.id, r]));
+    return Object.keys(rosters || {}).map(name => {
+      const st = HSCore.TEAM_STYLE[name] || {};
+      const players = (rosters[name] || []).map(id => byId.get(id)).filter(Boolean)
+        .sort((a, b) => (Number(a.rsci) || 999) - (Number(b.rsci) || 999))
+        .map(r => {
+          const school = HSCore.committedTo(r);
+          const club = !school && HSCore.isInternational(r) ? (r.proClub || r.intlTeam || '') : '';
+          return { name: r.name, pos: r.pos || '', school: school || club || '', logo: school ? this.getTeamLogo(school) : club ? this.proLogo(club) : '' };
+        });
+      return { name, color: st.color || 'var(--accent)', logo: st.logo ? `../schoollogos/${st.logo}.png` : '', players };
+    });
+  },
+  rosterRevealHTML(teams) {
+    let n = 0;
+    return `<div class="spot-roster">${teams.map((t, ti) => `<div class="spot-team" style="--team:${t.color}; --d:${ti * 120}ms">
+        <div class="spot-team-head">${t.logo ? `<img src="${t.logo}" alt="" onerror="this.remove()">` : ''}<b>${this.esc(t.name)}</b></div>
+        <ol>${t.players.map(pl => `<li style="--i:${n++}">${pl.logo ? `<img src="${pl.logo}" alt="" title="${this.esc(pl.school)}">` : '<span class="spot-nologo"></span>'}<span class="spot-name">${this.esc(pl.name)}</span><small>${this.esc(pl.pos)}</small></li>`).join('')}</ol>
+      </div>`).join('')}</div>`;
+  },
   hsSpotlight(key, kind) {
     const ev = HSCore.EVENTS[key];
     const logo = `../${HSCore.EVENT_LOGO[key]}`;
     const toTab = () => { this._hsOpen = key; this.state.recruitsClassView = 'incoming'; if (window.UIController && UIController.activateTab) UIController.activateTab('recruitsTab'); this.updateRecruitsTab(); };
     if (kind === 'roster') {
-      this.spotlight({ logo, kicker: 'Rosters announced', title: `The ${ev.name} rosters are out`, sub: 'See who made it, then watch the game when it tips off.',
+      const e = ((this.state.hsCalendar || {}).events || {})[key];
+      this.spotlight({ logo, kicker: 'Rosters announced', title: `The ${ev.name} rosters are out`, sub: `Tips off ${ev.when}.`,
+        roster: e ? this.allStarRosterReveal(e.rosters) : null,
         actions: [{ label: 'See the rosters', primary: true, fn: toTab }, { label: 'Later' }] });
     } else {
       this.spotlight({ logo, kicker: ev.when ? ev.when.charAt(0).toUpperCase() + ev.when.slice(1) : 'After the title game', title: `Watch the ${ev.name}`, sub: 'The best of the incoming class, from the opening tip.',
@@ -10195,9 +10312,12 @@ window.SimEngine = {
         wire.push({ kind: 'roster', key, text: `${ev.name} rosters announced` });
         this.hsSpotlight(key, 'roster');
       }
-      const stepDone = !ev.step || (s.ncaaDone && (s.offseasonStageIndex || 0) >= ev.step);
-      if (e && !e.result && p >= ev.play && stepDone && typeof GameCore !== 'undefined') {
+      // Played with its NCAA round (all of them once the title game is in).
+      const rounds = s.ncaaDone ? 99 : (s.confChampsDone && s.ncaaTournament ? s.ncaaTournament.rounds.length : 0);
+      const ready = ev.round ? rounds >= ev.round : p >= (ev.play || 1);
+      if (e && !e.result && ready && typeof GameCore !== 'undefined') {
         e.result = this.playAllStarGame(key, e.rosters);
+        e.round = Math.min(rounds, 6);
         if (e.result) { wire.push({ kind: 'game', key, text: `The ${ev.name} is final` }); this.hsSpotlight(key, 'game'); }
       }
     });

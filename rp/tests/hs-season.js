@@ -126,14 +126,13 @@ const FIX = path.join(__dirname, 'fixtures');
   const cal = Sim.state.hsCalendar;
   ok(cal && cal.year === Sim.state.year && (cal.wire || []).length > 10, `the recruiting wire filled up over the season (${(cal.wire || []).length} items)`);
   ok(cal.wire.some(x => x.kind === 'commit'), 'commitments came in during the season');
-  // One a week: the McDonald's game with the Final Four, the Jordan Brand
-  // Classic the week after, the Hoop Summit the week after that.
-  ok(cal.events.mcd && cal.events.mcd.result && !(cal.events.jbc && cal.events.jbc.result) && !(cal.events.nhs && cal.events.nhs.result),
-    'after the title game only the McDonald\'s game has been played');
-  await Sim.simulateWeek();
-  ok(cal.events.jbc && cal.events.jbc.result && !(cal.events.nhs && cal.events.nhs.result), 'the Jordan Brand Classic is the next week');
-  await Sim.simulateWeek();
-  ok(cal.events.nhs && cal.events.nhs.result, 'and the Nike Hoop Summit the week after that');
+  // All three during the NCAA Tournament: McDonald's with the First Round,
+  // Jordan Brand with the Second Round, the Hoop Summit with the Sweet 16.
+  ok(['mcd', 'jbc', 'nhs'].every(k => cal.events[k] && cal.events[k].result), 'all three all-star games are played before the season ends');
+  ok(cal.events.mcd.round === 1 && cal.events.jbc.round === 2 && cal.events.nhs.round === 3,
+    `played in NCAA rounds 1, 2 and 3 (${['mcd', 'jbc', 'nhs'].map(k => cal.events[k].round).join(', ')})`);
+  const reveal = Sim.allStarRosterReveal(cal.events.mcd.rosters);
+  ok(reveal.length === 2 && reveal.every(t => t.players.length === 12 && t.logo) && /spot-roster/.test(Sim.rosterRevealHTML(reveal)), 'the roster announcement card lists both teams');
   ['mcd', 'jbc', 'nhs'].forEach(k => {
     const e = cal.events[k];
     const teams = e ? Object.keys(e.rosters) : [];

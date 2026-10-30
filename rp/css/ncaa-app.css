@@ -927,7 +927,27 @@ a.outline-btn { text-decoration: none; display: inline-flex; align-items: center
 .spot-secondary { background: transparent; color: var(--text-main); border: 1px solid var(--border); }
 @keyframes spot-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes spot-pop { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .spotlight, .spotlight-card { animation: none; } }
+/* Roster announcement: the event logo drops in, then the two teams' names
+   are called one by one, alternating, best first. */
+.spotlight-card.has-roster { width: min(680px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
+.spotlight-card.has-roster .spotlight-logo { animation: spot-drop 520ms cubic-bezier(.2, 1.4, .4, 1) both; }
+.spot-roster { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; width: 100%; margin-top: 0.4rem; text-align: left; }
+.spot-team { border-top: 3px solid var(--team); background: var(--bg-elev, rgba(255,255,255,0.03)); border-radius: var(--r-md, 8px); padding: 0.55rem 0.6rem;
+  animation: spot-rise 380ms ease-out both; animation-delay: calc(250ms + var(--d)); }
+.spot-team-head { display: flex; align-items: center; gap: 0.45rem; font-family: 'Oswald', sans-serif; font-size: 1.05rem; margin-bottom: 0.35rem; }
+.spot-team-head img { width: 30px; height: 30px; object-fit: contain; }
+.spot-team ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.spot-team li { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 0.45rem; font-size: 0.84rem; padding: 3px 4px; border-radius: 4px;
+  animation: spot-call 360ms cubic-bezier(.2, 1.2, .4, 1) both; animation-delay: calc(550ms + var(--i) * 70ms); }
+.spot-team li img, .spot-nologo { width: 20px; height: 20px; object-fit: contain; }
+.spot-team li small { color: var(--text-muted); font-size: 0.7rem; font-weight: 700; }
+.spot-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+@keyframes spot-drop { 0% { transform: translateY(-40px) scale(0.6); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes spot-rise { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes spot-call { 0% { transform: translateX(-12px); opacity: 0; background: var(--accent-soft-strong, rgba(240,118,31,.35)); }
+  60% { opacity: 1; background: var(--accent-soft-strong, rgba(240,118,31,.35)); } 100% { transform: none; opacity: 1; background: transparent; } }
+@media (max-width: 520px) { .spot-roster { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .spotlight, .spotlight-card, .spotlight-logo, .spot-team, .spot-team li { animation: none !important; } }
 
 /* ---------- Watch list: several games a week ---------- */
 .sb-watch { display: inline-flex; align-items: center; gap: 0.35rem; }
