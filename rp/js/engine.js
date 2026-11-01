@@ -3364,12 +3364,21 @@ window.SimEngine = {
       const R = ros.reduce((n, p) => n + (parseFloat(p.expectedStats.ppg) || 0), 0);
       if (!(R > 0) || !(S > 0)) return;
       const f = Math.max(0.72, Math.min(1.3, S / R));
+      // A touch more of the scoring to each team's go-to players (the same
+      // total): a team's best scorer is a bit more of a focal point than
+      // his projection alone makes him. Calibrated with injuries as rare as
+      // college injuries are.
+      const K = 0.09;
+      const mean = R / ros.length;
+      const tilt = p => Math.pow(Math.max(0.05, (parseFloat(p.expectedStats.ppg) || 0) / mean), K);
+      const Z = ros.reduce((n, p) => n + (parseFloat(p.expectedStats.ppg) || 0) * tilt(p), 0) / R;
       ros.forEach(p => {
         const e = p.expectedStats;
         if (e._scaled) return;
-        e.ppg = (parseFloat(e.ppg) || 0) * f;
-        e.fta = (parseFloat(e.fta) || 0) * f;
-        e._scaled = f;
+        const g = f * tilt(p) / (Z || 1);
+        e.ppg = (parseFloat(e.ppg) || 0) * g;
+        e.fta = (parseFloat(e.fta) || 0) * g;
+        e._scaled = g;
         // Scaling a low-scoring roster down takes points, not boards, so
         // the rebounds-against-points check runs again on the new line.
         if (parseFloat(e.mpg) >= 12) {
@@ -3931,7 +3940,11 @@ window.SimEngine = {
     const rebCeiling = ppg * 0.62 + 3.0;
     if (rpg > rebCeiling) rpg = rebCeiling + (rpg - rebCeiling) * 0.30;
     let apg = Math.max(0.1, base.ast * usageScale);
-    let stl = Math.max(0.1, base.stl * usageScale * athStl);
+    // (0.97: with injuries now rare, starters play more of the minutes,
+    // and starters' steal rates kept the league a touch high.)
+    // (0.97: with injuries as rare as they are in college, starters play
+    // more of the minutes, and starters' steal rates ran the league high.)
+    let stl = Math.max(0.1, base.stl * usageScale * athStl * 0.97);
     // A floor tied to minutes: anyone in the rotation gets a hand on a
     // shot now and then, so a starting guard doesn't go a season without one.
     let blk = Math.max(0.05, mpg * 0.0075, base.blk * usageScale);
@@ -4315,13 +4328,15 @@ window.SimEngine = {
     const hm = rollSide(homeAvail), am = rollSide(awayAvail);
     home.simData.rosterRef = homeAvail.available;
     away.simData.rosterRef = awayAvail.available;
-    if (this.state.effNorm == null) this.updateEfficiencyNorm();
+    if (this.state.effNorm == null && opts.homeCourtEdge !== 0) this.updateEfficiencyNorm();
+    // Regular-season games carry the league's scoring calibration; the
+    // brackets are played on neutral floors without it, as they always were.
+    const neutral = opts.homeCourtEdge === 0;
     const result = GameCore.simulateSingleGame(home, away, {
       ...opts,
       homeMinutesMultiplier: hm,
       awayMinutesMultiplier: am,
-      effNorm: this.state.effNorm || undefined,
-      effAcc: this.state.effAcc || (this.state.effAcc = { pts: 0, load: 0 })
+      ...(neutral ? {} : { effNorm: this.state.effNorm || undefined, effAcc: this.state.effAcc || (this.state.effAcc = { pts: 0, load: 0 }) })
     });
     home.simData.rosterRef = homeFull;
     away.simData.rosterRef = awayFull;
