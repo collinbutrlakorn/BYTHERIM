@@ -56,7 +56,9 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
   accountMeta = { updatedAt: Date.now() + 1e6 };
   Sim._autosaveCleared = false;
   const n = uploads.length;
-  await Sim.simulateWeek();
+  // Through the conference tournaments (four sims) to the next milestone.
+  let g = 0;
+  while (!Sim.state.confChampsDone && g++ < 6) await Sim.simulateWeek();
   await wait(1800);
   ok(uploads.length === n && Sim._autosaveBlocked, 'autosave pauses when the account has a newer save from elsewhere');
 
