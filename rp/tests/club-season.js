@@ -33,6 +33,18 @@ const { boot, ok } = require('./harness');
   const low = season('Real Madrid', 'PG', 70);
   ok(low.rec.lg === 'domestic' && /B$/.test(low.rec.team), `a 70 at Real Madrid plays for ${low.rec.team} (${low.rec.lg})`);
 
+  // A top prospect gets real minutes even in the EuroLeague or NBL.
+  const star = (club, rec) => { const r = CS.startRecord({ id: `star|${club}|${rec}`, pos: 'SG', talent: 81, club, years: 0, recRating: rec }, 2031); CS.playTo(r, 2031, r.gp); return CS.statsOf(r); };
+  ok(parseFloat(star('FC Barcelona', 92).mpg) >= 20 && parseFloat(star('Perth Wildcats', 92).mpg) >= 20, `a lottery-level prospect plays 20+ minutes in the EuroLeague (${star('FC Barcelona', 92).mpg}) and NBL (${star('Perth Wildcats', 92).mpg})`);
+  ok(parseFloat(star('FC Barcelona', 92).mpg) > parseFloat(star('FC Barcelona', 82).mpg), 'more than an ordinary prospect');
+
+  // The draft board: centres are measured against centres.
+  const DC = require(path.join(J, 'draft-core.js'));
+  const line = { gp: 30, mpg: 22, ppg: 7, p40pts: 13, p40reb: 13, p40ast: 1.5, p40stl: 1, p40blk: 3, p40tov: 2, bpm: 6, tsPct: 0.68, usg: '11%' };
+  const big = (rsci, pos = 'C') => DC.scoreProspect({ name: 'B', pos, class: 'FR', rating: 82, ht: pos === 'C' ? "6'11" : "6'7", rsci, conference: 'ACC', stats: line }).score;
+  ok(big(5) - big(null) >= 6, `a low-usage centre goes high only as a top recruit (${big(5).toFixed(1)} vs ${big(null).toFixed(1)})`);
+  ok(big(null, 'SF') > big(null, 'C'), 'and the same line counts for more from a wing');
+
   // Seeded: the same season every time.
   const again = season('Mega Basket');
   ok(JSON.stringify(again.rec.games) === JSON.stringify(aba.rec.games), 'a club season replays the same');

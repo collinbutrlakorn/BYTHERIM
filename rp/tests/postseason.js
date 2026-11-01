@@ -27,8 +27,19 @@ const { boot, ok } = require('./harness');
   // ---- conference tournaments: seeded ----
   let guard = 0;
   while (!Sim.state.regularSeasonDone && guard++ < 60) await Sim.simulateWeek();
-  await Sim.simulateWeek();   // conference championships
-  ok(Sim.state.confChampsDone, 'conference tournaments played');
+  // Four sims: opening rounds, quarterfinals, semifinals, championships.
+  const btn = () => (d.getElementById('simWeekBtn') || {}).innerText || '';
+  Sim.syncUI();
+  ok(/Opening Rounds/.test(btn()), `the button offers the opening rounds ("${btn()}")`);
+  await Sim.simulateWeek();
+  ok(!Sim.state.confChampsDone && Sim.state.confTourneyStep === 1 && Object.values(Sim.state.confTournaments).every(b => !b.champion || b.totalRounds <= 0), 'after the opening rounds no conference has a champion yet');
+  ok(/Quarterfinals/.test(btn()), `then the quarterfinals ("${btn()}")`);
+  await Sim.simulateWeek();
+  await Sim.simulateWeek();
+  ok(!Sim.state.confChampsDone && Object.values(Sim.state.confTournaments).every(b => b.field && b.field.length <= 2), 'after the semifinals only the finals are left');
+  ok(/Championship Games/.test(btn()), `then the championship games ("${btn()}")`);
+  await Sim.simulateWeek();
+  ok(Sim.state.confChampsDone, 'conference tournaments played over four sims');
   const confs = Object.values(Sim.state.confTournaments);
   ok(confs.every(b => b.seeds && Object.keys(b.seeds).length >= 2), 'every conference bracket has seeds');
   const [confName, confBracket] = Object.entries(Sim.state.confTournaments).find(([, b]) => b.playIn && b.playIn.length);

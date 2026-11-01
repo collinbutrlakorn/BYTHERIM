@@ -24,6 +24,7 @@ window.SimEngine = {
     confChampsDone: false,
     ncaaDone: false,
     confTournaments: {},    // confName -> bracket result from TournamentCore
+    confTourneyStep: 0,     // conference tournaments: steps played (of CONF_TOURNEY_STEPS)
     ncaaTournament: null,   // bracket result from TournamentCore
     ncaaSelection: null,    // the seeded field (Selection Sunday), plain school names
     postseasonHonors: null, // conference tournament MOPs, regional MOPs, Final Four MOP
@@ -249,6 +250,7 @@ window.SimEngine = {
     this.state.confChampsDone = false;
     this.state.ncaaDone = false;
     this.state.confTournaments = {};
+    this.state.confTourneyStep = 0;
     this.state.ncaaTournament = null;
     this.state.ncaaFullBracket = null;
     this.state.ncaaSelection = null;
@@ -278,6 +280,7 @@ window.SimEngine = {
           this.state.confChampsDone = savedState.confChampsDone || false;
           this.state.ncaaDone = savedState.ncaaDone || false;
           this.state.confTournaments = savedState.confTournaments || {};
+          this.state.confTourneyStep = savedState.confTourneyStep || 0;
           this.state.ncaaTournament = savedState.ncaaTournament || null;
           this.state.ncaaSelection = savedState.ncaaSelection || null;
           this.state.postseasonHonors = savedState.postseasonHonors || null;
@@ -395,7 +398,11 @@ window.SimEngine = {
       champion: bracket.champion ? { school: bracket.champion.school } : null,
       playIn: (bracket.playIn || []).map(slimGame),
       rounds: (bracket.rounds || []).map(round => round.map(slimGame)),
-      seeds: bracket.seeds || null
+      seeds: bracket.seeds || null,
+      // Still being played: its size and who's left, in bracket order.
+      ...(bracket.totalRounds ? { totalRounds: bracket.totalRounds } : {}),
+      ...(bracket.field ? { field: bracket.field } : {}),
+      ...(bracket.playInPairs ? { playInPairs: bracket.playInPairs, byes: bracket.byes } : {})
     };
   },
 
@@ -425,6 +432,7 @@ window.SimEngine = {
           confEnd: this.state.confEnd,
           regularSeasonDone: this.state.regularSeasonDone,
           confChampsDone: this.state.confChampsDone,
+          confTourneyStep: this.state.confTourneyStep || 0,
           ncaaDone: this.state.ncaaDone,
           confTournaments: slimConfTournaments,
           ncaaTournament: this.serializeBracket(this.state.ncaaTournament),
@@ -3287,6 +3295,7 @@ window.SimEngine = {
     this.state.confChampsDone = false;
     this.state.ncaaDone = false;
     this.state.confTournaments = {};
+    this.state.confTourneyStep = 0;
     this.state.ncaaTournament = null;
     this.state.ncaaFullBracket = null;
     this.state.ncaaSelection = null;
@@ -4189,7 +4198,7 @@ window.SimEngine = {
       const n = s.ncaaTournament ? s.ncaaTournament.rounds.length : 0;
       return n ? this.NCAA_ROUND_NAMES[n - 1] : 'Selection Sunday';
     }
-    if (s.regularSeasonDone) return 'Conf. tournaments';
+    if (s.regularSeasonDone) return s.confTourneyStep ? `Conf. ${String(this.CONF_TOURNEY_STEPS[s.confTourneyStep - 1] || 'tournaments').toLowerCase()}` : 'Conf. tournaments';
     return s.week ? `Week ${s.week}` : 'Preseason';
   },
 
@@ -4705,48 +4714,115 @@ window.SimEngine = {
     attach(result.awayPlayerBoxes, teamB, teamA, result.awayScore, result.homeScore);
   },
 
-  async simulateConferenceChampionships() {
+  // Conference tournaments are played over four sims: the opening rounds,
+  // the quarterfinals, the semifinals and the championship games. A
+  // bracket keeps who's left (field, school names in bracket order) and
+  // its size (totalRounds) while it's being played.
+  CONF_TOURNEY_STEPS: ['Opening Rounds', 'Quarterfinals', 'Semifinals', 'Championship Games'],
+
+  startConferenceTournaments() {
     const confMap = {};
     this.state.teams.forEach(t => {
       const c = t.conference || 'Independent';
-      if (!confMap[c]) confMap[c] = [];
-      confMap[c].push(t);
+      (confMap[c] = confMap[c] || []).push(t);
     });
-
-    this.state.confTournaments = {};
+    const out = {};
     Object.keys(confMap).forEach(confName => {
       const confTeams = confMap[confName];
       if (confTeams.length < 2) return;
-
       confTeams.sort((a, b) => {
         if (b.simData.confWins !== a.simData.confWins) return b.simData.confWins - a.simData.confWins;
         if (b.simData.wins !== a.simData.wins) return b.simData.wins - a.simData.wins;
         return b.simData.teamOvr - a.simData.teamOvr;
       });
-
-      // Reuse GameCore for every bracket game, logging them like any
-      // other real game (marked as conference-tournament games).
-      const bracket = TournamentCore.simulateBracket(confTeams, { homeCourtEdge: 0 });
-      this._bracketCtx = { conf: confName, final: false };
-      (bracket.playIn || []).forEach(g => this.attachBracketGameLogs(g, 'conftourney'));
-      bracket.rounds.forEach((round, ri) => {
-        this._bracketCtx = { conf: confName, final: ri === bracket.rounds.length - 1 };
-        round.forEach(g => this.attachBracketGameLogs(g, 'conftourney'));
-      });
-      this._bracketCtx = null;
-
-      bracket.champion.wonConfTourney = true;
-      // Seeds by standings, kept with the bracket for drawing it.
-      bracket.seeds = {};
-      confTeams.forEach((t, i) => { bracket.seeds[t.school] = i + 1; });
-      this.state.confTournaments[confName] = bracket;
+      // A clean bracket; the lowest seeds play their way in.
+      let size = 1;
+      while (size * 2 <= confTeams.length) size *= 2;
+      const extra = confTeams.length - size;
+      const pool = confTeams.slice(confTeams.length - extra * 2);
+      const pairs = [];
+      for (let i = 0; i < extra; i++) pairs.push([pool[i].school, pool[pool.length - 1 - i].school]);
+      const seeds = {};
+      confTeams.forEach((t, i) => { seeds[t.school] = i + 1; });
+      out[confName] = {
+        seeds, playIn: [], rounds: [], champion: null, field: null,
+        totalRounds: Math.round(Math.log2(size)),
+        playInPairs: pairs, byes: confTeams.slice(0, confTeams.length - extra * 2).map(t => t.school)
+      };
     });
+    return out;
+  },
 
+  // Plays a bracket's next round (the play-in games first).
+  playConfRound(confName, b) {
+    const team = s => this.findTeam(s && s.school ? s.school : s);
+    const play = (a, c, final) => {
+      const A = team(a), B = team(c);
+      if (!A || !B) return null;
+      this._bracketCtx = { conf: confName, final };
+      const result = GameCore.simulateSingleGame(A, B, { homeCourtEdge: 0 });
+      const g = { teamA: A, teamB: B, result, winner: result.homeScore > result.awayScore ? A : B };
+      this.attachBracketGameLogs(g, 'conftourney');
+      this._bracketCtx = null;
+      return g;
+    };
+    if (!b.field) {
+      const winners = [];
+      (b.playInPairs || []).forEach(([a, c]) => {
+        const g = play(a, c, false);
+        if (g) { b.playIn.push(g); winners.push(g.winner.school); }
+      });
+      const advancing = (b.byes || []).concat(winners).sort((x, y) => (b.seeds[x] || 99) - (b.seeds[y] || 99));
+      b.field = TournamentCore.standardSeedOrder(advancing.length).map(n => advancing[n - 1]).filter(Boolean);
+      delete b.playInPairs; delete b.byes;
+      if (b.field.length === 1) b.champion = team(b.field[0]);
+      return;
+    }
+    const final = b.field.length === 2;
+    const round = [], next = [];
+    for (let i = 0; i + 1 < b.field.length; i += 2) {
+      const g = play(b.field[i], b.field[i + 1], final);
+      if (g) { round.push(g); next.push(g.winner.school); }
+    }
+    b.rounds.push(round);
+    b.field = next;
+    if (next.length === 1) b.champion = team(next[0]);
+  },
+
+  async simulateConferenceChampionships() {
+    const s = this.state;
+    if (!s.confTourneyStep || !Object.keys(s.confTournaments || {}).length) {
+      s.confTournaments = this.startConferenceTournaments();
+      s.confTourneyStep = 0;
+    }
+    const step = Math.min(this.CONF_TOURNEY_STEPS.length, (s.confTourneyStep || 0) + 1);
+    // After this sim, how many rounds each bracket has left.
+    const left = this.CONF_TOURNEY_STEPS.length - step;
+    Object.entries(s.confTournaments).forEach(([confName, b]) => {
+      let guard = 0;
+      while (!b.champion && (!b.field || (b.totalRounds - b.rounds.length) > left) && guard++ < 12) this.playConfRound(confName, b);
+    });
+    s.confTourneyStep = step;
     this.recalculateAllAverages();
+
+    if (step < this.CONF_TOURNEY_STEPS.length) {
+      const name = this.CONF_TOURNEY_STEPS[step - 1];
+      s.phase = `Conference Tournaments — ${this.CONF_TOURNEY_STEPS[step]}`;
+      await this.saveStateToDB();
+      this.syncUI();
+      this.logNews(`Conference tournaments: ${name.toLowerCase()} complete.`);
+      return;
+    }
+
+    Object.values(s.confTournaments).forEach(b => {
+      const champ = b.champion && this.findTeam(b.champion.school);
+      if (champ) { champ.wonConfTourney = true; b.champion = champ; }
+      delete b.field;
+    });
     this.awardConferenceTournamentMops();
-    this.state.confChampsDone = true;
+    s.confChampsDone = true;
     // Selection Sunday: the real field, seeded and placed in regions.
-    this.state.ncaaSelection = this.buildSelection(false);
+    s.ncaaSelection = this.buildSelection(false);
     await this.saveStateToDB();
     this.syncUI();
     this.logNews("Conference Championships complete. The NCAA field is set.");
@@ -6356,6 +6432,7 @@ window.SimEngine = {
     this.state.ncaaDone = false;
     this.state.schedule = [];
     this.state.confTournaments = {};
+    this.state.confTourneyStep = 0;
     this.state.ncaaTournament = null;
     this.state.ncaaFullBracket = null;
     this.state.ncaaSelection = null;
@@ -6431,7 +6508,7 @@ window.SimEngine = {
         btn.innerText = `Simulate ${played === 0 ? 'First Four & First Round' : (this.NCAA_ROUND_NAMES[played] || 'Next Round')}`;
         btn.disabled = false;
       } else if (this.state.regularSeasonDone) {
-        btn.innerText = `Simulate Conference Championships`;
+        btn.innerText = `Simulate Conference ${this.CONF_TOURNEY_STEPS[this.state.confTourneyStep || 0] || 'Championships'}`;
         btn.disabled = false;
       } else {
         btn.innerText = `Simulate Week ${this.state.week + 1}`;
@@ -7775,7 +7852,7 @@ window.SimEngine = {
   // Conference tournament champions once they're decided; until then,
   // each conference's current leader stands in as its projected bid.
   autoBidTeams(projected) {
-    if (!projected && Object.keys(this.state.confTournaments || {}).length) {
+    if (!projected && this.state.confChampsDone && Object.keys(this.state.confTournaments || {}).length) {
       return Object.values(this.state.confTournaments)
         .map(b => this.state.teams.find(t => t.school === (b.champion && b.champion.school)))
         .filter(Boolean);
@@ -8156,7 +8233,7 @@ window.SimEngine = {
   },
 
   renderConfBracketInner(bracket, confName) {
-    if (!bracket || !bracket.rounds || !bracket.rounds.length) return '<p class="sub-text">No bracket yet.</p>';
+    if (!bracket || !bracket.rounds || (!bracket.rounds.length && !(bracket.playIn || []).length)) return '<p class="sub-text">No bracket yet.</p>';
     const seeds = {};
     const seedMap = bracket.seeds || {};
     Object.keys(seedMap).forEach(s => { seeds[s] = { seed: seedMap[s] }; });
@@ -8174,6 +8251,9 @@ window.SimEngine = {
       const pairsHtml = [];
       for (let i = 0; i < slots.length; i += 2) pairsHtml.push(`<div class="nb-pair">${slots[i]}${slots[i + 1] || ''}</div>`);
       cols.push({ title: 'Opening Round', html: pairsHtml.join('') });
+    } else if (bracket.playIn && bracket.playIn.length) {
+      // Only the opening round played so far.
+      cols.push({ title: 'Opening Round', html: bracket.playIn.map(g => `<div class="nb-single">${this.bracketGameBox(null, null, g, seeds)}</div>`).join('') });
     }
     bracket.rounds.forEach((round, r) => {
       const games = round.map(g => this.bracketGameBox(null, null, g, seeds));
@@ -8184,7 +8264,7 @@ window.SimEngine = {
         for (let i = 0; i < games.length; i += 2) pairsHtml.push(`<div class="nb-pair">${games[i]}${games[i + 1] || ''}</div>`);
         html = pairsHtml.join('');
       }
-      const fromEnd = bracket.rounds.length - 1 - r;
+      const fromEnd = (bracket.totalRounds || bracket.rounds.length) - 1 - r;
       cols.push({ title: fromEnd < 3 ? names[3 - fromEnd] : `Round ${r + 1}`, html });
     });
     const champ = bracket.champion && bracket.champion.school;
@@ -8587,7 +8667,7 @@ window.SimEngine = {
         const has = g => g && [g.teamA.school, g.teamB.school].includes(ref.home) && [g.teamA.school, g.teamB.school].includes(ref.away);
         const rounds = b.rounds || [];
         const r = rounds.findIndex(rd => rd.some(has));
-        const fromEnd = rounds.length - 1 - r;
+        const fromEnd = (b.totalRounds || rounds.length) - 1 - r;
         if ((b.playIn || []).some(has)) label += ' · Opening Round';
         else if (r >= 0) label += ` · ${fromEnd === 0 ? 'Championship' : fromEnd === 1 ? 'Semifinal' : fromEnd === 2 ? 'Quarterfinal' : 'Round ' + (r + 1)}`;
         return { label, round: r, neutral: true, big: 0.7, conference: conf, final: fromEnd === 0 };

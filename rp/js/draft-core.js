@@ -121,17 +121,34 @@ function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
   // hurts, with diminishing returns either way.
   const sizeEdge = hIn ? Math.max(-6, Math.min(8, (hIn - target) * 1.6)) : 0;
 
+  // Bigs are measured against bigs: rebounds, blocks, efficiency at the
+  // rim and box plus-minus all come naturally to a college centre, so
+  // they count for less from him. The NBA also values centres less than
+  // wings and guards, and only spends a high pick on a low-usage player
+  // who was a top recruit or plainly changed games.
+  const posU = String(player.pos || '').toUpperCase();
+  const isC = posU === 'C' || posU === 'F/C';
+  const isPF = posU === 'PF';
+  const bigK = isC ? 1 : isPF ? 0.5 : 0;
   const production = num(st.p40pts) * 0.55
-                   + num(st.p40reb) * 0.45
+                   + num(st.p40reb) * (0.45 - 0.2 * bigK)
                    + num(st.p40ast) * 0.70
                    + num(st.p40stl) * 1.1
-                   + num(st.p40blk) * 1.0
+                   + num(st.p40blk) * (1.0 - 0.35 * bigK)
                    - num(st.p40tov) * 0.9
-                   + num(st.bpm) * 1.3;
+                   + num(st.bpm) * (1.3 - 0.4 * bigK);
 
   // Efficiency separates prospects more than volume does: Maluach shot
-  // .736 TS on low usage and went top ten.
-  const efficiency = (num(st.tsPct) - 0.53) * 65;
+  // .736 TS on low usage and went top ten. A big's is judged against the
+  // easier shots bigs take.
+  const efficiency = (num(st.tsPct) - (0.53 + 0.05 * bigK)) * 65;
+  // Usage below a featured role costs a player who wasn't a top recruit
+  // and didn't dominate.
+  const usg = num(st.usg, 0) > 1 ? num(st.usg) / 100 : num(st.usg);
+  const rsciU = num(player.rsci, 0);
+  const shield = Math.max(rsciU > 0 && rsciU <= 15 ? 0.75 : rsciU > 0 && rsciU <= 40 ? 0.4 : 0, num(st.bpm) >= 11 ? 0.6 : 0);
+  const lowUsage = usg > 0 && usg < 0.2 && !player.isPro ? (0.2 - usg) * 100 * 0.9 * (1 - shield) : 0;
+  const positionValue = isC ? -3.5 : isPF ? -1 : 0;
   const winning = (teamWinPct - 0.5) * 8;
 
   // Recruit pedigree: national (RSCI) ranking when the sheet supplies one,
@@ -180,7 +197,9 @@ function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
   const upside = POTENTIAL_UPSIDE[player.potentialGrade] || 0;
   const intl = internationalUpside(player, pedigree, opts);
 
-  return { score: score + stock + bigGames + upside + intl, upside, intl, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree, level, stock, bigGames };
+  // Low usage is judged on real evidence only.
+  const usagePenalty = lowUsage * evidence;
+  return { score: score + stock + bigGames + upside + intl + positionValue - usagePenalty, upside, intl, positionValue, usagePenalty, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree, level, stock, bigGames };
 }
 
 // Ranks a list of players. `winPctFor` maps a school name to that team's

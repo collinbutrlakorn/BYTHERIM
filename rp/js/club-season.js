@@ -170,10 +170,16 @@
     // Where he stands on his club: -1 a long way below its rotation, +1 a
     // long way above. Each season in the league earns a little more trust.
     const years = Number(p.years) || 0;
-    const stand = clamp((rt - L.level) / 9 + years * 0.12 + gauss(rng) * 0.12, -1.2, 1.2);
+    // A club with a real NBA prospect plays him: the NBL's Next Stars, a
+    // EuroLeague side showcasing a lottery talent. The higher he's rated
+    // as a recruit, the bigger the role, whatever his rating today.
+    const prospect = lg === 'youth' ? 0 : clamp(((Number(p.recRating) || 0) - 84) / 8, 0, 1);
+    const stand = clamp((rt - L.level) / 9 + years * 0.12 + prospect * 0.9 + gauss(rng) * 0.12, -1.2, 1.2);
     const G = L.min;
     let mpg = L.mpg[0] + (L.mpg[1] - L.mpg[0]) * (stand + 1) / 2;
     mpg = clamp(mpg * G / 40 + gauss(rng) * 1.2, 3, G * 0.82);
+    // About 20 minutes for a first-round talent, closer to 30 at the top.
+    if (prospect > 0) mpg = Math.min(G * 0.82, Math.max(mpg, (16 + prospect * 11 + gauss(rng)) * G / 40));
 
     // His game per 40: what he's written to have done (scoring taken back
     // to a neutral role), blended with what his talent says.
@@ -296,13 +302,14 @@
   // its bench all year: he plays for the club's second team, in a
   // domestic league, until he's ready.
   const SENIOR_TOP = new Set(['euroleague', 'eurocup', 'nbl', 'aba', 'asia']);
-  function placement(club, lg, talent) {
-    if (SENIOR_TOP.has(lg) && talent < leagueInfo(lg).level - 9) return { lg: 'domestic', team: `${club} B` };
+  function placement(club, lg, talent, recRating) {
+    // A top prospect stays with the first team, whatever his rating today.
+    if (SENIOR_TOP.has(lg) && talent < leagueInfo(lg).level - 9 && !(Number(recRating) >= 88)) return { lg: 'domestic', team: `${club} B` };
     return { lg, team: club };
   }
 
   function startRecord(p, season) {
-    const pl = placement(p.club, p.league || leagueOf(p.club), Number(p.talent) || 75);
+    const pl = placement(p.club, p.league || leagueOf(p.club), Number(p.talent) || 75, p.recRating);
     const lg = pl.lg;
     const L = leagueInfo(lg);
     const exp = prospectExp(p, lg, season);
