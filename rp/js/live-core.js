@@ -61,8 +61,29 @@
       id: String(l.id), name: l.name || 'Player', pos: l.pos || 'G', jersey: l.jersey || '', starter: !!l.started || !!l.starter,
       min: n(l.min), twoPm, twoPa: Math.max(twoPa, twoPm), threePm: n(l.threePm), threePa: Math.max(n(l.threePa), n(l.threePm)),
       ftm: n(l.ftm), fta: Math.max(n(l.fta), n(l.ftm)), oreb, dreb: l.dreb != null ? n(l.dreb) : reb - oreb,
-      ast: n(l.ast), stl: n(l.stl), blk: n(l.blk), tov: n(l.tov), pf: n(l.pf)
+      ast: n(l.ast), stl: n(l.stl), blk: n(l.blk), tov: n(l.tov), pf: n(l.pf),
+      ...(l.inj ? { inj: String(l.inj) } : {})
     };
+  }
+
+  // A player hurt in this game leaves after his last play and doesn't
+  // come back.
+  function addInjuries(events, sides, totalT) {
+    const hurt = [];
+    sides.forEach(sd => sd.lines.forEach(l => { if (l.inj) hurt.push({ l, side: sd.side }); }));
+    if (!hurt.length) return events;
+    hurt.forEach(({ l, side }) => {
+      let last = null;
+      events.forEach(e => { if (e.player === l.id || e.steal === l.id) last = e; });
+      const t = Math.min(totalT - 0.5, last ? last.t + 0.5 : totalT * Math.min(0.9, (l.min || 8) / 40));
+      const ref = last || events.filter(e => e.t <= t).pop() || events[0];
+      if (!ref) return;
+      events.push({ t, period: ref.period, clock: ref.clock, side, type: 'injury', player: l.id, h: ref.h, a: ref.a,
+        text: `${l.name} goes down with ${l.inj} and heads to the locker room`, tags: ['injury'] });
+    });
+    events.sort((x, y) => x.t - y.t || (x.type === 'injury' ? 1 : 0) - (y.type === 'injury' ? 1 : 0));
+    events.forEach((e, i) => { e.i = i; });
+    return events;
   }
   const poss = name => (/s$/i.test(name) ? `${name}'` : `${name}'s`);
   const lastName = name => { const p = String(name).trim().split(/\s+/); if (p.length > 1 && /^(jr\.?|sr\.?|ii|iii|iv)$/i.test(p[p.length - 1])) return p[p.length - 2]; return p[p.length - 1]; };
@@ -663,7 +684,7 @@
     const told = narrate(meta, [H, A], ord, rng);
     const game = {
       meta, lines: { home: H.lines, away: A.lines },
-      events: told.events, periods: ord.periods.map(p => ({ label: p.label, short: p.short, len: p.len })),
+      events: addInjuries(told.events, [H, A], told.totalT), periods: ord.periods.map(p => ({ label: p.label, short: p.short, len: p.len })),
       ot: ord.periods.length > 2, total: told.totalT,
       leadChanges: told.leadChanges, ties: told.ties, maxLead: told.maxLead, droppedRebounds: dropH + dropA
     };

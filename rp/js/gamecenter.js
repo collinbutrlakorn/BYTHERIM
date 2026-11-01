@@ -251,9 +251,9 @@
     renderLast(e) {
       const box = this.el.querySelector('#gcLast');
       if (!e) { box.innerHTML = `<span class="gc-last-text">${esc(this.game.meta.away.school)} at ${esc(this.game.meta.home.school)} — ${this.pregameLine()}</span>`; box.className = 'gc-lastplay'; return; }
-      const big = e.tags.some(t => ['three', 'dunk', 'and1', 'run', 'lead-change', 'buzzer', 'winner', 'milestone', 'overtime'].includes(t)) || e.type === 'end' || e.type === 'final';
+      const big = e.tags.some(t => ['three', 'dunk', 'and1', 'run', 'lead-change', 'buzzer', 'winner', 'milestone', 'overtime', 'injury'].includes(t)) || e.type === 'end' || e.type === 'final';
       const side = e.side ? `<img src="${this.logo(this.game.meta[e.side].school)}" alt="" class="gc-last-logo">` : '';
-      const badge = e.tags.includes('buzzer') ? 'Buzzer-beater' : e.tags.includes('winner') ? 'Go-ahead' : e.tags.includes('run') ? 'Run' : e.tags.includes('lead-change') ? 'Lead change' : e.tags.includes('and1') ? 'And-one' : e.tags.includes('dunk') ? 'Slam' : e.type === 'make' && e.three ? 'Three' : '';
+      const badge = e.tags.includes('injury') ? 'Injury' : e.tags.includes('buzzer') ? 'Buzzer-beater' : e.tags.includes('winner') ? 'Go-ahead' : e.tags.includes('run') ? 'Run' : e.tags.includes('lead-change') ? 'Lead change' : e.tags.includes('and1') ? 'And-one' : e.tags.includes('dunk') ? 'Slam' : e.type === 'make' && e.three ? 'Three' : '';
       box.className = `gc-lastplay ${big ? 'big' : ''} ${e.side || ''}`;
       box.innerHTML = `${side}${badge ? `<span class="gc-badge">${badge}</span>` : ''}<span class="gc-last-text">${esc(e.text)}</span>`;
       if (big && !this.reduced()) { box.classList.remove('flash'); void box.offsetWidth; box.classList.add('flash'); }

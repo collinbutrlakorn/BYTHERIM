@@ -2407,7 +2407,7 @@ window.SimEngine = {
   // commits to programs of similar standing that still need players.
   // Sheet commitments are never moved.
   projectedRoom(team) {
-    const staying = (team.roster || []).filter(p => !['SR', 'GR'].includes(this.normalizeClassStanding(p.class))).length;
+    const staying = (team.roster || []).filter(p => !['SR', 'GR'].includes(this.normalizeClassStanding(p.class)) || (this.state.ncaaDone && !!this.redshirtFor(p))).length;
     return Math.max(1, this.ROSTER_TARGET - staying + 1);   // +1: a spot usually opens in the portal
   },
   rebalanceRecruitCommits(classYear) {
@@ -3283,6 +3283,7 @@ window.SimEngine = {
     this.state.leagueShootingTotals = { pts: 0, fga: 0, fta: 0 };
     this.state.activePlayers.forEach(p => {
       p.injuredUntilWeek = null; p.gamesMissed = 0; p.startedEarly = false; p.lostSpot = false;
+      if (p.injury && p.injury.year !== this.state.year) p.injury = null;
       // Clear the in-season form marker only. Do NOT restore rating from
       // it: reevaluateRotations already unwinds form at the end of every
       // pass, so by this point p.rating is the true, newly-developed
@@ -4214,7 +4215,6 @@ window.SimEngine = {
   // game log updated from the same simulated result.
   async simulateRegularSeasonWeek() {
     this.state.week++;
-    this.rollInjuries();
     // Revisit depth charts periodically rather than every week, so
     // lineups are responsive without churning constantly.
     if (this.state.week > 2 && this.state.week % 3 === 0) this.reevaluateRotations();
@@ -4251,12 +4251,30 @@ window.SimEngine = {
   // away, and result) to every player who appeared.
   // Returns the roster available for this game plus how much everyone
   // else's minutes need to stretch to cover the absences.
+  // Whether this season doesn't count against his eligibility: a medical
+  // redshirt after a season-ending injury, or a redshirt for a player who
+  // never got on the floor (once in a career).
+  redshirtFor(p) {
+    if (!p) return null;
+    const cls = this.normalizeClassStanding(p.class);
+    if (cls === 'GR') return null;
+    const i = p.injury;
+    if (i && i.seasonEnding && i.year === this.state.year) return 'medical';
+    if (!p.redshirtUsed && !p.isPro && this.state.seasonInitialized !== false && ((p.stats && p.stats.gp) || 0) === 0 && (this.state.week > 0 || this.state.ncaaDone)) return 'regular';
+    return null;
+  },
+
+  // Out with an injury right now (see injury-core.js).
+  isInjuredOut(p) {
+    const i = p && p.injury;
+    return !!(i && i.year === this.state.year && (i.seasonEnding || i.gamesLeft > 0));
+  },
+
   availableRosterFor(team) {
     const full = team.simData.rosterRef || team.roster || [];
-    const week = this.state.week;
-    const available = full.filter(p => !(p.injuredUntilWeek && p.injuredUntilWeek >= week));
+    const available = full.filter(p => !this.isInjuredOut(p));
     const lostMinutes = full
-      .filter(p => p.injuredUntilWeek && p.injuredUntilWeek >= week)
+      .filter(p => this.isInjuredOut(p))
       .reduce((n, p) => n + (parseFloat(p.expectedStats && p.expectedStats.mpg) || 0), 0);
     // An injured player's minutes go out by headroom, not in proportion:
     // the bench and the sixth man pick up most of them, and a star already
@@ -4274,21 +4292,61 @@ window.SimEngine = {
     return { available, multiplier: p => boost.get(p.id) || 1 };
   },
 
-  // Rolls injuries for the upcoming week. Rates are deliberately modest:
-  // enough that rotations shift over a season without teams routinely
-  // being decimated.
-  rollInjuries() {
-    const week = this.state.week;
-    this.state.activePlayers.forEach(p => {
-      if (p.injuredUntilWeek && p.injuredUntilWeek >= week) return;   // already out
-      const mpg = parseFloat(p.expectedStats && p.expectedStats.mpg) || 0;
-      if (mpg < 5) return;                                            // deep bench, not tracked
-      if (Math.random() < 0.008) {
-        const weeksOut = 1 + Math.floor(Math.random() * 4);
-        p.injuredUntilWeek = week + weeksOut - 1;
-        p.gamesMissed = (p.gamesMissed || 0) + weeksOut * 2;
-      }
+  // One game between two teams, with injuries: whoever is hurt sits, and
+  // anyone who gets hurt during the game leaves partway through (his
+  // minutes go to his teammates) and misses the games it takes to heal.
+  simulateMatchup(home, away, opts = {}) {
+    const homeAvail = this.availableRosterFor(home);
+    const awayAvail = this.availableRosterFor(away);
+    const homeFull = home.simData.rosterRef;
+    const awayFull = away.simData.rosterRef;
+    const IC = typeof InjuryCore !== 'undefined' ? InjuryCore : null;
+    const hurt = new Map();
+    const rollSide = (avail) => {
+      if (!IC) return avail.multiplier;
+      const base = avail.multiplier;
+      avail.available.forEach(p => {
+        const m = (parseFloat(p.expectedStats && p.expectedStats.mpg) || 0) * (typeof base === 'function' ? base(p) : base);
+        const r = IC.roll(m, Math.random);
+        if (r) hurt.set(p.id, { p, r });
+      });
+      return p => (typeof base === 'function' ? base(p) : base) * (hurt.has(p.id) ? hurt.get(p.id).r.leftAt : 1);
+    };
+    const hm = rollSide(homeAvail), am = rollSide(awayAvail);
+    home.simData.rosterRef = homeAvail.available;
+    away.simData.rosterRef = awayAvail.available;
+    if (this.state.effNorm == null) this.updateEfficiencyNorm();
+    const result = GameCore.simulateSingleGame(home, away, {
+      ...opts,
+      homeMinutesMultiplier: hm,
+      awayMinutesMultiplier: am,
+      effNorm: this.state.effNorm || undefined,
+      effAcc: this.state.effAcc || (this.state.effAcc = { pts: 0, load: 0 })
     });
+    home.simData.rosterRef = homeFull;
+    away.simData.rosterRef = awayFull;
+    // Those already out sat this one; then the new injuries.
+    [homeFull || home.roster, awayFull || away.roster].forEach(list => (list || []).forEach(p => {
+      if (this.isInjuredOut(p) && !p.injury.seasonEnding) {
+        p.injury.gamesLeft--;
+        if (p.injury.gamesLeft <= 0) p.injury = null;
+      }
+    }));
+    hurt.forEach(({ p, r }) => this.injurePlayer(p, r));
+    return result;
+  },
+
+  injurePlayer(p, r) {
+    const s = this.state;
+    p.injury = { type: r.type, severity: r.severity, games: r.games, gamesLeft: r.games, seasonEnding: !!r.seasonEnding, year: s.year, week: s.week };
+    p.injuries = (p.injuries || []).concat({ year: s.year, type: r.type, severity: r.severity, seasonEnding: !!r.seasonEnding }).slice(-8);
+    p._injNow = r.type;
+    // The big ones make the news; so does any injury to a star.
+    const star = (parseFloat(p.rating) || 0) >= 86 || (parseFloat(p.rsci) || 999) <= 25;
+    if (r.severity >= 3 || (star && r.severity >= 2)) {
+      const out = typeof InjuryCore !== 'undefined' ? InjuryCore.outlook(p.injury).toLowerCase() : '';
+      this.logNews(`${p.name} (${p.school}) suffers ${r.type}${out ? ` — ${out}` : ''}`);
+    }
   },
 
   // Rotations aren't fixed for a whole season. Every few weeks the depth
@@ -4351,23 +4409,7 @@ window.SimEngine = {
   },
 
   playGame(home, away, scheduleEntry, gamePhaseLabel) {
-    const homeAvail = this.availableRosterFor(home);
-    const awayAvail = this.availableRosterFor(away);
-    const homeFull = home.simData.rosterRef;
-    const awayFull = away.simData.rosterRef;
-    home.simData.rosterRef = homeAvail.available;
-    away.simData.rosterRef = awayAvail.available;
-
-    if (this.state.effNorm == null) this.updateEfficiencyNorm();
-    const result = GameCore.simulateSingleGame(home, away, {
-      homeMinutesMultiplier: homeAvail.multiplier,
-      awayMinutesMultiplier: awayAvail.multiplier,
-      effNorm: this.state.effNorm || undefined,
-      effAcc: this.state.effAcc || (this.state.effAcc = { pts: 0, load: 0 })
-    });
-
-    home.simData.rosterRef = homeFull;
-    away.simData.rosterRef = awayFull;
+    const result = this.simulateMatchup(home, away);
 
     const homeWin = result.homeScore > result.awayScore;
 
@@ -4416,8 +4458,10 @@ window.SimEngine = {
     const attachLogs = (boxes, teamScore, oppScore, oppSchool, isHome) => {
       boxes.forEach(({ player, box }) => {
         lt.pts += box.pts || 0; lt.fga += box.fga || 0; lt.fta += box.fta || 0;
+        const inj = player._injNow; delete player._injNow;
         player.gameLog.push({
           ...box,
+          ...(inj ? { inj } : {}),
           started: !player.isBench && box.min > 0,
           week: scheduleEntry ? scheduleEntry.week : this.state.week,
           isConf: scheduleEntry ? !!scheduleEntry.isConf : false,
@@ -4689,8 +4733,10 @@ window.SimEngine = {
     const ctx = this._bracketCtx || {};
     const attach = (boxes, team, opp, teamScore, oppScore) => {
       boxes.forEach(({ player, box }) => {
+        const inj = player._injNow; delete player._injNow;
         player.gameLog.push({
           ...box,
+          ...(inj ? { inj } : {}),
           started: !player.isBench && box.min > 0,
           week: this.state.week,
           isConf: false,
@@ -4760,7 +4806,7 @@ window.SimEngine = {
       const A = team(a), B = team(c);
       if (!A || !B) return null;
       this._bracketCtx = { conf: confName, final };
-      const result = GameCore.simulateSingleGame(A, B, { homeCourtEdge: 0 });
+      const result = this.simulateMatchup(A, B, { homeCourtEdge: 0 });
       const g = { teamA: A, teamB: B, result, winner: result.homeScore > result.awayScore ? A : B };
       this.attachBracketGameLogs(g, 'conftourney');
       this._bracketCtx = null;
@@ -4936,7 +4982,7 @@ window.SimEngine = {
       let declares = false;
       let mandatory = false;
 
-      if (cls === 'SR' || cls === 'GR') {
+      if ((cls === 'SR' || cls === 'GR') && this.redshirtFor(p) !== 'medical') {
         // Eligibility is gone either way; only the plausible pros are
         // listed as draft entrants rather than simply graduating.
         mandatory = true;
@@ -4992,6 +5038,10 @@ window.SimEngine = {
       if (declares && !(scripted && scripted.year === draftYear) && typeof DraftCore !== 'undefined' && !DraftCore.ageEligible(p, draftYear)) declares = false;
       // NIL money keeps fringe prospects in school. A projected first-round
       // pick goes about 99 times in 100, whatever he's paid.
+      // A serious injury this season sends most fringe prospects back to
+      // school to prove they're healthy.
+      const hurt = p.injury && p.injury.year === this.state.year && p.injury.severity >= 3;
+      if (declares && hurt && !(scripted && scripted.year === draftYear) && rank > 15 && Math.random() < 0.8) declares = false;
       p.nil = this.nilValue(p);
       if (declares && !mandatory && !(scripted && scripted.year === draftYear) && Math.random() < this.nilStayChance(p.nil, rank)) declares = false;
 
@@ -5647,7 +5697,7 @@ window.SimEngine = {
       const back = (t.roster || []).filter(p => {
         if (declared.has(p.id) || leaving.has(p.id)) return false;
         const cls = this.normalizeClassStanding(p.class);
-        return !['SR', 'GR'].includes(cls) || !!this.listedNextSeason(p);
+        return !['SR', 'GR'].includes(cls) || !!this.listedNextSeason(p) || !!this.redshirtFor(p);
       }).length;
       room[t.school] = this.ROSTER_LIMIT - back - (signed[t.school] || 0);
     });
@@ -6405,6 +6455,14 @@ window.SimEngine = {
         const listed = this.listedNextSeason(p);
         if (listed) {
           p.class = this.normalizeClassStanding(listed.class || listed.yr) || nextClass || 'GR';
+          return true;
+        }
+        // A redshirt year: same class next season.
+        const rs = this.redshirtFor(p);
+        if (rs) {
+          p.redshirt = { year: this.state.year, medical: rs === 'medical' };
+          if (rs === 'regular') p.redshirtUsed = true;
+          p.redshirts = (p.redshirts || []).concat({ year: this.state.year, medical: rs === 'medical' }).slice(-3);
           return true;
         }
         if (nextClass) { p.class = nextClass; return true; }
@@ -7622,7 +7680,9 @@ window.SimEngine = {
             ${chip('High school', player.hs)}
             ${chip('RSCI', player.rsci ? '#' + Math.round(player.rsci) + (player.recClassYear ? ' (' + player.recClassYear + ')' : '') : 'Unranked')}
             ${!player.departed && !player.isPro && typeof NilCore !== 'undefined' ? chip('NIL', this.nilTier(this.nilValue(player))) : ''}
+            ${player.redshirt && player.redshirt.year === this.state.year - 1 ? chip('Redshirt', player.redshirt.medical ? `Medical (${this.seasonLabelFor(player.redshirt.year)})` : this.seasonLabelFor(player.redshirt.year)) : ''}
           </div>
+          ${this.isInjuredOut(player) && typeof InjuryCore !== 'undefined' ? `<div class="pp-injury"><span class="pp-injury-tag">Injured</span> ${this.esc(InjuryCore.label(player.injury.type))} · ${InjuryCore.outlook(player.injury)}</div>` : ''}
         </div>
         <button class="outline-btn btn-sm pp-team-btn" onclick="SimEngine.goToTeamFromPlayer('${this.jsArg(player.school || '')}')">Team page</button>
       </div>
@@ -7966,7 +8026,7 @@ window.SimEngine = {
     const sel = this.state.ncaaSelection;
     const bySchool = s => this.state.teams.find(t => t.school === (s && s.school ? s.school : s));
     const play = (a, b) => {
-      const result = GameCore.simulateSingleGame(a, b, { homeCourtEdge: 0 });
+      const result = this.simulateMatchup(a, b, { homeCourtEdge: 0 });
       const game = { teamA: a, teamB: b, result, winner: result.homeScore > result.awayScore ? a : b };
       this.attachBracketGameLogs(game, 'ncaa');
       return game;
@@ -9819,6 +9879,8 @@ window.SimEngine = {
       predraft: p.predraft && p.predraft.year === this.upcomingDraftYear() ? p.predraft : null,
       bigGameStock: p.bigGameStock || 0, bigGames: (p.bigGames || []).slice(-6),
       nil: this.nilValue(p),
+      injuries: (p.injuries || []).filter(x => x.severity >= 2).slice(-3),
+      injury: this.isInjuredOut(p) ? { type: p.injury.type, seasonEnding: !!p.injury.seasonEnding, gamesLeft: p.injury.gamesLeft } : null,
       // So the Draft RP's board weighs upside the same way this one does.
       potentialGrade: p.potentialGrade || null,
       traits: p.traits || null,
@@ -11078,6 +11140,7 @@ window.SimEngine = {
 
     this.renderDashWatch();
     this.renderDashDraft();
+    this.renderInjuryReport();
     this.updateTopPerformances();
     this.updateDashboardBracket();
   },
@@ -11157,6 +11220,33 @@ window.SimEngine = {
   rankTag(school) {
     const r = this.pollRankOf(this.findTeam(school));
     return r ? `<span class="rank-tag">${r}</span>` : '';
+  },
+
+  // Everyone out right now, the biggest names first: draft stock, then
+  // rating and pedigree.
+  injuryReport() {
+    if (!this.state.teams.length) return [];
+    const board = {};
+    try { this.computeDraftBigBoard(60).forEach((e, i) => { board[e.player.id] = i + 1; }); } catch (e) { /* no board yet */ }
+    const fame = p => (board[p.id] ? 200 - board[p.id] : 0) + (parseFloat(p.rating) || 0) + (parseFloat(p.rsci) > 0 ? Math.max(0, 60 - parseFloat(p.rsci)) * 0.5 : 0)
+      + ((this.findTeam(p.school) || {}).apRank ? 8 : 0);
+    return (this.state.activePlayers || []).filter(p => this.isInjuredOut(p))
+      .map(p => ({ p, fame: fame(p) })).sort((a, b) => b.fame - a.fame).map(x => x.p);
+  },
+  renderInjuryReport() {
+    const el = document.getElementById('dashInjuries');
+    if (!el || typeof InjuryCore === 'undefined') return;
+    const list = this.injuryReport();
+    const sub = document.getElementById('dashInjuriesSub');
+    if (sub) sub.textContent = list.length ? `${list.length} player${list.length === 1 ? '' : 's'} out` : 'Nobody is out right now';
+    const all = !!this._injAll;
+    const shown = all ? list : list.slice(0, 6);
+    el.innerHTML = list.length ? `<ol class="draft-watch injury-list">${shown.map(p => `<li onclick="SimEngine.openPlayerModal('${this.jsArg(p.id)}')">
+        <img src="${this.getTeamLogo(p.school)}" alt="" class="xs-logo">
+        <span class="dw-name"><b>${this.esc(p.name)}</b><small>${p.pos} · ${this.esc(p.school)} · ${this.esc(InjuryCore.label(p.injury.type))}</small></span>
+        <span class="inj-out${p.injury.seasonEnding ? ' season' : ''}">${InjuryCore.outlook(p.injury)}</span>
+      </li>`).join('')}</ol>${list.length > 6 ? `<button type="button" class="text-link inj-more" onclick="SimEngine._injAll = ${!all}; SimEngine.renderInjuryReport()">${all ? 'Show fewer' : `Show all ${list.length}`}</button>` : ''}`
+      : '<p class="sub-text-sm">A clean bill of health across the country.</p>';
   },
 
   // The Draft RP's big board, previewed.

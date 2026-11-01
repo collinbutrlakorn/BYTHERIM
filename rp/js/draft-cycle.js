@@ -288,6 +288,11 @@
       const vol = volatility(r.rank);
       let stock = ((composite - 50) / 50) * 2.6 * vol + iv * 0.8;
       if (listedGap >= 1.5) stock -= 0.6 * vol;          // measured well short of his listing
+      // Medicals: a serious injury in the last two seasons worries teams,
+      // a torn ACL or Achilles most of all.
+      const med = (p.injuries || []).filter(x => num(x.severity) >= 3 && num(x.year) >= num(ctx.draftYear) - 2);
+      const worst = med.reduce((m, x) => Math.max(m, num(x.severity)), 0);
+      if (worst) stock -= (worst >= 4 ? 1.4 : 0.6) * vol;
       stock = +stock.toFixed(2);
 
       const notes = [];
@@ -303,6 +308,7 @@
       if (listedGap >= 1.5) notes.push(`Measured about ${listedGap.toFixed(1)}" shorter in shoes than his listed ${fmtIn(r.m.listed)}.`);
       if (r.shots && r.pct.shooting >= 85) notes.push(`Lit up the shooting drills (${r.shots.spotUp}/25 spot-up).`);
       else if (r.shots && r.pct.shooting <= 15) notes.push('Shooting drills were a struggle.');
+      if (worst) notes.push(`Medicals: teams looked closely at his recovery from ${med[med.length - 1].type}.`);
       if (iv <= -1) notes.push('Some teams came away from interviews unconvinced.');
       else if (iv >= 1) notes.push('Interviewed as well as anyone in the class.');
 
