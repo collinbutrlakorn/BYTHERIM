@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-02T09:02:20.011Z",
+ "updated": "2026-11-02T20:48:39.120Z",
  "source": "barttorvik.com, basketball-reference.com",
  "seasons": {
   "2022-23": {
@@ -6807,6 +6807,32 @@
      "DBPM": "2.9"
     }
    }
+  },
+  "2026-27": {
+   "luigi-suigo": {
+    "torvikName": "Luigi Suigo",
+    "team": "Villanova",
+    "conf": "BE",
+    "gp": 1,
+    "mpg": "24.1",
+    "cls": "Fr",
+    "role": "C",
+    "torvikId": "144913",
+    "stats": {
+     "PTS": "7.0",
+     "REB": "5.0",
+     "AST": "0.0",
+     "STL": "0.0",
+     "BLK": "1.0",
+     "TS%": "58.3%",
+     "eFG%": "58.3%",
+     "2P%": "50.0%",
+     "3P%": "50.0%",
+     "3Pr": "0.33",
+     "FTr": "0.00",
+     "USG%": "17.5%"
+    }
+   }
   }
  },
  "pro": {
@@ -9186,6 +9212,6 @@
    ]
   }
  },
- "torvikUpdated": "2026-11-02T09:02:20.011Z",
+ "torvikUpdated": "2026-11-02T15:50:13.167Z",
  "torvikVia": "sheet relay"
 }
