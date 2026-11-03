@@ -1,11 +1,11 @@
-# Refreshes data/stats.json (college stats for the big board) every morning
-# from Barttorvik, and commits it only when a number actually changed.
+# Refreshes data/stats.json (college stats for the big board) hourly
+# from Barttorvik (through the sheet relay when Barttorvik refuses GitHub), and commits it only when a number actually changed.
 # Run it by hand from the repo's Actions tab: "Update big board stats" -> Run workflow.
 name: Update big board stats
 
 on:
   schedule:
-    - cron: '17 11 * * *'   # daily, ~3am Alaska / 7am Eastern
+    - cron: '40 * * * *'    # hourly, 30 minutes after the sheet relay's hourly read
   workflow_dispatch:
 
 permissions:
