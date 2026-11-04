@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-04T01:57:47.312Z",
+ "updated": "2026-11-04T02:08:13.541Z",
  "source": "barttorvik.com, sports-reference.com, basketball-reference.com",
  "seasons": {
   "2022-23": {
@@ -7777,6 +7777,61 @@
      "DBPM": "-0.9"
     }
    },
+   "tounde-yessoufou": {
+    "torvikName": "Tounde Yessoufou",
+    "team": "St John's",
+    "conf": "",
+    "gp": 1,
+    "mpg": "22.0",
+    "cls": "FR",
+    "role": null,
+    "torvikId": "",
+    "stats": {
+     "PTS": "12.0",
+     "REB": "5.0",
+     "AST": "2.0",
+     "STL": "2.0",
+     "BLK": "1.0",
+     "TS%": "55.3%",
+     "eFG%": "43.8%",
+     "2P%": "50.0%",
+     "3P%": "25.0%",
+     "FT%": "83.3%",
+     "3Pr": "0.50",
+     "FTr": "0.75",
+     "USG%": "24.8%",
+     "BPM": "8.0",
+     "OBPM": "4.2",
+     "DBPM": "3.9"
+    }
+   },
+   "ian-jackson": {
+    "torvikName": "Ian Jackson",
+    "team": "St John's",
+    "conf": "",
+    "gp": 1,
+    "mpg": "22.0",
+    "cls": "SO",
+    "role": null,
+    "torvikId": "",
+    "stats": {
+     "PTS": "15.0",
+     "REB": "2.0",
+     "AST": "0.0",
+     "STL": "1.0",
+     "BLK": "0.0",
+     "TS%": "62.5%",
+     "eFG%": "62.5%",
+     "2P%": "42.9%",
+     "3P%": "60.0%",
+     "3Pr": "0.42",
+     "FTr": "0.00",
+     "USG%": "29.3%",
+     "BPM": "-2.6",
+     "OBPM": "-1.6",
+     "DBPM": "-1.0"
+    }
+   },
    "luigi-suigo": {
     "torvikName": "Luigi Suigo",
     "team": "Villanova",
@@ -11253,6 +11308,6 @@
    ]
   }
  },
- "torvikUpdated": "2026-11-04T01:57:47.312Z",
+ "torvikUpdated": "2026-11-04T02:08:13.541Z",
  "torvikVia": "sports-reference.com"
 }
