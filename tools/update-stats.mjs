@@ -136,7 +136,7 @@ async function politely(host, delay) {
 }
 async function get(url) {
   if (url.includes('barttorvik.com')) await politely('torvik', CRAWL_DELAY_MS);
-  if (url.includes('basketball-reference.com')) await politely('bbref', BBREF_DELAY_MS);
+  if (/(?:basketball|sports)-reference\.com/.test(url)) await politely('bbref', BBREF_DELAY_MS);
   const res = await fetch(url, { headers: { 'User-Agent': 'BYTHERIM big board (github.com/collinbutrlakorn/BYTHERIM)' } });
   if (!res.ok) throw new Error(`${url} returned HTTP ${res.status}`);
   const text = await res.text();
@@ -156,7 +156,8 @@ const BBREF_PAGE = /^https:\/\/www\.basketball-reference\.com\/(international|gl
 
 // All stat tables on a page (some are shipped inside HTML comments),
 // as { tableId: [ { data-stat: text } ] } from each table body.
-function bbrefTables(html) {
+const BBREF_SEASON_ROW = r => /^\d{4}-\d{2}$/.test(r.season || '');
+function bbrefTables(html, keep = BBREF_SEASON_ROW) {
   html = html.replace(/<!--|-->/g, '');
   const tables = {};
   for (const m of html.matchAll(/<table[^>]*\bid="([^"]+)"[\s\S]*?<\/table>/g)) {
@@ -169,7 +170,7 @@ function bbrefTables(html) {
           .replace(/&amp;/g, '&').trim();
       }
       return row;
-    }).filter(r => /^\d{4}-\d{2}$/.test(r.season || ''));
+    }).filter(keep);
   }
   return tables;
 }
@@ -307,6 +308,95 @@ function findPlayer(p, rows, byName) {
   return { row: null };
 }
 
+
+// ------------------------------------------------------------ Sports-Reference (college)
+// When Barttorvik refuses this server, college lines come from
+// Sports-Reference's college basketball site instead: one page per school
+// and season lists every player's per-game and advanced numbers (BPM and
+// usage included), so a board's prospects take about one request per
+// school. Pages are read at the site's crawl delay.
+const SR = 'https://www.sports-reference.com/cbb';
+// Sheet spellings that aren't the school's name on Sports-Reference
+// (keys are schoolKey() of what the sheet says).
+const SR_ALIASES = {
+  uconn: 'connecticut', unc: 'north-carolina', usc: 'southern-california', lsu: 'louisiana-state', unlv: 'nevada-las-vegas',
+  vcu: 'virginia-commonwealth', byu: 'brigham-young', smu: 'southern-methodist', tcu: 'texas-christian', ucf: 'central-florida',
+  pitt: 'pittsburgh', ncstate: 'north-carolina-state', umass: 'massachusetts', olemiss: 'mississippi', utep: 'texas-el-paso',
+  utsa: 'texas-san-antonio', fiu: 'florida-international', cal: 'california', uab: 'alabama-birmingham', ucsb: 'california-santa-barbara',
+  miami: 'miami-fl', miamifl: 'miami-fl', miamioh: 'miami-oh', miamiohio: 'miami-oh', penn: 'pennsylvania', ullafayette: 'louisiana-lafayette',
+  louisianalafayette: 'louisiana-lafayette', statemarys: 'saint-marys-ca', texasam: 'texas-am', pennstate: 'penn-state', statejohns: 'st-johns-ny'
+};
+let srIndexCache = null;
+async function srIndex() {
+  if (srIndexCache) return srIndexCache;
+  const html = (await get(`${SR}/schools/`)).replace(/<!--|-->/g, '');
+  const slugs = [...new Set([...html.matchAll(/href="\/cbb\/schools\/([a-z0-9-]+)\/men\/"/g)].map(m => m[1]))];
+  if (!slugs.length) throw new Error('no schools on the index page');
+  srIndexCache = slugs.map(slug => ({ slug, key: schoolKey(slug.replace(/-/g, ' ')) }));
+  return srIndexCache;
+}
+function srSlug(index, school) {
+  const key = schoolKey(school);
+  if (!key) return null;
+  const alias = SR_ALIASES[key];
+  if (alias && index.some(x => x.slug === alias)) return alias;
+  const exact = index.filter(x => x.key === key);
+  if (exact.length === 1) return exact[0].slug;
+  const near = index.filter(x => x.key.startsWith(key));
+  return near.length === 1 ? near[0].slug : null;
+}
+// One school-season page -> rows shaped like Barttorvik's (columns C.*), so
+// the matching and stat-line code below is shared.
+function srRows(html, school, year) {
+  const t = bbrefTables(html, r => r.name_display || r.player);
+  const adv = new Map((t.players_advanced || []).map(r => [r.name_display, r]));
+  const cls = new Map((t.roster || []).map(r => [r.player, r.class]));
+  const x100 = v => (num(v) == null ? '' : String(num(v) * 100));
+  return (t.players_per_game || []).filter(g => num(g.games) > 0 && num(g.pts_per_g) != null).map(g => {
+    const a = adv.get(g.name_display) || {};
+    const r = [];
+    r[C.name] = g.name_display; r[C.team] = school; r[C.conf] = ''; r[C.gp] = g.games; r[C.mpg] = g.mp_per_g;
+    r[C.usg] = a.usg_pct || ''; r[C.efg] = x100(g.efg_pct); r[C.ts] = x100(a.ts_pct);
+    r[C.fta] = g.fta_per_g; r[C.ftPct] = g.ft_pct;
+    r[C.twoA] = g.fg2a_per_g; r[C.twoPct] = g.fg2_pct; r[C.threeA] = g.fg3a_per_g; r[C.threePct] = g.fg3_pct;
+    r[C.reb] = g.trb_per_g; r[C.ast] = g.ast_per_g; r[C.stl] = g.stl_per_g; r[C.blk] = g.blk_per_g; r[C.pts] = g.pts_per_g;
+    r[C.bpm] = a.bpm || ''; r[C.obpm] = a.obpm || ''; r[C.dbpm] = a.dbpm || '';
+    r[C.cls] = cls.get(g.name_display) || ''; r[C.year] = String(year); r[C.pid] = ''; r[C.role] = ''; r[C.birthday] = '';
+    return r;
+  });
+}
+// Fills `season` with lines for this year's prospects. Last season is over,
+// so what's already saved stands and only prospects without a line are read.
+async function srFill(year, yearJobs, season, label) {
+  const index = await srIndex();
+  const old = (previous && previous.seasons && previous.seasons[label]) || {};
+  const bySchool = new Map(), noSchool = new Set();
+  for (const job of yearJobs) for (const p of job.prospects) {
+    if (p.isPro || job.skip(p) || season[p.id] || (year < DRAFT_YEAR && old[p.id])) continue;
+    const slug = srSlug(index, p.school);
+    if (!slug) { if (p.school && !/^(pro|intl|international)$/i.test(p.school) && p.cls !== 'INTL') noSchool.add(p.school); continue; }
+    if (!(bySchool.get(slug) || bySchool.set(slug, new Map()).get(slug)).has(p.id)) bySchool.get(slug).set(p.id, p);
+  }
+  let found = 0;
+  for (const [slug, plist] of bySchool) {
+    let rows;
+    try { rows = srRows(await get(`${SR}/schools/${slug}/men/${year}.html`), [...plist.values()][0].school, year); }
+    catch (e) { report.push(`${label}: Sports-Reference ${slug}: ${e.message}`); continue; }
+    const byName = new Map();
+    rows.forEach(r => { const k = nameKey(r[C.name]); (byName.get(k) || byName.set(k, []).get(k)).push(r); });
+    for (const p of plist.values()) {
+      const m = findPlayer(p, rows, byName);
+      if (!m.row) continue;
+      if (m.fuzzy) report.push(`${label}: matched "${p.lookup}" to Sports-Reference's "${m.row[C.name]}" (${p.school}) — check the spelling on the sheet`);
+      season[p.id] = statLine(m.row);
+      found++;
+    }
+  }
+  report.push(`${label}: Sports-Reference gave ${found} lines from ${bySchool.size} school pages`);
+  if (noSchool.size) report.push(`${label}: no Sports-Reference school page for ${[...noSchool].join(', ')}`);
+  return found;
+}
+
 // ------------------------------------------------------------ boards
 // The current board is the sheet's first tab. Past boards are any tab
 // named with a year and "Board" ("2025 Board"), found through the
@@ -356,13 +446,14 @@ async function loadProspects(url) {
 }
 
 // ------------------------------------------------------------ seasons
-const out = { updated: new Date().toISOString(), source: 'barttorvik.com, basketball-reference.com', seasons: {}, pro: {} };
+const out = { updated: new Date().toISOString(), source: 'barttorvik.com, sports-reference.com, basketball-reference.com', seasons: {}, pro: {} };
 // The file as it stands, so a failed download keeps what's already there.
 let previous = null;
 try { previous = JSON.parse(readFileSync(OUT, 'utf8')); } catch (e) { /* first run */ }
 const keptSeasons = [];
 let torvikRead = false; // whether Barttorvik answered at all this run
 let relayRead = false;  // whether the sheet's relay copy was used instead
+let srRead = false;     // whether Sports-Reference filled in this run
 const linked = new Map(); // Basketball-Reference page -> prospect ids
 const report = [];
 
@@ -397,7 +488,7 @@ for (const b of await listBoards()) {
 
 for (const [year, yearJobs] of [...jobs].sort((a, b) => a[0] - b[0])) {
   const label = seasonLabel(year);
-  let rows;
+  const season = out.seasons[label] || (out.seasons[label] = {});
   const keepPrevious = why => {
     const old = previous && previous.seasons && previous.seasons[label];
     if (old && Object.keys(old).length) {
@@ -405,20 +496,38 @@ for (const [year, yearJobs] of [...jobs].sort((a, b) => a[0] - b[0])) {
       keptSeasons.push(label);
       report.push(`${label}: ${why}; kept the ${Object.keys(old).length} stat lines already saved`);
     } else {
+      delete out.seasons[label];
       report.push(`${label}: ${why}`);
     }
   };
-  try { rows = parseCSV(await get(torvikUrl(year))); torvikRead = true; }
-  catch (e) {
-    // Barttorvik refused: the copy the sheet's relay made, if there is one.
-    if (relayTabs.has(year)) {
+  let rows = null, direct = null;
+  try { rows = parseCSV(await get(torvikUrl(year))); torvikRead = true; } catch (e) { direct = e; }
+  if (direct) {
+    // Barttorvik refused: Sports-Reference's school pages for this season
+    // and last, then the copy the sheet's relay made, then what's saved.
+    let srGot = 0;
+    if (year >= DRAFT_YEAR - 1 && year <= DRAFT_YEAR) {
+      report.push(`${label}: Barttorvik refused this server (${direct.message})`);
+      try { srGot = await srFill(year, yearJobs, season, label); } catch (e) { report.push(`${label}: Sports-Reference failed (${e.message})`); }
+    }
+    if (srGot) srRead = true;
+    else if (relayTabs.has(year)) {
       try {
         rows = parseCSV(await get(relayTabs.get(year)));
         if (!rows.length) throw new Error('the tab is empty');
         relayRead = true;
-        report.push(`${label}: Barttorvik refused this server (${e.message}); read the sheet's "Torvik ${year}" tab instead`);
-      } catch (e2) { keepPrevious(`could not download (${e.message}), nor read the sheet's "Torvik ${year}" tab (${e2.message})`); continue; }
-    } else { keepPrevious(`could not download (${e.message})`); continue; }
+        report.push(`${label}: read the sheet's "Torvik ${year}" tab instead`);
+      } catch (e2) { rows = null; report.push(`${label}: couldn't read the sheet's "Torvik ${year}" tab (${e2.message})`); }
+    }
+    if (!rows) {
+      // Whatever was saved for prospects nothing refreshed stays.
+      const old = (previous && previous.seasons && previous.seasons[label]) || {};
+      let kept = 0;
+      for (const id of Object.keys(old)) if (!season[id]) { season[id] = old[id]; kept++; }
+      if (!Object.keys(season).length) { keepPrevious(`could not download (${direct.message})`); continue; }
+      if (!srGot) { keptSeasons.push(label); report.push(`${label}: could not download (${direct.message}); kept the ${kept} stat lines already saved`); }
+      continue;
+    }
   }
 
   // Only rows with real box-score numbers count; before a season starts
@@ -429,7 +538,6 @@ for (const [year, yearJobs] of [...jobs].sort((a, b) => a[0] - b[0])) {
   const byName = new Map();
   rows.forEach(r => { const k = nameKey(r[C.name]); (byName.get(k) || byName.set(k, []).get(k)).push(r); });
 
-  const season = out.seasons[label] || (out.seasons[label] = {});
   for (const job of yearJobs) {
     const unmatched = [];
     let found = 0;
@@ -470,10 +578,11 @@ if (relayRead && relayStatusUrl) {
     parseCSV(await get(relayStatusUrl)).forEach(r => { const t = Date.parse(r[1]); if (String(r[2]) === '200' && t && (!relayAt || t > relayAt)) relayAt = t; });
   } catch (e) { /* the date just falls back below */ }
 }
-out.torvikUpdated = torvikRead ? out.updated
+out.torvikUpdated = (torvikRead || srRead) ? out.updated
   : relayRead ? (relayAt ? new Date(relayAt).toISOString() : out.updated)
   : ((previous && (previous.torvikUpdated || previous.updated)) || null);
-if (relayRead) out.torvikVia = 'sheet relay';
+if (!torvikRead && srRead) out.torvikVia = 'sports-reference.com';
+else if (relayRead) out.torvikVia = 'sheet relay';
 
 mkdirSync(dirname(OUT), { recursive: true });
 // Keep the file byte-identical when nothing changed, so the daily job
