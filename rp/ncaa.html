@@ -436,9 +436,17 @@
       <div id="awardsTab" class="tab-content">
         <div class="section-head page-head">
           <div><h2 class="section-title">Awards</h2><p class="section-sub">Preseason projections, then the national and conference honors once the season ends.</p></div>
-          <select id="awardConfFilter" onchange="SimEngine.renderConferenceAwards(this.value)" class="filter-select"></select>
+          <select id="awardConfFilter" onchange="SimEngine.selectAwards(this.value)" class="filter-select"></select>
         </div>
 
+        <div id="awardsConfView" style="display:none">
+          <h3 class="award-section-title" id="confAwardsTitle">Conference Honors</h3>
+          <div id="confAwardsContainer">
+            <p class="sub-text">Complete the season to view conference award winners.</p>
+          </div>
+        </div>
+
+        <div id="awardsNationalView">
         <div id="postseasonHonors"></div>
 
         <h3 class="award-section-title">Preseason Projections</h3>
@@ -456,9 +464,6 @@
           <p class="sub-text">Complete the season to view All-American teams.</p>
         </div>
 
-        <h3 class="award-section-title" id="confAwardsTitle">Conference Honors</h3>
-        <div id="confAwardsContainer">
-          <p class="sub-text">Complete the season to view conference award winners.</p>
         </div>
       </div>
 

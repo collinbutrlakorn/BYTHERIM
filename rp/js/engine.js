@@ -15,7 +15,7 @@ window.SimEngine = {
     scopeFilter: 'full',
     scheduleConfFilter: 'ALL',
     scheduleTop25Only: false,
-    selectedAwardConf: 'ACC',
+    selectedAwardConf: 'NATIONAL',
     // --- Real schedule / postseason state ---
     schedule: [],           // flat list of {id, week, phase, isConf, home, away, played, result}
     nonConfEnd: 0,          // last week number of the non-conference slate
@@ -34,6 +34,7 @@ window.SimEngine = {
     seasonHistory: [],      // league-wide archive: one entry per completed season
     preseasonAwards: null,  // projected honours, computed before week 1
     apPollTop25: [],
+    mtes: [],               // early-season multi-team events (see schedule-core.js)
     coachesByKey: {},
     rawRosterRows: [],
     allRecruits: [],
@@ -274,6 +275,7 @@ window.SimEngine = {
           this.state.phase = savedState.currentPhase || 'Preseason';
           this.state.simCompleted = savedState.simCompleted || false;
           this.state.schedule = savedState.schedule || [];
+          this.state.mtes = savedState.mtes || [];
           this.state.nonConfEnd = savedState.nonConfEnd || 0;
           this.state.confEnd = savedState.confEnd || 0;
           this.state.regularSeasonDone = savedState.regularSeasonDone || false;
@@ -428,6 +430,7 @@ window.SimEngine = {
           currentPhase: this.state.phase,
           simCompleted: this.state.simCompleted,
           schedule: this.state.schedule,
+          mtes: this.state.mtes || [],
           nonConfEnd: this.state.nonConfEnd,
           confEnd: this.state.confEnd,
           regularSeasonDone: this.state.regularSeasonDone,
@@ -2625,6 +2628,17 @@ window.SimEngine = {
     fill('recruitsConfFilter', true, 'All NCAA');
     fill('teamStatsConfFilter', true, 'All NCAA');
     fill('awardConfFilter', false, '');
+    // The Awards page opens on the national honors; a conference swaps in
+    // that conference's honors at the top of the page.
+    const aw = document.getElementById('awardConfFilter');
+    if (aw) {
+      // A loaded save always opens on the national honors.
+      const prev = this._awardViewSet ? this.state.selectedAwardConf : 'NATIONAL';
+      this._awardViewSet = true;
+      aw.insertAdjacentHTML('afterbegin', '<option value="NATIONAL">National Awards</option>');
+      aw.value = Array.from(aw.options).some(o => o.value === prev) ? prev : 'NATIONAL';
+      this.state.selectedAwardConf = aw.value;
+    }
   },
 
   _confLogoCache: {},
@@ -2712,11 +2726,35 @@ window.SimEngine = {
       // as the resume fills in.
       const brandWeight = 1 - resumeWeight * 0.65;
 
+      // Voters hold mid-majors to a much higher standard: wins over other
+      // mid-majors don't count the way wins over power programs do, so a
+      // ranked mid-major is almost always nearly unbeaten (Miami (OH) at
+      // 31-0 is the template). Only a Gonzaga-type program with a real
+      // national profile can carry a few losses and stay in the poll. Every
+      // loss past the allowance costs a mid-major far more than it would a
+      // power-conference team, and the penalty grows with the resume, so an
+      // early-season loss doesn't sink anyone.
+      const losses = t.simData.losses;
+      let resumePenalty = 0;
+      if (!isPower) {
+        const pr = t.prestige != null ? t.prestige : 50;
+        const elite = pr >= 74 || PRESTIGE_MIDS.includes(t.school);
+        const allowance = elite ? 3 : (pr >= 64 ? 2 : 1);
+        resumePenalty = Math.max(0, losses - allowance) * (elite ? 9 : 14) * resumeWeight
+          + (elite ? 2 : 6) * resumeWeight;   // wins over mid-major schedules count for less
+        // Dominating a weak schedule isn't a ranked resume on its own.
+        resumePenalty += Math.max(0, 0.35 - sosNorm) * (elite ? 10 : 22) * resumeWeight;
+      } else {
+        // A power-conference team with a double-digit loss column drifts out.
+        resumePenalty = Math.max(0, losses - 8) * 2.5 * resumeWeight;
+      }
+
       const rawScore = (winPct * 55 * resumeWeight)
                 + (sosNorm * 18 * resumeWeight)
                 + (talent * 0.42)
                 + (t.simData.wins * 0.35)
-                + (prestige + recruitingWeight) * brandWeight;
+                + (prestige + recruitingWeight) * brandWeight
+                - resumePenalty;
 
       // Polls are sticky: voters move teams gradually unless something
       // decisive happens, so each week's score is blended with the last.
@@ -3292,6 +3330,7 @@ window.SimEngine = {
       if (p.baseRating !== undefined) delete p.baseRating;
     });
     this.state.schedule = [];
+    this.state.mtes = [];
     this.state.regularSeasonDone = false;
     this.state.confChampsDone = false;
     this.state.ncaaDone = false;
@@ -3439,8 +3478,8 @@ window.SimEngine = {
       console.error('ScheduleCore not loaded — check that schedule-core.js is included before engine.js');
       return;
     }
-    const teamRefs = this.state.teams.map(t => ({ school: t.school, conference: t.conference || 'Independent' }));
-    const { schedule, nonConfEnd, confEnd } = ScheduleCore.generateFullSchedule(teamRefs, {
+    const teamRefs = this.state.teams.map(t => ({ school: t.school, conference: t.conference || 'Independent', prestige: t.prestige }));
+    const { schedule, mtes, nonConfEnd, confEnd } = ScheduleCore.generateFullSchedule(teamRefs, {
       // 13 non-conference games plus a conference slate gets each team to
       // roughly the 32-game regular season a real Division I team plays.
       nonConfGamesPerTeam: 15,
@@ -3449,6 +3488,7 @@ window.SimEngine = {
       confGamesPerWeek: 2
     });
     this.state.schedule = schedule;
+    this.state.mtes = mtes || [];
     this.state.nonConfEnd = nonConfEnd;
     this.state.confEnd = confEnd;
     this.state.maxWeeks = confEnd;
@@ -4223,6 +4263,65 @@ window.SimEngine = {
     return this.state.teams.find(t => t.school === schoolName);
   },
 
+  // Sets up the next round of every tournament held this week once the last
+  // round is in. Returns the schedule entries for those new games.
+  advanceMtes(week) {
+    const out = [];
+    const winnerOf = g => (g.result.homeScore > g.result.awayScore ? g.home : g.away);
+    const loserOf = g => (g.result.homeScore > g.result.awayScore ? g.away : g.home);
+    (this.state.mtes || []).filter(ev => ev.week === week && !ev.done).forEach(ev => {
+      const cur = ev.games.filter(g => g.round === ev.round);
+      const entries = cur.map(g => this.state.schedule.find(x => x.id === g.id));
+      if (!cur.length || !entries.every(e => e && e.played)) return;
+      cur.forEach((g, i) => { g.result = entries[i].result; });
+      const next = ScheduleCore.mteNextRound(ev, winnerOf, loserOf);
+      if (!next.length) {
+        ev.done = true;
+        const title = ev.games.find(g => g.round === ev.round && g.label === 'Championship');
+        if (title) {
+          ev.champion = winnerOf(title); ev.runnerUp = loserOf(title);
+          const hi = Math.max(title.result.homeScore, title.result.awayScore), lo = Math.min(title.result.homeScore, title.result.awayScore);
+          this.logNews(`${ev.champion} wins the ${ev.name}, beating ${ev.runnerUp} ${hi}-${lo} in the championship.`);
+        }
+        return;
+      }
+      ev.round++;
+      let nextId = this.state.schedule.reduce((n, x) => Math.max(n, x.id || 0), 0);
+      next.forEach(m => {
+        const entry = { id: ++nextId, week, phase: 'NC', isConf: false, home: m.home, away: m.away, played: false, result: null,
+          neutral: true, mte: ev.id, mteName: ev.name, mteRound: m.round, mteSlot: m.slot, mteLabel: ScheduleCore.mteRoundLabel(ev, m) };
+        this.state.schedule.push(entry);
+        ev.games.push({ ...m, id: entry.id });
+        out.push(entry);
+      });
+    });
+    return out;
+  },
+
+  // The tournaments played in a week: fields, results and the champion.
+  renderMtePanel(week) {
+    const evs = (this.state.mtes || []).filter(ev => ev.week === week);
+    if (!evs.length) return '';
+    const score = g => g.result ? `${Math.max(g.result.homeScore, g.result.awayScore)}-${Math.min(g.result.homeScore, g.result.awayScore)}` : '';
+    const team = s => `<img src="${this.getTeamLogo(s)}" class="xs-logo" alt=""><span>${this.esc(s)}</span>`;
+    const card = ev => {
+      const rounds = [...new Set(ev.games.map(g => g.round))].sort();
+      const lines = rounds.map(r => ev.games.filter(g => g.round === r).map(g => {
+        const e = this.state.schedule.find(x => x.id === g.id);
+        const res = e && e.played ? e.result : null;
+        const hw = res && res.homeScore > res.awayScore;
+        return `<li><span class="mte-round">${this.esc(ScheduleCore.mteRoundLabel(ev, g))}</span>${res
+          ? `<b>${this.esc(hw ? g.home : g.away)}</b> def. ${this.esc(hw ? g.away : g.home)} <span class="mte-score">${Math.max(res.homeScore, res.awayScore)}-${Math.min(res.homeScore, res.awayScore)}</span>`
+          : `${this.esc(g.away)} at ${this.esc(g.home)}`}</li>`;
+      }).join('')).join('');
+      return `<details class="mte-card"><summary><b>${this.esc(ev.name)}</b>
+          <span class="sub-text-sm">${ev.size} teams${ev.champion ? ` · Champion: ${this.esc(ev.champion)}` : ''}</span></summary>
+        <div class="mte-field">${ev.field.map(s => `<span class="mte-team">${team(s)}</span>`).join('')}</div>
+        <ul class="mte-games">${lines}</ul></details>`;
+    };
+    return `<div class="mte-panel"><h4 class="award-section-title">Tournaments this week</h4>${evs.map(card).join('')}</div>`;
+  },
+
   // Runs every scheduled game for the upcoming week: real head-to-head
   // matchups via GameCore, with both teams' records and every player's
   // game log updated from the same simulated result.
@@ -4235,12 +4334,19 @@ window.SimEngine = {
     const rankBefore = {};
     this.state.teams.forEach(t => { const r = this.state.week > 1 ? t.apRank : (t.preseasonRank && t.preseasonRank <= 25 ? t.preseasonRank : null); if (r) rankBefore[t.school] = r; });
 
-    gamesThisWeek.forEach(g => {
+    const playEntry = g => {
       const home = this.findTeam(g.home);
       const away = this.findTeam(g.away);
       if (!home || !away) return;
       this.playGame(home, away, g, g.isConf ? 'conf' : 'nonconf');
-    });
+    };
+    gamesThisWeek.forEach(playEntry);
+    // Tournament weekends: winners play winners and losers play losers
+    // within the same week, so each round sets up the next.
+    for (let more = this.advanceMtes(this.state.week), guard = 0; more.length && guard < 6; more = this.advanceMtes(this.state.week), guard++) {
+      more.forEach(playEntry);
+      gamesThisWeek.push(...more);
+    }
 
     this.recalculateAllAverages();
     this.computeAPPoll();
@@ -4328,10 +4434,10 @@ window.SimEngine = {
     const hm = rollSide(homeAvail), am = rollSide(awayAvail);
     home.simData.rosterRef = homeAvail.available;
     away.simData.rosterRef = awayAvail.available;
-    if (this.state.effNorm == null && opts.homeCourtEdge !== 0) this.updateEfficiencyNorm();
+    if (this.state.effNorm == null && (opts.homeCourtEdge !== 0 || opts.calibrated)) this.updateEfficiencyNorm();
     // Regular-season games carry the league's scoring calibration; the
     // brackets are played on neutral floors without it, as they always were.
-    const neutral = opts.homeCourtEdge === 0;
+    const neutral = opts.homeCourtEdge === 0 && !opts.calibrated;
     const result = GameCore.simulateSingleGame(home, away, {
       ...opts,
       homeMinutesMultiplier: hm,
@@ -4424,7 +4530,8 @@ window.SimEngine = {
   },
 
   playGame(home, away, scheduleEntry, gamePhaseLabel) {
-    const result = this.simulateMatchup(home, away);
+    // A tournament's neutral floor: no home edge, the league's scoring calibration kept.
+    const result = this.simulateMatchup(home, away, scheduleEntry && scheduleEntry.neutral ? { homeCourtEdge: 0, calibrated: true } : {});
 
     const homeWin = result.homeScore > result.awayScore;
 
@@ -4480,6 +4587,7 @@ window.SimEngine = {
           started: !player.isBench && box.min > 0,
           week: scheduleEntry ? scheduleEntry.week : this.state.week,
           isConf: scheduleEntry ? !!scheduleEntry.isConf : false,
+          ...(scheduleEntry && scheduleEntry.mte ? { neutral: true, event: scheduleEntry.mteName, eventRound: scheduleEntry.mteLabel } : {}),
           phase: gamePhaseLabel,
           opponent: oppSchool,
           isHome,
@@ -4543,7 +4651,7 @@ window.SimEngine = {
           const key = `${p.school}|${g.phase}|${g.week}|${g.opponent}|${g.teamScore}-${g.oppScore}`;
           if (seen.has(key)) return;
           seen.add(key);
-          const neutral = g.phase && g.phase !== 'conf' && g.phase !== 'nonconf';
+          const neutral = g.neutral || (g.phase && g.phase !== 'conf' && g.phase !== 'nonconf');
           games.push({ team: p.school, opp: g.opponent, pf: g.teamScore, pa: g.oppScore, loc: neutral ? 0 : (g.isHome ? 1 : -1) });
         });
         if (s.min > 0) players.push({ key: p, team: p.school, pos: p.pos, s });
@@ -4705,6 +4813,7 @@ window.SimEngine = {
     });
 
     this.computeAPPoll();
+    this.computeCoachScores();
 
     this.state.activePlayers.forEach(p => {
       const team = this.state.teams.find(t => t.school === p.school);
@@ -5233,7 +5342,7 @@ window.SimEngine = {
 
     this.archiveRosters(year);
 
-    const { npoy, dpoy, froy } = this.computeNationalAwards();
+    const { npoy, dpoy, froy, coyTeam } = this.computeNationalAwards();
     const bracket = this.state.ncaaTournament;
     let champion = null, runnerUp = null, finalFour = [];
 
@@ -5291,6 +5400,7 @@ window.SimEngine = {
       npoy: npoy ? { name: npoy.name, school: npoy.school } : null,
       dpoy: dpoy ? { name: dpoy.name, school: dpoy.school } : null,
       froy: froy ? { name: froy.name, school: froy.school } : null,
+      coy: coyTeam && coyTeam.coach ? { name: coyTeam.coach.name, school: coyTeam.school } : null,
       finalPoll,
       leaders: {
         ppg: leaderIn('ppg'), rpg: leaderIn('rpg'), apg: leaderIn('apg'),
@@ -7078,8 +7188,59 @@ window.SimEngine = {
     btn.innerText = isExpanded ? `See More (${rows.length} Teams)` : 'See Less';
   },
 
+  // Award winners are players who actually play: 20+ minutes a game over
+  // most of the season. The Sixth Man is the one exception (12+ off the
+  // bench). A defender with a huge DBPM in garbage time isn't a DPOY.
+  awardEligible(p, kind) {
+    const st = (p && p.stats) || {};
+    const mpg = parseFloat(st.mpg) || 0;
+    return mpg >= (kind === 'sixth' ? 12 : 20) && (parseFloat(st.gp) || 0) >= 15;
+  },
+  awardPool(players, kind) {
+    return players.filter(p => this.awardEligible(p, kind));
+  },
+  // Mostly a reserve: started a quarter of his games or fewer.
+  isSixthMan(p) {
+    const st = p.stats || {};
+    const gp = parseFloat(st.gp) || 0, gs = parseFloat(st.gs);
+    return Number.isFinite(gs) && gp > 0 ? gs / gp <= 0.25 : !!p.isBench;
+  },
+
+  // Coach of the Year: a team's record against what its roster and brand
+  // promised in the preseason, plus winning for its own sake.
+  computeCoachScores() {
+    const teams = this.state.teams;
+    const N = Math.max(2, teams.length);
+    teams.forEach(t => {
+      const w = t.simData.wins, l = t.simData.losses, gp = w + l;
+      if (!gp) { t.coachScore = null; return; }
+      const winPct = w / gp;
+      const r = t.preseasonRank || Math.round(N / 2);
+      const expected = 0.82 - 0.62 * (r - 1) / (N - 1);
+      const cg = (t.simData.confWins || 0) + (t.simData.confLosses || 0);
+      const confPct = cg ? t.simData.confWins / cg : winPct;
+      t.coachScore = (winPct - expected) * 55 + winPct * 30 + confPct * 12;
+    });
+  },
+  coachAward(teams, national) {
+    const pool = teams.filter(t => t.coach && t.coach.name && t.coachScore != null && t.simData.wins + t.simData.losses >= 15);
+    const level = t => (typeof DraftCore !== 'undefined') ? Math.sqrt(DraftCore.competitionFactor(t.conference)) : 1;
+    return pool.sort((a, b) => (b.coachScore * (national ? level(b) : 1)) - (a.coachScore * (national ? level(a) : 1)))[0] || null;
+  },
+  // Most improved: the biggest jump from last season's line, among players
+  // who played a real role both years.
+  improvementOf(p) {
+    const prev = (p.seasonHistory || []).find(h => h.year === this.state.year - 1);
+    const a = prev && prev.stats, b = p.stats;
+    if (!a || !b || (parseFloat(a.gp) || 0) < 8) return null;
+    const d = k => (parseFloat(b[k]) || 0) - (parseFloat(a[k]) || 0);
+    return d('ppg') + d('bpm') + 0.35 * (d('rpg') + d('apg'));
+  },
+
   computeNationalAwards() {
-    const players = [...this.state.activePlayers];
+    const all = [...this.state.activePlayers];
+    const eligible = this.awardPool(all);
+    const players = eligible.length >= 5 ? eligible : all;
     const isPG = p => p.pos === 'PG' || (p.pos === 'G' && parseFloat(p.stats.apg) >= 3.5);
     const isSG = p => p.pos === 'SG' || (p.pos === 'G' && parseFloat(p.stats.apg) < 3.5);
     const isSF = p => p.pos === 'SF' || (p.pos === 'F' && parseFloat(p.stats.rpg) < 6.5);
@@ -7095,7 +7256,8 @@ window.SimEngine = {
     const malone = [...players].filter(isPF).sort((a, b) => b.awardScore - a.awardScore)[0] || npoy;
     const abdulJabbar = [...players].filter(isC).sort((a, b) => b.awardScore - a.awardScore)[0] || npoy;
 
-    return { npoy, dpoy, froy, cousy, west, erving, malone, abdulJabbar };
+    const coyTeam = this.coachAward(this.state.teams, true);
+    return { npoy, dpoy, froy, cousy, west, erving, malone, abdulJabbar, coyTeam };
   },
 
   // Projected honours shown from preseason onward, so the Awards tab has
@@ -7183,7 +7345,25 @@ window.SimEngine = {
     el.innerHTML = html;
   },
 
+  // National view or one conference's honors, per the dropdown.
+  showAwardsView() {
+    const conf = this.state.selectedAwardConf;
+    const national = !conf || conf === 'NATIONAL';
+    const nat = document.getElementById('awardsNationalView'), cv = document.getElementById('awardsConfView');
+    if (nat) nat.style.display = national ? '' : 'none';
+    if (cv) cv.style.display = national ? 'none' : '';
+    const sel = document.getElementById('awardConfFilter');
+    if (sel && sel.value !== (conf || 'NATIONAL')) sel.value = conf || 'NATIONAL';
+    return national;
+  },
+
+  selectAwards(value) {
+    this.state.selectedAwardConf = value || 'NATIONAL';
+    this.updateAwardsTab();
+  },
+
   updateAwardsTab() {
+    this.showAwardsView();
     this.renderPostseasonHonors();
     const preseasonEl = document.getElementById('preseasonAwardsGrid');
     if (preseasonEl) preseasonEl.innerHTML = this.renderPreseasonAwards();
@@ -7201,7 +7381,7 @@ window.SimEngine = {
     }
 
     const players = [...this.state.activePlayers];
-    const { npoy, dpoy, froy, cousy, west, erving, malone, abdulJabbar } = this.computeNationalAwards();
+    const { npoy, dpoy, froy, cousy, west, erving, malone, abdulJabbar, coyTeam } = this.computeNationalAwards();
 
     if(npoy && !npoy.accolades.includes("National POY")) npoy.accolades.push("National POY");
     if(dpoy && !dpoy.accolades.includes("National DPOY")) dpoy.accolades.push("National DPOY");
@@ -7218,6 +7398,7 @@ window.SimEngine = {
     ];
 
     let natHtml = '';
+    if (coyTeam) natHtml += this.coachCard('National Coach of the Year', 'Naismith Coach of the Year', coyTeam, true);
     majorAwards.forEach(a => {
       if (!a.winner) return;
       const safeName = a.winner.name.replace(/'/g, "\\'");
@@ -7240,7 +7421,7 @@ window.SimEngine = {
     });
     natEl.innerHTML = natHtml;
 
-    const sortedAll = [...players].sort((a,b) => b.awardScore - a.awardScore);
+    const sortedAll = this.awardPool(players).sort((a,b) => b.awardScore - a.awardScore);
     const aa1 = sortedAll.slice(0, 5);
     const aa2 = sortedAll.slice(5, 10);
     const aa3 = sortedAll.slice(10, 15);
@@ -7288,15 +7469,17 @@ window.SimEngine = {
       renderAaCard("Second Team All-American", aa2) +
       renderAaCard("Third Team All-American", aa3);
 
-    this.renderConferenceAwards(this.state.selectedAwardConf);
+    if (this.state.selectedAwardConf && this.state.selectedAwardConf !== 'NATIONAL') this.renderConferenceAwards(this.state.selectedAwardConf);
   },
 
   renderConferenceAwards(confName) {
+    if (!confName || confName === 'NATIONAL') { this.selectAwards('NATIONAL'); return; }
     this.state.selectedAwardConf = confName;
+    this.showAwardsView();
     const titleEl = document.getElementById('confAwardsTitle');
     const confBodyEl = document.getElementById('confAwardsContainer');
     if (!confBodyEl) return;
-    if (titleEl) titleEl.innerText = `${confName} Conference Honors`;
+    if (titleEl) titleEl.textContent = `${confName} Conference Honors`;
 
     if (!this.state.regularSeasonDone) {
       confBodyEl.innerHTML = `<p class="sub-text">Complete the season to view conference awards.</p>`;
@@ -7309,17 +7492,26 @@ window.SimEngine = {
       return;
     }
 
-    const sortedConf = [...confPlayers].sort((a,b) => b.awardScore - a.awardScore);
-    const sortedDef = [...confPlayers].sort((a,b) => b.defensiveScore - a.defensiveScore);
-    const sortedFresh = [...confPlayers].filter(p => p.class === 'FR').sort((a,b) => b.awardScore - a.awardScore);
-    const sorted6m = [...confPlayers].filter(p => p.isBench).sort((a,b) => b.awardScore - a.awardScore);
+    // Winners play: 20+ minutes a game (12+ for the Sixth Man).
+    const regulars = this.awardPool(confPlayers);
+    const base = regulars.length >= 10 ? regulars : confPlayers;
+    const sortedConf = [...base].sort((a,b) => b.awardScore - a.awardScore);
+    const sortedDef = [...base].sort((a,b) => b.defensiveScore - a.defensiveScore);
+    const sortedFresh = [...base].filter(p => p.class === 'FR').sort((a,b) => b.awardScore - a.awardScore);
+    const sorted6m = this.awardPool(confPlayers, 'sixth').filter(p => this.isSixthMan(p))
+      .sort((a,b) => b.awardScore - a.awardScore);
+    const sortedMip = base.map(p => ({ p, d: this.improvementOf(p) })).filter(x => x.d != null && x.d > 0)
+      .sort((a, b) => b.d - a.d).map(x => x.p);
 
     const cpoy = sortedConf[0];
     const cdpoy = sortedDef[0];
-    const croty = sortedFresh[0] || sortedConf[1];
-    const c6moy = sorted6m[0] || sortedConf[4];
+    const croty = sortedFresh[0] || null;
+    const c6moy = sorted6m[0] || null;
+    const cmip = sortedMip[0] || null;
+    const ccoy = this.coachAward(this.state.teams.filter(t => this.matchesConfFilter(t.conference, confName)), false);
 
     if(cpoy && !cpoy.accolades.includes(`${confName} POY`)) cpoy.accolades.push(`${confName} POY`);
+    if (!cpoy) { confBodyEl.innerHTML = `<p class="sub-text">No qualifying players for ${confName}.</p>`; return; }
     
     const conf1st = sortedConf.slice(0, 5);
     const conf2nd = sortedConf.slice(5, 10);
@@ -7354,7 +7546,7 @@ window.SimEngine = {
           </div>
         </div>
 
-        <div class="award-card">
+        ${croty ? `<div class="award-card">
           <div class="award-title">Rookie of the Year</div>
           <div class="award-sub">${confName} ROTY / Freshman of Year</div>
           <div class="award-winner">
@@ -7364,19 +7556,43 @@ window.SimEngine = {
               <span class="award-winner-school">${croty.school} &bull; ${croty.stats.ppg} PPG</span>
             </div>
           </div>
-        </div>
+        </div>` : ''}
 
-        <div class="award-card">
+        ${c6moy ? `<div class="award-card">
           <div class="award-title">Sixth Man of the Year</div>
           <div class="award-sub">${confName} 6MOY</div>
           <div class="award-winner">
             <img src="${this.getTeamLogo(c6moy.school)}" class="award-logo">
             <div class="award-winner-info">
               <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeI(c6moy)}')">${c6moy.name}</span>
-              <span class="award-winner-school">${c6moy.school} &bull; ${c6moy.stats.ppg} PPG</span>
+              <span class="award-winner-school">${c6moy.school} &bull; ${c6moy.stats.ppg} PPG off the bench</span>
             </div>
           </div>
-        </div>
+        </div>` : ''}
+
+        ${cmip ? `<div class="award-card">
+          <div class="award-title">Most Improved Player</div>
+          <div class="award-sub">${confName} MIP</div>
+          <div class="award-winner">
+            <img src="${this.getTeamLogo(cmip.school)}" class="award-logo">
+            <div class="award-winner-info">
+              <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeI(cmip)}')">${cmip.name}</span>
+              <span class="award-winner-school">${cmip.school} &bull; ${this.improvementLine(cmip)}</span>
+            </div>
+          </div>
+        </div>` : ''}
+
+        ${ccoy ? `<div class="award-card">
+          <div class="award-title">Coach of the Year</div>
+          <div class="award-sub">${confName} Coach of the Year</div>
+          <div class="award-winner">
+            <img src="${this.getTeamLogo(ccoy.school)}" class="award-logo">
+            <div class="award-winner-info">
+              <span class="award-winner-name">${this.esc(ccoy.coach.name)}</span>
+              <span class="award-winner-school">${ccoy.school} &bull; ${ccoy.simData.wins}-${ccoy.simData.losses} (${ccoy.simData.confWins}-${ccoy.simData.confLosses} conf)</span>
+            </div>
+          </div>
+        </div>` : ''}
       </div>
 
       <div class="all-american-container conf-teams-2x2">
@@ -7388,8 +7604,7 @@ window.SimEngine = {
     `;
 
     // All-Defensive team, picked on defensive impact rather than scoring.
-    const defPool = [...confPlayers]
-      .filter(p => parseFloat(p.stats.mpg) >= 12)
+    const defPool = [...base]
       .sort((x, y) => y.defensiveScore - x.defensiveScore)
       .slice(0, 5);
 
@@ -7412,6 +7627,28 @@ window.SimEngine = {
     }
 
     confBodyEl.innerHTML = html;
+  },
+
+  improvementLine(p) {
+    const prev = (p.seasonHistory || []).find(h => h.year === this.state.year - 1);
+    return prev ? `${prev.stats.ppg} → ${p.stats.ppg} PPG` : `${p.stats.ppg} PPG`;
+  },
+
+  coachCard(title, sub, team, major) {
+    const c = team.coach;
+    const school = String(team.school).replace(/'/g, "\\'");
+    const exp = team.preseasonRank ? ` &bull; preseason No. ${team.preseasonRank}` : '';
+    return `<div class="award-card award-card-horizontal ${major ? 'major-award' : ''}">
+        <div class="award-heading"><div class="award-title">${title}</div><div class="award-sub">${sub}</div></div>
+        <div class="award-winner">
+          <img src="${this.getTeamLogo(team.school)}" class="award-logo" alt="">
+          <div class="award-winner-info">
+            <span class="award-winner-name">${this.esc(c.name)}</span>
+            <span class="award-winner-school clickable-school" onclick="SimEngine.goToTeamPage('${school}')">${this.esc(team.school)} (${team.simData.wins}-${team.simData.losses})</span>
+            <span class="award-winner-stats">${team.simData.confWins}-${team.simData.confLosses} in conference${exp}</span>
+          </div>
+        </div>
+      </div>`;
   },
 
   renderConfTeamTable(title, playerList) {
@@ -7855,14 +8092,15 @@ window.SimEngine = {
             <span class="sb-name">${rankTag}<span class="clickable-school" onclick="SimEngine.openTeamModal('${safe}')">${school}</span></span>
             ${played ? `<b class="sb-score">${score}</b>` : ''}
           </div>`;
-        let foot = `<span class="sb-status">${g.isConf ? 'Conference' : 'Non-conference'}</span>`;
+        const kind = g.mte ? `${this.esc(g.mteName)} · ${this.esc(g.mteLabel)}` : (g.isConf ? 'Conference' : 'Non-conference');
+        let foot = `<span class="sb-status">${kind}</span>`;
         if (played) {
           foot = `<span class="sb-status">Final</span><button type="button" class="sb-link game-link" onclick="${this.openGameJs(g.home, g.away, g.week, phase)}" title="Box score and play-by-play">Box score &rsaquo;</button>`;
         } else if (g.week === upcoming) {
           const ref = { home: g.home, away: g.away, week: g.week, phase };
           foot = `<span class="sb-status">${this.tipLabel(ref)}</span><span class="sb-watch">${this.watchListBtn(g.home, g.away, g.week, phase)}<button type="button" class="watch-btn" onclick="${this.watchGameJs(g.home, g.away, g.week, phase)}">&#9654; Watch live</button></span>`;
         } else {
-          foot = `<span class="sb-status">${g.isConf ? 'Conference' : 'Non-conference'} · ${this.tipLabel({ home: g.home, away: g.away, week: g.week, phase })}</span>`;
+          foot = `<span class="sb-status">${kind} · ${this.tipLabel({ home: g.home, away: g.away, week: g.week, phase })}</span>`;
         }
         gamesHtml += `
           <div class="schedule-pill sb-card${played ? ' final' : ''}">
@@ -7874,7 +8112,7 @@ window.SimEngine = {
     }
     gamesHtml += `</div>`;
 
-    container.innerHTML = filtersHtml + gamesHtml;
+    container.innerHTML = filtersHtml + this.renderMtePanel(this.state.scheduleViewWeek) + gamesHtml;
   },
 
   setScheduleConfFilter(val) {
@@ -8750,6 +8988,7 @@ window.SimEngine = {
       return { label, neutral: true, big: 0.7, conference: conf };
     }
     const g = (s.schedule || []).find(x => x.week === ref.week && x.home === ref.home && x.away === ref.away);
+    if (g && g.mte) return { label: `${g.mteName} · ${g.mteLabel}`, neutral: true, big: 0.4 };
     const conf = g ? g.isConf : ref.phase === 'conf';
     return { label: `Week ${ref.week}${conf && home ? ' · ' + home.conference : ' · Non-conference'}`, neutral: false, big: 0 };
   },
@@ -9565,9 +9804,9 @@ window.SimEngine = {
       const d = l.phase === 'ncaa' || l.phase === 'conftourney' ? this.describeGame(ref).label.replace(/^NCAA Tournament · /, '').replace(/ · .*Region$/, '') : `Week ${l.week}`;
       rows += `<tr class="game-row" onclick="${this.openGameJs(ref.home, ref.away, ref.week, ref.phase)}" title="Box score and play-by-play">
         <td class="bold-sub-text">${this.esc(d)}</td>
-        <td class="sub-text-sm">${l.phase === 'ncaa' || l.phase === 'conftourney' || l.isHome ? 'vs' : '@'}</td>
+        <td class="sub-text-sm">${l.phase === 'ncaa' || l.phase === 'conftourney' || l.neutral || l.isHome ? 'vs' : '@'}</td>
         <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(l.opponent)}" class="xs-logo"><span>${this.esc(l.opponent)}</span></div></td>
-        <td class="sub-text-sm">${typeOf(l.phase)}</td>
+        <td class="sub-text-sm">${l.event ? this.esc(l.event) : typeOf(l.phase)}</td>
         <td class="${l.won ? 'win-text' : 'loss-text'}">${l.won ? 'W' : 'L'}</td>
         <td class="bold-text">${l.teamScore}-${l.oppScore} <span class="game-link-label">Box score</span></td>
       </tr>`;
@@ -9582,7 +9821,7 @@ window.SimEngine = {
           <td class="bold-sub-text">Week ${g.week}</td>
           <td class="sub-text-sm">${isHome ? 'vs' : '@'}</td>
           <td><div class="team-cell-wrap clickable-school" onclick="SimEngine.setTeamPageSelection('${this.jsArg(opp)}')"><img src="${this.getTeamLogo(opp)}" class="xs-logo"><span>${this.esc(opp)}</span></div></td>
-          <td class="sub-text-sm">${g.isConf ? 'Conf' : 'Non-Conf'}</td>
+          <td class="sub-text-sm">${g.mte ? this.esc(g.mteName) : g.isConf ? 'Conf' : 'Non-Conf'}</td>
           <td class="sub-text-sm">—</td>
           <td>${g.week === upcoming ? `<button type="button" class="watch-btn sm" onclick="${this.watchGameJs(g.home, g.away, g.week, g.isConf ? 'conf' : 'nonconf')}">&#9654; Watch live</button>` : '<span class="sub-text-sm">Not yet played</span>'}</td>
         </tr>`;
@@ -10828,7 +11067,7 @@ window.SimEngine = {
       school: sc, seed: (seeds[sc] || {}).seed || null, region: (seeds[sc] || {}).region || '',
       result: sc === champ ? 'Champion' : sc === runner ? 'Runner-up' : 'Final Four'
     }));
-    const allAmericans = [...s.activePlayers].sort((a, b) => b.awardScore - a.awardScore).slice(0, 5).map(line);
+    const allAmericans = this.awardPool([...s.activePlayers]).sort((a, b) => b.awardScore - a.awardScore).slice(0, 5).map(line);
     const poll = [...s.teams].filter(x => x.apRank).sort((x, y) => x.apRank - y.apRank).slice(0, 10)
       .map(x => ({ rank: x.apRank, school: x.school, wins: x.simData.wins, losses: x.simData.losses }));
     const team = this.findTeam(champ);
@@ -10843,7 +11082,7 @@ window.SimEngine = {
       positions: [['Bob Cousy Award · PG', aw.cousy], ['Jerry West Award · SG', aw.west], ['Julius Erving Award · SF', aw.erving],
         ['Karl Malone Award · PF', aw.malone], ['Kareem Abdul-Jabbar Award · C', aw.abdulJabbar]]
         .filter(x => x[1]).map(([label, p]) => ({ label, p: line(p) })),
-      secondTeam: [...s.activePlayers].sort((a, b) => b.awardScore - a.awardScore).slice(5, 10).map(line),
+      secondTeam: this.awardPool([...s.activePlayers]).sort((a, b) => b.awardScore - a.awardScore).slice(5, 10).map(line),
       honors: s.postseasonHonors || null
     };
     return this._wrapUp;
@@ -11888,6 +12127,7 @@ window.SimEngine = {
         ${awardRow('Final Four Most Outstanding Player', entry.honors && entry.honors.finalFour ? entry.honors.finalFour.mop : null)}
         ${awardRow('Player of the Year', entry.npoy)}
         ${awardRow('Defensive Player of the Year', entry.dpoy)}
+        ${awardRow('Coach of the Year', entry.coy)}
         ${awardRow('Freshman of the Year', entry.froy)}
         ${entry.honors ? Object.values(entry.honors.regions || {}).map(e => awardRow(`${e.region} Region MOP`, e)).join('') : ''}
       </tbody></table></div>
