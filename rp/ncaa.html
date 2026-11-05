@@ -259,13 +259,21 @@
         </section>
 
         <div class="dash-grid">
-          <section class="card dash-poll">
-            <div class="section-head">
-              <div><h2 class="section-title" id="dashPollLabel">AP Top 25</h2><p class="section-sub" id="dashPollSub"></p></div>
-              <button class="outline-btn" data-tab="standingsTab">Standings &rarr;</button>
-            </div>
-            <div id="dashTopTeams"><p class="sub-text">Start a save to generate rankings.</p></div>
-          </section>
+          <div class="dash-main">
+            <section class="card dash-poll">
+              <div class="section-head">
+                <div><h2 class="section-title" id="dashPollLabel">AP Top 25</h2><p class="section-sub" id="dashPollSub"></p></div>
+                <button class="outline-btn" data-tab="standingsTab">Standings &rarr;</button>
+              </div>
+              <div id="dashTopTeams"><p class="sub-text">Start a save to generate rankings.</p></div>
+            </section>
+
+            <section class="card dash-events" hidden>
+              <div class="section-head"><div><h2 class="section-title">Tournaments</h2><p class="section-sub" id="dashEventsSub">Early-season events</p></div>
+                <button class="outline-btn" data-tab="scheduleTab">Schedule &rarr;</button></div>
+              <div id="dashEvents"></div>
+            </section>
+          </div>
 
           <div class="dash-side">
             <section class="card dash-watch">

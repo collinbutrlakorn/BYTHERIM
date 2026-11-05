@@ -48,6 +48,26 @@ const unesc = x => (x || '').replace(/\\(.)/g, '$1');
   ok(gl && gl.neutral && gl.eventRound, `game logs carry the event (${gl && gl.event} · ${gl && gl.eventRound})`);
   Sim.state.scheduleViewWeek = ev0.week;
   ok(Sim.renderMtePanel(ev0.week).includes(ev0.name) && Sim.renderMtePanel(ev0.week).includes(ev0.champion), 'the Schedule tab lists the week\'s tournaments and their champions');
+  // Logos: a file named for the event, a generated badge until it's added.
+  ok(Sim.getMteLogo('Maui Invitational') === '../mtelogos/mauiinvitational.png' && Sim.getMteLogo('Battle 4 Atlantis') === '../mtelogos/battle4atlantis.png', 'an event\'s logo is mtelogos/<its name>.png');
+  const img = Sim.getMteLogoImg(ev0.name, ev0.tier);
+  ok(img.includes(Sim.getMteLogo(ev0.name)) && /onerror=".*data:image\/svg\+xml;base64,/.test(img), 'with a generated badge when the file isn\'t there');
+  ok(Sim.mteBadge('Maui Invitational', 'A') !== Sim.mteBadge('Maui Invitational', 'D'), 'the badge is coloured by how big the event is');
+  const readme = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'mtelogos', 'README.md'), 'utf8');
+  ok(events.every(e => readme.includes(Sim.mteKey(e.name) + '.png')), 'the mtelogos README lists the file for every event in this season');
+  ok(Sim.renderMtePanel(ev0.week).includes('mte-logo'), 'the Schedule tab\'s tournament cards carry the logo');
+  Sim.updateScheduleTab();
+  ok(/mte-logo xs/.test(d.getElementById('scheduleContainer').innerHTML), 'and so does each tournament game on the scoreboard');
+  Sim.updateDashboard();
+  const card = d.getElementById('dashEvents');
+  ok(card && !card.closest('.dash-events').hidden && card.querySelectorAll('.ev-row').length === events.length, `the dashboard lists every tournament (${card && card.querySelectorAll('.ev-row').length})`);
+  ok(card.querySelectorAll('.ev-logo img').length === events.length && /mauiinvitational|mte-logo/.test(card.innerHTML), 'each with its logo');
+  ok(/Final/.test(card.textContent) && card.textContent.includes(ev0.champion), 'finished ones name their champion');
+  ok(card.querySelectorAll('.ev-extra').length === events.length - 8 && card.querySelector('button'), 'a long list folds after eight, with a button for the rest');
+  ok(d.querySelector('.dash-main .dash-poll') && d.querySelector('.dash-main .dash-events'), 'the tournaments sit under the poll, filling the left column');
+  Sim.goToEvent(ev0.id);
+  ok(d.getElementById('scheduleTab').classList.contains('active') && Sim.state.scheduleViewWeek === Math.min(ev0.week, Sim.scheduleDefaultWeek()), 'a tournament on the dashboard opens the Schedule tab on its week');
+  d.querySelector('.app-tabs [data-tab="dashTab"]').click();
   const sched = {};
   Sim.state.schedule.forEach(g => { sched[g.home] = (sched[g.home] || 0) + 1; sched[g.away] = (sched[g.away] || 0) + 1; });
   ok(Sim.state.teams.every(t => t.simData.wins + t.simData.losses === sched[t.school]), 'every scheduled game, including the later tournament rounds, was played');
@@ -114,7 +134,7 @@ const unesc = x => (x || '').replace(/\\(.)/g, '$1');
 
   // Most improved is a real jump on last season.
   const fake = Sim.state.activePlayers.find(p => mpg(p) >= 20 && p.class !== 'FR');
-  fake.seasonHistory = [{ year: Sim.state.year - 1, school: fake.school, class: 'FR', stats: { gp: 30, mpg: '12.0', ppg: '2.0', bpm: '-4.0', rpg: '1.0', apg: '0.5' } }];
+  fake.seasonHistory = [{ year: Sim.state.year - 1, school: fake.school, class: 'FR', stats: { gp: 30, mpg: '12.0', ppg: (parseFloat(fake.stats.ppg) - 6).toFixed(1), bpm: (parseFloat(fake.stats.bpm) - 3).toFixed(1), rpg: fake.stats.rpg, apg: fake.stats.apg } }];
   ok(Sim.improvementOf(fake) > 3, 'Most Improved reads the jump from last season');
   ok(Sim.improvementOf(Sim.state.activePlayers.find(p => !(p.seasonHistory || []).some(h => h.year === Sim.state.year - 1))) === null, 'and a player with no previous season can\'t win it');
 

@@ -65,6 +65,7 @@ window.SimEngine = {
     returningPlayers: [],   // early entrants who withdrew and came back
     seasonInitialized: false,
     scheduleViewWeek: 1,
+    weekOpen: false,        // part of this week's slate has been played (watched games), the rest waits
     teamPageSelection: '',
     teamPageView: 'current',
     teamStatSortCol: 'ppg',
@@ -261,6 +262,7 @@ window.SimEngine = {
     this.state.seasonHistory = [];
     this.state.seasonInitialized = false;
     this.state.scheduleViewWeek = 1;
+    this.state.weekOpen = false;
   },
 
   async loadSavedGame() {
@@ -272,6 +274,7 @@ window.SimEngine = {
           this.logNews("Loading save state from IndexedDB...");
           this.state.year = savedState.currentYear || 2028;
           this.state.week = savedState.currentWeek || 0;
+          this.state.weekOpen = !!savedState.weekOpen;
           this.state.phase = savedState.currentPhase || 'Preseason';
           this.state.simCompleted = savedState.simCompleted || false;
           this.state.schedule = savedState.schedule || [];
@@ -427,6 +430,7 @@ window.SimEngine = {
           id: 1,
           currentYear: this.state.year,
           currentWeek: this.state.week,
+          weekOpen: !!this.state.weekOpen,
           currentPhase: this.state.phase,
           simCompleted: this.state.simCompleted,
           schedule: this.state.schedule,
@@ -3493,6 +3497,7 @@ window.SimEngine = {
     this.state.confEnd = confEnd;
     this.state.maxWeeks = confEnd;
     this.state.scheduleViewWeek = 1;
+    this.state.weekOpen = false;
 
     // Both depend on the finished schedule and on every team's rating,
     // so they run here rather than during roster construction.
@@ -4204,8 +4209,8 @@ window.SimEngine = {
     if (btn) btn.classList.remove('busy');
   },
 
-  async simulateWeek() {
-    this.track('rp_sim_week');
+  async simulateWeek(opts = {}) {
+    if (!opts.through) this.track('rp_sim_week');
     if (this.state.teams.length === 0) {
       alert("No active teams detected. Please refresh or check data sources.");
       return;
@@ -4222,7 +4227,10 @@ window.SimEngine = {
     }
 
     if (!this.state.regularSeasonDone) {
-      await this.simulateRegularSeasonWeek();
+      await this.simulateRegularSeasonWeek(opts);
+      // Watching a game plays only what comes before it. The calendars that
+      // move with the week wait until its last game is in.
+      if (this.state.weekOpen) return;
     } else if (!this.state.confChampsDone) {
       await this.simulateConferenceChampionships();
     } else if (!this.state.ncaaDone) {
@@ -4298,6 +4306,88 @@ window.SimEngine = {
     return out;
   },
 
+  // ---------- Tournament logos ----------
+  //
+  // An event's logo is mtelogos/<name in lowercase letters and numbers>.png
+  // (Maui Invitational -> mauiinvitational.png). One that hasn't been added
+  // yet shows a generated badge, coloured by how big the event is.
+  MTE_TIER_COLORS: { A: '#b8892b', B: '#3b6fb6', C: '#2f8f83', D: '#6b5ca5' },
+  mteKey(name) { return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, ''); },
+  getMteLogo(name) { return `../mtelogos/${this.mteKey(name)}.png`; },
+  mteBadge(name, tier) {
+    const initials = this.getInitialsForBadge(name);
+    const color = this.MTE_TIER_COLORS[tier] || this.getColorForName(name);
+    const fontSize = initials.length >= 3 ? 19 : 24;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="16" fill="${color}"/>` +
+      `<path d="M2 40h60" stroke="#ffffff" stroke-opacity=".25" stroke-width="2"/>` +
+      `<text x="32" y="31" font-family="Arial, sans-serif" font-weight="700" font-size="${fontSize}" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">${initials}</text>` +
+      `<circle cx="32" cy="49" r="4.5" fill="none" stroke="#ffffff" stroke-opacity=".8" stroke-width="1.6"/></svg>`;
+    return `data:image/svg+xml;base64,${btoa(svg)}`;
+  },
+  getMteLogoImg(name, tier, className = 'mte-logo') {
+    const fallback = this.mteBadge(name, tier);
+    return `<img src="${this.getMteLogo(name)}" class="${className}" alt="${this.esc(name)}" onerror="this.onerror=null;this.src='${fallback}';">`;
+  },
+  mteById(id) { return (this.state.mtes || []).find(e => e.id === id) || null; },
+
+  // Where an event stands: not started, under way (with the round it's in),
+  // or finished.
+  mteStatus(ev) {
+    const entries = ev.games.map(g => this.state.schedule.find(x => x.id === g.id)).filter(Boolean);
+    const played = entries.filter(e => e.played).length;
+    if (ev.done) return { key: 'done', label: 'Final', played, total: entries.length };
+    if (!played) return { key: 'next', label: `Week ${ev.week}`, played, total: entries.length };
+    const nextG = ev.games.find(g => { const e = this.state.schedule.find(x => x.id === g.id); return e && !e.played; });
+    return { key: 'live', label: nextG ? ScheduleCore.mteRoundLabel(ev, nextG) : 'Under way', played, total: entries.length };
+  },
+
+  // Dashboard: the early-season tournaments. Those under way, the next ones
+  // up, then the ones that are over with their champions.
+  renderDashEvents() {
+    const card = document.getElementById('dashEvents');
+    if (!card) return;
+    const section = card.closest('.dash-events');
+    const evs = this.state.mtes || [];
+    if (!evs.length || !this.state.teams.length) { if (section) section.hidden = true; return; }
+    if (section) { section.hidden = false; section.style.display = ''; }
+    const info = evs.map(ev => ({ ev, st: this.mteStatus(ev) }));
+    const live = info.filter(x => x.st.key === 'live').sort((a, b) => a.ev.week - b.ev.week);
+    const next = info.filter(x => x.st.key === 'next').sort((a, b) => a.ev.week - b.ev.week || a.ev.tier.localeCompare(b.ev.tier));
+    const done = info.filter(x => x.st.key === 'done').sort((a, b) => b.ev.week - a.ev.week || a.ev.tier.localeCompare(b.ev.tier));
+    const sorted = [...live, ...next, ...done];
+    const title = document.getElementById('dashEventsSub');
+    if (title) title.textContent = done.length === evs.length ? `${evs.length} champions crowned`
+      : live.length ? `${live.length} under way · ${done.length} of ${evs.length} finished` : `${done.length} of ${evs.length} finished`;
+    const shown = 8;
+    const row = ({ ev, st }, i) => {
+      const lead = ev.field.slice(0, 4).map(sc => `<img src="${this.getTeamLogo(sc)}" class="xs-logo" alt="${this.esc(sc)}" title="${this.esc(sc)}">`).join('');
+      const detail = st.key === 'done'
+        ? `<span class="ev-champ"><img src="${this.getTeamLogo(ev.champion)}" class="xs-logo" alt=""><b>${this.esc(ev.champion)}</b><i>beat ${this.esc(ev.runnerUp)}</i></span>`
+        : `<span class="ev-field">${lead}<i>${ev.size} teams · Week ${ev.week}</i></span>`;
+      const tag = st.key === 'done' ? '<span class="ev-tag done">Final</span>' : st.key === 'live' ? `<span class="ev-tag live">${this.esc(st.label)}</span>` : `<span class="ev-tag">Wk ${ev.week}</span>`;
+      return `<li class="ev-row${i >= shown ? ' ev-extra' : ''}" style="${i >= shown ? 'display:none;' : ''}" onclick="SimEngine.goToEvent('${ev.id}')" title="${this.esc(ev.name)}">
+        <span class="ev-logo">${this.getMteLogoImg(ev.name, ev.tier)}</span>
+        <span class="ev-main"><b>${this.esc(ev.name)}</b>${detail}</span>${tag}</li>`;
+    };
+    card.innerHTML = `<ul class="ev-list">${sorted.map(row).join('')}</ul>` +
+      (sorted.length > shown ? `<button type="button" class="sim-btn sim-btn-secondary w-100 mt-1" onclick="SimEngine.toggleDashEvents(this)">Show all ${sorted.length}</button>` : '');
+  },
+  toggleDashEvents(btn) {
+    const open = btn.dataset.open !== '1';
+    btn.dataset.open = open ? '1' : '0';
+    document.querySelectorAll('#dashEvents .ev-extra').forEach(r => { r.style.display = open ? '' : 'none'; });
+    btn.textContent = open ? 'Show fewer' : `Show all ${document.querySelectorAll('#dashEvents .ev-row').length}`;
+  },
+  // From the dashboard to the week a tournament is played in.
+  goToEvent(id) {
+    const ev = this.mteById(id);
+    if (!ev) return;
+    this._scheduleJump = ev.week;
+    this._scheduleJumpEvent = ev.id;
+    if (window.UIController && UIController.activateTab) UIController.activateTab('scheduleTab');
+    else { const b = document.querySelector('[data-tab="scheduleTab"]'); if (b) b.click(); }
+  },
+
   // The tournaments played in a week: fields, results and the champion.
   renderMtePanel(week) {
     const evs = (this.state.mtes || []).filter(ev => ev.week === week);
@@ -4314,7 +4404,7 @@ window.SimEngine = {
           ? `<b>${this.esc(hw ? g.home : g.away)}</b> def. ${this.esc(hw ? g.away : g.home)} <span class="mte-score">${Math.max(res.homeScore, res.awayScore)}-${Math.min(res.homeScore, res.awayScore)}</span>`
           : `${this.esc(g.away)} at ${this.esc(g.home)}`}</li>`;
       }).join('')).join('');
-      return `<details class="mte-card"><summary><b>${this.esc(ev.name)}</b>
+      return `<details class="mte-card"${evs.length === 1 || this._scheduleJumpEvent === ev.id ? ' open' : ''}><summary>${this.getMteLogoImg(ev.name, ev.tier, 'mte-logo sm')}<b>${this.esc(ev.name)}</b>
           <span class="sub-text-sm">${ev.size} teams${ev.champion ? ` · Champion: ${this.esc(ev.champion)}` : ''}</span></summary>
         <div class="mte-field">${ev.field.map(s => `<span class="mte-team">${team(s)}</span>`).join('')}</div>
         <ul class="mte-games">${lines}</ul></details>`;
@@ -4322,17 +4412,65 @@ window.SimEngine = {
     return `<div class="mte-panel"><h4 class="award-section-title">Tournaments this week</h4>${evs.map(card).join('')}</div>`;
   },
 
-  // Runs every scheduled game for the upcoming week: real head-to-head
-  // matchups via GameCore, with both teams' records and every player's
-  // game log updated from the same simulated result.
-  async simulateRegularSeasonWeek() {
-    this.state.week++;
-    // Revisit depth charts periodically rather than every week, so
-    // lineups are responsive without churning constantly.
-    if (this.state.week > 2 && this.state.week % 3 === 0) this.reevaluateRotations();
-    const gamesThisWeek = this.state.schedule.filter(g => g.week === this.state.week && !g.played);
-    const rankBefore = {};
-    this.state.teams.forEach(t => { const r = this.state.week > 1 ? t.apRank : (t.preseasonRank && t.preseasonRank <= 25 ? t.preseasonRank : null); if (r) rankBefore[t.school] = r; });
+  // The week's games in the order they tip. Within a week that's by tip time;
+  // a tournament's later rounds come after everything that leads up to them.
+  orderedWeekGames(w) {
+    return (this.state.schedule || []).filter(g => g.week === w)
+      .map((g, i) => ({ g, i, r: g.mteRound || 1, t: this.tipMinutes({ home: g.home, away: g.away, week: g.week, phase: g.isConf ? 'conf' : 'nonconf' }) }))
+      .sort((a, b) => a.r - b.r || a.t - b.t || a.i - b.i)
+      .map(x => x.g);
+  },
+
+  // The week that plays next: the one in progress if some of its games are
+  // already final, otherwise the one after the last finished week.
+  upcomingWeek() {
+    const s = this.state;
+    if (!s.teams.length || s.regularSeasonDone) return null;
+    const w = s.weekOpen ? s.week : (s.week || 0) + 1;
+    return w <= (s.confEnd || 99) ? w : null;
+  },
+
+  // The poll only moves when a week is finished, so a half-played week is
+  // still ranked by the poll before it.
+  pollWeek() { return this.state.weekOpen ? Math.max(0, this.state.week - 1) : this.state.week; },
+
+  // What the Schedule tab opens on: the week in progress (or the next one up),
+  // and once the regular season is over, its last week.
+  scheduleDefaultWeek() { return Math.max(1, this.upcomingWeek() || this.state.week || 1); },
+
+  // Games final out of games on the slate, for a week.
+  weekProgress(w) {
+    const games = (this.state.schedule || []).filter(g => g.week === w);
+    return { played: games.filter(g => g.played).length, total: games.length };
+  },
+
+  // Runs the upcoming week's games: real head-to-head matchups via GameCore,
+  // with both teams' records and every player's game log updated from the
+  // same simulated result.
+  //
+  // With opts.through (the games being watched), only the games up to and
+  // including the last of them tip off; the rest of the week waits, to be
+  // watched or simulated later. The week closes (poll, averages, summary)
+  // once its last game has been played.
+  async simulateRegularSeasonWeek(opts = {}) {
+    const s = this.state;
+    const w = s.weekOpen ? s.week : s.week + 1;
+    const slate = this.orderedWeekGames(w).filter(g => !g.played);
+    const through = opts.through || [];
+    let upto = slate.length;
+    if (through.length) {
+      let last = -1;
+      slate.forEach((g, i) => { if (through.some(r => this.sameGame(r, { home: g.home, away: g.away, week: w, phase: g.isConf ? 'conf' : 'nonconf' }))) last = i; });
+      if (last < 0) return;
+      upto = last + 1;
+    }
+    if (!s.weekOpen) {
+      s.week = w;
+      s.weekOpen = true;
+      // Revisit depth charts periodically rather than every week, so
+      // lineups are responsive without churning constantly.
+      if (w > 2 && w % 3 === 0) this.reevaluateRotations();
+    }
 
     const playEntry = g => {
       const home = this.findTeam(g.home);
@@ -4340,28 +4478,48 @@ window.SimEngine = {
       if (!home || !away) return;
       this.playGame(home, away, g, g.isConf ? 'conf' : 'nonconf');
     };
-    gamesThisWeek.forEach(playEntry);
-    // Tournament weekends: winners play winners and losers play losers
-    // within the same week, so each round sets up the next.
-    for (let more = this.advanceMtes(this.state.week), guard = 0; more.length && guard < 6; more = this.advanceMtes(this.state.week), guard++) {
-      more.forEach(playEntry);
-      gamesThisWeek.push(...more);
+    slate.slice(0, upto).forEach(playEntry);
+    const partial = through.length > 0;
+    if (partial) {
+      // A round that just finished sets up the next one, later in the slate.
+      this.advanceMtes(w);
+    } else {
+      // Tournament weekends: winners play winners and losers play losers
+      // within the same week, so each round sets up the next.
+      for (let more = this.advanceMtes(w), guard = 0; more.length && guard < 6; more = this.advanceMtes(w), guard++) more.forEach(playEntry);
     }
 
+    if (partial && this.orderedWeekGames(w).some(g => !g.played && this.findTeam(g.home) && this.findTeam(g.away))) {
+      // Still games to come: the numbers move, the week stays open.
+      this.recalculateAllAverages();
+      await this.saveStateToDB();
+      s.scheduleViewWeek = w;
+      this.syncUI();
+      return;
+    }
+
+    // The week is over. The poll hasn't moved since last week, so it still
+    // holds each team's rank going in.
+    const gamesThisWeek = this.orderedWeekGames(w);
+    const rankBefore = {};
+    s.teams.forEach(t => { const r = w > 1 ? t.apRank : (t.preseasonRank && t.preseasonRank <= 25 ? t.preseasonRank : null); if (r) rankBefore[t.school] = r; });
+    s.weekOpen = false;
     this.recalculateAllAverages();
     this.computeAPPoll();
     await this.saveStateToDB();
 
-    if (this.state.week >= this.state.confEnd) {
+    // The Schedule tab moves on to the next week up (or the last one, once
+    // the regular season is over).
+    s.scheduleViewWeek = this.scheduleDefaultWeek();
+    if (s.week >= s.confEnd) {
       this.finalizeRegularSeason();
     } else {
-      if (this.state.week === this.state.nonConfEnd) this.state.phase = 'Conference Play';
-      this.state.scheduleViewWeek = this.state.week;
-      this.state.lastWeekSummary = this.summarizeWeek(gamesThisWeek, rankBefore);
+      if (s.week === s.nonConfEnd) s.phase = 'Conference Play';
+      s.lastWeekSummary = this.summarizeWeek(gamesThisWeek, rankBefore);
       this.syncUI();
-      this.logNews(`Week ${this.state.week} simulation complete (${gamesThisWeek.length} games).`);
-      const ws = this.state.lastWeekSummary;
-      this.toast(`Week ${this.state.week} is in the books`, ws.headline ? `${ws.upsets} ranked team${ws.upsets === 1 ? '' : 's'} lost · ${ws.headline}` : `${ws.games} games played`);
+      this.logNews(`Week ${s.week} simulation complete (${gamesThisWeek.length} games).`);
+      const ws = s.lastWeekSummary;
+      this.toast(`Week ${s.week} is in the books`, ws.headline ? `${ws.upsets} ranked team${ws.upsets === 1 ? '' : 's'} lost · ${ws.headline}` : `${ws.games} games played`);
     }
   },
 
@@ -6019,7 +6177,8 @@ window.SimEngine = {
   ],
   skipReached(target) {
     const s = this.state;
-    if (target === 'conf') return s.regularSeasonDone || (s.nonConfEnd > 0 && (s.week || 0) >= s.nonConfEnd);
+    // A week that's only partly played hasn't been finished yet.
+    if (target === 'conf') return s.regularSeasonDone || (s.nonConfEnd > 0 && ((s.week || 0) - (s.weekOpen ? 1 : 0)) >= s.nonConfEnd);
     if (target === 'confT') return !!s.regularSeasonDone;
     if (target === 'ncaa') return !!s.confChampsDone;
     if (target === 'off') return !!s.ncaaDone;
@@ -6608,6 +6767,7 @@ window.SimEngine = {
     this.state.year += 1;
     this.getNbaLeague(this.upcomingDraftYear());
     this.state.week = 0;
+    this.state.weekOpen = false;
     this.state.phase = 'Preseason';
     this.state.simCompleted = false;
     this.state.regularSeasonDone = false;
@@ -6694,7 +6854,9 @@ window.SimEngine = {
         btn.innerText = `Simulate Conference ${this.CONF_TOURNEY_STEPS[this.state.confTourneyStep || 0] || 'Championships'}`;
         btn.disabled = false;
       } else {
-        btn.innerText = `Simulate Week ${this.state.week + 1}`;
+        // Some of this week's games are already final (watched ones, and
+        // everything that tipped before them): this finishes the rest.
+        btn.innerText = this.state.weekOpen ? `Finish Week ${this.state.week}` : `Simulate Week ${this.state.week + 1}`;
         btn.disabled = false;
       }
     }
@@ -6921,7 +7083,7 @@ window.SimEngine = {
   // Returns the current Top 25 regardless of phase: the in-season AP poll
   // once games have been played, otherwise the preseason projection.
   getCurrentTop25() {
-    if (this.state.week > 0) {
+    if (this.pollWeek() > 0) {
       const ranked = this.state.teams.filter(t => t.apRank).sort((a, b) => a.apRank - b.apRank);
       if (ranked.length) return ranked;
     }
@@ -7030,7 +7192,7 @@ window.SimEngine = {
 
     // Before tip-off there are no results to rank, so show the projected
     // preseason poll (roster strength + program tier) instead of a blank tab.
-    if (this.state.week === 0) {
+    if (this.pollWeek() === 0) {
       standingsContainer.innerHTML = this.renderPreseasonPoll() + this.renderConferenceStandings();
       return;
     }
@@ -8011,7 +8173,7 @@ window.SimEngine = {
     }
 
     // Next week's slate is visible too, so its games can be watched live.
-    const upcoming = !this.state.regularSeasonDone && this.state.teams.length ? (this.state.week || 0) + 1 : null;
+    const upcoming = this.upcomingWeek();
     const maxViewableWeek = Math.max(1, upcoming && upcoming <= (this.state.confEnd || 99) ? upcoming : (this.state.week || 1));
     if (!this.state.scheduleViewWeek || this.state.scheduleViewWeek > maxViewableWeek) {
       this.state.scheduleViewWeek = maxViewableWeek;
@@ -8023,7 +8185,7 @@ window.SimEngine = {
     let filtersHtml = `<div class="filters-container mb-1">`;
     filtersHtml += `<select id="scheduleWeekSelect" class="filter-select" onchange="SimEngine.setScheduleWeek(this.value)">`;
     for (let w = 1; w <= maxViewableWeek; w++) {
-      const label = (w > this.state.nonConfEnd ? `Conf Wk ${w}` : `Non-Conf Wk ${w}`) + (w === upcoming ? ' · Up next' : '');
+      const label = (w > this.state.nonConfEnd ? `Conf Wk ${w}` : `Non-Conf Wk ${w}`) + (w === upcoming ? (this.state.weekOpen ? ' · In progress' : ' · Up next') : '');
       filtersHtml += `<option value="${w}" ${w === viewWeek ? 'selected' : ''}>${label}</option>`;
     }
     filtersHtml += `</select>`;
@@ -8041,7 +8203,10 @@ window.SimEngine = {
     filtersHtml += `</select>`;
     filtersHtml += `</div>`;
 
-    let games = this.state.schedule.filter(g => g.week === viewWeek);
+    // In the order they tip, so "every game before it" reads top to bottom.
+    let games = this.orderedWeekGames(viewWeek);
+    const prog = this.weekProgress(viewWeek);
+    const inProgress = viewWeek === upcoming && this.state.weekOpen && prog.played < prog.total;
 
     if (this.state.scheduleConfFilter !== 'ALL') {
       games = games.filter(g => {
@@ -8092,10 +8257,11 @@ window.SimEngine = {
             <span class="sb-name">${rankTag}<span class="clickable-school" onclick="SimEngine.openTeamModal('${safe}')">${school}</span></span>
             ${played ? `<b class="sb-score">${score}</b>` : ''}
           </div>`;
-        const kind = g.mte ? `${this.esc(g.mteName)} · ${this.esc(g.mteLabel)}` : (g.isConf ? 'Conference' : 'Non-conference');
+        const mev = g.mte ? this.mteById(g.mte) : null;
+        const kind = g.mte ? `${this.getMteLogoImg(g.mteName, mev && mev.tier, 'mte-logo xs')}${this.esc(g.mteName)} · ${this.esc(g.mteLabel)}` : (g.isConf ? 'Conference' : 'Non-conference');
         let foot = `<span class="sb-status">${kind}</span>`;
         if (played) {
-          foot = `<span class="sb-status">Final</span><button type="button" class="sb-link game-link" onclick="${this.openGameJs(g.home, g.away, g.week, phase)}" title="Box score and play-by-play">Box score &rsaquo;</button>`;
+          foot = `<span class="sb-status">Final${g.mte ? ` · ${kind}` : ''}</span><button type="button" class="sb-link game-link" onclick="${this.openGameJs(g.home, g.away, g.week, phase)}" title="Box score and play-by-play">Box score &rsaquo;</button>`;
         } else if (g.week === upcoming) {
           const ref = { home: g.home, away: g.away, week: g.week, phase };
           foot = `<span class="sb-status">${this.tipLabel(ref)}</span><span class="sb-watch">${this.watchListBtn(g.home, g.away, g.week, phase)}<button type="button" class="watch-btn" onclick="${this.watchGameJs(g.home, g.away, g.week, phase)}">&#9654; Watch live</button></span>`;
@@ -8112,7 +8278,9 @@ window.SimEngine = {
     }
     gamesHtml += `</div>`;
 
-    container.innerHTML = filtersHtml + this.renderMtePanel(this.state.scheduleViewWeek) + gamesHtml;
+    const progressHtml = inProgress ? `<div class="week-progress"><div class="wp-bar"><i style="width:${Math.round(prog.played / prog.total * 100)}%"></i></div>
+        <p><b>${prog.played} of ${prog.total} games final.</b> Watch a game and every game that tips before it goes final first; the rest waits until you watch it or finish the week.</p></div>` : '';
+    container.innerHTML = filtersHtml + progressHtml + this.renderMtePanel(this.state.scheduleViewWeek) + gamesHtml;
   },
 
   setScheduleConfFilter(val) {
@@ -9044,8 +9212,10 @@ window.SimEngine = {
     const s = this.state;
     if (!s.teams.length || s.ncaaDone) return [];
     if (!s.regularSeasonDone) {
-      const w = (s.week || 0) + 1;
-      return (s.schedule || []).filter(g => g.week === w && !g.played)
+      const w = this.upcomingWeek();
+      if (!w) return [];
+      // In tip order: watching a game plays every game ahead of it.
+      return this.orderedWeekGames(w).filter(g => !g.played)
         .map(g => ({ home: g.home, away: g.away, week: w, phase: g.isConf ? 'conf' : 'nonconf' }));
     }
     if (!s.confChampsDone) return [];      // conference brackets are drawn as they're played
@@ -9105,11 +9275,11 @@ window.SimEngine = {
     // Only games that would have finished by some point in this broadcast,
     // and never one still on the watch list.
     const ranked = slate.filter(r => !this.sameGame(r, watched) && !watching.some(w => this.sameGame(w, r)) && this.tipMinutes(r) - myTip <= 20);
-    const scored = ranked.map(r => ({ r, w: (rankOf(r.home) ? 30 - rankOf(r.home) : 0) + (rankOf(r.away) ? 30 - rankOf(r.away) : 0) }))
-      .filter(x => watched.phase === 'ncaa' || x.w > 0).sort((a, b) => b.w - a.w).slice(0, 12);
-    scored.forEach(({ r }) => {
-      const ref = this.resolveGameRef(r);
-      if (!ref) return;
+    // A game further down this week's slate hasn't been played yet, and
+    // can't be on the ticker.
+    const scored = ranked.map(r => ({ r, ref: this.resolveGameRef(r), w: (rankOf(r.home) ? 30 - rankOf(r.home) : 0) + (rankOf(r.away) ? 30 - rankOf(r.away) : 0) }))
+      .filter(x => x.ref && (watched.phase === 'ncaa' || x.w > 0)).sort((a, b) => b.w - a.w).slice(0, 12);
+    scored.forEach(({ r, ref }) => {
       const lines = this.gameLinesFor(ref.home, ref.away, ref.week, ref.phase);
       if (!lines.length) return;
       const seeds = ref.phase === 'ncaa' && this.state.ncaaSelection ? this.selectionSeeds(this.state.ncaaSelection) : {};
@@ -9202,8 +9372,13 @@ window.SimEngine = {
       <button type="button" class="spot-primary" onclick="SimEngine.watchGames(SimEngine._watchQueue.slice())">&#9654; Watch ${q.length} game${q.length === 1 ? '' : 's'}</button></div>`;
   },
 
-  // Plays the slate once, then opens each chosen game from the tip in
-  // tip-time order, with an "up next" card between them.
+  // Plays what comes before the chosen games, then opens each of them from
+  // the tip in tip-time order, with an "up next" card between them.
+  //
+  // In the regular season that means the week's games up to the last one
+  // chosen (everything that tips before it goes final; everything after it
+  // waits, to be watched or simulated later). A tournament round plays out
+  // together.
   async watchGames(refs) {
     if (typeof GameCenter === 'undefined' || this.isSimBusy() || !refs || !refs.length) return;
     const slate = this.upcomingSlate();
@@ -9217,15 +9392,23 @@ window.SimEngine = {
     this.renderWatchBar();
     this._watching = true;
     this._liveHold = [];
+    const season = !this.state.regularSeasonDone;
+    const before = season ? this.weekProgress(this.upcomingWeek()).played : 0;
     this.showSimSpinner(live.length > 1 ? `Heading to ${live.length} arenas…` : 'Heading to the arena…');
     await new Promise(r => setTimeout(r, 30));
     try {
-      await this.simulateWeek();
+      await this.simulateWeek(season ? { through: live } : {});
     } catch (e) {
       console.error('Watching games:', e);
     } finally {
       await this.hideSimSpinner();
       this._watching = false;
+    }
+    // The week is still going: say how far it got, once the broadcast is over.
+    if (season && this.state.weekOpen) {
+      const p = this.weekProgress(this.state.week);
+      const n = p.played - before;
+      this.toast(`Week ${this.state.week}: ${p.played} of ${p.total} games final`, `${n} game${n === 1 ? '' : 's'} played before and during your pick${live.length === 1 ? '' : 's'}. The rest waits until you watch or simulate it.`, 6000);
     }
     const order = live.map(r => this.resolveGameRef(r)).filter(Boolean).sort((a, b) => this.tipMinutes(a) - this.tipMinutes(b));
     if (!order.length) { this.releaseLiveHold(); return; }
@@ -9796,7 +9979,7 @@ window.SimEngine = {
     // Played games come from the team's own logs (so conference and NCAA
     // tournament games are included); the rest of the schedule follows.
     const logs = (team.roster || []).map(p => p.gameLog || []).sort((x, y) => y.length - x.length)[0] || [];
-    const upcoming = !this.state.regularSeasonDone ? (this.state.week || 0) + 1 : null;
+    const upcoming = this.upcomingWeek();
     const typeOf = ph => ph === 'ncaa' ? 'NCAA' : ph === 'conftourney' ? 'Conf. Tourney' : ph === 'conf' ? 'Conf' : 'Non-Conf';
     let rows = '';
     logs.forEach(l => {
@@ -11351,7 +11534,7 @@ window.SimEngine = {
     const dashTopTeams = document.getElementById('dashTopTeams');
     if (dashTopTeams) {
       const top25 = this.getCurrentTop25().slice(0, 25);
-      const isPreseason = s.week === 0;
+      const isPreseason = this.pollWeek() === 0;
       if (top25.length === 0) {
         dashTopTeams.innerHTML = `<p class="sub-text">Start a save to generate rankings.</p>`;
       } else {
@@ -11372,10 +11555,11 @@ window.SimEngine = {
       }
     }
     const labelEl = document.getElementById('dashPollLabel');
-    if (labelEl) labelEl.innerText = s.week === 0 ? 'Preseason Top 25' : 'AP Top 25';
+    const pw = this.pollWeek();
+    if (labelEl) labelEl.innerText = pw === 0 ? 'Preseason Top 25' : 'AP Top 25';
     const pollSub = document.getElementById('dashPollSub');
-    if (pollSub) pollSub.textContent = s.week === 0 ? 'Projected from rosters and recruiting' : (s.lastWeekSummary && s.lastWeekSummary.upsets
-      ? `After week ${s.week} · ${s.lastWeekSummary.upsets} ranked team${s.lastWeekSummary.upsets === 1 ? '' : 's'} lost` : `After week ${s.week}`);
+    if (pollSub) pollSub.textContent = pw === 0 ? 'Projected from rosters and recruiting' : (s.lastWeekSummary && s.lastWeekSummary.upsets && s.lastWeekSummary.week === pw
+      ? `After week ${pw} · ${s.lastWeekSummary.upsets} ranked team${s.lastWeekSummary.upsets === 1 ? '' : 's'} lost` : `After week ${pw}`);
 
     if (s.week > 0) {
       this.populateDashList('dashPts', 'ppg');
@@ -11393,6 +11577,7 @@ window.SimEngine = {
     if (perfSub) perfSub.textContent = s.week ? `Week ${s.week}, by game score` : 'By game score, once games are played';
 
     this.renderDashWatch();
+    this.renderDashEvents();
     this.renderDashDraft();
     this.renderInjuryReport();
     this.updateTopPerformances();
@@ -11410,7 +11595,7 @@ window.SimEngine = {
       <img src="${this.getTeamLogo(school)}" alt="" class="xs-logo">${this.rankTag(school)}${this.esc(school)}</span>`;
 
     if (!s.regularSeasonDone && s.teams.length) {
-      const next = s.week + 1;
+      const next = this.upcomingWeek() || s.week + 1;
       const games = (s.schedule || []).filter(g => g.week === next && !g.played)
         .map(g => {
           const a = this.findTeam(g.home), b = this.findTeam(g.away);
@@ -11419,9 +11604,10 @@ window.SimEngine = {
         })
         .filter(x => x.ranked).sort((a, b) => a.weight - b.weight).slice(0, 5);
       if (title) title.textContent = 'Games to Watch';
-      if (sub) sub.textContent = `Week ${next}`;
+      const wp = s.weekOpen ? this.weekProgress(next) : null;
+      if (sub) sub.textContent = wp ? `Week ${next} · ${wp.played} of ${wp.total} games final` : `Week ${next}`;
       el.innerHTML = games.length ? `<ul class="watch-list">${games.map(({ g }) => `<li>${team(g.away)}<span class="watch-at">at</span>${team(g.home)}${g.isConf ? '<span class="watch-tag">Conf</span>' : ''}<span class="watch-tip">${this.tipLabel({ home: g.home, away: g.away, week: g.week, phase: g.isConf ? 'conf' : 'nonconf' })}</span>${this.watchListBtn(g.home, g.away, g.week, g.isConf ? 'conf' : 'nonconf')}<button type="button" class="watch-btn sm" onclick="${this.watchGameJs(g.home, g.away, g.week, g.isConf ? 'conf' : 'nonconf')}" aria-label="Watch ${this.esc(g.away)} at ${this.esc(g.home)} live">&#9654; Watch</button></li>`).join('')}</ul>`
-        : '<p class="sub-text-sm">No ranked teams play next week.</p>';
+        : `<p class="sub-text-sm">${s.weekOpen ? 'No more ranked teams play this week. Finish the week to move on.' : 'No ranked teams play next week.'}</p>`;
       return;
     }
     // Tournament time: the next round's games, any of them watchable.
@@ -11468,7 +11654,7 @@ window.SimEngine = {
   // played, the preseason Top 25 before that.
   pollRankOf(t) {
     if (!t) return null;
-    if (this.state.week > 0) return t.apRank || null;
+    if (this.pollWeek() > 0) return t.apRank || null;
     return t.preseasonRank && t.preseasonRank <= 25 ? t.preseasonRank : null;
   },
   rankTag(school) {

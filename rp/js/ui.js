@@ -82,6 +82,13 @@ window.UIController = {
           else if (targetTabId === 'historyTab') SimEngine.updateHistoryTab();
           else if (targetTabId === 'recordsTab') SimEngine.updateRecordsTab();
           else if (targetTabId === 'dashTab') SimEngine.updateDashboard();
+          else if (targetTabId === 'scheduleTab') {
+            // Always opens on the week in progress, or the next one up.
+            // (or the week of a tournament picked on the dashboard).
+            SimEngine.state.scheduleViewWeek = SimEngine._scheduleJump || SimEngine.scheduleDefaultWeek();
+            SimEngine._scheduleJump = null;
+            SimEngine.updateScheduleTab();
+          }
         }
       });
     });

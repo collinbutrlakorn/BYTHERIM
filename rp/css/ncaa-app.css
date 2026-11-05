@@ -179,8 +179,13 @@ h3.section-title { font-size: 1.02rem; }
 .data-table.compact td, .data-table.compact th { padding: 0.45rem 0.6rem; }
 
 /* ---------- Dashboard ---------- */
-.dash-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
-.dash-side { display: grid; gap: 1rem; align-content: start; min-width: 0; }
+.dash-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 1rem; align-items: stretch; }
+/* Two columns of cards that end level: the last card in each stretches to the
+   bottom, so one column running longer never leaves a hole beside it. */
+.dash-main, .dash-side { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+.dash-main > .card, .dash-side > .card { flex: 0 0 auto; margin: 0; }
+.dash-main > .dash-events, .dash-side > .card:last-child { flex: 1 1 auto; }
+.dash-main > .dash-poll:has(+ .dash-events[hidden]) { flex: 1 1 auto; }
 .dash-leaders, .dash-perf { grid-column: 1 / -1; }
 .mb-2 { margin-bottom: 1rem; }
 
@@ -406,6 +411,10 @@ h3.section-title { font-size: 1.02rem; }
 }
 @media (max-width: 900px) {
   .dash-grid, .draft-gate, .draft-recap-grid { grid-template-columns: 1fr; }
+  /* One column: the cards interleave, the games to watch right after the poll. */
+  .dash-main, .dash-side { display: contents; }
+  .dash-poll { order: 1; } .dash-watch { order: 2; } .dash-events { order: 3; } .dash-draft { order: 4; } .dash-injuries { order: 5; }
+  .dash-leaders { order: 6; } .dash-perf { order: 7; }
   .poll-list { grid-template-columns: 1fr; grid-template-rows: none; grid-auto-flow: row; }
 }
 @media (max-width: 640px) {
@@ -650,8 +659,8 @@ a.outline-btn { text-decoration: none; display: inline-flex; align-items: center
 .ncaa-app .card:has(> .section-head .outline-btn) { transition: border-color 0.2s ease; }
 .ncaa-app .dash-leaders .dash-box { transition: transform 0.15s ease, border-color 0.15s ease; }
 .ncaa-app .dash-leaders .dash-box:hover { transform: translateY(-2px); border-color: var(--accent); }
-.ncaa-app .dash-grid > *, .ncaa-app .dash-side > * { animation: rpRise 0.5s cubic-bezier(.2,.8,.2,1) both; }
-.ncaa-app .dash-side > *:nth-child(1) { animation-delay: 80ms; } .ncaa-app .dash-side > *:nth-child(2) { animation-delay: 160ms; }
+.ncaa-app .dash-grid > *, .ncaa-app .dash-side > *, .ncaa-app .dash-main > * { animation: rpRise 0.5s cubic-bezier(.2,.8,.2,1) both; }
+.ncaa-app .dash-side > *:nth-child(1), .ncaa-app .dash-main > *:nth-child(2) { animation-delay: 80ms; } .ncaa-app .dash-side > *:nth-child(2) { animation-delay: 160ms; }
 .ncaa-app .dash-leaders { animation-delay: 220ms; } .ncaa-app .dash-perf { animation-delay: 280ms; }
 .ncaa-app .conf-section:nth-of-type(-n+4) { animation: rpRise 0.45s cubic-bezier(.2,.8,.2,1) both; }
 
@@ -1100,10 +1109,36 @@ a.outline-btn { text-decoration: none; display: inline-flex; align-items: center
 /* Early-season tournaments (multi-team events) on the Schedule tab */
 .mte-panel { margin: 0 0 1.1rem; }
 .mte-card { border: 1px solid var(--border, rgba(127,127,127,.28)); border-radius: 10px; padding: .55rem .8rem; margin: 0 0 .5rem; background: var(--card-bg, transparent); }
-.mte-card > summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: .25rem .75rem; align-items: baseline; list-style-position: inside; }
+.mte-card > summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: .25rem .75rem; align-items: center; list-style-position: inside; }
 .mte-field { display: flex; flex-wrap: wrap; gap: .3rem .9rem; margin: .55rem 0 .3rem; font-size: .85rem; }
 .mte-team { display: inline-flex; align-items: center; gap: .3rem; }
 .mte-games { list-style: none; margin: .35rem 0 0; padding: 0; font-size: .85rem; }
 .mte-games li { padding: .15rem 0; display: flex; flex-wrap: wrap; gap: .2rem .6rem; }
 .mte-round { min-width: 6.5rem; opacity: .7; }
 .mte-score { opacity: .75; }
+
+/* ---------- A week that's partly played ---------- */
+.week-progress { background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--r-md); padding: 0.7rem 0.9rem; margin-bottom: 0.9rem; }
+.week-progress p { margin: 0.45rem 0 0; font-size: 0.86rem; color: var(--text-muted); line-height: 1.4; }
+.week-progress p b { color: var(--text-main); }
+.wp-bar { height: 6px; border-radius: 99px; background: var(--border); overflow: hidden; }
+.wp-bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width 0.4s ease; }
+
+/* ---------- Tournament logos and the dashboard card ---------- */
+.mte-logo { display: block; width: 100%; height: 100%; object-fit: contain; }
+.mte-logo.sm { width: 30px; height: 30px; flex: none; }
+.mte-logo.xs { display: inline-block; width: 18px; height: 18px; vertical-align: -4px; margin-right: .35rem; }
+.ev-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.ev-row { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: center; gap: 0.75rem; padding: 0.55rem 0.7rem;
+  background: var(--bg-color); border: 1px solid var(--border); border-radius: var(--r-sm); cursor: pointer; transition: border-color 0.15s ease, background 0.15s ease; }
+.ev-row:hover { border-color: var(--accent); background: var(--card-hover); }
+.ev-logo { width: 46px; height: 46px; }
+.ev-main { display: flex; flex-direction: column; gap: 0.18rem; min-width: 0; }
+.ev-main > b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev-field, .ev-champ { display: flex; align-items: center; gap: 0.25rem; font-size: 0.78rem; color: var(--text-muted); min-width: 0; }
+.ev-field i, .ev-champ i { font-style: normal; margin-left: 0.3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ev-champ b { color: var(--text-main); font-size: 0.82rem; white-space: nowrap; }
+.ev-tag { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); border: 1px solid var(--border); border-radius: var(--r-pill); padding: 0.1rem 0.55rem; white-space: nowrap; }
+.ev-tag.live { color: var(--accent); border-color: var(--accent); }
+.ev-tag.done { color: var(--gold); border-color: var(--gold); }
+.dash-events[hidden] { display: none; }
