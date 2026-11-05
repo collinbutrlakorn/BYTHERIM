@@ -573,7 +573,21 @@
     tuckHeader();
     countVisit();
     ACTIVE = active;
-    cloud().then(c => { if (c && c.onChange) c.onChange(() => adminNav(!!c.admin)); });
+    // The admin links in the menu follow the account whenever it arrives. A
+    // phone on a slow connection can take longer than cloud() is willing to
+    // wait, so this doesn't use it, and the last answer is remembered so the
+    // menu is already right when the page opens.
+    try { if (localStorage.getItem('btr-admin-nav') === '1') adminNav(true); } catch (e) { /* storage blocked */ }
+    (async () => {
+      await (accountsLoaded || loadAccounts());
+      const C = window.Cloud;
+      if (!C || !(await C.init())) return;
+      C.onChange(() => {
+        const admin = !!C.admin;
+        if (!C.adminError) { try { if (admin) localStorage.setItem('btr-admin-nav', '1'); else localStorage.removeItem('btr-admin-nav'); } catch (e) { /* storage blocked */ } }
+        adminNav(admin);
+      });
+    })().catch(() => {});
   }
 
   // Pages still in beta: a link in the main menu that only appears for

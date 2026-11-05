@@ -420,7 +420,7 @@
     if (!on) { gate('Accounts aren\'t available right now, so this page can\'t check who you are.'); return; }
     root.Cloud.onChange(() => {
       if (root.Cloud.admin) open();
-      else { this.data = null; gate(root.Cloud.user ? 'This page isn\'t available for this account.' : 'Sign in with an admin account (top right) to view this page.'); }
+      else { this.data = null; gate(root.Cloud.user ? (root.Cloud.adminError ? 'You\'re signed in, but the admin check couldn\'t reach the database (a weak connection, maybe). Reload to try again.' : 'This page isn\'t available for this account.') : 'Sign in with an admin account (top right) to view this page.'); }
     });
   };
 

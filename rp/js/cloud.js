@@ -85,6 +85,10 @@
           this.fb = root.firebase;
           if (!this.fb.apps || !this.fb.apps.length) this.fb.initializeApp(config);
           this.db = this.fb.firestore();
+          // Phone and carrier networks often block Firestore's default
+          // streaming connection; this falls back to plain requests when that
+          // happens instead of reporting the database as offline.
+          try { this.db.settings({ experimentalAutoDetectLongPolling: true, merge: true }); } catch (e) { /* already in use */ }
           this.enabled = true;
           await new Promise(resolve => {
             let first = true;
@@ -123,12 +127,32 @@
     async signOut() { if (this.enabled) await this.fb.auth().signOut(); },
 
     // ---------- admins ----------
+    // Whether the signed-in account is on the admin list. A weak connection
+    // can fail the lookup, so it tries a few times, and if the database
+    // still can't be reached it goes by what this device last found (the
+    // database rules decide what an admin can actually read or write).
     async checkAdmin() {
-      try {
-        const snap = await this.db.doc('config/admins').get();
-        const list = (snap.exists && snap.data().emails) || [];
-        return !!(this.user && this.user.email && list.map(x => String(x).toLowerCase()).includes(this.user.email.toLowerCase()));
-      } catch (e) { return false; }
+      const u = this.user;
+      if (!u || !u.email) { this.adminError = false; return false; }
+      const hint = 'btr-admin-hint';
+      let last = null;
+      for (let i = 0; i < 3; i++) {
+        try {
+          const snap = await this.db.doc('config/admins').get();
+          const list = (snap.exists && snap.data().emails) || [];
+          const yes = list.map(x => String(x).toLowerCase()).includes(u.email.toLowerCase());
+          this.adminError = false;
+          try { if (yes) localStorage.setItem(hint, u.uid); else localStorage.removeItem(hint); } catch (e) { /* storage blocked */ }
+          return yes;
+        } catch (e) {
+          last = e;
+          if (/permission/i.test((e && e.code) || '')) break;
+          if (i < 2) await new Promise(r => setTimeout(r, 700 * (i + 1)));
+        }
+      }
+      this.adminError = !/permission/i.test((last && last.code) || '');
+      if (this.adminError) console.warn('Admin check failed:', (last && (last.code || last.message)) || last);
+      try { return this.adminError && localStorage.getItem(hint) === u.uid; } catch (e) { return false; }
     },
     async getAdmins() {
       const snap = await this.db.doc('config/admins').get();

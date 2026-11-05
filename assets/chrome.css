@@ -198,6 +198,11 @@
 }
 @media (max-width: 620px) {
   .site-header-inner { padding: 0 1rem; }
+  /* The sign-in button stays on one line, and the logo gives it room. */
+  .site-header .account-btn { white-space: nowrap; padding: 5px 10px; font-size: 0.8rem; }
+  .site-header-inner { gap: 0.6rem; }
+  .site-header .brand { min-width: 0; flex: 0 1 auto; }
+  .site-header .brand img { max-width: 100%; height: auto; max-height: 26px; }
   .footer-inner { grid-template-columns: 1fr 1fr; padding-top: 2.2rem; }
 }
 

@@ -30,8 +30,12 @@ function fakeFirebase() {
       async signOut() { user = null; await listener(null); }
     }), { GoogleAuthProvider: function () {} }),
     firestore: Object.assign(() => ({
+      settings(s) { fb.settingsUsed = s; },
       doc: p => ({
-        async get() { const d = store.get(p); return { exists: !!d, data: () => d }; },
+        async get() {
+          if (p === 'config/admins' && fb.failGets > 0) { fb.failGets--; throw Object.assign(new Error('Could not reach Cloud Firestore backend.'), { code: 'unavailable' }); }
+          const d = store.get(p); return { exists: !!d, data: () => d };
+        },
         async set(data, opts) {
           if (JSON.stringify(data).length > 1048576) throw new Error(`document too large: ${p}`);
           writes.push(p);
@@ -47,6 +51,7 @@ function fakeFirebase() {
 (async () => {
   const fb = fakeFirebase();
   const ctx = { console, setTimeout, clearTimeout, Blob, Response, TextEncoder, TextDecoder, CompressionStream, DecompressionStream, btoa, atob, Uint8Array,
+    localStorage: { _m: new Map(), getItem(k) { return this._m.has(k) ? this._m.get(k) : null; }, setItem(k, v) { this._m.set(k, String(v)); }, removeItem(k) { this._m.delete(k); } },
     firebase: fb, BTR_CLOUD_CONFIG: { apiKey: 'test', projectId: 'bytherim-test' },
     fetch: async url => ({ ok: true, json: async () => ({ from: 'file', url }) }) };
   ctx.globalThis = ctx;
@@ -68,6 +73,25 @@ function fakeFirebase() {
   fb.store.set('config/admins', { emails: ['owner@example.com'] });
   await Cloud.signOut(); await Cloud.signIn();
   ok(Cloud.admin === true, 'an email on the admin list is an admin (case doesn\'t matter)');
+  ok(fb.settingsUsed && fb.settingsUsed.experimentalAutoDetectLongPolling === true, 'the database falls back to plain requests on networks that block streaming');
+  // A weak connection: the admin lookup fails now and then.
+  fb.failGets = 2;
+  await Cloud.signOut(); await Cloud.signIn();
+  ok(Cloud.admin === true && !Cloud.adminError, 'an admin check that fails twice on a weak connection is tried again, and succeeds');
+  fb.failGets = 99;
+  await Cloud.signOut(); await Cloud.signIn();
+  ok(Cloud.admin === true && Cloud.adminError === true, 'if the database can\'t be reached at all, a device that last found him an admin still treats him as one');
+  fb.failGets = 0;
+  fb.store.set('config/admins', { emails: ['someone-else@example.com'] });
+  await Cloud.signOut(); await Cloud.signIn();
+  ok(Cloud.admin === false && !Cloud.adminError, 'and once the list is read again, an account that isn\'t on it is not an admin');
+  fb.store.set('config/admins', { emails: ['owner@example.com'] });
+  fb.failGets = 99;
+  await Cloud.signOut(); await Cloud.signIn();
+  ok(Cloud.admin === false && Cloud.adminError === true, 'with nothing remembered and no connection, he isn\'t treated as an admin');
+  fb.failGets = 0;
+  await Cloud.signOut(); await Cloud.signIn();
+  ok(Cloud.admin === true, 'back online, he is again');
   const list = await Cloud.setAdmins(['friend@example.com', ' FRIEND@example.com ', 'not-an-email']);
   ok(list.includes('friend@example.com') && list.includes('owner@example.com') && list.length === 2, 'admins can add others; an admin can\'t remove himself by accident');
 
