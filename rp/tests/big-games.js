@@ -11,11 +11,12 @@ const { boot, ok } = require('./harness');
   await Sim.simulateWeek();
   const slate = Sim.upcomingSlate();
   ok(slate.length > 50, `next week's slate is known before it's played (${slate.length} games)`);
-  const pickRef = slate[0];
+  // Mid-slate, so there are earlier games for the ticker to report.
+  const pickRef = slate[Math.floor(slate.length * 0.5)];
   const weekBefore = Sim.state.week;
   d.querySelectorAll('.rp-toast').forEach(t => t.remove());
   await Sim.watchGame(pickRef);
-  ok(Sim.state.week === weekBefore + 1 && Sim.state.weekOpen && Sim.weekProgress(Sim.state.week).played === 1, 'watching the first game of the slate plays it and leaves the rest of the week to come');
+  ok(Sim.state.week === weekBefore + 1 && Sim.state.weekOpen && Sim.weekProgress(Sim.state.week).played > 1 && Sim.weekProgress(Sim.state.week).played < slate.length, 'watching a game plays it and the games before it, and leaves the rest of the week to come');
   ok(d.getElementById('gameCenter'), 'the Game Center opens');
   ok(w.GameCenter.game && w.GameCenter.k === 0, 'the game starts from the tip, not the final');
   ok(d.querySelectorAll('.rp-toast').length === 0, 'results stay hidden while the game is on');
