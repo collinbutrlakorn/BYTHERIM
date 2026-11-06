@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-05T17:36:55.547Z",
+ "updated": "2026-11-06T01:47:03.052Z",
  "source": "barttorvik.com, sports-reference.com, basketball-reference.com",
  "seasons": {
   "2022-23": {
@@ -4849,6 +4849,34 @@
      "DBPM": "-2.1"
     }
    },
+   "isaiah-johnson": {
+    "torvikName": "Isaiah Johnson",
+    "team": "Colorado",
+    "conf": "B12",
+    "gp": 32,
+    "mpg": "30.6",
+    "cls": "Fr",
+    "role": "Combo G",
+    "torvikId": "134460",
+    "stats": {
+     "PTS": "16.9",
+     "REB": "2.9",
+     "AST": "3.0",
+     "STL": "1.0",
+     "BLK": "0.0",
+     "TS%": "63.4%",
+     "eFG%": "57.1%",
+     "2P%": "57.3%",
+     "3P%": "37.8%",
+     "FT%": "82.1%",
+     "3Pr": "0.44",
+     "FTr": "0.59",
+     "USG%": "23.7%",
+     "BPM": "5.3",
+     "OBPM": "6.3",
+     "DBPM": "-1.0"
+    }
+   },
    "cameron-boozer": {
     "torvikName": "Cameron Boozer",
     "team": "Duke",
@@ -7278,6 +7306,34 @@
      "DBPM": "0.1"
     }
    },
+   "isaiah-johnson": {
+    "torvikName": "Isaiah Johnson",
+    "team": "Texas",
+    "conf": "",
+    "gp": 1,
+    "mpg": "25.0",
+    "cls": "FR",
+    "role": null,
+    "torvikId": "",
+    "stats": {
+     "PTS": "18.0",
+     "REB": "3.0",
+     "AST": "5.0",
+     "STL": "2.0",
+     "BLK": "0.0",
+     "TS%": "82.9%",
+     "eFG%": "81.3%",
+     "2P%": "66.7%",
+     "3P%": "60.0%",
+     "FT%": "83.3%",
+     "3Pr": "0.63",
+     "FTr": "0.75",
+     "USG%": "24.1%",
+     "BPM": "13.3",
+     "OBPM": "9.6",
+     "DBPM": "3.7"
+    }
+   },
    "caleb-holt": {
     "torvikName": "Caleb Holt",
     "team": "Arizona",
@@ -9486,6 +9542,62 @@
      "BPM": "-0.7",
      "OBPM": "-0.8",
      "DBPM": "0.1"
+    }
+   },
+   "miles-sadler": {
+    "torvikName": "Miles Sadler",
+    "team": "West Virginia",
+    "conf": "",
+    "gp": 1,
+    "mpg": "28.0",
+    "cls": "FR",
+    "role": null,
+    "torvikId": "",
+    "stats": {
+     "PTS": "16.0",
+     "REB": "2.0",
+     "AST": "9.0",
+     "STL": "3.0",
+     "BLK": "0.0",
+     "TS%": "50.3%",
+     "eFG%": "46.4%",
+     "2P%": "62.5%",
+     "3P%": "16.7%",
+     "FT%": "75.0%",
+     "3Pr": "0.43",
+     "FTr": "0.29",
+     "USG%": "33.6%",
+     "BPM": "5.7",
+     "OBPM": "2.1",
+     "DBPM": "3.6"
+    }
+   },
+   "gavin-placide": {
+    "torvikName": "Gavin Placide",
+    "team": "Wake Forest",
+    "conf": "",
+    "gp": 1,
+    "mpg": "31.0",
+    "cls": "FR",
+    "role": null,
+    "torvikId": "",
+    "stats": {
+     "PTS": "20.0",
+     "REB": "7.0",
+     "AST": "2.0",
+     "STL": "3.0",
+     "BLK": "2.0",
+     "TS%": "72.2%",
+     "eFG%": "72.7%",
+     "2P%": "80.0%",
+     "3P%": "0.0%",
+     "FT%": "66.7%",
+     "3Pr": "0.09",
+     "FTr": "0.55",
+     "USG%": "25.6%",
+     "BPM": "13.6",
+     "OBPM": "9.0",
+     "DBPM": "4.5"
     }
    }
   }
@@ -11867,6 +11979,6 @@
    ]
   }
  },
- "torvikUpdated": "2026-11-05T17:36:55.547Z",
+ "torvikUpdated": "2026-11-06T01:47:03.052Z",
  "torvikVia": "sports-reference.com"
 }
