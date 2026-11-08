@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-07T15:54:02.862Z",
+ "updated": "2026-11-08T00:53:37.738Z",
  "source": "barttorvik.com, sports-reference.com, basketball-reference.com",
  "seasons": {
   "2022-23": {
@@ -2779,34 +2779,6 @@
    }
   },
   "2025-26": {
-   "amare-bynum": {
-    "torvikName": "Amare Bynum",
-    "team": "Ohio State",
-    "conf": "",
-    "gp": 34,
-    "mpg": "28.5",
-    "cls": "FR",
-    "role": null,
-    "torvikId": "",
-    "stats": {
-     "PTS": "9.7",
-     "REB": "4.9",
-     "AST": "1.1",
-     "STL": "0.6",
-     "BLK": "0.8",
-     "TS%": "58.2%",
-     "eFG%": "56.1%",
-     "2P%": "61.6%",
-     "3P%": "30.8%",
-     "FT%": "72.6%",
-     "3Pr": "0.36",
-     "FTr": "0.24",
-     "USG%": "17.6%",
-     "BPM": "5.1",
-     "OBPM": "2.4",
-     "DBPM": "2.7"
-    }
-   },
    "tyler-tanner": {
     "torvikName": "Tyler Tanner",
     "team": "Vanderbilt",
@@ -4903,6 +4875,34 @@
      "BPM": "5.3",
      "OBPM": "6.3",
      "DBPM": "-1.0"
+    }
+   },
+   "amare-bynum": {
+    "torvikName": "Amare Bynum",
+    "team": "Ohio St.",
+    "conf": "B10",
+    "gp": 34,
+    "mpg": "28.5",
+    "cls": "Fr",
+    "role": "Wing F",
+    "torvikId": "135542",
+    "stats": {
+     "PTS": "9.7",
+     "REB": "4.9",
+     "AST": "1.1",
+     "STL": "0.6",
+     "BLK": "0.8",
+     "TS%": "58.2%",
+     "eFG%": "56.1%",
+     "2P%": "61.6%",
+     "3P%": "30.8%",
+     "FT%": "72.6%",
+     "3Pr": "0.36",
+     "FTr": "0.24",
+     "USG%": "16.9%",
+     "BPM": "5.5",
+     "OBPM": "2.2",
+     "DBPM": "3.3"
     }
    },
    "cameron-boozer": {
@@ -12138,6 +12138,6 @@
    ]
   }
  },
- "torvikUpdated": "2026-11-07T15:54:02.862Z",
+ "torvikUpdated": "2026-11-08T00:53:37.738Z",
  "torvikVia": "sports-reference.com"
 }
