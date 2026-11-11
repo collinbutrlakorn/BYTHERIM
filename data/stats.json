@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-10T17:15:32.957Z",
+ "updated": "2026-11-11T01:27:50.070Z",
  "source": "barttorvik.com, sports-reference.com, basketball-reference.com",
  "seasons": {
   "2022-23": {
@@ -2779,34 +2779,6 @@
    }
   },
   "2025-26": {
-   "tyrin-jones": {
-    "torvikName": "Tyrin Jones",
-    "team": "UNLV",
-    "conf": "",
-    "gp": 32,
-    "mpg": "27.0",
-    "cls": "FR",
-    "role": null,
-    "torvikId": "",
-    "stats": {
-     "PTS": "11.9",
-     "REB": "5.0",
-     "AST": "1.4",
-     "STL": "1.0",
-     "BLK": "2.2",
-     "TS%": "57.8%",
-     "eFG%": "59.8%",
-     "2P%": "60.6%",
-     "3P%": "25.0%",
-     "FT%": "48.8%",
-     "3Pr": "0.04",
-     "FTr": "0.68",
-     "USG%": "20.6%",
-     "BPM": "6.3",
-     "OBPM": "3.7",
-     "DBPM": "2.6"
-    }
-   },
    "tyler-tanner": {
     "torvikName": "Tyler Tanner",
     "team": "Vanderbilt",
@@ -4931,6 +4903,34 @@
      "BPM": "5.5",
      "OBPM": "2.2",
      "DBPM": "3.3"
+    }
+   },
+   "tyrin-jones": {
+    "torvikName": "Tyrin Jones",
+    "team": "UNLV",
+    "conf": "MWC",
+    "gp": 31,
+    "mpg": "27.0",
+    "cls": "Fr",
+    "role": "C",
+    "torvikId": "133708",
+    "stats": {
+     "PTS": "11.9",
+     "REB": "5.0",
+     "AST": "1.4",
+     "STL": "1.0",
+     "BLK": "2.2",
+     "TS%": "57.2%",
+     "eFG%": "59.4%",
+     "2P%": "60.5%",
+     "3P%": "14.3%",
+     "FT%": "48.2%",
+     "3Pr": "0.03",
+     "FTr": "0.69",
+     "USG%": "20.6%",
+     "BPM": "5.6",
+     "OBPM": "1.4",
+     "DBPM": "4.2"
     }
    },
    "cameron-boozer": {
@@ -12201,6 +12201,6 @@
    ]
   }
  },
- "torvikUpdated": "2026-11-10T17:15:32.957Z",
+ "torvikUpdated": "2026-11-11T01:27:50.070Z",
  "torvikVia": "sports-reference.com"
 }
