@@ -12,6 +12,7 @@ function fakeFirebase() {
   const merge = (a, b) => {
     const out = { ...(a || {}) };
     Object.keys(b).forEach(k => {
+      if (b[k] && b[k].__del) { delete out[k]; return; }
       out[k] = b[k] && b[k].__inc != null ? (Number(out[k]) || 0) + b[k].__inc
         : b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) && out[k] && typeof out[k] === 'object' ? merge(out[k], b[k])
         : b[k] && typeof b[k] === 'object' && !Array.isArray(b[k]) ? merge({}, b[k]) : b[k];
@@ -43,7 +44,7 @@ function fakeFirebase() {
         },
         async delete() { store.delete(p); }
       })
-    }), { FieldValue: { increment: n => ({ __inc: n }) } })
+    }), { FieldValue: { increment: n => ({ __inc: n }), delete: () => ({ __del: true }) } })
   };
   return fb;
 }
@@ -197,6 +198,26 @@ function fakeFirebase() {
   ok(await ctx2.Cloud.init() === false && !ctx2.Cloud.enabled, 'without a config, accounts stay off');
   const u2 = await ctx2.Cloud.universe('../data/universe.json');
   ok(u2 && u2.from === 'file', '...and pages read the universe file as before');
+
+  // Only what the site needs is kept: old copies of a name and email are
+  // cleared once, and nothing new is written.
+  fb.store.set('users/u2', { email: 'old@example.com', name: 'Old Name', boards: { nba: [1, 2] } });
+  fb._nextUser = { uid: 'u2', email: 'u2@example.com', displayName: 'U Two' };
+  await Cloud.signOut();
+  await Cloud.signInPrompt();   // no page here, so it goes straight to Google
+  await new Promise(r => setTimeout(r, 10));
+  const scrubbed = fb.store.get('users/u2');
+  ok(Cloud.user && Cloud.user.uid === 'u2', 'signing in works through the first-time notice too');
+  ok(scrubbed && !('email' in scrubbed) && !('name' in scrubbed) && JSON.stringify(scrubbed.boards) === '{"nba":[1,2]}', 'a name and email once copied into the database are cleared, and the boards are left alone');
+  const before = fb.writes.length;
+  await Cloud.signOut(); await Cloud.signIn();
+  await new Promise(r => setTimeout(r, 10));
+  ok(fb.writes.filter((p, i) => i >= before && p === 'users/u2').length === 0, 'once cleared, signing in again writes nothing to the user record');
+  fb._nextUser = { uid: 'u3', email: 'new@example.com', displayName: 'New Person' };
+  await Cloud.signOut(); await Cloud.signIn();
+  await new Promise(r => setTimeout(r, 10));
+  const u3 = fb.store.get('users/u3') || {};
+  ok(!('email' in u3) && !('name' in u3), 'a new account is never given a copy of its name or email');
 
   console.log('\nAccounts verified.');
 })().catch(e => { console.error(e.stack || e.message); process.exit(1); });

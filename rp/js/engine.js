@@ -7046,7 +7046,7 @@ window.SimEngine = {
         const safeSchool = p.school.replace(/'/g, "\\'");
         currentHeaders.forEach(h => {
           if (h.id === 'name') tbodyHtml += `<td class="clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${p.name}</td>`;
-          else if (h.id === 'school') tbodyHtml += `<td><div class="team-cell-wrap clickable-school" onclick="SimEngine.goToTeamPage('${safeSchool}')"><img src="${this.getTeamLogo(p.school)}" class="xs-logo"><span>${p.school}</span></div></td>`;
+          else if (h.id === 'school') tbodyHtml += `<td><div class="team-cell-wrap clickable-school" onclick="SimEngine.goToTeamPage('${safeSchool}')"><img alt="" src="${this.getTeamLogo(p.school)}" class="xs-logo"><span>${p.school}</span></div></td>`;
           else if (h.id === 'pos') tbodyHtml += `<td>${p.pos}</td>`;
           else tbodyHtml += `<td>${p.stats ? p.stats[h.id] : '-'}</td>`;
         });
@@ -7143,7 +7143,7 @@ window.SimEngine = {
       const safe = String(player.id).replace(/'/g, "\\'");
       const safeSchool = String(player.school).replace(/'/g, "\\'");
       return `<div class="perf-row">
-        <img src="${this.getTeamLogo(player.school)}" class="sm-logo clickable-school" title="${player.school}" onclick="SimEngine.goToTeamPage('${safeSchool}')">
+        <img alt="" src="${this.getTeamLogo(player.school)}" class="sm-logo clickable-school" title="${player.school}" onclick="SimEngine.goToTeamPage('${safeSchool}')">
         <div class="perf-info">
           <span class="perf-name clickable-player" onclick="SimEngine.openPlayerModal('${safe}')">${player.name}</span>
           <span class="perf-meta"><span class="clickable-school" onclick="SimEngine.goToTeamPage('${safeSchool}')">${player.school}</span> ${game.isHome ? 'vs' : '@'} ${game.opponent} · <span class="game-link-inline" onclick="${(() => { const r = this.gameRefFromLog(player.school, game); return this.openGameJs(r.home, r.away, r.week, r.phase); })()}" title="Box score and play-by-play">${game.won ? 'W' : 'L'} ${game.teamScore}-${game.oppScore}</span></span>
@@ -7175,7 +7175,7 @@ window.SimEngine = {
         const safeId = String(sorted[i].id).replace(/'/g, "\\'");
         html += `<div class="leader-row">
           <span class="leader-ident">${i+1}.
-            <img src="${this.getTeamLogo(sorted[i].school)}" class="xs-logo clickable-school" title="${sorted[i].school}" onclick="event.stopPropagation();SimEngine.goToTeamPage('${sorted[i].school.replace(/'/g, "\\'")}')">
+            <img alt="" src="${this.getTeamLogo(sorted[i].school)}" class="xs-logo clickable-school" title="${sorted[i].school}" onclick="event.stopPropagation();SimEngine.goToTeamPage('${sorted[i].school.replace(/'/g, "\\'")}')">
             <span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${sorted[i].name}</span>
           </span>
           <span>${sorted[i].stats[statKey]}</span>
@@ -7218,7 +7218,7 @@ window.SimEngine = {
           <td class="rank-cell">#${idx + 1}</td>
           <td>
             <div class="team-cell-wrap clickable-school" onclick="SimEngine.openTeamModal('${safeSchool}')">
-              <img src="${this.getTeamLogo(t.school)}" class="sm-logo">
+              <img alt="" src="${this.getTeamLogo(t.school)}" class="sm-logo">
               <span class="team-name-cell">${t.school}</span>
             </div>
           </td>
@@ -7260,7 +7260,7 @@ window.SimEngine = {
       html += `<tr ${hidden}>
         <td class="rank-cell">#${idx + 1}</td>
         <td><div class="team-cell-wrap clickable-school" onclick="SimEngine.goToTeamPage('${safeSchool}')">
-          <img src="${this.getTeamLogo(t.school)}" class="sm-logo"><span class="team-name-cell">${t.school}</span></div></td>
+          <img alt="" src="${this.getTeamLogo(t.school)}" class="sm-logo"><span class="team-name-cell">${t.school}</span></div></td>
         <td class="sub-text">${t.conference || 'NCAA'}</td>
         <td class="sub-text">${(t.simData.teamOvr || 0).toFixed(1)}</td>
         <td class="sub-text">${t.sosRank ? this.ordinal(t.sosRank) : '—'}</td>
@@ -7438,7 +7438,7 @@ window.SimEngine = {
           <div class="award-sub">${sub}</div>
         </div>
         <div class="award-winner">
-          <img src="${this.getTeamLogo(player.school)}" class="award-logo">
+          <img alt="" src="${this.getTeamLogo(player.school)}" class="award-logo">
           <div class="award-winner-info">
             <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${player.name}</span>
             <span class="award-winner-school">${player.school} (${player.pos} &bull; ${player.class})</span>
@@ -7571,7 +7571,7 @@ window.SimEngine = {
             <div class="award-sub">${a.sub}</div>
           </div>
           <div class="award-winner">
-            <img src="${this.getTeamLogo(a.winner.school)}" class="award-logo">
+            <img alt="" src="${this.getTeamLogo(a.winner.school)}" class="award-logo">
             <div class="award-winner-info">
               <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${String(a.winner.id).replace(/'/g, "\\'")}')">${a.winner.name}</span>
               <span class="award-winner-school">${a.winner.school} (${a.winner.pos} &bull; ${a.winner.class})</span>
@@ -7600,7 +7600,7 @@ window.SimEngine = {
             <td class="highlight-text">${idx + 1}</td>
             <td>
               <div class="team-cell-wrap">
-                <img src="${this.getTeamLogo(p.school)}" class="xs-logo">
+                <img alt="" src="${this.getTeamLogo(p.school)}" class="xs-logo">
                 <span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${p.name}</span>
               </div>
             </td>
@@ -7688,7 +7688,7 @@ window.SimEngine = {
           <div class="award-title">Player of the Year</div>
           <div class="award-sub">${confName} POY</div>
           <div class="award-winner">
-            <img src="${this.getTeamLogo(cpoy.school)}" class="award-logo">
+            <img alt="" src="${this.getTeamLogo(cpoy.school)}" class="award-logo">
             <div class="award-winner-info">
               <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeI(cpoy)}')">${cpoy.name}</span>
               <span class="award-winner-school">${cpoy.school} &bull; ${cpoy.stats.ppg} PPG, ${cpoy.stats.rpg} RPG</span>
@@ -7700,7 +7700,7 @@ window.SimEngine = {
           <div class="award-title">Defensive Player of the Year</div>
           <div class="award-sub">${confName} DPOY</div>
           <div class="award-winner">
-            <img src="${this.getTeamLogo(cdpoy.school)}" class="award-logo">
+            <img alt="" src="${this.getTeamLogo(cdpoy.school)}" class="award-logo">
             <div class="award-winner-info">
               <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeI(cdpoy)}')">${cdpoy.name}</span>
               <span class="award-winner-school">${cdpoy.school} &bull; ${cdpoy.stats.stl} SPG, ${cdpoy.stats.blk} BPG</span>
@@ -7712,7 +7712,7 @@ window.SimEngine = {
           <div class="award-title">Rookie of the Year</div>
           <div class="award-sub">${confName} ROTY / Freshman of Year</div>
           <div class="award-winner">
-            <img src="${this.getTeamLogo(croty.school)}" class="award-logo">
+            <img alt="" src="${this.getTeamLogo(croty.school)}" class="award-logo">
             <div class="award-winner-info">
               <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeI(croty)}')">${croty.name}</span>
               <span class="award-winner-school">${croty.school} &bull; ${croty.stats.ppg} PPG</span>
@@ -7724,7 +7724,7 @@ window.SimEngine = {
           <div class="award-title">Sixth Man of the Year</div>
           <div class="award-sub">${confName} 6MOY</div>
           <div class="award-winner">
-            <img src="${this.getTeamLogo(c6moy.school)}" class="award-logo">
+            <img alt="" src="${this.getTeamLogo(c6moy.school)}" class="award-logo">
             <div class="award-winner-info">
               <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeI(c6moy)}')">${c6moy.name}</span>
               <span class="award-winner-school">${c6moy.school} &bull; ${c6moy.stats.ppg} PPG off the bench</span>
@@ -7736,7 +7736,7 @@ window.SimEngine = {
           <div class="award-title">Most Improved Player</div>
           <div class="award-sub">${confName} MIP</div>
           <div class="award-winner">
-            <img src="${this.getTeamLogo(cmip.school)}" class="award-logo">
+            <img alt="" src="${this.getTeamLogo(cmip.school)}" class="award-logo">
             <div class="award-winner-info">
               <span class="award-winner-name clickable-player" onclick="SimEngine.openPlayerModal('${safeI(cmip)}')">${cmip.name}</span>
               <span class="award-winner-school">${cmip.school} &bull; ${this.improvementLine(cmip)}</span>
@@ -7748,7 +7748,7 @@ window.SimEngine = {
           <div class="award-title">Coach of the Year</div>
           <div class="award-sub">${confName} Coach of the Year</div>
           <div class="award-winner">
-            <img src="${this.getTeamLogo(ccoy.school)}" class="award-logo">
+            <img alt="" src="${this.getTeamLogo(ccoy.school)}" class="award-logo">
             <div class="award-winner-info">
               <span class="award-winner-name">${this.esc(ccoy.coach.name)}</span>
               <span class="award-winner-school">${ccoy.school} &bull; ${ccoy.simData.wins}-${ccoy.simData.losses} (${ccoy.simData.confWins}-${ccoy.simData.confLosses} conf)</span>
@@ -7777,7 +7777,7 @@ window.SimEngine = {
           <thead><tr><th>#</th><th>Player</th><th>School</th><th>Pos</th><th>SPG</th><th>BPG</th><th>DBPM</th></tr></thead>
           <tbody>${defPool.map((p, i) => `<tr>
             <td class="bold-sub-text">${i + 1}</td>
-            <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(p.school)}" class="xs-logo"><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeI(p)}')">${p.name}</span></div></td>
+            <td><div class="team-cell-wrap"><img alt="" src="${this.getTeamLogo(p.school)}" class="xs-logo"><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeI(p)}')">${p.name}</span></div></td>
             <td>${p.school}</td>
             <td class="sub-text">${p.pos}</td>
             <td class="bold-text">${p.stats.stl}</td>
@@ -7823,7 +7823,7 @@ window.SimEngine = {
           <td class="bold-sub-text">${idx+1}</td>
           <td>
             <div class="team-cell-wrap">
-              <img src="${this.getTeamLogo(p.school)}" class="xs-logo">
+              <img alt="" src="${this.getTeamLogo(p.school)}" class="xs-logo">
               <span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${p.name}</span>
             </div>
           </td>
@@ -9988,7 +9988,7 @@ window.SimEngine = {
       rows += `<tr class="game-row" onclick="${this.openGameJs(ref.home, ref.away, ref.week, ref.phase)}" title="Box score and play-by-play">
         <td class="bold-sub-text">${this.esc(d)}</td>
         <td class="sub-text-sm">${l.phase === 'ncaa' || l.phase === 'conftourney' || l.neutral || l.isHome ? 'vs' : '@'}</td>
-        <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(l.opponent)}" class="xs-logo"><span>${this.esc(l.opponent)}</span></div></td>
+        <td><div class="team-cell-wrap"><img alt="" src="${this.getTeamLogo(l.opponent)}" class="xs-logo"><span>${this.esc(l.opponent)}</span></div></td>
         <td class="sub-text-sm">${l.event ? this.esc(l.event) : typeOf(l.phase)}</td>
         <td class="${l.won ? 'win-text' : 'loss-text'}">${l.won ? 'W' : 'L'}</td>
         <td class="bold-text">${l.teamScore}-${l.oppScore} <span class="game-link-label">Box score</span></td>
@@ -10003,7 +10003,7 @@ window.SimEngine = {
         rows += `<tr>
           <td class="bold-sub-text">Week ${g.week}</td>
           <td class="sub-text-sm">${isHome ? 'vs' : '@'}</td>
-          <td><div class="team-cell-wrap clickable-school" onclick="SimEngine.setTeamPageSelection('${this.jsArg(opp)}')"><img src="${this.getTeamLogo(opp)}" class="xs-logo"><span>${this.esc(opp)}</span></div></td>
+          <td><div class="team-cell-wrap clickable-school" onclick="SimEngine.setTeamPageSelection('${this.jsArg(opp)}')"><img alt="" src="${this.getTeamLogo(opp)}" class="xs-logo"><span>${this.esc(opp)}</span></div></td>
           <td class="sub-text-sm">${g.mte ? this.esc(g.mteName) : g.isConf ? 'Conf' : 'Non-Conf'}</td>
           <td class="sub-text-sm">—</td>
           <td>${g.week === upcoming ? `<button type="button" class="watch-btn sm" onclick="${this.watchGameJs(g.home, g.away, g.week, g.isConf ? 'conf' : 'nonconf')}">&#9654; Watch live</button>` : '<span class="sub-text-sm">Not yet played</span>'}</td>
@@ -10013,7 +10013,7 @@ window.SimEngine = {
     return `
       <button class="outline-btn mb-1" onclick="SimEngine.setTeamPageView('team')">&larr; Back to ${team.school}</button>
       <div class="team-header">
-        <img src="${this.getTeamLogo(team.school)}" class="team-logo">
+        <img alt="" src="${this.getTeamLogo(team.school)}" class="team-logo">
         <div class="team-title-block"><h2 class="modal-team-name">${team.school}</h2><span class="modal-team-year">Game Log</span></div>
       </div>
       <div class="table-scroll"><table class="data-table">
@@ -10044,7 +10044,7 @@ window.SimEngine = {
     });
     return back + `
       <div class="team-header">
-        <img src="${this.getTeamLogo(team.school)}" class="team-logo">
+        <img alt="" src="${this.getTeamLogo(team.school)}" class="team-logo">
         <div class="team-title-block"><h2 class="modal-team-name">${team.school}</h2><span class="modal-team-year">Team History</span></div>
       </div>
       <p class="sub-text-sm mb-1">Pick a season for that team's roster and stats.</p>
@@ -10135,7 +10135,7 @@ window.SimEngine = {
     body.innerHTML = rows.map(r => '<tr>' + cols.map(([id]) => {
       if (id === 'school') {
         return `<td><div class="team-cell-wrap clickable-school" onclick="SimEngine.goToTeamPage('${r.school.replace(/'/g, "\\'")}')">
-          <img src="${this.getTeamLogo(r.school)}" class="xs-logo"><span class="team-name-cell">${r.school}</span></div></td>`;
+          <img alt="" src="${this.getTeamLogo(r.school)}" class="xs-logo"><span class="team-name-cell">${r.school}</span></div></td>`;
       }
       if (id === 'conference') return `<td class="sub-text-sm">${r.conference}</td>`;
       return `<td>${r.stats[id]}</td>`;
@@ -10542,7 +10542,7 @@ window.SimEngine = {
     try { if (localStorage.getItem('btr-acct-nudge')) return; localStorage.setItem('btr-acct-nudge', '1'); } catch (e) { return; }
     this.track('rp_account_nudge');
     this.spotlight({ kicker: 'Keep your save', title: 'Don\'t lose this dynasty', sub: 'Your save lives in this browser only. Sign in with Google and it backs up to your account, so you can pick it up on your phone, your laptop, or after clearing your browser.',
-      actions: [{ label: 'Sign in with Google', primary: true, fn: () => Cloud.signIn() }, { label: 'Not now' }] });
+      actions: [{ label: 'Sign in with Google', primary: true, fn: () => (Cloud.signInPrompt || Cloud.signIn).call(Cloud) }, { label: 'Not now' }] });
   },
 
   // After signing in: if the account holds a newer save than this browser
@@ -11201,7 +11201,7 @@ window.SimEngine = {
         <td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safe}')">${p.name}</span>
             ${declared ? '<span class="declared-tag">DECLARED</span>' : ''}</td>
         <td><div class="team-cell-wrap clickable-school" onclick="SimEngine.goToTeamPage('${p.school.replace(/'/g, "\\'")}')">
-          <img src="${this.getTeamLogo(p.school)}" class="xs-logo"><span>${p.school}</span></div></td>
+          <img alt="" src="${this.getTeamLogo(p.school)}" class="xs-logo"><span>${p.school}</span></div></td>
         <td class="sub-text">${p.pos}</td>
         <td class="sub-text">${p.class}</td>
         <td class="sub-text">${p.ht || '—'}</td>
@@ -11369,9 +11369,9 @@ window.SimEngine = {
           <td class="sub-text">${t.pos}</td>
           <td class="sub-text">${t.class}</td>
           <td class="bold-text">${t.ppg}</td>
-          <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(t.from)}" class="xs-logo"><span>${t.from}</span></div></td>
+          <td><div class="team-cell-wrap"><img alt="" src="${this.getTeamLogo(t.from)}" class="xs-logo"><span>${t.from}</span></div></td>
           <td class="transfer-arrow">&rarr;</td>
-          <td><div class="team-cell-wrap"><img src="${this.getTeamLogo(t.to)}" class="xs-logo"><span>${t.to}</span></div></td>
+          <td><div class="team-cell-wrap"><img alt="" src="${this.getTeamLogo(t.to)}" class="xs-logo"><span>${t.to}</span></div></td>
           <td class="sub-text-sm">${t.reason}</td>
         </tr>`).join('')}
       </tbody></table></div>`;
@@ -12206,7 +12206,7 @@ window.SimEngine = {
     container.innerHTML = `
       <button class="outline-btn mb-1" onclick="SimEngine.setHistorySeason(${year})">&larr; Back to ${year}-${(year + 1).toString().slice(2)} Season</button>
       <div class="team-header">
-        <img src="${this.getTeamLogo(school)}" class="team-logo">
+        <img alt="" src="${this.getTeamLogo(school)}" class="team-logo">
         <div class="team-title-block">
           <h2 class="modal-team-name">${school}</h2>
           <span class="modal-team-year">${year}-${(year + 1).toString().slice(2)} Season</span>
@@ -12255,7 +12255,7 @@ window.SimEngine = {
       <tr>
         <td class="rank-cell">${i + 1}</td>
         <td><div class="team-cell-wrap clickable-school" onclick="SimEngine.goToTeamPage('${x.team.school.replace(/'/g, "\\'")}')">
-          <img src="${this.getTeamLogo(x.team.school)}" class="xs-logo"><span>${x.team.school}</span></div></td>
+          <img alt="" src="${this.getTeamLogo(x.team.school)}" class="xs-logo"><span>${x.team.school}</span></div></td>
         <td class="sub-text">${x.team.conference}</td>
         <td class="bold-text">${x.h.wins}-${x.h.losses}</td>
         <td class="sub-text">${x.h.confWins}-${x.h.confLosses}</td>
@@ -12287,7 +12287,7 @@ window.SimEngine = {
         <h5 class="award-table-title">${title}</h5>
         ${top.map((x, i) => `<div class="leader-row">
           <span class="leader-ident">${i + 1}.
-            <img src="${this.getTeamLogo(x.h.school)}" class="xs-logo">
+            <img alt="" src="${this.getTeamLogo(x.h.school)}" class="xs-logo">
             <span class="clickable-player" onclick="SimEngine.openPlayerModal('${String(x.p.id).replace(/'/g, "\\'")}')">${x.p.name}</span>
           </span>
           <span>${x.h.stats[key]}</span>
@@ -12302,7 +12302,7 @@ window.SimEngine = {
           <div class="champion-name">${teamLink(entry.champion)}</div>
           ${entry.runnerUp ? `<div class="sub-text">defeated ${teamLink(entry.runnerUp)} in the championship game</div>` : ''}
         </div>
-        <img src="${entry.champion ? this.getTeamLogo(entry.champion) : ''}" class="champion-logo">
+        <img alt="" src="${entry.champion ? this.getTeamLogo(entry.champion) : ''}" class="champion-logo">
       </div>
 
       <h4 class="award-section-title mt-2">Final Four</h4>

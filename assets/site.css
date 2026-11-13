@@ -24,7 +24,7 @@
   --border-strong: #2f3440;
   --text: #f4f5f7;
   --muted: #9aa3b2;
-  --faint: #6b7382;
+  --faint: #848c9c;
 
   /* Logo purple #904080. As a fill (with white text) it clears 6:1; as
      text on near-black it only reaches 3:1, so text uses a lifted tint. */
@@ -54,7 +54,7 @@
   --border-strong: #c9ced6;
   --text: #0c0f14;
   --muted: #555e6c;
-  --faint: #7d8593;
+  --faint: #5f6775;
   --accent: #964282;
   --accent-fill: #964282;
   --accent-fill-hover: #823872;
@@ -116,6 +116,11 @@ h1, h2, h3, h4, .display {
 }
 
 .muted { color: var(--muted); }
+.skip-link { position: absolute; left: 12px; top: -64px; z-index: 1000; background: #964282; color: #fff; padding: 10px 16px; border-radius: 8px; font-weight: 600; text-decoration: none; }
+.skip-link:focus { top: 12px; }
+main:focus { outline: none; }
+/* Links inside running text can't rely on color alone. */
+main p a:not([class]), .x-feed-note a { text-decoration: underline; text-underline-offset: 0.18em; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .section-head {
@@ -311,12 +316,13 @@ h1, h2, h3, h4, .display {
 }
 .footer-brand img { height: 28px; width: auto; margin-bottom: 0.9rem; }
 .footer-brand p { color: var(--muted); font-size: 0.95rem; max-width: 330px; margin-bottom: 1rem; }
-.footer-col h4 {
+.footer-col h2 {
   font-size: 0.78rem;
   letter-spacing: 1.2px;
   text-transform: uppercase;
   color: var(--text);
-  margin-bottom: 0.8rem;
+  font-weight: 600;
+  margin: 0 0 0.8rem;
 }
 .footer-col a { display: block; color: var(--muted); font-size: 0.95rem; padding: 0.2rem 0; }
 .footer-col a:hover { color: var(--text); }
@@ -469,6 +475,12 @@ h1, h2, h3, h4, .display {
 .x-feed-body .twitter-timeline:not(iframe) { color: var(--muted); font-size: 0.9rem; }
 .x-feed-posts { max-height: 720px; overflow-y: auto; }
 .x-feed-posts .twitter-tweet { margin: 0 auto 0.6rem !important; }
+.x-feed-body[hidden] { display: none !important; }
+.embed-gate { padding: 0.9rem 0 0.2rem; border-top: 1px solid var(--border); }
+.embed-gate p { color: var(--muted); font-size: 0.92rem; line-height: 1.5; margin: 0 0 0.75rem; }
+.embed-gate-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.embed-gate-remember { display: flex; align-items: center; gap: 0.5rem; margin-top: 0.7rem; color: var(--muted); font-size: 0.85rem; cursor: pointer; }
+.embed-gate-remember input { width: 1rem; height: 1rem; accent-color: var(--accent-fill); }
 .x-feed-note { color: var(--muted); font-size: 0.92rem; line-height: 1.5; margin: 0.2rem 0 0; }
 .x-feed-note a { color: var(--accent); }
 
@@ -651,7 +663,7 @@ h1, h2, h3, h4, .display {
 .pillars { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.1rem; }
 .pillar { padding: 1.4rem; }
 .pillar .num { font-family: 'Oswald', sans-serif; font-size: 0.8rem; color: var(--accent); letter-spacing: 1.2px; }
-.pillar h3 { font-size: 1.2rem; text-transform: uppercase; margin: 0.4rem 0 0.5rem; }
+.pillar h2, .pillar h3 { font-size: 1.2rem; text-transform: uppercase; margin: 0.4rem 0 0.5rem; }
 .pillar p { color: var(--muted); font-size: 0.97rem; }
 .support-block { padding: 2rem; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.8rem; }
 .support-block h2 { font-size: 1.6rem; text-transform: uppercase; }
@@ -1068,7 +1080,7 @@ a.card:hover { border-color: var(--border-strong); transform: translateY(-2px); 
 @media (prefers-reduced-motion: reduce) { .hero-rotator > .hero { transition: none; } }
 
 /* Legal note under every page's footer */
-.footer-legal { display: block; margin: 0.45rem 0 0; max-width: 72ch; font-size: 0.76rem; line-height: 1.45; opacity: 0.85; }
+.footer-legal { display: block; margin: 0.45rem 0 0; max-width: 72ch; font-size: 0.76rem; line-height: 1.45; }
 
 /* Privacy Policy and Terms of Use */
 .legal { max-width: 760px; }

@@ -20,7 +20,7 @@ class LocalOnly extends ResourceLoader {
 function ok(c, m) { if (!c) throw new Error('FAILED: ' + m); console.log('OK: ' + m); }
 
 const ROOT = path.join(__dirname, '..', '..');
-const PAGES = ['index', 'podcast', 'draft', 'nba', 'about', 'privacy', 'terms'];
+const PAGES = ['index', 'podcast', 'draft', 'nba', 'about', 'privacy', 'terms', 'accessibility'];
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const siteJs = read('assets/site.js');
 
@@ -54,7 +54,7 @@ PAGES.forEach(p => {
 {
   const exists = f => fs.existsSync(path.join(ROOT, f));
   ok(read('CNAME').trim() === 'bytherim.com', 'CNAME points GitHub Pages at bytherim.com');
-  const every = ['index', 'podcast', 'draft', 'nba', 'about', 'privacy', 'terms'].map(p => p + '.html')
+  const every = ['index', 'podcast', 'draft', 'nba', 'about', 'privacy', 'terms', 'accessibility'].map(p => p + '.html')
     .concat(['rp/index.html', 'rp/guide.html', 'rp/ncaa.html', 'rp/draft.html', 'recruiting/index.html']);
   const expectPath = { 'index.html': '/', 'rp/index.html': '/rp/', 'recruiting/index.html': '/recruiting/' };
   every.forEach(f => {
@@ -241,7 +241,7 @@ function table(row) {
     ok(d.querySelectorAll('.site-header').length === 1 && d.querySelectorAll('.site-footer').length === 1, `${p}: exactly one shared header and footer`);
     const navText = [...d.querySelectorAll('.site-nav a')].map(a => a.textContent.trim());
     ['Podcast', 'Draft', 'NBA', 'About'].forEach(t => ok(navText.some(x => x.includes(t)), `${p}: nav has ${t}`));
-    if (!['index', 'privacy', 'terms'].includes(p)) ok(d.querySelector(`.site-nav a[href="${p}.html"].active, .site-nav a[href="${p}.html"][aria-current]`), `${p}: its own nav item is marked current`);
+    if (!['index', 'privacy', 'terms', 'accessibility'].includes(p)) ok(d.querySelector(`.site-nav a[href="${p}.html"].active, .site-nav a[href="${p}.html"][aria-current]`), `${p}: its own nav item is marked current`);
     ok(!d.querySelector('[data-icon]'), `${p}: icon placeholders hydrated`);
     ok(!d.querySelector('[data-support]'), `${p}: support block hidden while no support link is set`);
     const hrefs = [...d.querySelectorAll('a[href]')].map(a => a.getAttribute('href'));

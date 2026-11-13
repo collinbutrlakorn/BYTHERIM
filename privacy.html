@@ -117,37 +117,42 @@
   <div class="container legal">
     <span class="eyebrow">Legal</span>
     <h1>Privacy Policy</h1>
-    <p class="legal-date">Effective October 1, 2026</p>
+    <p class="legal-date">Effective October 1, 2026 · Updated November 13, 2026</p>
 
-    <p>BYTHERIM is an independent basketball site. This page explains what information the site collects, why, and what you can do about it. The short version: you can use almost all of BYTHERIM without an account, we don't sell anything about you, and we don't run ads.</p>
+    <p>BYTHERIM (bytherim.com) is an independent basketball site run by Collin Butrlakorn. This page explains what information the site collects, why, and what you can do about it. The short version: you can use almost all of BYTHERIM without an account, we don't sell anything about you, and we don't run ads.</p>
 
     <h2>What we collect</h2>
     <h3>If you sign in with Google</h3>
-    <p>Signing in is optional. It's only used to save your BYTHERIM RP progress and draft boards to your account so they follow you across devices. When you sign in, Google shares your name, email address and profile photo with us through Firebase Authentication, a Google service. We store:</p>
+    <p>Signing in is optional. It's only used to save your BYTHERIM RP progress and draft boards to your account so they follow you across devices. When you sign in, Google shares your name, email address and profile photo with us through Firebase Authentication, a Google service. BYTHERIM's own database stores only:</p>
     <ul>
-      <li>your name and email address, linked to an account ID;</li>
+      <li>an account ID (a random identifier from Firebase);</li>
       <li>your saved NCAA RP universe and your draft boards.</li>
     </ul>
-    <p>Site administrators are listed by email address so the site knows who may publish official content.</p>
+    <p>Your name, email address and photo stay with Firebase Authentication, which the site uses to show you who's signed in. Earlier versions of the site also copied your name and email into the database; nothing used them, so they're no longer saved, and any old copies are cleared the next time you sign in. Site administrators are listed by email address so the site knows who may publish official content.</p>
 
     <h3>Usage statistics</h3>
     <p>To understand how the site is used, BYTHERIM counts page views and a handful of actions (for example, starting a new RP save or simulating a week). These are stored only as daily totals, such as "120 views of the Draft page today." No name, email, IP address or account ID is attached to them. To count visitors without double-counting, your browser remembers on your own device whether it has already been counted that day; that note never leaves your browser. If your browser sends a Do Not Track or Global Privacy Control signal, nothing is counted.</p>
 
-    <h3>Stored on your device</h3>
-    <p>The site keeps some things in your browser's local storage so it works the way you left it: your light/dark theme, settings, and your RP saves (which live in your browser unless you sign in and save them to your account). This information stays on your device. Clearing your browser's site data removes it.</p>
+    <h3 id="feedback">Ratings and feedback</h3>
+    <p>The "Rate the sim" link on the RP pages sends a star rating from 1 to 5 and an optional note of up to 500 characters, along with the page you were on and the date. It isn't tied to your account, name, email address or IP address, and only the site's administrator can read it. Please don't put personal details in the note. Ratings and notes aren't published.</p>
+
+    <h3 id="cookies">Cookies and local storage</h3>
+    <p>BYTHERIM doesn't set cookies of its own, and it doesn't use advertising or cross-site tracking cookies. Instead the site uses your browser's local storage to remember things you'd expect it to: your light/dark theme and settings, your RP saves (which live in your browser unless you sign in and save them to your account), that you've already been counted today, which social embeds you've chosen to load, that you've seen the sign-in notice, and, for administrators, that you're signed in as one. Signing in with Google also uses your browser's storage to keep you signed in. This information stays on your device, and clearing your browser's site data removes it.</p>
+    <p>The only cookies you may meet come from other companies, and only if you choose to load their content (see below) or to sign in with Google. Because nothing like that starts until you ask, the site doesn't show a cookie banner.</p>
 
     <h3>Server logs</h3>
     <p>BYTHERIM is hosted on GitHub Pages. Like any web host, GitHub may log your IP address and browser details when you load a page, for security and operations. See <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">GitHub's privacy statement</a>.</p>
 
     <h2>Content from other services</h2>
-    <p>Some pages show content loaded from other companies, which may collect information under their own privacy policies when that content loads:</p>
+    <p>Some pages show content loaded from other companies, which may set cookies and collect information under their own privacy policies when that content loads:</p>
     <ul>
-      <li><b>Embedded posts and players</b> from YouTube (privacy-enhanced mode), X, Instagram, TikTok, Spotify, Apple Podcasts and Substack;</li>
-      <li><b>Google</b>: Firebase (sign-in and saves), Google Sheets (where the site's rankings and rosters are kept) and Google Fonts;</li>
-      <li><b>rss2json</b>, which reads the public Substack and podcast feeds;</li>
+      <li><b>YouTube videos</b> load (in YouTube's privacy-enhanced mode) only after you press play;</li>
+      <li><b>Posts and feeds from X, Instagram and TikTok</b> load only after you press "Load" on that card. You can ask the site to remember your choice on this device, and undo it here: <button type="button" class="btn btn-ghost btn-sm" onclick="BTR.resetEmbedChoices(); this.textContent = 'Choices cleared';">Forget my embed choices</button></li>
+      <li><b>Google</b>: Firebase (sign-in and saves), Google Sheets (where the site's rankings and rosters are kept) and Google Fonts, which your browser requests from Google whenever a page loads, so Google sees your IP address;</li>
+      <li><b>rss2json</b>, which reads the public Substack and podcast feeds for the post and episode lists;</li>
       <li>public code libraries served from jsDelivr, unpkg and cdnjs.</li>
     </ul>
-    <p>Links to other sites are not covered by this policy.</p>
+    <p>Links to Spotify, Apple Podcasts, Substack and other sites take you to those services, and they aren't covered by this policy.</p>
 
     <h2>How we use it</h2>
     <p>Only to run the site: keeping you signed in, storing and restoring your saves and boards, letting administrators publish content, and seeing which parts of the site people use so we can improve them. We don't sell or rent personal information, don't use it for advertising, and don't share it except with the service providers above that host and run the site, or when required by law.</p>
@@ -159,14 +164,14 @@
     <p>BYTHERIM is a general-audience basketball site and isn't directed to children under 13. We don't knowingly collect personal information from children under 13; if you believe a child has created an account, contact us and we'll delete it.</p>
 
     <h2>Your rights</h2>
-    <p>Depending on where you live (for example under the GDPR in Europe or the CCPA in California), you may have the right to access, correct, delete or get a copy of your personal information, and to object to how it's used. Contact us to make a request.</p>
+    <p>Depending on where you live (for example under the GDPR in Europe or the CCPA in California), you may have the right to access, correct, delete or get a copy of your personal information, and to object to how it's used. Contact us to make a request. We don't sell or share personal information for advertising, and we treat a Global Privacy Control signal as an opt-out of usage counting.</p>
 
     <h2>Changes</h2>
     <p>If this policy changes, the new version will be posted here with a new effective date.</p>
 
     <h2>Contact</h2>
     <p>Questions or requests: <span data-contact>reach out by direct message on <a href="https://www.instagram.com/bytherimhoops/" target="_blank" rel="noopener">Instagram</a> or <a href="https://x.com/bytherimhoops" target="_blank" rel="noopener">X</a></span>.</p>
-    <p class="legal-see">See also: <a href="terms.html">Terms of Use</a></p>
+    <p class="legal-see">See also: <a href="terms.html">Terms of Use</a> · <a href="accessibility.html">Accessibility</a></p>
   </div>
 </main>
 </body>

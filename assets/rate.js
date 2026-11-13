@@ -36,11 +36,11 @@
     wrap.className = 'rate-scrim';
     wrap.innerHTML = `<div class="rate-panel" role="dialog" aria-modal="true" aria-labelledby="rateTitle">
       <h2 id="rateTitle">How's the sim?</h2>
-      <p>Honest feedback helps. Stars are private, and the note is only read by Collin.</p>
+      <p>Honest feedback helps. Your rating and note are anonymous and only read by Collin, so please don't include personal details. <a href="/privacy.html#feedback" style="color:var(--accent,#4aa8ff);text-decoration:underline">Privacy</a></p>
       <div class="rate-stars" role="radiogroup" aria-label="Your rating">
         ${[1, 2, 3, 4, 5].map(i => `<button type="button" role="radio" aria-checked="false" aria-label="${i} star${i > 1 ? 's' : ''}: ${LABEL[i]}" data-s="${i}">★</button>`).join('')}
       </div>
-      <textarea maxlength="500" placeholder="Anything you want to say? (optional)"></textarea>
+      <textarea maxlength="500" aria-label="Your note (optional)" placeholder="Anything you want to say? (optional)"></textarea>
       <div class="rate-row"><span class="rate-status" aria-live="polite"></span>
         <button type="button" data-act="cancel">Close</button>
         <button type="button" class="primary" data-act="send" disabled>Send</button></div>
@@ -53,9 +53,26 @@
     const text = panel.querySelector('textarea');
     let picked = 0;
     const paint = () => stars.forEach(b => { const on = +b.dataset.s <= picked; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(+b.dataset.s === picked)); });
-    const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); };
-    const onKey = e => { if (e.key === 'Escape') close(); };
+    const opener = document.activeElement;
+    const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); if (opener && opener.focus) opener.focus(); };
+    const onKey = e => {
+      if (e.key === 'Escape') { close(); return; }
+      if (e.key === 'Tab') {   // keep Tab inside the dialog while it's open
+        const f = [...panel.querySelectorAll('a[href], button:not(:disabled), textarea')];
+        if (!f.length) return;
+        if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+        else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+      }
+    };
     document.addEventListener('keydown', onKey);
+    // Arrow keys move between the stars, like any radio group.
+    panel.querySelector('.rate-stars').addEventListener('keydown', e => {
+      const d = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
+      if (!d) return;
+      e.preventDefault();
+      picked = Math.max(1, Math.min(5, (picked || (d > 0 ? 0 : 6)) + d));
+      paint(); send.disabled = false; status.textContent = LABEL[picked]; stars[picked - 1].focus();
+    });
     stars.forEach(b => b.addEventListener('click', () => { picked = +b.dataset.s; paint(); send.disabled = false; status.textContent = LABEL[picked]; }));
     panel.querySelector('[data-act="cancel"]').addEventListener('click', close);
     wrap.addEventListener('click', e => { if (e.target === wrap) close(); });

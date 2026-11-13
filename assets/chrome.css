@@ -11,6 +11,9 @@
    Keep in step with the header/footer sections of assets/site.css.
    ============================================================ */
 
+.skip-link { position: absolute; left: 12px; top: -64px; z-index: 1000; background: #964282; color: #fff; padding: 10px 16px; border-radius: 8px; font: 600 16px/1.2 'Inter', system-ui, sans-serif; text-decoration: none; }
+.skip-link:focus { top: 12px; }
+
 .site-header,
 .site-footer {
   --r-sm: 8px;
@@ -21,7 +24,7 @@
   --border-strong: #2f3440;
   --text: #f4f5f7;
   --muted: #9aa3b2;
-  --faint: #7d8596;
+  --faint: #848c9c;
   --accent: #c86fb4;
   --accent-fill: #964282;
   --accent-fill-hover: #a54b90;
@@ -130,7 +133,7 @@
 }
 .site-footer .footer-brand img { height: 28px; width: auto; margin-bottom: 0.9rem; }
 .site-footer .footer-brand p { color: var(--muted); font-size: 0.95rem; max-width: 330px; margin: 0 0 1rem; }
-.site-footer .footer-col h4 {
+.site-footer .footer-col h2 {
   font-family: 'Oswald', 'Inter', sans-serif;
   font-weight: 600;
   font-size: 0.78rem;
@@ -208,7 +211,7 @@
 
 /* RP pages: fiction notice under the copyright line */
 .footer-fiction { display: block; margin-top: 0.35rem; font-size: 0.8rem; }
-.footer-legal { display: block; margin: 0.45rem 0 0; max-width: 72ch; font-size: 0.76rem; line-height: 1.45; opacity: 0.85; }
+.footer-legal { display: block; margin: 0.45rem 0 0; max-width: 72ch; font-size: 0.76rem; line-height: 1.45; }
 .site-footer .footer-bottom a { text-decoration: underline; text-underline-offset: 2px; }
 
 /* Phones on their side: the header tucks away while scrolling down and

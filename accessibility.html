@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Accessibility · BYTHERIM</title>
+  <meta name="description" content="How BYTHERIM works for keyboard and screen-reader users, what we've done so far, what's still being improved, and how to tell us about a problem.">
+  <!-- share + icons -->
+  <link rel="canonical" href="https://bytherim.com/accessibility.html">
+  <meta name="author" content="Collin Butrlakorn">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="BYTHERIM">
+  <meta property="og:url" content="https://bytherim.com/accessibility.html">
+  <meta property="og:title" content="Accessibility · BYTHERIM">
+  <meta property="og:description" content="How BYTHERIM works for keyboard and screen-reader users, what we've done so far, what's still being improved, and how to tell us about a problem.">
+  <meta property="og:image" content="https://bytherim.com/assets/share/home.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Accessibility · BYTHERIM">
+  <meta name="twitter:description" content="How BYTHERIM works for keyboard and screen-reader users, what we've done so far, what's still being improved, and how to tell us about a problem.">
+  <meta name="twitter:image" content="https://bytherim.com/assets/share/home.jpg">
+  <meta name="theme-color" content="#06070a">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+  <script type="application/ld+json">
+  {
+   "@context": "https://schema.org",
+   "@graph": [
+    {
+     "@type": "Organization",
+     "@id": "https://bytherim.com/#org",
+     "name": "BYTHERIM",
+     "alternateName": "BYTHERIM Basketball",
+     "url": "https://bytherim.com/",
+     "logo": {
+      "@type": "ImageObject",
+      "url": "https://bytherim.com/assets/icons/icon-512.png",
+      "width": 512,
+      "height": 512
+     },
+     "description": "Independent basketball coverage: NBA draft analysis, film breakdowns, the BYTHERIM Podcast and the BYTHERIM RP college basketball universe.",
+     "founder": {
+      "@id": "https://bytherim.com/#collin"
+     },
+     "sameAs": [
+      "https://www.youtube.com/@BYTHERIM",
+      "https://www.instagram.com/bytherimhoops/",
+      "https://www.tiktok.com/@bytherim",
+      "https://open.spotify.com/show/5o5uMpUFLXYs1qktXKPFJg",
+      "https://podcasts.apple.com/us/podcast/bytherim-podcast/id6807326876",
+      "https://collindunks.substack.com",
+      "https://github.com/collinbutrlakorn/BYTHERIM"
+     ]
+    },
+    {
+     "@type": "Person",
+     "@id": "https://bytherim.com/#collin",
+     "name": "Collin Butrlakorn",
+     "url": "https://bytherim.com/about.html",
+     "jobTitle": "Founder",
+     "worksFor": {
+      "@id": "https://bytherim.com/#org"
+     },
+     "sameAs": [
+      "https://x.com/bytherimhoops",
+      "https://collindunks.substack.com"
+     ]
+    },
+    {
+     "@type": "WebSite",
+     "@id": "https://bytherim.com/#website",
+     "url": "https://bytherim.com/",
+     "name": "BYTHERIM",
+     "inLanguage": "en",
+     "publisher": {
+      "@id": "https://bytherim.com/#org"
+     },
+     "creator": {
+      "@id": "https://bytherim.com/#collin"
+     }
+    },
+    {
+     "@type": "WebPage",
+     "@id": "https://bytherim.com/accessibility.html#page",
+     "url": "https://bytherim.com/accessibility.html",
+     "name": "Accessibility · BYTHERIM",
+     "description": "How BYTHERIM works for keyboard and screen-reader users, what we've done so far, what's still being improved, and how to tell us about a problem.",
+     "isPartOf": {
+      "@id": "https://bytherim.com/#website"
+     },
+     "author": {
+      "@id": "https://bytherim.com/#collin"
+     },
+     "primaryImageOfPage": {
+      "@type": "ImageObject",
+      "url": "https://bytherim.com/assets/share/home.jpg",
+      "width": 1200,
+      "height": 630
+     }
+    }
+   ]
+  }
+  </script>
+  <!-- /share + icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Oswald:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="assets/site.js"></script>
+</head>
+<body>
+<script>BTR.mount('legal')</script>
+
+<main class="section legal-page">
+  <div class="container legal">
+    <span class="eyebrow">Legal</span>
+    <h1>Accessibility</h1>
+    <p class="legal-date">Updated November 13, 2026</p>
+
+    <p>BYTHERIM should work for everyone who loves basketball, including people who use a keyboard instead of a mouse, a screen reader, a magnifier or a high-contrast display. We're working toward the Web Content Accessibility Guidelines (WCAG) 2.1 level AA, and we check pages with automated tools and keyboard-only navigation. We haven't had the site formally audited, and we're still fixing what we find.</p>
+
+    <h2>What's in place</h2>
+    <ul>
+      <li>A "Skip to main content" link at the top of every page, which appears when you press Tab.</li>
+      <li>Menus, buttons and forms that can be used from the keyboard, with a visible focus outline. The sign-in and rating dialogs close with Escape and return you to where you were.</li>
+      <li>Text and controls colored to meet AA contrast in both the dark and light themes.</li>
+      <li>Descriptions for images that carry meaning. Decorative images, such as team logos shown beside team names, are marked so screen readers skip them.</li>
+      <li>Labels on buttons, filters and form fields, and a layout that adapts from phones to desktops without blocking zoom.</li>
+      <li>Social posts from X, Instagram and TikTok that load only when you ask, so nothing moves or autoplays on its own.</li>
+    </ul>
+
+    <h2>Known limits</h2>
+    <ul>
+      <li>The RP simulation pages are dense, with large tables and a live game view. Some clickable parts of them, such as table rows and team logos that open a profile, can't be reached with the keyboard yet, and we're still improving how they work with screen readers.</li>
+      <li>Social posts and videos come from YouTube, X, Instagram and TikTok, and follow those services' own accessibility.</li>
+    </ul>
+
+    <h2>Tell us about a problem</h2>
+    <p>If something on BYTHERIM is hard or impossible for you to use, tell us what page, what you were trying to do and what device or assistive technology you use: <span data-contact>reach out by direct message on <a href="https://www.instagram.com/bytherimhoops/" target="_blank" rel="noopener">Instagram</a> or <a href="https://x.com/bytherimhoops" target="_blank" rel="noopener">X</a></span>. We'll try to fix it, or get you the information another way.</p>
+    <p class="legal-see">See also: <a href="privacy.html">Privacy Policy</a> · <a href="terms.html">Terms of Use</a></p>
+  </div>
+</main>
+</body>
+</html>

@@ -34,6 +34,11 @@
     // An email for privacy requests, takedowns and questions, shown on the
     // Privacy and Terms pages. Leave empty to point people to Instagram/X.
     contactEmail: '',
+    // X, TikTok and Instagram embeds run those companies' scripts, which can
+    // set cookies and track visitors. With this on (recommended), each one
+    // loads only after the visitor presses "Load", so no cookie banner is
+    // needed. Set to false to load them automatically as before.
+    embedConsent: true,
     // Visitor counts (free, no cookies, no banner needed). Sign up at
     // goatcounter.com, choose a site code such as "bytherim", and put that
     // code here. Your dashboard is then https://<code>.goatcounter.com.
@@ -308,6 +313,7 @@
     const links = CONFIG.nav.map(n =>
       `<a href="${BASE}${n.href}"${n.id === active ? ' class="active" aria-current="page"' : ''}>${n.label}</a>`).join('');
     return `
+<a class="skip-link" href="#main">Skip to main content</a>
 <header class="site-header">
   <div class="site-header-inner">
     <a href="${BASE || './'}" class="brand" aria-label="BYTHERIM home"><img src="${BASE}assets/logo-header.png" alt="BYTHERIM" width="172" height="26"></a>
@@ -342,12 +348,12 @@
       <div class="social-row">${socialButtons(['youtube', 'spotify', 'apple', 'x', 'instagram', 'tiktok', 'substack'])}</div>
     </div>
     <div class="footer-col">
-      <h4>BYTHERIM</h4>
+      <h2>BYTHERIM</h2>
       <a href="${BASE || './'}">Home</a>
       ${CONFIG.nav.map(n => `<a href="${BASE}${n.href}">${n.label}</a>`).join('')}
     </div>
     <div class="footer-col">
-      <h4>RP Universe</h4>
+      <h2>RP Universe</h2>
       <a href="${BASE}rp/">RP Hub</a>
       <a href="${BASE}rp/guide.html">How the RP works</a>
       <a href="${BASE}rp/ncaa.html">NCAA Simulation</a>
@@ -355,11 +361,11 @@
       <a href="${BASE}rp/draft.html">Draft RP</a>
     </div>
     <div class="footer-col">
-      <h4>Listen &amp; Follow</h4>
+      <h2>Listen &amp; Follow</h2>
       ${['youtube', 'spotify', 'apple', 'x', 'instagram', 'tiktok', 'substack'].map(k => `<a href="${CONFIG.social[k].url}" target="_blank" rel="noopener">${CONFIG.social[k].label}</a>`).join('')}
     </div>
   </div>
-  <div class="footer-bottom">&copy; ${new Date().getFullYear()} BYTHERIM · Created by <a href="${BASE}about.html">Collin Butrlakorn</a> · <a href="${BASE}privacy.html">Privacy</a> · <a href="${BASE}terms.html">Terms</a>${/\/rp\//.test(location.pathname) ? ' · <button type="button" class="footer-rate" data-action="rate">Rate the sim</button>' : ''}${/\/(rp|recruiting)\//.test(location.pathname) ? `<span class="footer-fiction">${RP_FICTION}</span>` : ''}
+  <div class="footer-bottom">&copy; ${new Date().getFullYear()} BYTHERIM · Created by <a href="${BASE}about.html">Collin Butrlakorn</a> · <a href="${BASE}privacy.html">Privacy</a> · <a href="${BASE}terms.html">Terms</a> · <a href="${BASE}accessibility.html">Accessibility</a>${/\/rp\//.test(location.pathname) ? ' · <button type="button" class="footer-rate" data-action="rate">Rate the sim</button>' : ''}${/\/(rp|recruiting)\//.test(location.pathname) ? `<span class="footer-fiction">${RP_FICTION}</span>` : ''}
     <span class="footer-legal">${LEGAL_NOTE}</span></div>
 </footer>`;
   }
@@ -427,6 +433,38 @@
     io.observe(el);
   }
 
+  // Posts from X, TikTok and Instagram come from those companies, so they
+  // load only once the visitor asks (and can be remembered on this device).
+  const EMBED_KEY = 'btr-embeds-';
+  function embedAllowed(key) {
+    if (!CONFIG.embedConsent) return true;
+    try { return localStorage.getItem(EMBED_KEY + key) === '1'; } catch (e) { return false; }
+  }
+  function resetEmbedChoices() {
+    ['x', 'tiktok', 'instagram'].forEach(k => { try { localStorage.removeItem(EMBED_KEY + k); } catch (e) {} });
+  }
+  function gateEmbed(el, key, body, load) {
+    if (embedAllowed(key)) return whenVisible(el, load);
+    const name = CONFIG.social[key].label;
+    body.hidden = true;
+    const gate = document.createElement('div');
+    gate.className = 'embed-gate';
+    gate.innerHTML = `
+      <p>${esc(name)} posts are loaded from ${esc(name)}, which can set cookies and see that you visited. They stay off until you choose to load them.</p>
+      <div class="embed-gate-row">
+        <button type="button" class="btn btn-primary btn-sm" data-load>Load ${esc(name)} posts</button>
+        <a class="btn btn-ghost btn-sm" href="${CONFIG.social[key].url}" target="_blank" rel="noopener">Open ${esc(name)} instead</a>
+      </div>
+      <label class="embed-gate-remember"><input type="checkbox" data-remember> Remember my choice on this device</label>`;
+    body.parentNode.insertBefore(gate, body);
+    gate.querySelector('[data-load]').addEventListener('click', () => {
+      if (gate.querySelector('[data-remember]').checked) { try { localStorage.setItem(EMBED_KEY + key, '1'); } catch (e) {} }
+      gate.remove();
+      body.hidden = false;
+      load();
+    });
+  }
+
   function loadScript(id, src, onerror) {
     if (document.getElementById(id)) return false;
     const sc = document.createElement('script');
@@ -462,7 +500,7 @@
         }</div>`;
       const body = el.querySelector('.x-feed-body');
       const fallback = embedFallback(body, 'x', 'Posts');
-      whenVisible(el, () => {
+      gateEmbed(el, 'x', body, () => {
         if (!loadScript('x-widgets', 'https://platform.twitter.com/widgets.js', fallback) && window.twttr && window.twttr.widgets) window.twttr.widgets.load(el);
         setTimeout(fallback, 9000);
       });
@@ -479,7 +517,7 @@
         </div>`;
       const body = el.querySelector('.x-feed-body');
       const fallback = embedFallback(body, 'tiktok', 'Videos');
-      whenVisible(el, () => {
+      gateEmbed(el, 'tiktok', body, () => {
         if (!loadScript('tiktok-embed', 'https://www.tiktok.com/embed.js', fallback) && window.tiktokEmbed && window.tiktokEmbed.lib) window.tiktokEmbed.lib.render(body.querySelectorAll('.tiktok-embed'));
         setTimeout(fallback, 10000);
       });
@@ -523,7 +561,7 @@
         if ([...body.querySelectorAll('iframe')].some(f => f.offsetHeight > 80)) return;
         el.innerHTML = card();
       };
-      whenVisible(el, () => {
+      gateEmbed(el, 'instagram', body, () => {
         if (!loadScript('ig-embed', 'https://www.instagram.com/embed.js', fallback) && window.instgrm) window.instgrm.Embeds.process();
         setTimeout(fallback, 10000);
       });
@@ -556,6 +594,9 @@
       if (CONFIG.contactEmail) document.querySelectorAll('[data-contact]').forEach(el => {
         el.innerHTML = `email <a href="mailto:${esc(CONFIG.contactEmail)}">${esc(CONFIG.contactEmail)}</a>`;
       });
+      // Target for the "Skip to main content" link at the top of every page.
+      const mainEl = document.querySelector('main');
+      if (mainEl) { if (!mainEl.id) mainEl.id = 'main'; if (!mainEl.hasAttribute('tabindex')) mainEl.setAttribute('tabindex', '-1'); }
       hydrateIcons();
       document.querySelectorAll('[data-social]').forEach(el => {
         el.innerHTML = socialButtons(el.dataset.social.split(','), el.hasAttribute('data-labels'));
@@ -869,6 +910,6 @@
   window.BTR = {
     CONFIG, mount, track, whenAdmin, toggleTheme, icon, esc, stripHtml, truncate, fmtDate, fmtDuration,
     fetchFeed, loadPosts, parseCSV, schoolLogo, schoolKey, initialsBadge, socialButtons, postCard, hydrateIcons, xFeed, socialEmbed,
-    cloud, slideHTML, heroRotator
+    cloud, slideHTML, heroRotator, resetEmbedChoices
   };
 })();

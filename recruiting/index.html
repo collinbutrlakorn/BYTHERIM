@@ -132,8 +132,9 @@
 
   <!-- Recruiting sub-header: the section logo sits large on the left with
        the section's own tabs beside it, the way a recruiting site reads. -->
-  <div class="recruiting-header">
-    <div class="recruiting-brand" onclick="switchTab('rankings')" title="Recruiting home">
+  <div class="recruiting-header" role="region" aria-label="Recruiting sections">
+    <div class="recruiting-brand" onclick="switchTab('rankings')" title="Recruiting home" role="button" tabindex="0" aria-label="Recruiting home"
+         onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); switchTab('rankings'); }">
       <img src="recruitingrplogo.png" alt="BYTHERIM Recruiting" class="recruiting-logo-img"
            onerror="this.style.display='none';">
     </div>
@@ -147,15 +148,15 @@
   </div>
   <!-- END OF UPDATED HEADER -->
 
-  <div class="container">
+  <main id="main" class="container">
     <!-- GLOBAL BACK BUTTON -->
     <button id="globalBackBtn" class="back-btn" onclick="goBack()" style="display: none; margin-bottom: 1.25rem;">← Go Back</button>
 
     <div id="rankings-tab" class="tab-content active">
       <div class="controls-bar">
-        <input type="text" id="searchInput" class="search-input" placeholder="Search player or school..." onkeyup="filterRecruits()">
+        <input type="text" id="searchInput" aria-label="Search player or school" class="search-input" placeholder="Search player or school..." onkeyup="filterRecruits()">
         <div class="filter-group">
-          <select id="classFilter" class="select-input" onchange="filterRecruits()">
+          <select id="classFilter" aria-label="Recruiting class" class="select-input" onchange="filterRecruits()">
             <option value="OVERALL">Overall Rankings (All Classes)</option>
             <option value="2028" selected>Class of 2028</option>
             <option value="2029">Class of 2029</option>
@@ -171,7 +172,7 @@
             <option value="2039">Class of 2039</option>
             <option value="2040">Class of 2040</option>
           </select>
-          <select id="stateFilter" class="select-input" onchange="filterRecruits()">
+          <select id="stateFilter" aria-label="State" class="select-input" onchange="filterRecruits()">
             <option value="ALL">All States / Regions</option>
             <option value="INT">International</option>
             <option value="AL">Alabama (AL)</option><option value="AK">Alaska (AK)</option><option value="AZ">Arizona (AZ)</option><option value="AR">Arkansas (AR)</option>
@@ -189,7 +190,7 @@
             <option value="VT">Vermont (VT)</option><option value="VA">Virginia (VA)</option><option value="WA">Washington (WA)</option><option value="WV">West Virginia (WV)</option>
             <option value="WI">Wisconsin (WI)</option><option value="WY">Wyoming (WY)</option>
           </select>
-          <select id="posFilter" class="select-input" onchange="filterRecruits()">
+          <select id="posFilter" aria-label="Position" class="select-input" onchange="filterRecruits()">
             <option value="ALL">All Positions</option>
             <option value="PG">Point Guard (PG)</option>
             <option value="CG">Combo Guard (CG)</option>
@@ -198,13 +199,13 @@
             <option value="PF">Power Forward (PF)</option>
             <option value="C">Center (C)</option>
           </select>
-          <select id="starFilter" class="select-input" onchange="filterRecruits()">
+          <select id="starFilter" aria-label="Star rating" class="select-input" onchange="filterRecruits()">
             <option value="ALL">All Star Ratings</option>
             <option value="5">5-Star Prospects</option>
             <option value="4">4-Star Prospects</option>
             <option value="3">3-Star Prospects</option>
           </select>
-          <select id="commitFilter" class="select-input" onchange="filterRecruits()">
+          <select id="commitFilter" aria-label="Commitment status" class="select-input" onchange="filterRecruits()">
             <option value="ALL">Any Commit Status</option>
             <option value="COMMITTED">Committed</option>
             <option value="UNCOMMITTED">Uncommitted</option>
@@ -236,7 +237,7 @@
       <div class="controls-bar">
         <div class="filter-group" style="width: 100%; justify-content: flex-start;">
           <input type="text" id="schoolSearchInput" class="search-input" placeholder="Search school..." onkeyup="renderSchoolRankings()">
-          <select id="schoolRankingsYearFilter" class="select-input" onchange="renderSchoolRankings()" style="min-width: 260px;">
+          <select id="schoolRankingsYearFilter" aria-label="Rankings year" class="select-input" onchange="renderSchoolRankings()" style="min-width: 260px;">
             <option value="ALL">All Time Class (Overall)</option>
             <option value="2028" selected>Class of 2028</option>
             <option value="2029">Class of 2029</option>
@@ -292,7 +293,7 @@
         </div>
         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
           <input type="text" id="statsSearchInput" class="search-input" placeholder="Search player..." onkeyup="renderStatsDashboard()">
-          <select id="statsClassFilter" class="select-input" onchange="renderStatsDashboard()">
+          <select id="statsClassFilter" aria-label="Class" class="select-input" onchange="renderStatsDashboard()">
             <option value="ALL">All Classes</option>
             <option value="2028" selected>Class of 2028</option><option value="2029">Class of 2029</option><option value="2030">Class of 2030</option><option value="2031">Class of 2031</option>
             <option value="2032">Class of 2032</option><option value="2033">Class of 2033</option><option value="2034">Class of 2034</option><option value="2035">Class of 2035</option>
@@ -380,7 +381,7 @@
     <div id="accoladeDetail-tab" class="tab-content">
       <div id="accoladeDetailContainer"></div>
     </div>
-  </div>
+  </main>
 
   <!-- External JavaScript Link -->
   <script src="../rp/js/teams-master.js"></script>

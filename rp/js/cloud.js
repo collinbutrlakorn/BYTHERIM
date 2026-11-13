@@ -95,7 +95,7 @@
             this.fb.auth().onAuthStateChanged(async u => {
               this.user = u || null;
               this.admin = u ? await this.checkAdmin() : false;
-              if (u) this.db.doc(`users/${u.uid}`).set({ email: u.email || '', name: u.displayName || '' }, { merge: true }).catch(() => {});
+              if (u) this.scrubUserDoc(u);
               this.renderSlot();
               this._subs.forEach(fn => { try { fn(this.user); } catch (e) { console.error(e); } });
               if (first) { first = false; resolve(); setTimeout(() => this.countPage(), 0); }
@@ -125,6 +125,52 @@
       }
     },
     async signOut() { if (this.enabled) await this.fb.auth().signOut(); },
+
+    // The first time on a device, say what signing in stores before Google
+    // opens; after that it goes straight through.
+    signInPrompt() {
+      if (!this.enabled) return;
+      let seen = false;
+      try { seen = localStorage.getItem('btr-signin-ok') === '1'; } catch (e) {}
+      if (seen || typeof document === 'undefined') return this.signIn();
+      this.injectStyles();
+      const opener = document.activeElement;
+      const el = document.createElement('div');
+      el.className = 'cloud-modal';
+      const link = 'style="color:var(--acct-accent);text-decoration:underline"';
+      el.innerHTML = `<div class="cloud-card" role="dialog" aria-modal="true" aria-labelledby="cloudSignTitle">
+        <h2 id="cloudSignTitle">Sign in with Google</h2>
+        <p>Signing in is optional. It saves your RP universe and draft boards to your account so they follow you across devices.</p>
+        <p>BYTHERIM stores your account ID, your saves and your boards. Google keeps your name, email and photo for the sign-in. See the <a href="/privacy.html" ${link}>Privacy Policy</a> and <a href="/terms.html" ${link}>Terms of Use</a>.</p>
+        <div class="row"><button type="button" class="primary" data-go>Continue with Google</button><button type="button" data-close>Not now</button></div></div>`;
+      const close = () => { el.remove(); document.removeEventListener('keydown', onKey); if (opener && opener.focus) opener.focus(); };
+      const onKey = e => { if (e.key === 'Escape') close(); };
+      document.addEventListener('keydown', onKey);
+      el.addEventListener('click', ev => {
+        if (ev.target === el || ev.target.hasAttribute('data-close')) { close(); return; }
+        if (ev.target.hasAttribute('data-go')) {
+          try { localStorage.setItem('btr-signin-ok', '1'); } catch (e) {}
+          el.remove(); document.removeEventListener('keydown', onKey);
+          this.signIn();
+        }
+      });
+      document.body.appendChild(el);
+      el.querySelector('[data-go]').focus();
+    },
+
+    // Name and email were once copied into each person's database record.
+    // Nothing reads them (Firebase Authentication already holds them), so
+    // they're no longer written, and old copies are cleared once per device.
+    scrubUserDoc(u) {
+      try {
+        const key = 'btr-users-clean-' + u.uid;
+        if (localStorage.getItem(key) === '1') return;
+        const FV = this.fb.firestore && this.fb.firestore.FieldValue;
+        if (!FV || !FV.delete) return;
+        this.db.doc(`users/${u.uid}`).set({ email: FV.delete(), name: FV.delete() }, { merge: true })
+          .then(() => { try { localStorage.setItem(key, '1'); } catch (e) {} }).catch(() => {});
+      } catch (e) { /* best effort */ }
+    },
 
     // ---------- admins ----------
     // Whether the signed-in account is on the admin list. A weak connection
@@ -373,7 +419,7 @@
     pageKey() {
       const p = location.pathname.replace(/\/index\.html$/, '/').replace(/\.html$/, '');
       const known = { '/': 'home', '/rp/': 'rp_hub', '/rp/ncaa': 'ncaa_rp', '/rp/draft': 'draft_rp', '/rp/guide': 'rp_guide', '/recruiting/': 'recruiting',
-        '/draft': 'big_board', '/podcast': 'podcast', '/nba': 'nba', '/about': 'about', '/privacy': 'privacy', '/terms': 'terms' };
+        '/draft': 'big_board', '/podcast': 'podcast', '/nba': 'nba', '/about': 'about', '/privacy': 'privacy', '/terms': 'terms', '/accessibility': 'accessibility' };
       return known[p] || this.usageKey(p);
     },
     bump(path, n = 1) {
@@ -495,7 +541,7 @@
       if (!this.enabled) { slot.innerHTML = ''; return; }
       const esc = v => String(v || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
       if (!this.user) {
-        slot.innerHTML = `<button type="button" class="account-btn" onclick="Cloud.signIn()"><svg viewBox="0 0 48 48" width="16" height="16" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.2l7.8 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 7l7.4 5.7c4.3-4 6.9-9.9 6.9-17.2z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-2.9-.8-4.7s.3-3.3.8-4.7l-7.8-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.8l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.8 6.1C6.6 42.6 14.6 48 24 48z"/></svg><span>Sign in</span></button>`;
+        slot.innerHTML = `<button type="button" class="account-btn" onclick="Cloud.signInPrompt()"><svg viewBox="0 0 48 48" width="16" height="16" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.2l7.8 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 7l7.4 5.7c4.3-4 6.9-9.9 6.9-17.2z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-2.9-.8-4.7s.3-3.3.8-4.7l-7.8-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.8l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.8 6.1C6.6 42.6 14.6 48 24 48z"/></svg><span>Sign in</span></button>`;
         return;
       }
       const u = this.user;
