@@ -1,5 +1,5 @@
 {
- "updated": "2026-11-16T19:49:29.306Z",
+ "updated": "2026-11-17T04:09:52.415Z",
  "source": "barttorvik.com, sports-reference.com, basketball-reference.com",
  "seasons": {
   "2022-23": {
@@ -10193,20 +10193,20 @@
      "label": "2026-27",
      "team": "South East Melbourne Phoenix (NBL)",
      "stats": {
-      "G": "12",
-      "MP": "24.8",
+      "G": "13",
+      "MP": "25.3",
       "PTS": "12.8",
-      "REB": "4.8",
-      "AST": "2.3",
+      "REB": "4.7",
+      "AST": "2.5",
       "STL": "0.8",
-      "BLK": "0.3",
-      "TS%": "61.2%",
-      "eFG%": "61.0%",
-      "2P%": "62.3%",
-      "3P%": "39.6%",
+      "BLK": "0.2",
+      "TS%": "59.6%",
+      "eFG%": "59.3%",
+      "2P%": "62.7%",
+      "3P%": "37.1%",
       "FT%": "56.0%",
-      "3Pr": "0.46",
-      "FTr": "0.22"
+      "3Pr": "0.48",
+      "FTr": "0.19"
      }
     }
    ]
@@ -12268,6 +12268,6 @@
    ]
   }
  },
- "torvikUpdated": "2026-11-16T19:49:29.306Z",
+ "torvikUpdated": "2026-11-17T04:09:52.415Z",
  "torvikVia": "sports-reference.com"
 }
