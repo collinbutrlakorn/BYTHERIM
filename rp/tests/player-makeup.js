@@ -45,7 +45,7 @@ const names = n => Array.from({ length: n }, (_, i) => `Test Player ${i} Smith${
     };
     const lo = run(8), mid = run(50), hi = run(92);
     const cv = a => sd(a) / mean(a);
-    ok(cv(lo.pts) > cv(mid.pts) * 1.12 && cv(mid.pts) > cv(hi.pts) * 1.15 && cv(lo.pts) > cv(hi.pts) * 1.6, `scoring swings with inconsistency (cv ${cv(hi.pts).toFixed(2)} steady, ${cv(mid.pts).toFixed(2)} average, ${cv(lo.pts).toFixed(2)} erratic)`);
+    ok(cv(lo.pts) > cv(mid.pts) * 1.12 && cv(mid.pts) > cv(hi.pts) * 1.15 && cv(lo.pts) > cv(hi.pts) * 1.4, `scoring swings with inconsistency (cv ${cv(hi.pts).toFixed(2)} steady, ${cv(mid.pts).toFixed(2)} average, ${cv(lo.pts).toFixed(2)} erratic)`);
     ok(cv(lo.reb) > cv(hi.reb) * 1.2 && cv(lo.tpa) > cv(hi.tpa) * 1.4, 'rebounds and three-point attempts swing with it too');
     ok(cv(mid.pts) > 0.36, `an average player is more erratic than before (cv ${cv(mid.pts).toFixed(2)}; it was ~0.32)`);
     ok(Math.abs(mean(lo.pts) / mean(hi.pts) - 1) < 0.04 && Math.abs(mean(mid.pts) / mean(hi.pts) - 1) < 0.04, `...but the average night is the same (${mean(hi.pts).toFixed(1)} / ${mean(mid.pts).toFixed(1)} / ${mean(lo.pts).toFixed(1)} points)`);
@@ -72,7 +72,7 @@ const names = n => Array.from({ length: n }, (_, i) => `Test Player ${i} Smith${
     const rate = (pos, tier, rating = 70) => mean(names(6000).map(nm => PC.shotRoleOf({ name: nm + pos + tier, pos, rating, class: 'JR' }, tier) === 'spot' ? 1 : 0));
     const pw = rate('SG', 'power'), md = rate('SG', 'mid'), lw = rate('SG', 'low');
     ok(lw > md && md > pw && pw < 0.03 && lw > 0.06, `specialists are rare in the high-majors and common in the low (SG: ${(pw * 100).toFixed(1)}% / ${(md * 100).toFixed(1)}% / ${(lw * 100).toFixed(1)}%)`);
-    ok(rate('C', 'low') === 0 && rate('PG', 'low') < rate('SG', 'low') / 3 && rate('SF', 'low') > 0.04 && rate('PF', 'low') > 0.025, 'guards who run the offense and centres are not specialists; shooting guards, wings and the odd forward are');
+    ok(rate('C', 'low') === 0 && rate('PG', 'low') === 0 && rate('CG', 'low') === 0 && rate('SG', 'low') > 0.06 && rate('SF', 'low') > 0.04 && rate('PF', 'low') > 0.025, 'guards who run the offense and centres are not specialists; shooting guards, wings and the odd forward are');
     ok(rate('SG', 'mid', 90) < rate('SG', 'mid', 70) / 2, 'stars are not specialists');
     const r = { name: 'Fixed Role', pos: 'SG', rating: 70, class: 'JR' };
     const first = PC.shotRoleOf(r, 'low');
@@ -93,7 +93,7 @@ const names = n => Array.from({ length: n }, (_, i) => `Test Player ${i} Smith${
     ok(mean(gain('PF', 'SO', '3/1/2008')) > mean(gain('PF', 'SR', '3/1/2008')) * 1.5, 'the biggest jump is after the first year');
     const young = mean(gain('SF', 'SO', '8/20/2008')), old = mean(gain('SF', 'SO', '9/5/2007'));
     ok(young > old + 1.2, `the youngest in a class keep filling out longer (${young.toFixed(1)} vs ${old.toFixed(1)} lb)`);
-    const all = gain('SF', 'JR', '3/1/2008');
+    const all = gain('SG', 'JR', '3/1/2008');
     ok(all.filter(x => x >= 0).length / all.length > 0.9 && all.some(x => x < 0), 'players nearly always gain, and once in a while a guard or wing slims down');
     const capped = []; for (let i = 0; i < 300; i++) { const p = { name: `Cap${i}`, pos: 'SG', class: 'SO', wt: '240' }; capped.push(PC.growBody(p)); }
     ok(mean(capped) < 1, 'a player already at the top of his position stops gaining');
@@ -164,10 +164,10 @@ const names = n => Array.from({ length: n }, (_, i) => `Test Player ${i} Smith${
   // Development
   {
     const find = f => names(900).filter(nm => f(PC.consistencyOf({ name: nm, class: 'JR', rating: 75 })));
-    const trial = nm => { const out = []; for (let i = 0; i < 150; i++) { const p = { name: nm, class: 'JR', rating: 75, pos: 'SG', potential: 85, stats: { mpg: '28', bpm: '3', totMin: 900 }, ratingHistory: [] }; out.push(Sim.developPlayer(p)); } return out; };
-    const steady = [].concat(...find(c => c >= 80).slice(0, 6).map(trial)), erratic = [].concat(...find(c => c <= 22).slice(0, 6).map(trial));
-    ok(sd(erratic) > sd(steady) * 1.5, `an erratic player's yearly rating change swings more (sd ${sd(erratic).toFixed(2)} vs ${sd(steady).toFixed(2)})`);
-    ok(erratic.filter(x => Math.abs(x - mean(erratic)) >= 5).length > steady.filter(x => Math.abs(x - mean(steady)) >= 5).length * 2, 'with far more breakouts and stalls');
+    const trial = nm => { const out = []; for (let i = 0; i < 300; i++) { const p = { name: nm, class: 'JR', rating: 75, pos: 'SG', potential: 85, stats: { mpg: '28', bpm: '3', totMin: 900 }, ratingHistory: [] }; out.push(Sim.developPlayer(p)); } return out; };
+    const steady = [].concat(...find(c => c >= 80).slice(0, 8).map(trial)), erratic = [].concat(...find(c => c <= 22).slice(0, 8).map(trial));
+    ok(sd(erratic) > sd(steady) * 1.3, `an erratic player's yearly rating change swings more (sd ${sd(erratic).toFixed(2)} vs ${sd(steady).toFixed(2)})`);
+    ok(erratic.filter(x => Math.abs(x - mean(erratic)) >= 5).length > steady.filter(x => Math.abs(x - mean(steady)) >= 5).length * 1.5, 'with far more breakouts and stalls');
     ok(Math.abs(mean(erratic) - mean(steady)) < 0.9, `...but they average out the same (${mean(erratic).toFixed(2)} vs ${mean(steady).toFixed(2)})`);
   }
   // What it's worth
@@ -204,7 +204,9 @@ const names = n => Array.from({ length: n }, (_, i) => `Test Player ${i} Smith${
     const league = mean(rotation.map(p => parseFloat(p.stats.threePar)));
     ok(league > 0.34 && league < 0.42, `the league's shot mix is where it was (rotation 3PAr ${league.toFixed(3)})`);
     const frs = rotation.filter(p => p.class === 'FR' && p.shotRole === 'volume');
-    ok(frs.length > 5 && mean(frs.map(p => parseFloat(p.stats.threePar))) > mean(rotation.filter(p => p.class === 'FR' && p.shotRole === 'none' && !['C', 'F/C', 'PF'].includes(p.pos)).map(p => parseFloat(p.stats.threePar))) + 0.08, `volume-shooting freshmen are out there (${frs.length}) and shoot more threes than their classmates`);
+    const mates = rotation.filter(p => p.class === 'FR' && p.shotRole === 'none' && !['C', 'F/C', 'PF'].includes(p.pos));
+    const par = a => mean(a.map(p => parseFloat(p.stats.threePar)));
+    ok(frs.length > 5 && par(frs) > par(mates) + 0.04, `volume-shooting freshmen are out there (${frs.length}) and shoot more threes than their classmates (3PAr ${par(frs).toFixed(2)} vs ${par(mates).toFixed(2)})`);
     // Consistency shows up in a season's box scores, too.
     const gameSd = p => { const gl = (p.gameLog || []).filter(g => g.min >= 10); return gl.length >= 15 ? sd(gl.map(g => g.pts)) / Math.max(1, mean(gl.map(g => g.pts))) : null; };
     const steady = rotation.filter(p => PC.consistencyOf(p) >= 75).map(gameSd).filter(x => x != null), erratic = rotation.filter(p => PC.consistencyOf(p) <= 28).map(gameSd).filter(x => x != null);

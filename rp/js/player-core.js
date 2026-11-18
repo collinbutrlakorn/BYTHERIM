@@ -104,7 +104,11 @@
     mean += youthOf(p) * (YOUNG_YEARLY[cls] || 0) * (groupOf(p.pos) === 'guard' ? 0.8 : 1.1);
     mean *= roomFactor(w, p.pos);
     let g = mean + (r() + r() - 1) * 4;
-    if (g < 0) g = r() < 0.4 ? Math.round(g / 2) : 0;
+    if (g < 0) g = 0;
+    // Now and then a guard or wing who has been around a while cuts down
+    // to get quicker.
+    const lean = (groupOf(p.pos) === 'guard' || groupOf(p.pos) === 'wing') && (cls === 'JR' || cls === 'SR' || cls === 'GR');
+    if (lean && r() < 0.05) g = -(1 + r() * 3);
     const gain = Math.round(g);
     if (gain) p.wt = fmtWeight(p.wt != null ? p.wt : p.weight, Math.max(150, w + gain));
     return gain;
@@ -115,7 +119,7 @@
   // off-ball guards and wings (the odd forward) whose shots are nearly all
   // from deep. Far more common where talent is thin. And some freshmen
   // launch threes they haven't learned to hit yet.
-  const SPOT_RATE = { PG: 0.012, CG: 0.03, G: 0.04, SG: 0.075, W: 0.065, 'G/F': 0.07, SF: 0.065, F: 0.04, PF: 0.04, 'F/C': 0.008, C: 0 };
+  const SPOT_RATE = { PG: 0, CG: 0, G: 0, SG: 0.075, W: 0.065, 'G/F': 0.07, SF: 0.065, F: 0.04, PF: 0.04, 'F/C': 0.008, C: 0 };
   const VOLUME_RATE = { PG: 0.08, CG: 0.12, G: 0.12, SG: 0.16, W: 0.14, 'G/F': 0.14, SF: 0.13, F: 0.08, PF: 0.06, 'F/C': 0.02, C: 0.005 };
   const TIER_MULT = { power: 0.25, mid: 0.8, low: 1.4 };
 

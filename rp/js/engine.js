@@ -4124,7 +4124,9 @@ window.SimEngine = {
     // freshman takes more than he can hit.
     if (roleFx) {
       if (roleFx.par != null) threePar = Math.max(threePar, roleFx.par);
-      if (roleFx.parAdd) threePar = Math.min(0.72, Math.max(threePar, threePar + roleFx.parAdd));
+      // A volume-shooting freshman launches more, but a ball-handler still
+      // runs the offense: a position's usual ceiling (and a little past it).
+      if (roleFx.parAdd) threePar = Math.max(threePar, Math.min(0.72, threePar + roleFx.parAdd, (PAR_CEILING[pos] !== undefined ? PAR_CEILING[pos] : 0.6) + 0.04));
       if (roleFx.pct) threePPct = Math.min(0.46, Math.max(0.24, threePPct + roleFx.pct));
       if (shotRole === 'spot') ftPct = Math.min(0.93, Math.max(ftPct, 0.78 + this.shootingTouch(player) * 0.03));
     }
