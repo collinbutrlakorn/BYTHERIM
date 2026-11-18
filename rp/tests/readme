@@ -211,6 +211,14 @@ into its draft; unfilled copies of the current board are skipped), and that
 freshmen, pros and look-alikes at other schools are skipped. It writes to a
 temp file, never the real `data/stats.json`.
 
+**script-players.js** — the editable list of scripted players
+(js/script-core.js): each one's written minimums (points, rebounds,
+assists, steals, blocks, BPM), starter and minutes pins, the position
+override, the growth spurt, and the scripted drafts. Checks the pieces on
+their own (a correction moves production from teammates and leaves the team
+line exactly as it was), then plays two seasons and a draft with all of them
+in the league and holds each to what was written.
+
 ## Adding a test
 
 `harness.js` boots the sim against the real `ncaa.html` in a headless DOM:

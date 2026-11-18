@@ -3340,6 +3340,7 @@ window.SimEngine = {
     this.state.seasonInitialized = true;
     this.state.leagueShootingTotals = { pts: 0, fga: 0, fta: 0 };
     this.state.activePlayers.forEach(p => {
+      if (typeof ScriptCore !== 'undefined') ScriptCore.applyIdentity(p);
       p.injuredUntilWeek = null; p.gamesMissed = 0; p.startedEarly = false; p.lostSpot = false;
       if (p.injury && p.injury.year !== this.state.year) p.injury = null;
       // Clear the in-season form marker only. Do NOT restore rating from
@@ -3400,7 +3401,26 @@ window.SimEngine = {
     this.state.effAcc = { pts: 0, load: 0 };
     this.updateEfficiencyNorm();
     this.generateSeasonSchedule();
+    // A growth spurt (script-core.js) is planned over the season's weeks.
+    if (typeof ScriptCore !== 'undefined') {
+      this.state.activePlayers.forEach(p => ScriptCore.planGrowth(p, this.state.maxWeeks || 15, this.state.year));
+    }
     this.computePreseasonAwards();
+  },
+
+  // This week's growth spurts, with a line in the news when one starts and
+  // when it ends.
+  applyScriptedGrowth(week) {
+    if (typeof ScriptCore === 'undefined') return;
+    this.state.activePlayers.forEach(p => {
+      if (!p.scriptGrowth) return;
+      const r = ScriptCore.growthForWeek(p, week);
+      if (!r) return;
+      const say = (title, sub) => { this.logNews(`${title}: ${sub}`); this.toast(title, sub); };
+      if (r.first && r.last) say(`${p.name} has a growth spurt`, `${p.school} · now listed at ${r.ht}`);
+      else if (r.first) say(`${p.name} is in the middle of a growth spurt`, `${p.school} · now listed at ${r.ht}`);
+      else if (r.last) say(`${p.name} has finished growing`, `${p.school} · now listed at ${r.ht}`);
+    });
   },
 
   // Each team's players are projected, together, to score about what the
@@ -3444,6 +3464,8 @@ window.SimEngine = {
           const cap = e.ppg * 0.78 + 0.3, r = parseFloat(e.rpg) || 0;
           if (r > cap) e.rpg = cap + (r - cap) * 0.2;
         }
+        // Scaling must not undo a scripted player's minimums.
+        if (typeof ScriptCore !== 'undefined') ScriptCore.liftExpectations(e, p);
       });
     });
   },
@@ -3557,6 +3579,8 @@ window.SimEngine = {
   // dozen games; if he isn't producing, form takes his spot from there.
   startScore(p) {
     let v = parseFloat(p.rating) || 70;
+    // What he does beyond his rating counts toward the starting five too.
+    v += Math.max(-2, Math.min(3, this.traitEffects(p).impact));
     if (p.class === 'FR') {
       const rsci = parseFloat(p.rsci) || null;
       const leash = rsci && rsci <= 5 ? 3.5 : rsci && rsci <= 25 ? 2.5 : rsci && rsci <= 60 ? 1.2 : 0;
@@ -3579,7 +3603,10 @@ window.SimEngine = {
     // treated as starters rather than dropping to the bench — a marked
     // starter previously ended up at 0 minutes when another marked player
     // occupied his slot.
-    const startsByRole = (p) => ['focalpoint', 'focal', 'star', 'starter'].includes((p.role || '').replace(/[^a-z]/g, ''));
+    const SC = typeof ScriptCore !== 'undefined' ? ScriptCore : null;
+    const startsByRole = (p) => ['focalpoint', 'focal', 'star', 'starter'].includes((p.role || '').replace(/[^a-z]/g, ''))
+      // A scripted player (see script-core.js) always starts.
+      || !!(SC && SC.starterPin(p));
     const designated = roster.filter(startsByRole);
 
     // The best five play, the way coaches actually start their most
@@ -3675,6 +3702,9 @@ window.SimEngine = {
     // player: a designated focal point starts and carries the offense even
     // if the ratings alone wouldn't put him there.
     const roleWeight = (p) => this.roleWeightFor(p);
+    // What a coach sees: the rating, plus what he does beyond it (a
+    // high-impact player is worth more minutes than his number says).
+    const worth = (p) => (parseFloat(p.rating) || 0) + Math.max(-2, Math.min(3, this.traitEffects(p).impact));
     // Deliberately NOT stored on the team: IndexedDB serialises with
     // structured clone, which throws on functions and silently killed
     // every save. The role multiplier is derived on demand instead.
@@ -3710,7 +3740,7 @@ window.SimEngine = {
 
     const weights = [];
     starters.forEach(p => {
-      const base = 22 + Math.max(-6, Math.min(9, (parseFloat(p.rating) - refRating) * 0.62));
+      const base = 22 + Math.max(-6, Math.min(9, (worth(p) - refRating) * 0.62));
       weights.push({ p, w: base * youthFactor(p) * roleWeight(p) });
     });
     // How deep this staff goes. Some teams ride a seven-man rotation with
@@ -3719,7 +3749,11 @@ window.SimEngine = {
     // seven-man rotation impossible, so depth is a team trait — nudged by
     // the coach, since a pressing team needs fresh legs.
     const pressBonus = (team.coachProfile && team.coachProfile.steals > 1.08) ? 1 : 0;
-    const rotationDepth = 7 + Math.floor(Math.random() * 3) + pressBonus;   // 7-10 men
+    // A staff's habit, so it stays the same every time the depth chart is
+    // rebuilt. It used to be re-rolled on every review, which swung a bench
+    // player between 14 and 28 minutes from one review to the next.
+    const depthRoll = typeof PlayerCore !== 'undefined' ? PlayerCore.hash01(team.school + '|' + this.state.year, 'depth') : Math.random();
+    const rotationDepth = 7 + Math.floor(depthRoll * 3) + pressBonus;   // 7-10 men
     const benchInRotation = Math.max(1, rotationDepth - starters.length);
 
     bench.forEach((p, i) => {
@@ -3729,7 +3763,7 @@ window.SimEngine = {
       const depthFactor = inRotation
         ? (1 - i * 0.07)
         : (1 - (benchInRotation - 1) * 0.07) * Math.pow(0.45, i - benchInRotation + 1);
-      const quality = 21 + Math.max(-5, Math.min(6, (parseFloat(p.rating) - refRating) * 0.38));
+      const quality = 21 + Math.max(-5, Math.min(6, (worth(p) - refRating) * 0.38));
       weights.push({ p, w: Math.max(0, quality * depthFactor * youthFactor(p) * roleWeight(p)) });
     });
 
@@ -3764,7 +3798,11 @@ window.SimEngine = {
     const cast = [], free = [];
     weights.forEach(x => {
       const key = (x.p.role || '').replace(/[^a-z]/g, '');
-      if (bands[key]) { x.band = bands[key]; cast.push(x); }
+      // A scripted player's minimum minutes (script-core.js) is the bottom
+      // of his band.
+      const pinned = SC ? SC.minutesFloor(x.p) : 0;
+      if (pinned) { x.band = [pinned, Math.min(37, pinned + 6)]; cast.push(x); }
+      else if (bands[key]) { x.band = bands[key]; cast.push(x); }
       else free.push(x);
     });
 
@@ -4242,11 +4280,14 @@ window.SimEngine = {
     let ortg = 95 + (obpm * 3.2);
     let drtg = 105 - (dbpm * 3.2);
 
-    return {
+    const built = {
       mpg, ppg, rpg, apg, stl, blk, tov, pf, ftPct, fta,
       threePar, threePPct, twoPPct, bpm, obpm, dbpm, ortg, drtg, cons, shotRole,
       orebPct: (isBig ? 9.5 : 3.0) + '%', drebPct: (isBig ? 21.0 : 10.5) + '%', trbPct: (isBig ? 15.0 : 6.8) + '%',
     };
+    // The minimums written for a few players (script-core.js).
+    if (typeof ScriptCore !== 'undefined') ScriptCore.liftExpectations(built, player);
+    return built;
   },
 
 
@@ -4537,6 +4578,7 @@ window.SimEngine = {
       // Revisit depth charts periodically rather than every week, so
       // lineups are responsive without churning constantly.
       if (w > 2 && w % 3 === 0) this.reevaluateRotations();
+      this.applyScriptedGrowth(w);
     }
 
     const playEntry = g => {
@@ -4636,6 +4678,18 @@ window.SimEngine = {
     return { available, multiplier: p => boost.get(p.id) || 1 };
   },
 
+  // How many games a team's regular-season schedule holds.
+  scheduledGamesFor(school) {
+    const sch = this.state.schedule || [];
+    const c = this._schedCount;
+    if (!c || c.n !== sch.length || c.year !== this.state.year) {
+      const m = {};
+      sch.forEach(g => { m[g.home] = (m[g.home] || 0) + 1; m[g.away] = (m[g.away] || 0) + 1; });
+      this._schedCount = { n: sch.length, year: this.state.year, m };
+    }
+    return this._schedCount.m[school] || 0;
+  },
+
   // One game between two teams, with injuries: whoever is hurt sits, and
   // anyone who gets hurt during the game leaves partway through (his
   // minutes go to his teammates) and misses the games it takes to heal.
@@ -4671,6 +4725,13 @@ window.SimEngine = {
     });
     home.simData.rosterRef = homeFull;
     away.simData.rosterRef = awayFull;
+    // A scripted player who has fallen behind the pace of his minimums gets
+    // the difference from his teammates (script-core.js); team totals stay.
+    if (typeof ScriptCore !== 'undefined') {
+      const left = t => Math.max(2, this.scheduledGamesFor(t.school) - ((t.simData.wins || 0) + (t.simData.losses || 0)));
+      ScriptCore.correctBoxes(result.homePlayerBoxes, result.awayPlayerBoxes, left(home));
+      ScriptCore.correctBoxes(result.awayPlayerBoxes, result.homePlayerBoxes, left(away));
+    }
     // Those already out sat this one; then the new injuries.
     [homeFull || home.roster, awayFull || away.roster].forEach(list => (list || []).forEach(p => {
       if (this.isInjuredOut(p) && !p.injury.seasonEnding) {
@@ -4887,9 +4948,13 @@ window.SimEngine = {
       res.players.forEach((v, p) => {
         const st = p[field];
         if (!st) return;
-        st.bpm = v.bpm.toFixed(1);
-        st.obpm = v.obpm.toFixed(1);
-        st.dbpm = v.dbpm.toFixed(1);
+        let b = v.bpm, o = v.obpm, d = v.dbpm;
+        // A scripted player's season never falls under his BPM minimum.
+        const lift = typeof ScriptCore !== 'undefined' ? ScriptCore.bpmLift(p, b, o, d, st.gp || 0, this.state.year) : null;
+        if (lift) { b = lift.bpm; o = lift.obpm; d = lift.dbpm; }
+        st.bpm = b.toFixed(1);
+        st.obpm = o.toFixed(1);
+        st.dbpm = d.toFixed(1);
       });
       if (!confOnly) {
         // Kept for anything that wants a team's adjusted efficiency.
@@ -5273,6 +5338,11 @@ window.SimEngine = {
   // before the column was read) from the roster sheet rows by name.
   scriptedDraftFor(player) {
     if (!player) return null;
+    // The script table (script-core.js) outranks the sheet's Draft column.
+    if (typeof ScriptCore !== 'undefined') {
+      const t = ScriptCore.draftFor(player, { year: this.upcomingDraftYear() });
+      if (t) { player.scriptedDraft = t; return t; }
+    }
     if (player.scriptedDraft) return player.scriptedDraft;
     const rows = this.state.rawRosterRows || [];
     if (!rows.length) return null;
@@ -5950,6 +6020,8 @@ window.SimEngine = {
     }
     const draft = this.parseDraftSpec(getVal(['draft', 'draftpick', 'scripteddraft'], ''));
     if (draft) p.scriptedDraft = draft;
+    // The sheet re-sends the position and height he arrived with.
+    if (typeof ScriptCore !== 'undefined') ScriptCore.applyIdentity(p);
   },
 
   applyScriptedTransfers() {

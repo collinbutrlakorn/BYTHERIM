@@ -161,9 +161,12 @@ function buildMockDraft(board, league, rng = Math.random, fixed = {}, opts = {})
       const si = available.indexOf(slot); if (si >= 0) available.splice(si, 1);
       return;
     }
-    // A ranged lock whose window has closed goes out first — earliest
-    // deadline first if more than one lock collides on the same pick.
-    const overdue = ranged.filter(rl => !drafted.has(rl.entry) && available.includes(rl.entry) && rl.maxPick <= pickNum)
+    // A ranged lock goes out when the window has no room to spare: as many
+    // locks still waiting as picks left inside his window (so two players
+    // both locked into the top three go at #2 and #3 at the latest, rather
+    // than one slipping to #4). Earliest deadline first.
+    const waiting = ranged.filter(rl => !drafted.has(rl.entry) && available.includes(rl.entry));
+    const overdue = waiting.filter(rl => waiting.filter(o => o.maxPick <= rl.maxPick).length >= rl.maxPick - pickNum + 1)
       .sort((a, b) => a.maxPick - b.maxPick)[0];
     if (overdue) {
       picks.push({ pick: pickNum, round: pickNum <= 30 ? 1 : 2, team, player: overdue.entry.player, boardRank: board.indexOf(overdue.entry) + 1, needs: teamNeeds(team), scripted: true });
