@@ -107,7 +107,7 @@ const sum = (rows, k) => rows.reduce((n, r) => n + r.box[k], 0);
   {
     const lift = SC.bpmLift({ name: 'Dante Fletcher' }, 12.1, 8, 4.1, 20, 2030);
     ok(lift && lift.bpm >= 17.5 && lift.bpm <= 19 && Math.abs(lift.obpm + lift.dbpm - lift.bpm) < 1e-9, 'a season under his BPM minimum is raised past it, offense and defense together');
-    const years = [2029, 2030, 2031, 2032, 2033].map(y => SC.bpmLift({ name: 'Dante Fletcher' }, 12, 8, 4, 20, y).bpm.toFixed(1));
+    const years = [2029, 2030, 2031, 2032, 2033, 2034, 2035].map(y => SC.bpmLift({ name: 'Dante Fletcher' }, 12, 8, 4, 20, y).bpm.toFixed(1));
     ok(new Set(years).size >= 4, `and not to the same number every year (${years.join(', ')})`);
     ok(SC.bpmLift({ name: 'Dante Fletcher' }, 21, 12, 7, 20, 2030) === null, 'one above it is left alone');
     ok(SC.bpmLift({ name: 'Dante Fletcher' }, 5, 3, 2, 2, 2030) === null && SC.bpmLift({ name: 'Payton Gibson' }, -3, -2, -1, 30, 2030) === null, 'and it needs a few games, and a BPM minimum to begin with');
