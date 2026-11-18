@@ -2131,12 +2131,14 @@ window.SimEngine = {
   summerCardHTML(r) {
     const sm = r.summer, hon = (r.summerHonors || []).slice().sort((a, b) => b.season - a.season);
     if (!sm && !hon.length) return '';
-    const ln = (label, x) => x ? `<tr><td>${this.esc(label)}</td><td>${x.gp}</td><td>${x.ppg}</td><td>${x.rpg}</td><td>${x.apg}</td><td>${x.fg}</td><td>${x.fg3}</td><td>${x.bpm > 0 ? '+' : ''}${x.bpm}</td></tr>` : '';
+    // The stats he led (all the AAU circuits together, or the FIBA field) are in bold.
+    const L = (x, k, v) => (typeof LeadersCore !== 'undefined' ? LeadersCore.markList(v === undefined ? x[k] : v, k, x.lead) : (v === undefined ? x[k] : v));
+    const ln = (label, x) => x ? `<tr><td>${this.esc(label)}</td><td>${x.gp}</td><td>${L(x, 'ppg')}</td><td>${L(x, 'rpg')}</td><td>${L(x, 'apg')}</td><td>${L(x, 'fg')}</td><td>${L(x, 'fg3')}</td><td>${L(x, 'bpm', `${x.bpm > 0 ? '+' : ''}${x.bpm}`)}</td></tr>` : '';
     const cur = this.currentSummer();
     const fe = sm && sm.fiba && cur && cur.season === sm.season && cur.fiba ? cur.fiba.short : 'FIBA';
     return `<div class="card rc-block"><h3 class="section-title">Summer circuit</h3>
       ${sm ? `<p class="sub-text-sm">${sm.season}${sm.live ? ' (in progress)' : ''}${sm.team ? ` · ${this.esc(sm.team)} (${this.esc(sm.circuit)})` : ''}${sm.nation && sm.fiba ? ` · ${this.teamTag(sm.nation)} at the ${this.esc(fe)}` : ''}${sm.buzz >= 2 ? ' · <b class="summer-up">Breakout summer</b>' : sm.buzz <= -1 ? ' · <span class="summer-down">Quiet summer</span>' : ''}</p>
-      ${sm.aau || sm.fiba ? `<div class="table-scroll"><table class="data-table compact"><thead><tr><th></th><th>GP</th><th>PPG</th><th>RPG</th><th>APG</th><th>FG%</th><th>3P%</th><th>BPM</th></tr></thead><tbody>${ln(sm.circuit || 'AAU', sm.aau)}${ln(fe, sm.fiba)}</tbody></table></div>` : ''}` : ''}
+      ${sm.aau || sm.fiba ? `<div class="table-scroll"><table class="data-table compact"><thead><tr><th></th><th>GP</th><th>PPG</th><th>RPG</th><th>APG</th><th>FG%</th><th>3P%</th><th>BPM</th></tr></thead><tbody>${ln(sm.circuit || 'AAU', sm.aau)}${ln(fe, sm.fiba)}</tbody></table></div>${typeof LeadersCore !== 'undefined' ? LeadersCore.legend('summer') : ''}` : ''}` : ''}
       ${hon.length ? `<ul class="summer-honors">${hon.map(h => `<li><span class="hs-when">${h.season}</span>${this.esc(h.text)}</li>`).join('')}</ul>` : ''}
     </div>`;
   },
@@ -5399,7 +5401,7 @@ window.SimEngine = {
   // as arrays against one key list to keep saves small.
   ROSTER_KEYS: ['gp','gs','mpg','ppg','oreb','rpg','apg','stl','blk','tov','pf','fgm','fga','fgPct','twoPm','twoPa','twoPPct',
     'threePm','threePa','threePPct','ftm','fta','ftPct','bpm','obpm','dbpm','tsPct','eFgPct','orebPct','drebPct','trbPct',
-    'astPct','tovPct','blkPct','usg','ftr','threePar','ortg','drtg','netRtg'],
+    'astPct','tovPct','blkPct','usg','ftr','threePar','ortg','drtg','netRtg','dreb','rTsPct'],
   archiveRosters(year) {
     const s = this.state;
     if (!s.rosterArchive || typeof s.rosterArchive !== 'object') s.rosterArchive = {};
@@ -5460,6 +5462,67 @@ window.SimEngine = {
     Object.keys(this.state.rosterArchive || {}).forEach(y => { if (this.state.rosterArchive[y].teams[school]) years.add(Number(y)); });
     years.add(this.state.year);
     return [...years].sort((x, y) => y - x);
+  },
+
+  // ---------- Stat leaders (see leaders-core.js) ----------
+  // Every player's line for a season, with the conference he played in: this
+  // season from the active players, a finished one from the roster archive,
+  // and one from before the archive from the players' own season lines.
+  leagueSeasonRows(year) {
+    const s = this.state;
+    const arch = s.rosterArchive && s.rosterArchive[year];
+    // What's on screen this season is p.stats (full season or conference
+    // play only), so that's what the leaders are read from.
+    if (year === s.year && (!arch || s.scopeFilter === 'conf')) {
+      return s.activePlayers.map(p => ({ id: p.id, conf: p.conference, stats: p.stats }));
+    }
+    const rows = [];
+    if (arch) {
+      Object.keys(arch.teams).forEach(school => {
+        const t = arch.teams[school];
+        (t.players || []).forEach(row => {
+          const stats = {};
+          arch.keys.forEach((k, i) => { stats[k] = row[5 + i]; });
+          rows.push({ id: row[0], conf: t.conf, stats });
+        });
+      });
+      return rows;
+    }
+    const seen = new Set();
+    s.activePlayers.concat(s.recruits || [], s.proPlayers || [], s.departedArchive || []).forEach(p => {
+      if (seen.has(p.id)) return;
+      const h = (p.seasonHistory || []).find(x => x.year === year);
+      if (!h || !h.stats) return;
+      seen.add(p.id);
+      rows.push({ id: p.id, conf: h.conference || '', stats: h.stats });
+    });
+    return rows;
+  },
+
+  // Who led what in a season: Map of player id -> { stat: 'n' (the NCAA) | 'c' (his conference) }.
+  leadersFor(year) {
+    const empty = new Map();
+    if (typeof LeadersCore === 'undefined') return empty;
+    const s = this.state;
+    const games = year === s.year ? s.teams.reduce((n, t) => n + ((t.simData && (t.simData.wins + t.simData.losses)) || 0), 0) : 0;
+    const sig = [year, s.rosterArchive && s.rosterArchive[year] ? 1 : 0, s.scopeFilter, s.week, s.phase,
+      s.activePlayers.length, games, (s.seasonHistory || []).length].join('|');
+    let c = this._leadCache;
+    if (!c || c.state !== s) c = this._leadCache = { state: s, sigs: {}, maps: {} };
+    if (c.sigs[year] !== sig) {
+      c.maps[year] = LeadersCore.compute(this.leagueSeasonRows(year));
+      c.sigs[year] = sig;
+    }
+    return c.maps[year];
+  },
+
+  leadMarks(id, year) {
+    return this.leadersFor(year).get(id) || null;
+  },
+
+  // A stat cell, in bold if he led his conference and bold italics if he led the NCAA.
+  leadCell(html, mark) {
+    return mark && typeof LeadersCore !== 'undefined' && html !== '—' ? LeadersCore.mark(html, mark) : html;
   },
 
   // Records the finished season permanently before anything resets for the
@@ -6643,7 +6706,8 @@ window.SimEngine = {
         ht: full.ht, wt: full.wt, hometown: full.hometown, hs: full.hs,
         jersey: full.jersey, rsci: full.rsci, conference: full.conference,
         collegeHistory: full.collegeHistory,
-        stats: full.stats
+        stats: full.stats,
+        leads: this.leadMarks(full.id, this.state.year) || null
       };
     });
     this.state.lastDeclarationsYear = this.state.year;
@@ -7217,7 +7281,7 @@ window.SimEngine = {
         <tr ${isHidden}>
           <td class="rank-cell">#${idx + 1}</td>
           <td>
-            <div class="team-cell-wrap clickable-school" onclick="SimEngine.openTeamModal('${safeSchool}')">
+            <div class="team-cell-wrap clickable-school" onclick="SimEngine.goToTeamPage('${safeSchool}')">
               <img alt="" src="${this.getTeamLogo(t.school)}" class="sm-logo">
               <span class="team-name-cell">${t.school}</span>
             </div>
@@ -7312,7 +7376,7 @@ window.SimEngine = {
           <tr class="${rowClasses}" ${rowStyle}>
             <td class="bold-sub-text">${idx+1}</td>
             <td>
-              <div class="team-cell-wrap clickable-school" onclick="SimEngine.openTeamModal('${t.school.replace(/'/g, "\\'")}')">
+              <div class="team-cell-wrap clickable-school" onclick="SimEngine.goToTeamPage('${t.school.replace(/'/g, "\\'")}')">
                 <img src="${this.getTeamLogo(t.school)}" class="sm-logo" alt="">
                 <span class="conf-team-name"><span class="team-name-cell" title="${this.esc(t.school)}">${this.esc(t.school)}</span>${apTag}</span>
               </div>
@@ -7964,7 +8028,7 @@ window.SimEngine = {
 
   // Shared full-width stat table used for both the current season and each
   // archived season, so a career reads consistently top to bottom.
-  playerStatTable(rowsData, mode) {
+  playerStatTable(rowsData, mode, playerId) {
     const cols = mode === 'adv'
       ? [['bpm','BPM'],['obpm','OBPM'],['dbpm','DBPM'],['tsPct','TS%'],['eFgPct','eFG%'],['rTsPct','rTS%'],
          ['orebPct','OREB%'],['drebPct','DREB%'],['trbPct','TRB%'],['astPct','AST%'],['tovPct','TOV%'],
@@ -7980,12 +8044,13 @@ window.SimEngine = {
     const head = `<tr><th>Season</th><th>School</th><th>Class</th>${cols.map(c => `<th>${c[1]}</th>`).join('')}</tr>`;
     const body = rowsData.map(r => {
       const st = r.stats || {};
+      const marks = playerId != null ? this.leadMarks(playerId, r.year) : null;
       const safeSchool = String(r.school || '').replace(/'/g, "\\'");
       return `<tr>
         <td class="bold-text">${r.year}-${(r.year + 1).toString().slice(2)}</td>
         <td><span class="clickable-school" onclick="SimEngine.goToTeamSeasonFromPlayer('${safeSchool}', ${Number(r.year) || 0})" title="${this.esc(r.school || '')} in ${r.year}-${(r.year + 1).toString().slice(2)}">${r.school || '—'}</span></td>
         <td class="sub-text">${r.class || '—'}</td>
-        ${cols.map(c => `<td>${st[c[0]] !== undefined ? st[c[0]] : '—'}</td>`).join('')}
+        ${cols.map(c => `<td>${this.leadCell(st[c[0]] !== undefined ? st[c[0]] : '—', marks && marks[c[0]])}</td>`).join('')}
       </tr>`;
     }).join('');
 
@@ -8026,9 +8091,10 @@ window.SimEngine = {
 
     const careerBlock = seasons.length === 0
       ? `<p class="sub-text">No games played yet this season.</p>`
-      : `<h3 class="uppercase-title">Box Score</h3>${this.playerStatTable(seasons, 'box')}
-         <h3 class="uppercase-title mt-2">Advanced</h3>${this.playerStatTable(seasons, 'adv')}
-         <h3 class="uppercase-title mt-2">Per 40 Minutes</h3>${this.playerStatTable(seasons, 'p40')}`;
+      : `<h3 class="uppercase-title">Box Score</h3>${this.playerStatTable(seasons, 'box', player.id)}
+         <h3 class="uppercase-title mt-2">Advanced</h3>${this.playerStatTable(seasons, 'adv', player.id)}
+         <h3 class="uppercase-title mt-2">Per 40 Minutes</h3>${this.playerStatTable(seasons, 'p40', player.id)}
+         ${typeof LeadersCore !== 'undefined' ? LeadersCore.legend() : ''}`;
 
     // Game log — no week column; the opponent identifies the game.
     let glRows = '';
@@ -9839,7 +9905,7 @@ window.SimEngine = {
     else if (h.wonConfTourney) result = 'Conference tournament champions';
     else if (h.wins != null) result = 'Missed the NCAA Tournament';
     const conf = d.conf || team.conference;
-    const pseudo = { school: team.school, past: true, roster: d.players };
+    const pseudo = { school: team.school, past: true, year, roster: d.players };
     const st = d.stats;
     return `
       <div class="team-header team-hero">
@@ -9936,30 +10002,36 @@ window.SimEngine = {
       return parseFloat(b.rating) - parseFloat(a.rating);
     });
 
+    // Who led his conference or the NCAA this season, in bold or bold italics;
+    // the note saying so goes under the last table.
+    const leadYear = team.year || this.state.year;
+    const legend = mode === 'adv' && typeof LeadersCore !== 'undefined' ? LeadersCore.legend() : '';
     let rows = '';
     roster.forEach(p => {
       const safeName = p.name.replace(/'/g, "\\'");
         const safeId = String(p.id).replace(/'/g, "\\'");
+      const marks = this.leadMarks(p.id, leadYear);
       rows += '<tr>' + cols.map(([id]) => {
         if (id === 'jersey') return `<td class="jersey-num">${p.jersey ? '#' + p.jersey : '—'}</td>`;
         if (id === 'name') return team.past && !this.findPlayerRef(p.id)
           ? `<td>${this.esc(p.name)}</td>`
           : `<td><span class="clickable-player" onclick="SimEngine.openPlayerModal('${safeId}')">${p.name}</span></td>`;
         if (id === 'pos' || id === 'class') return `<td class="sub-text">${p[id]}</td>`;
-        return `<td>${p.stats ? p.stats[id] : '—'}</td>`;
+        return `<td>${this.leadCell(p.stats ? p.stats[id] : '—', marks && marks[id])}</td>`;
       }).join('') + '</tr>';
     });
 
     return `
       <h4 class="award-section-title">${mode === 'box' ? 'Player Box Score Stats' : 'Player Advanced Stats'}</h4>
-      <div class="table-scroll mb-1-5"><table class="data-table">
+      <div class="table-scroll${legend ? '' : ' mb-1-5'}"><table class="data-table">
         <thead><tr>${cols.map(([id, label]) => {
           const isActive = id === activeCol;
           const arrow = isActive ? ((this.state[dirKey] || 'desc') === 'desc' ? ' &darr;' : ' &uarr;') : '';
           return `<th class="${isActive ? 'active-sort' : ''}" onclick="SimEngine.sortTeamRoster('${mode}','${id}')">${label}${arrow}</th>`;
         }).join('')}</tr></thead>
         <tbody>${rows || `<tr><td colspan="${cols.length}" class="empty-table-msg">${team.past ? 'No player lines were kept for this season.' : 'No games played yet.'}</td></tr>`}</tbody>
-      </table></div>`;
+      </table></div>
+      ${legend}`;
   },
 
   sortTeamRoster(mode, col) {
@@ -10313,6 +10385,8 @@ window.SimEngine = {
       hometown: p.hometown, hs: p.hs, jersey: p.jersey, rsci: p.rsci || null,
       rating: p.rating, collegeHistory: p.collegeHistory || [p.school],
       stats: this.slimStats(p.stats), draft: p.draft || null,
+      // Who he leads (his conference, the NCAA) this season, for the Draft RP's bold marks.
+      leads: this.leadMarks(p.id, this.state.year) || p.leads || null,
       predraft: p.predraft && p.predraft.year === this.upcomingDraftYear() ? p.predraft : null,
       bigGameStock: p.bigGameStock || 0, bigGames: (p.bigGames || []).slice(-6),
       nil: this.nilValue(p),
@@ -10338,12 +10412,18 @@ window.SimEngine = {
     return out;
   },
 
-  seasonLine(year, school, cls, st) {
+  seasonLine(year, school, cls, st, id) {
     st = st || {};
+    const m = id != null ? this.leadMarks(id, year) : null;
+    // The stats he led, by this line's own names (see leaders-core.js): 'n' the NCAA, 'c' his conference.
+    const leads = {};
+    const NAMES = { ppg: 'ppg', rpg: 'rpg', apg: 'apg', spg: 'stl', bpg: 'blk', fgPct: 'fgPct', threePPct: 'threePPct', bpm: 'bpm' };
+    if (m) Object.keys(NAMES).forEach(k => { if (m[NAMES[k]]) leads[k] = m[NAMES[k]]; });
     return {
       year, season: this.seasonLabelFor(year), school, class: cls,
       gp: st.gp || 0, mpg: st.mpg, ppg: st.ppg, rpg: st.rpg, apg: st.apg,
-      spg: st.stl, bpg: st.blk, fgPct: st.fgPct, threePPct: st.threePPct, bpm: st.bpm
+      spg: st.stl, bpg: st.blk, fgPct: st.fgPct, threePPct: st.threePPct, bpm: st.bpm,
+      ...(Object.keys(leads).length ? { leads } : {})
     };
   },
 
@@ -10385,9 +10465,9 @@ window.SimEngine = {
     const alumni = [];
     const addAlum = (p, active) => {
       if (!p || !recruitNames.has(String(p.name || '').trim().toLowerCase())) return;
-      const seasons = (p.seasonHistory || []).map(h => this.seasonLine(h.year, h.school, h.class, h.stats));
+      const seasons = (p.seasonHistory || []).map(h => this.seasonLine(h.year, h.school, h.class, h.stats, p.id));
       if (active && p.stats && p.stats.gp > 0 && !seasons.some(s => s.year === year)) {
-        seasons.push(this.seasonLine(year, p.school, this.normalizeClassStanding(p.class) || p.class, p.stats));
+        seasons.push(this.seasonLine(year, p.school, this.normalizeClassStanding(p.class) || p.class, p.stats, p.id));
       }
       alumni.push({
         name: p.name, pos: p.pos, school: active ? p.school : null,

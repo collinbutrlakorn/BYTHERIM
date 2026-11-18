@@ -221,6 +221,11 @@ const DraftRP = {
 
     const byId = {};
     players.forEach(p => { byId[p.id] = p; });
+    // Who leads his conference / the NCAA this season, for the bold marks on a
+    // prospect's stat lines: read across everyone in the saved league.
+    const leads = typeof LeadersCore !== 'undefined'
+      ? LeadersCore.compute(players.filter(p => !p.isPro && p.stats).map(p => ({ id: p.id, conf: p.conference, stats: p.stats })))
+      : new Map();
     const snapshot = (saved.lastDeclarationsYear === year ? saved.lastDeclarations : null) || [];
     const snapById = {};
     snapshot.forEach(d => { snapById[d.id] = d; });
@@ -236,6 +241,9 @@ const DraftRP = {
         return this.declarationToPlayer(snapById[d.id] || d);
       }).filter(Boolean);
     }
+    // A declared class was marked when it was captured (the field has since lost
+    // those who left); anyone else is marked from the league as it stands.
+    pool.forEach(p => { p.leads = (snapById[p.id] && snapById[p.id].leads) || leads.get(p.id) || p.leads || null; });
 
     let league = (saved.nbaLeagues || {})[draftYear] || null;
     let leagueGenerated = false;
@@ -334,6 +342,7 @@ const DraftRP = {
       hs: d.hs || '', jersey: d.jersey || '', rsci: d.rsci || null,
       collegeHistory: d.collegeHistory || (d.school ? [d.school] : []),
       stats: d.stats || { ppg: d.ppg, rpg: d.rpg, apg: d.apg },
+      leads: d.leads || null,
       predraft: d.predraft || null,
       bigGameStock: d.bigGameStock || 0, bigGames: d.bigGames || [],
       _fromDeclaration: true
@@ -1077,10 +1086,16 @@ const DraftRP = {
   renderProspectDetail(entry, opts = {}) {
     const p = entry.player;
     const st = p.stats || {};
+    // A stat he leads his conference in is bold, the NCAA in bold italics.
+    const leads = p.leads || {};
+    const cell = key => {
+      const v = st[key] !== undefined ? st[key] : '—';
+      return leads[key] && v !== '—' && typeof LeadersCore !== 'undefined' ? LeadersCore.mark(v, leads[key]) : v;
+    };
     const table = (cols) => `
       <div class="table-scroll"><table class="data-table profile-stat-table">
         <thead><tr>${cols.map(c => `<th>${c[1]}</th>`).join('')}</tr></thead>
-        <tbody><tr>${cols.map(c => `<td>${st[c[0]] !== undefined ? st[c[0]] : '—'}</td>`).join('')}</tr></tbody>
+        <tbody><tr>${cols.map(c => `<td>${cell(c[0])}</td>`).join('')}</tr></tbody>
       </table></div>`;
 
     const box = [['gp','GP'],['gs','GS'],['mpg','MPG'],['ppg','PPG'],['oreb','OREB'],['dreb','DREB'],
@@ -1115,6 +1130,7 @@ const DraftRP = {
       <h5 class="detail-stat-title">Box Score</h5>${table(box)}
       ${st.bpm !== undefined ? `<h5 class="detail-stat-title">Advanced</h5>${table(adv)}` : ''}
       ${st.p40pts !== undefined ? `<h5 class="detail-stat-title">Per 40 Minutes</h5>${table(p40)}` : ''}
+      ${typeof LeadersCore !== 'undefined' ? LeadersCore.legend() : ''}
     </div>`;
   },
 

@@ -192,6 +192,29 @@
       rimMidRatio: (rim / Math.max(0.1, mids)).toFixed(2), fga3: perPos(fga3), fta: perPos(a.fta)
     };
   }
+  // The stats a player led, listed on his own line as `lead` (a list of the
+  // line's fields) for the bold marks on profiles. Everyone who played counts
+  // (national-team depth too); a leader needs a few games and real minutes,
+  // and a shooting percentage needs real attempts.
+  const AAU_LEAD_GP = 3, FIBA_LEAD_GP = 2;
+  const LEAD_FIELDS = [
+    ['ppg', x => x.line.ppg], ['rpg', x => x.line.rpg], ['apg', x => x.line.apg], ['spg', x => x.line.spg], ['bpg', x => x.line.bpg],
+    ['fg', x => parseFloat(x.line.fg), x => x.a.fga / x.a.gp >= 5],
+    ['fg3', x => parseFloat(x.line.fg3), x => x.a.threePa / x.a.gp >= 2.5],
+    ['ft', x => parseFloat(x.line.ft), x => x.a.fta / x.a.gp >= 2.5],
+    ['bpm', x => x.line.bpm]
+  ];
+  function markLeaders(all, minGp) {
+    const maxGp = all.reduce((n, x) => Math.max(n, x.a.gp), 0);
+    const pool = all.filter(x => x.a.gp >= Math.min(minGp, maxGp) && x.a.gp > 0 && x.a.min / x.a.gp >= 10);
+    LEAD_FIELDS.forEach(([key, val, gate]) => {
+      const c = pool.filter(x => !gate || gate(x)).map(x => ({ x, v: parseFloat(val(x)) })).filter(o => isFinite(o.v));
+      if (!c.length) return;
+      const best = c.reduce((n, o) => Math.max(n, o.v), -Infinity);
+      if (!(best > 0)) return;   // nobody leads in zero
+      c.forEach(o => { if (o.v === best) (o.x.line.lead = o.x.line.lead || []).push(key); });
+    });
+  }
   function baseOf(ledger) {
     let min = 0, gs = 0, o = 0;
     ledger.by.forEach(a => { min += a.min; gs += gameScore(a); o += offScore(a); });
@@ -651,9 +674,11 @@
       return ln;
     };
     const aauBpm = torvik(aau, false, id => { const p = teamOf.get(id); return p ? p.name : ''; });
+    const aauAll = [], fibaAll = [];
     aau.by.forEach((a, id) => {
       const e = entry(id);
       e.aau = withBpm(line(a, posOf(id), aauBase), aauBpm.get(id));
+      aauAll.push({ a, line: e.aau });
       const p = teamOf.get(id);
       e.team = p ? p.name : '';
       e.circuit = p ? p.circuit : a.tag;
@@ -663,12 +688,18 @@
       P.fiba.teams.forEach(t => t.players.forEach(p => nationOf.set(p.id, t.name)));
       const fibaBpm = torvik(fiba, true, id => nationOf.get(id) || '');
       fiba.by.forEach((a, id) => {
-        if (/^fiba\|/.test(id)) return;   // national-team depth, not a prospect
+        const depth = /^fiba\|/.test(id);   // national-team depth, not a prospect
+        const ln = withBpm(line(a, depth ? '' : posOf(id), fibaBase), fibaBpm.get(id));
+        fibaAll.push({ a, line: ln });
+        if (depth) return;
         const e = entry(id);
-        e.fiba = withBpm(line(a, posOf(id), fibaBase), fibaBpm.get(id));
+        e.fiba = ln;
         e.nation = nationOf.get(id) || '';
       });
     }
+    // Who led what: AAU across all the circuits together, FIBA across the World Cup.
+    markLeaders(aauAll, AAU_LEAD_GP);
+    markLeaders(fibaAll, FIBA_LEAD_GP);
     return { lines: out, aau, fiba };
   }
 

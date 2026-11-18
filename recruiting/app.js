@@ -1255,7 +1255,10 @@ function renderProfile(p) {
     // A simulated summer (see portal.js) is the line shown; the sheet's
     // written line and any earlier summer stay below it, labelled.
     const hist = ((p.statsHistory && p.statsHistory[lvl.key]) || []).filter(h => h.line && h.line.gp);
-    const cells = x => `<td>${x.gp}</td><td>${x.mpg}</td><td>${x.ppg}</td><td>${x.rpg}</td><td>${x.apg}</td><td>${x.spg}</td><td>${x.bpg}</td><td>${x.topg}</td><td>${x.fg}</td><td>${x.fg3}</td><td>${x.ft}</td>`;
+    // A simulated summer line lists the stats he led (all the AAU circuits, or the FIBA field): those show in bold.
+    const L = (x, k) => (typeof LeadersCore !== 'undefined' ? LeadersCore.markList(x[k], k, x.lead) : x[k]);
+    const cells = x => `<td>${x.gp}</td><td>${x.mpg}</td><td>${L(x, 'ppg')}</td><td>${L(x, 'rpg')}</td><td>${L(x, 'apg')}</td><td>${L(x, 'spg')}</td><td>${L(x, 'bpg')}</td><td>${x.topg}</td><td>${L(x, 'fg')}</td><td>${L(x, 'fg3')}</td><td>${L(x, 'ft')}</td>`;
+    const leadNote = (lvl.key === 'aau' || lvl.key === 'fiba') && st.sim && typeof LeadersCore !== 'undefined' ? LeadersCore.legend(lvl.key) : '';
     const head = '<th>GP</th><th>MIN</th><th>PTS</th><th>REB</th><th>AST</th><th>STL</th><th>BLK</th><th>TOV</th><th>FG%</th><th>3FG%</th><th>FT%</th>';
     const rows = hist.length
       ? `<tr><th class="stat-season">Season</th>${head}</tr>
@@ -1267,7 +1270,7 @@ function renderProfile(p) {
       ${st.misaligned ? '<div class="stat-warn">Some of these numbers look shifted by a column in the database, so they may be in the wrong places.</div>' : ''}
       <div class="profile-stats-table-wrapper">
         <table class="profile-stats-table">${rows}</table>
-      </div>`;
+      </div>${leadNote}`;
   }).join('');
   if (typeof summerGameLogHTML === 'function') statsTablesHTML += summerGameLogHTML(p);
 

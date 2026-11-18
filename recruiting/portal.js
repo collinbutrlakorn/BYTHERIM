@@ -831,15 +831,17 @@ function rpCareerHTML(p) {
       ${isUpcoming(t) ? '<span class="portal-badge upcoming">Upcoming</span>' : ''}</li>`).join('')}</ul>` : '';
 
   const fmt = v => (v == null || v === '' ? '—' : v);
+  // Bold if he led his conference that season, bold italics if he led the NCAA (marks come with the published season line).
+  const led = (s, k) => (s.leads && s.leads[k] && typeof LeadersCore !== 'undefined' ? LeadersCore.mark(portalEsc(fmt(s[k])), s.leads[k]) : portalEsc(fmt(s[k])));
   const seasons = alum && alum.seasons && alum.seasons.length ? `
     <div class="profile-stats-table-wrapper">
       <table class="profile-stats-table rp-season-table">
         <tr><th>Season</th><th>School</th><th>Cl</th><th>GP</th><th>MPG</th><th>PPG</th><th>RPG</th><th>APG</th><th>SPG</th><th>BPG</th><th>FG%</th><th>3P%</th><th>BPM</th></tr>
         ${alum.seasons.map(s => `<tr><td>${portalEsc(s.season)}</td><td class="rp-season-school">${portalEsc(s.school)}</td><td>${portalEsc(s.class || '')}</td>
-          <td>${fmt(s.gp)}</td><td>${fmt(s.mpg)}</td><td>${fmt(s.ppg)}</td><td>${fmt(s.rpg)}</td><td>${fmt(s.apg)}</td>
-          <td>${fmt(s.spg)}</td><td>${fmt(s.bpg)}</td><td>${fmt(s.fgPct)}</td><td>${fmt(s.threePPct)}</td><td>${fmt(s.bpm)}</td></tr>`).join('')}
+          <td>${fmt(s.gp)}</td><td>${fmt(s.mpg)}</td><td>${led(s, 'ppg')}</td><td>${led(s, 'rpg')}</td><td>${led(s, 'apg')}</td>
+          <td>${led(s, 'spg')}</td><td>${led(s, 'bpg')}</td><td>${led(s, 'fgPct')}</td><td>${led(s, 'threePPct')}</td><td>${led(s, 'bpm')}</td></tr>`).join('')}
       </table>
-    </div>` : '';
+    </div>${typeof LeadersCore !== 'undefined' ? LeadersCore.legend() : ''}` : '';
 
   return `<div class="stats-box-full rp-career">
       <div class="rp-career-head">

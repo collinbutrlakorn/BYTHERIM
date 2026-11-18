@@ -225,3 +225,8 @@
 /* Admin-only beta pages in the main menu */
 .beta-tag { display: inline-block; margin-left: 0.35rem; padding: 1px 6px; border-radius: 999px; background: #e3bb4f; color: #181f40;
   font: 700 0.6rem/1.5 'Inter', sans-serif; letter-spacing: 0.08em; text-transform: uppercase; vertical-align: 2px; }
+
+/* Stat leaders: the note under a table of stats (bold = leads the conference,
+   bold italics = leads the NCAA). See rp/js/leaders-core.js. */
+.leader-legend { margin: .45rem 0 1.5rem; font-size: .72rem; line-height: 1.4; color: var(--text-muted, #6b7280); }
+.leader-legend b { color: inherit; font-weight: 800; }
