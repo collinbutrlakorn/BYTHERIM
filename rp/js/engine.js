@@ -1244,6 +1244,13 @@ window.SimEngine = {
   // Everything a player's traits do outside the playstyle multipliers.
   traitEffects(player) {
     const e = { tov: 1, pf: 1, fta: 1, twoP: 0, dbpm: 0, impact: 0 };
+    // A consistent player is worth more on the floor and gives the ball away
+    // less; an erratic one the reverse (see PlayerCore.consistencyOf).
+    if (player && typeof PlayerCore !== 'undefined') {
+      const c = PlayerCore.consistencyOf(player);
+      e.impact += PlayerCore.consistencyImpact(c);
+      e.tov *= 1 - (c - 50) / 50 * 0.06;
+    }
     const tr = player && player.traits;
     if (!tr) return e;
     const add = (t) => {
@@ -1720,6 +1727,13 @@ window.SimEngine = {
         rec.conference = team.conference;
         rec.class = 'FR';
         rec.enrolled = true;      // now a college player, not a pending recruit
+        // High-school graduation to the first practice is a summer of
+        // college strength and conditioning: most put weight on, the
+        // youngest the most (see PlayerCore.enrollGain).
+        if (typeof PlayerCore !== 'undefined' && !rec.enrollGained) {
+          rec.enrollGain = PlayerCore.enrollGain(rec);
+          rec.enrollGained = true;
+        }
         // A full roster can't take another body. A generated recruit whose
         // school has no scholarship left (the portal filled it) flips to a
         // program of about the same standing that still has room.
@@ -3887,6 +3901,19 @@ window.SimEngine = {
     // Declared here because the archetype usage ceiling below reads it.
     const ps = player.playstyle;
 
+    // Who he is as a player beyond his rating (PlayerCore): how consistent,
+    // whether he's a three-point specialist (or a freshman who launches
+    // them), and how this particular season is going for him.
+    const PC = typeof PlayerCore !== 'undefined' ? PlayerCore : null;
+    const cons = PC ? PC.consistencyOf(player) : 50;
+    const sform = PC ? PC.seasonForm(player, this.state ? this.state.year : 0, cons) : null;
+    let shotRole = 'none', roleFx = null;
+    if (PC) {
+      const level = (typeof DraftCore !== 'undefined' && team) ? DraftCore.competitionFactor(team.conference) : 0.8;
+      shotRole = PC.shotRoleOf(player, PC.tierOf(level));
+      roleFx = PC.shotRoleEffects(player, shotRole);
+    }
+
     const usageScale = (mpg / 28) * (r / 78);
 
     // Scoring share is measured against the player's OWN rotation rather
@@ -3968,6 +3995,8 @@ window.SimEngine = {
     const positionalInterior = !arch && ['C', 'F/C', 'PF'].includes(pos);
     if (scoutedInterior) ppg = Math.max(ppg, mpg * 0.31);
     else if (positionalInterior) ppg = Math.max(ppg, mpg * 0.26);
+    // Some years he carries more of the offense than others.
+    if (sform) ppg *= sform.use;
 
     // Rebounding scales partly with involvement. A big who barely touches
     // the ball shouldn't still post double-digit boards; the flat
@@ -4090,6 +4119,21 @@ window.SimEngine = {
       if (real.ft != null) ftPct = Math.min(0.93, Math.max(0.40, mix(ftPct, real.ft, 0.75)));
     }
 
+    // Shooting role and this season's form. A specialist's shots are nearly
+    // all threes (past the usual ceiling for his position); a volume-shooting
+    // freshman takes more than he can hit.
+    if (roleFx) {
+      if (roleFx.par != null) threePar = Math.max(threePar, roleFx.par);
+      if (roleFx.parAdd) threePar = Math.min(0.72, Math.max(threePar, threePar + roleFx.parAdd));
+      if (roleFx.pct) threePPct = Math.min(0.46, Math.max(0.24, threePPct + roleFx.pct));
+      if (shotRole === 'spot') ftPct = Math.min(0.93, Math.max(ftPct, 0.78 + this.shootingTouch(player) * 0.03));
+    }
+    if (sform) {
+      threePPct = Math.min(0.47, Math.max(0.20, threePPct + sform.p3));
+      twoPPct = Math.min(0.73, Math.max(0.36, twoPPct + sform.p2));
+      ftPct = Math.min(0.94, Math.max(0.40, ftPct + sform.ft));
+    }
+
     // Recruits carry a playstyle derived from their HS/AAU profile, so an
     // imported prospect simulates like the player he was scouted as rather
     // than like a generic example of his position.
@@ -4162,6 +4206,22 @@ window.SimEngine = {
     twoPPct = Math.min(0.72, Math.max(0.38, twoPPct + tr.twoP));
     dbpm += tr.dbpm;
     bpm += tr.dbpm;
+    if (shotRole === 'spot' && roleFx) {
+      // Off the ball, spotting up: he doesn't create, crash the glass, or
+      // draw fouls the way the rest of his position does.
+      ppg *= roleFx.ppg;
+      apg = Math.max(0.1, apg * roleFx.apg);
+      rpg = Math.max(0.2, rpg * roleFx.rpg);
+      tov = Math.max(0.2, tov * roleFx.tov);
+      fta = Math.max(0.2, fta * roleFx.fta);
+      stl = Math.max(0.1, stl * roleFx.stl);
+      blk = Math.max(0.05, blk * roleFx.blk);
+    }
+    if (sform) {
+      rpg = Math.max(0.2, rpg * sform.flow);
+      apg = Math.max(0.1, apg * sform.flow);
+      stl = Math.max(0.1, stl * (1 + (sform.flow - 1) * 0.6));
+    }
 
     // Boards against points once everything above has had its say
     // (playstyle, scouting and the coach all move rebounding after the
@@ -4179,7 +4239,7 @@ window.SimEngine = {
 
     return {
       mpg, ppg, rpg, apg, stl, blk, tov, pf, ftPct, fta,
-      threePar, threePPct, twoPPct, bpm, obpm, dbpm, ortg, drtg,
+      threePar, threePPct, twoPPct, bpm, obpm, dbpm, ortg, drtg, cons, shotRole,
       orebPct: (isBig ? 9.5 : 3.0) + '%', drebPct: (isBig ? 21.0 : 10.5) + '%', trbPct: (isBig ? 15.0 : 6.8) + '%',
     };
   },
@@ -6819,7 +6879,12 @@ window.SimEngine = {
         return false;
       });
 
-      team.roster.forEach(p => this.developPlayer(p));
+      team.roster.forEach(p => {
+        this.developPlayer(p);
+        // Another year in a college weight room: players fill out, forwards
+        // and bigs most, the youngest bodies longest.
+        if (typeof PlayerCore !== 'undefined') PlayerCore.growBody(p);
+      });
 
       team.simData = { teamOvr: 0, wins: 0, losses: 0, confWins: 0, confLosses: 0, rosterRef: team.roster, winPct: '.000' };
       team.apRank = null;
@@ -8156,6 +8221,8 @@ window.SimEngine = {
           <div class="pp-chips">
             ${chip('Height', player.ht)}
             ${chip('Weight', player.wt ? player.wt + ' lb' : '')}
+            ${typeof PlayerCore !== 'undefined' && !player.isPro ? chip('Consistency', PlayerCore.consistencyLabel(PlayerCore.consistencyOf(player))) : ''}
+            ${player.shotRole === 'spot' ? chip('Role', 'Three-point specialist') : player.shotRole === 'volume' && player.class === 'FR' ? chip('Role', 'Volume three-point shooter') : ''}
             ${chip('Hometown', player.hometown && player.hometown !== 'N/A' ? player.hometown : '')}
             ${chip('High school', player.hs)}
             ${chip('RSCI', player.rsci ? '#' + Math.round(player.rsci) + (player.recClassYear ? ' (' + player.recClassYear + ')' : '') : 'Unranked')}
@@ -10343,10 +10410,14 @@ window.SimEngine = {
     const merit = overperformance * 0.42;
 
     // Noise, plus rare genuine breakouts and stagnations.
-    let noise = (Math.random() + Math.random() - 1) * 2.2;
+    // A steady player's year-to-year change is close to the average; an
+    // erratic one breaks out or falls off far more often (PlayerCore).
+    const swing = typeof PlayerCore !== 'undefined'
+      ? PlayerCore.developmentSwing(PlayerCore.consistencyOf(player)) : { noise: 1, jump: 1 };
+    let noise = (Math.random() + Math.random() - 1) * 2.6 * swing.noise;
     const roll = Math.random();
-    if (roll < 0.035) noise += 3 + Math.random() * 4;        // leap
-    else if (roll < 0.075) noise -= 3 + Math.random() * 3.5; // stalled
+    if (roll < 0.035 * swing.jump) noise += 3 + Math.random() * 4;                          // leap
+    else if (roll < 0.075 * swing.jump) noise -= 3 + Math.random() * 3.5;                   // stalled
 
     let growth = base + merit + noise;
 
@@ -10395,6 +10466,10 @@ window.SimEngine = {
       // So the Draft RP's board weighs upside the same way this one does.
       potentialGrade: p.potentialGrade || null,
       traits: p.traits || null,
+      // How steady he is night to night and year to year, and his shooting
+      // role (PlayerCore): scouts value the first, the Draft RP's board reads it.
+      cons: typeof PlayerCore !== 'undefined' ? PlayerCore.consistencyOf(p) : null,
+      shotRole: p.shotRole || null,
       isPro: !!p.isPro, draftClass: p.draftClass || null, dob: p.dob || null,
       // What the board reads to value an international pro.
       ...(p.isPro ? { recRating: p.recRating || null, proYears: p.proYears || 0, breakout: p.breakout || 0, club: p.club || null, proLeague: p.proLeague || null, proLevel: p.proLevel || null, proTeam: p.proTeam || null } : {}),

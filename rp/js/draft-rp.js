@@ -1118,6 +1118,12 @@ const DraftRP = {
           <div class="prospect-detail-name">${p.jersey ? '#' + p.jersey + ' ' : ''}${p.name}</div>
           <div class="prospect-detail-bio">${[p.pos, p.class, p.ht, p.wt ? p.wt + ' lbs' : '', p.school].filter(Boolean).join(' · ')}</div>
           ${p.hometown && p.hometown !== 'N/A' ? `<div class="prospect-detail-bio">Hometown: ${p.hometown}${p.hs ? ' · ' + p.hs : ''}</div>` : ''}
+          ${(() => {
+            const c = typeof DraftCore !== 'undefined' && DraftCore.consistencyOf ? DraftCore.consistencyOf(p) : null;
+            if (c == null || typeof PlayerCore === 'undefined') return '';
+            const role = p.shotRole === 'spot' ? ' · Three-point specialist' : p.shotRole === 'volume' && p.class === 'FR' ? ' · Volume three-point shooter' : '';
+            return `<div class="prospect-detail-bio">Consistency: ${PlayerCore.consistencyLabel(c)}${role}</div>`;
+          })()}
         </div>
         ${opts.readOnly ? '' : `<button class="sim-btn btn-sm ${onBoard ? 'sim-btn-secondary' : ''}"
           onclick="DraftRP.${onBoard ? 'removeFromBoard' : 'addToBoard'}('${this.esc(p.id)}')">

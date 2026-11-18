@@ -94,6 +94,15 @@ function internationalUpside(player, pedigree, opts) {
   return 2 + Math.max(0, rec - 80) * 1.4 + num(player.breakout) * 0.5 + young + swing;
 }
 
+// How consistent a prospect is, 0-100, or null when unknown (a pro, or the
+// shared module isn't loaded). Published prospects carry it as `cons`.
+function consistencyOf(player) {
+  if (!player) return null;
+  if (player.cons != null && isFinite(Number(player.cons))) return Number(player.cons);
+  if (player.isPro || typeof PlayerCore === 'undefined') return null;
+  return PlayerCore.consistencyOf(player);
+}
+
 function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
   const st = player.stats || {};
   const gp = st.gp || 0;
@@ -199,7 +208,12 @@ function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
 
   // Low usage is judged on real evidence only.
   const usagePenalty = lowUsage * evidence;
-  return { score: score + stock + bigGames + upside + intl + positionValue - usagePenalty, upside, intl, positionValue, usagePenalty, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree, level, stock, bigGames };
+  // A player who gives you the same thing every night is worth more to a
+  // front office than one with the same average built from big nights and
+  // bad ones; the read firms up as the games pile up.
+  const cons = consistencyOf(player);
+  const consistency = cons != null ? (cons - 50) * 0.10 * (0.4 + 0.6 * evidence) : 0;
+  return { score: score + stock + bigGames + upside + intl + positionValue + consistency - usagePenalty, consistency, upside, intl, positionValue, usagePenalty, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree, level, stock, bigGames };
 }
 
 // Ranks a list of players. `winPctFor` maps a school name to that team's
@@ -271,10 +285,13 @@ function scoutingTags(entry) {
   if (num(st.threePPct) >= 0.38 && num(st.threePa) >= 3) tags.push('Floor spacer');
   if (num(st.p40reb) >= 11) tags.push('Elite rebounder');
   if (entry.pedigree >= 20 && entry.production < 8) tags.push('Pedigree over production');
+  const cons = consistencyOf(p);
+  if (cons != null && cons >= 78) tags.push('Highly consistent');
+  else if (cons != null && cons <= 22) tags.push('Boom-or-bust');
   return tags.slice(0, 4);
 }
 
-const DraftCore = { internationalUpside, birthYear, ageEligible, PRO_LEVEL, parseHeightInches, scoreProspect, competitionFactor, POWER_SIX, STRONG_MID, buildBigBoard, scoutingTags, CLASS_YOUTH, POS_SIZE_TARGET };
+const DraftCore = { consistencyOf, internationalUpside, birthYear, ageEligible, PRO_LEVEL, parseHeightInches, scoreProspect, competitionFactor, POWER_SIX, STRONG_MID, buildBigBoard, scoutingTags, CLASS_YOUTH, POS_SIZE_TARGET };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = DraftCore;
 else if (typeof window !== 'undefined') window.DraftCore = DraftCore;

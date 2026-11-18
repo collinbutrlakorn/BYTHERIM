@@ -27,7 +27,21 @@ function generateRawPlayerBox(player, minutesMultiplier = 1) {
   if (expMin <= 0 || Math.random() >= appear) return getZeroBox();
   const gameMin = Math.max(1, Math.round((expMin / appear) * (0.8 + Math.random() * 0.4)));
 
-  const variance = () => 0.5 + Math.random() * 1.0;
+  // How much his single games swing depends on how consistent he is
+  // (PlayerCore): a steady player is near his average every night, an erratic
+  // one has big nights and quiet ones. `variance` is each stat's own swing;
+  // `night` lifts or sinks them all together (a big night is big everywhere)
+  // and `form` is how well the shots fall that night.
+  const spread = typeof PlayerCore !== 'undefined'
+    ? PlayerCore.gameSpread(exp.cons != null ? exp.cons : 50)
+    : { w: 0.5, night: 0, form: 0 };
+  const tri = () => Math.random() + Math.random() - 1;
+  const night = Math.min(1.55, Math.max(0.4, 1 + tri() * spread.night));
+  const form = tri() * spread.form + (night - 1) * 0.12;
+  const variance = () => Math.max(0, 1 + (Math.random() * 2 - 1) * spread.w);
+  // A stat's swing and the night's together, so a hot night and a lucky
+  // stat don't stack into a 100-point game.
+  const swing = () => Math.min(1.9, variance() * night);
   const scale = gameMin / Math.max(1, expMin);
 
   const ppgExp = parseFloat(exp.ppg) || 0;
@@ -36,6 +50,9 @@ function generateRawPlayerBox(player, minutesMultiplier = 1) {
   const threePar = parseFloat(exp.threePar) || 0.3;
   const threePPct = parseFloat(exp.threePPct) || 0.33;
   const twoPPct = parseFloat(exp.twoPPct) || 0.5;
+  // The percentages he shoots tonight.
+  const tonight = (p, shift) => Math.min(0.97, Math.max(0.03, p + shift));
+  const threeTonight = tonight(threePPct, form), twoTonight = tonight(twoPPct, form * 0.5), ftTonight = tonight(ftPct, form * 0.25);
 
   // Work backwards from expected points to expected shot volume.
   // Points from the field = total points minus free-throw points. Split
@@ -59,19 +76,19 @@ function generateRawPlayerBox(player, minutesMultiplier = 1) {
   if (expected2PA < 0) expected2PA = 1;
   if (expected3PA < 0) expected3PA = 1;
 
-  const threePa = Math.round(expected3PA * scale * variance());
+  const threePa = Math.round(expected3PA * scale * swing());
   let threePm = 0;
-  for (let i = 0; i < threePa; i++) if (Math.random() < threePPct) threePm++;
+  for (let i = 0; i < threePa; i++) if (Math.random() < threeTonight) threePm++;
 
-  const twoPa = Math.round(expected2PA * scale * variance());
+  const twoPa = Math.round(expected2PA * scale * swing());
   let twoPm = 0;
-  for (let i = 0; i < twoPa; i++) if (Math.random() < twoPPct) twoPm++;
+  for (let i = 0; i < twoPa; i++) if (Math.random() < twoTonight) twoPm++;
 
-  const fta = Math.round(ftaExp * scale * variance());
+  const fta = Math.round(ftaExp * scale * swing());
   let ftm = 0;
-  for (let i = 0; i < fta; i++) if (Math.random() < ftPct) ftm++;
+  for (let i = 0; i < fta; i++) if (Math.random() < ftTonight) ftm++;
 
-  const reb = Math.round((parseFloat(exp.rpg) || 0) * scale * variance());
+  const reb = Math.round((parseFloat(exp.rpg) || 0) * scale * variance() * Math.sqrt(night));
   // Split total rebounds into offensive/defensive. Bigs crash the offensive
   // glass more than guards, so the offensive share scales with the player's
   // expected block rate as a rough proxy for size/role.
@@ -92,7 +109,7 @@ function generateRawPlayerBox(player, minutesMultiplier = 1) {
   const orebShare = baseShare * (1 - perimeterPull * 0.38) + (Math.random() * 0.08 - 0.04);
   const oreb = Math.min(reb, Math.round(reb * Math.max(0, orebShare)));
   const dreb = reb - oreb;
-  const ast = Math.round((parseFloat(exp.apg) || 0) * scale * variance());
+  const ast = Math.round((parseFloat(exp.apg) || 0) * scale * variance() * Math.sqrt(night));
   // Steals and blocks are rare, separate events, so each night's count is
   // a Poisson draw around his average. Rounding a scaled average instead
   // meant anyone averaging under about 0.4 (most guards' blocks) could

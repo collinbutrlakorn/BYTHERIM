@@ -385,6 +385,16 @@
     const build = root.RosterGen ? root.RosterGen.generateBuild(pos, rng) : { ht: "6'5", wt: '195', heightInches: 77 };
     const wing = build.heightInches + Math.round(1 + rng() * 4 + (rng() < 0.15 ? 2 : 0));
     const born = new Date(Date.UTC(year - 19, 8, 1) + Math.floor(rng() * 364) * 86400000);
+    const dobText = `${born.getUTCMonth() + 1}/${born.getUTCDate()}/${born.getUTCFullYear()}`;
+    // A high-school senior is lighter than the college roster the position
+    // ranges describe, and the youngest of the class haven't filled out yet:
+    // they add the weight in college (see PlayerCore.enrollGain / growBody).
+    // No random draws here, so the rest of the class is generated as before.
+    let weight = build.wt;
+    if (root.PlayerCore) {
+      const w = parseInt(build.wt, 10);
+      if (w > 0) weight = String(Math.max(150, w - 3 - root.PlayerCore.immatureBodyDeficit(dobText, who.name)));
+    }
     const st = intl ? (COUNTRY[country] || 'INT') : (who.hometown.match(/,\s*([A-Z]{2})$/) || [])[1] || '';
     // A public or local high school; national academies are handed out by
     // rank (schoolFor) once his place in the class is known.
@@ -392,9 +402,9 @@
     for (let i = 0; i < 6; i++) { hs = root.RosterGen ? root.RosterGen.generateHighSchool(rng) : 'Central High'; if (!ACADEMIES.includes(hs)) break; }
     return {
       rng, name: who.name, hometown: who.hometown, state: st, pos, hs, country,
-      height: `${Math.floor(build.heightInches / 12)}'${build.heightInches % 12}"`, weight: build.wt,
+      height: `${Math.floor(build.heightInches / 12)}'${build.heightInches % 12}"`, weight,
       wingspan: `${Math.floor(wing / 12)}'${wing % 12}"`,
-      dob: `${born.getUTCMonth() + 1}/${born.getUTCDate()}/${born.getUTCFullYear()}`,
+      dob: dobText,
       jitter: gauss(rng) * 0.35
     };
   }
