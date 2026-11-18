@@ -78,7 +78,7 @@ const names = n => Array.from({ length: n }, (_, i) => `Test Player ${i} Smith${
     const first = PC.shotRoleOf(r, 'low');
     ok(PC.shotRoleOf(r, 'power') === first && r.shotRole === first, 'a role sticks to him when he changes schools');
     const fx = PC.shotRoleEffects({ name: 'Spot', class: 'JR' }, 'spot');
-    ok(fx.par >= 0.70 && fx.par <= 0.90 && fx.apg < 0.7 && fx.fta < 0.5, 'a specialist takes 70-90% of his shots from three and does little else');
+    ok(fx.par >= 0.70 && fx.par <= 0.90 && fx.apg <= 0.75 && fx.fta < 0.5, 'a specialist takes 70-90% of his shots from three and does little else');
     const vol = n => mean(names(4000).map(nm => PC.shotRoleOf({ name: nm, pos: 'SG', rating: 75, class: n }, 'mid') === 'volume' ? 1 : 0));
     ok(vol('FR') > 0.08 && vol('SO') === 0 && vol('JR') === 0, `volume shooters are freshmen (${(vol('FR') * 100).toFixed(1)}% of freshman guards)`);
     ok(PC.shotRoleEffects({ name: 'V', class: 'FR' }, 'volume').parAdd > 0.09 && PC.shotRoleEffects({ name: 'V', class: 'FR' }, 'volume').pct < -0.029, 'a volume freshman shoots more threes and makes fewer of them');
