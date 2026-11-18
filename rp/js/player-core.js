@@ -155,7 +155,7 @@
       return {
         par: 0.70 + hash01(key, 'par') * 0.20,
         pct: 0.015 + hash01(key, 'spotpct') * 0.02,
-        ppg: 0.90, apg: 0.55, rpg: 0.82, tov: 0.80, fta: 0.45, stl: 0.92, blk: 0.6
+        ppg: 0.90, apg: 0.70, rpg: 0.85, tov: 0.90, fta: 0.45, stl: 0.94, blk: 0.7
       };
     }
     if (role === 'volume') {

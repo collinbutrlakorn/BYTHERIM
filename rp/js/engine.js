@@ -1249,7 +1249,7 @@ window.SimEngine = {
     if (player && typeof PlayerCore !== 'undefined') {
       const c = PlayerCore.consistencyOf(player);
       e.impact += PlayerCore.consistencyImpact(c);
-      e.tov *= 1 - (c - 50) / 50 * 0.06;
+      e.tov *= 1 - (c - 54) / 50 * 0.06;   // 54 is about the average player, so the league's turnovers don't move
     }
     const tr = player && player.traits;
     if (!tr) return e;
@@ -4024,7 +4024,10 @@ window.SimEngine = {
     // A floor tied to minutes: anyone in the rotation gets a hand on a
     // shot now and then, so a starting guard doesn't go a season without one.
     let blk = Math.max(0.05, mpg * 0.0075, base.blk * usageScale);
-    let tov = Math.max(0.2, (apg * 0.4 + 0.50));
+    // (x1.02: a night's counts are rounded to whole numbers, and with games
+    // swinging more the rounding no longer pads the small ones, which took
+    // the league's turnovers down a couple of percent.)
+    let tov = Math.max(0.2, (apg * 0.4 + 0.50) * 1.02);
 
     let pf = Math.min(3.4, Math.max(0.5, (mpg / 12.1)));
 

@@ -136,7 +136,7 @@ const names = n => Array.from({ length: n }, (_, i) => `Test Player ${i} Smith${
   {
     const base = line({}), spot = line({ shotRole: 'spot' }), vol = line({ shotRole: 'volume', class: 'FR' }), frBase = line({ class: 'FR' });
     ok(spot.threePar >= 0.7 && spot.threePar > base.threePar + 0.2, `a specialist's shots are nearly all threes (3PAr ${spot.threePar.toFixed(2)} vs ${base.threePar.toFixed(2)})`);
-    ok(spot.apg < base.apg * 0.7 && spot.fta < base.fta * 0.6 && spot.rpg < base.rpg && spot.tov < base.tov, 'and he passes, rebounds, draws fouls and turns it over less');
+    ok(spot.apg < base.apg * 0.8 && spot.fta < base.fta * 0.6 && spot.rpg < base.rpg && spot.tov < base.tov, 'and he passes, rebounds, draws fouls and turns it over less');
     ok(spot.threePPct >= base.threePPct, 'and he is not a worse shooter than the rest');
     ok(vol.threePar > frBase.threePar + 0.08 && vol.threePPct < frBase.threePPct - 0.025, `a volume-shooting freshman shoots more threes and makes fewer (${vol.threePar.toFixed(2)} at ${(vol.threePPct * 100).toFixed(1)}% vs ${frBase.threePar.toFixed(2)} at ${(frBase.threePPct * 100).toFixed(1)}%)`);
     const so = line({ shotRole: 'volume', class: 'SO' }), jr = line({ shotRole: 'volume', class: 'JR' }), jrBase = line({ class: 'JR' });
@@ -200,7 +200,7 @@ const names = n => Array.from({ length: n }, (_, i) => `Test Player ${i} Smith${
     const spots = rotation.filter(p => p.shotRole === 'spot');
     ok(spots.length > 20 && mean(spots.map(p => parseFloat(p.stats.threePar))) > 0.68, `specialists really do shoot almost only threes (${spots.length} rotation players, avg 3PAr ${mean(spots.map(p => parseFloat(p.stats.threePar))).toFixed(2)})`);
     ok(spots.every(p => !['C', 'F/C'].includes(p.pos)) && spots.some(p => p.pos === 'SG') && spots.some(p => p.pos === 'SF') && spots.some(p => p.pos === 'PF'), 'and they are guards, wings and forwards');
-    ok(mean(spots.map(p => parseFloat(p.stats.apg))) < 0.6 * mean(rotation.map(p => parseFloat(p.stats.apg))), 'who rarely create for anyone');
+    ok(mean(spots.map(p => parseFloat(p.stats.apg))) < 0.7 * mean(rotation.map(p => parseFloat(p.stats.apg))), 'who rarely create for anyone');
     const league = mean(rotation.map(p => parseFloat(p.stats.threePar)));
     ok(league > 0.34 && league < 0.42, `the league's shot mix is where it was (rotation 3PAr ${league.toFixed(3)})`);
     const frs = rotation.filter(p => p.class === 'FR' && p.shotRole === 'volume');
