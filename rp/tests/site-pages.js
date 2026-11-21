@@ -161,9 +161,9 @@ const BOARD_CSV = [
   ',,Radar Guy,05/06/2008,FR,"6\'3""",180 lbs,PG,Duke,,,,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,-,,,,,,'
 ].join('\n');
 // data/stats.json as tools/update-stats.mjs writes it.
-const line = (pts, team, gp) => ({ torvikName: 'x', team, conf: 'B10', gp, mpg: '30.1', stats: { PTS: pts, REB: '4.0', AST: '5.5', 'TS%': '57.0%', BPM: '4.4' } });
+const line = (pts, team, gp, extra = {}) => ({ torvikName: 'x', team, conf: 'B10', gp, mpg: '30.1', stats: { PTS: pts, REB: '4.0', AST: '5.5', 'TS%': '57.0%', BPM: '4.4', ...extra } });
 const STATS = { updated: '2026-09-26T00:00:00Z', source: 'barttorvik.com', seasons: {
-  '2025-26': { 'conf-big': line('9.1', 'Ohio St.', 31), 'old-guard': line('15.2', 'Arizona', 33), 'past-star': line('22.1', 'Duke', 35) },
+  '2025-26': { 'conf-big': line('9.1', 'Ohio St.', 31), 'old-guard': line('15.2', 'Arizona', 33, { TOV: '2.3', PF: '2.8' }), 'past-star': line('22.1', 'Duke', 35) },
   '2026-27': { 'conf-big': line('12.4', 'Ohio St.', 4) }
 }, pro: {
   'euro-guard': { url: 'https://www.basketball-reference.com/international/players/euro-guard-1.html', seasons: [
@@ -311,6 +311,9 @@ function table(row) {
     ok(wing.id === 'test-wing', 'board: prospects get URL-safe ids');
     ok(wing.stats['3P%'] === '35.6%', 'board: the sheet\'s "3P&" header is read as 3P%');
     ok(wing.hasStats && Object.keys(wing.stats).length === 16, 'board: all 16 stats captured');
+    const tf = w.BOARD.normalize({ name: 'X', PTS: '9.0', TOV: '2.1', PF: '2.9' }).sheetStats, tf2 = w.BOARD.normalize({ name: 'X', TO: '1.8', Fouls: '3.1' }).sheetStats;
+    ok(tf.TOV === '2.1' && tf.PF === '2.9' && tf2.TOV === '1.8' && tf2.PF === '3.1', 'board: turnovers and fouls read from TOV/TO and PF/Fouls columns');
+    ok(w.BOARD.STAT_GROUPS.find(g => g.title === 'Per game').stats.map(x => x[0]).join() === 'PTS,REB,AST,STL,BLK,TOV,PF', 'board: turnovers and fouls sit with the per-game stats');
     ok(w.BOARD.normalize({ name: 'X', 'Stats Link': 'https://basketball.realgm.com/player/X/Summary/1' }).statsLink.includes('realgm'), 'board: Stats Link column read');
     ok(w.BOARD.normalize({ name: 'X', GP: '31', MPG: '28.5', PTS: '9.0' }).sheetStats.G === '31' && w.BOARD.normalize({ name: 'X', MIN: '28.5' }).sheetStats.MP === '28.5', 'board: games and minutes read from G/GP and MP/MPG/MIN columns');
     const euro = rows.find(r => r.name === 'Euro Guard');
@@ -373,6 +376,7 @@ function table(row) {
     let t = table(row);
     ok(t.cols.slice(0, 5).join() === 'Season,Team,G,MP,PTS', 'draft: games and minutes per game lead the stat columns');
     ok(t.rows[0].slice(0, 5).join() === '2025-26,Arizona,33,30.1,15.2', 'draft: last season row with team, games, minutes and points');
+    ok(t.cols.slice(2, 10).join() === 'G,MP,PTS,REB,AST,TOV,PF,TS%' && t.rows[0].slice(7, 9).join() === '2.3,2.8', 'draft: turnovers and fouls shown with the per-game numbers');
     ok(row.textContent.includes('2026-27 numbers are added once he'), 'draft: says this season will be added');
     ok(row.querySelector('.pr-source').href.includes('barttorvik.com'), 'draft: Barttorvik credited with a link');
 

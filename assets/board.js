@@ -19,8 +19,8 @@
    unless it's still an unedited copy of the current board.
 
    Stat columns: G (games) and MP (minutes per game) sit alongside PTS,
-   REB and the rest; typed numbers show for anyone Barttorvik doesn't
-   cover (pros and internationals).
+   REB, TOV (turnovers), PF (fouls) and the rest; typed numbers show for
+   anyone Barttorvik doesn't cover (pros and internationals).
 
    Optional sheet columns (add any of them; nothing changes if absent):
      Prev Rank   last edition's rank, shown as movement on the board
@@ -117,7 +117,7 @@
   // "3P&" is the sheet's spelling of 3P%.
   const STAT_GROUPS = [
     { title: 'Playing time', stats: [['G', 'G'], ['MP', 'MP']] },
-    { title: 'Per game', stats: [['PTS', 'PTS'], ['REB', 'REB'], ['AST', 'AST'], ['STL', 'STL'], ['BLK', 'BLK']] },
+    { title: 'Per game', stats: [['PTS', 'PTS'], ['REB', 'REB'], ['AST', 'AST'], ['STL', 'STL'], ['BLK', 'BLK'], ['TOV', 'TOV'], ['PF', 'PF']] },
     { title: 'Shooting', stats: [['TS%', 'TS%'], ['eFG%', 'eFG%'], ['2P%', '2P%'], ['3P%', '3P%'], ['FT%', 'FT%'], ['3Pr', '3PAr'], ['FTr', 'FTr']] },
     { title: 'Impact', stats: [['USG%', 'USG%'], ['BPM', 'BPM'], ['OBPM', 'OBPM'], ['DBPM', 'DBPM']] }
   ];
@@ -188,6 +188,8 @@
       const raw = key === '3P%' ? get('3P%', '3P&', '3P')
         : key === 'G' ? get('G', 'GP', 'Games')
         : key === 'MP' ? get('MP', 'MPG', 'MIN', 'Minutes')
+        : key === 'TOV' ? get('TOV', 'TO', 'TPG')
+        : key === 'PF' ? get('PF', 'PFPG', 'Fouls')
         : get(key);
       if (isNumber(raw)) stats[key] = raw;
       else if (CONFERENCES.has(raw)) conference = raw;

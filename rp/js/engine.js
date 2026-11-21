@@ -2841,7 +2841,8 @@ window.SimEngine = {
     // previously pinned into fixed draft ranges because the board couldn't
     // see their pre-college production; now that the recruiting sheet's
     // full stat tiers are read, the model gets there on its own.
-    return DraftCore.buildBigBoard(this.draftPool(), winPctFor, limit, { draftYear: this.upcomingDraftYear() });
+    const draftYear = this.upcomingDraftYear();
+    return DraftCore.buildBigBoard(this.draftPool(), winPctFor, limit, { draftYear, keep: p => { const s = this.scriptedDraftFor(p); return !!s && s.year === draftYear; } });
   },
 
   // A published Google Sheet occasionally returns a transient error or a
@@ -6776,7 +6777,8 @@ window.SimEngine = {
       const l = h ? h.losses : t && t.simData ? t.simData.losses : 0;
       return w + l > 0 ? w / (w + l) : 0.5;
     };
-    const board = limit => DraftCore.buildBigBoard(this.draftPool(), winPct, limit, { draftYear });
+    const scriptedHere = p => { const s = this.scriptedDraftFor(p); return !!s && s.year === draftYear; };
+    const board = limit => DraftCore.buildBigBoard(this.draftPool(), winPct, limit, { draftYear, keep: scriptedHere });
     return {
       draftYear, byId, rng: rng || Math.random,
       league: this.getNbaLeague(draftYear),

@@ -183,6 +183,10 @@ const names = n => Array.from({ length: n }, (_, i) => `Test Player ${i} Smith${
     const board = DC.buildBigBoard([prospect(10, { id: 'a', name: 'Erratic' }), prospect(90, { id: 'b', name: 'Steady' })], () => 0.6, 10);
     ok(board[0].player.name === 'Steady', 'and ranks him ahead of an otherwise identical erratic one');
     ok(DC.scoutingTags(board[0]).includes('Highly consistent') && DC.scoutingTags(board[1]).includes('Boom-or-bust'), 'with a scouting note either way');
+    // A benched player is off the board, unless the roster sheet's script puts him in this draft.
+    const bench = prospect(50, { id: 'c', name: 'Bench', rating: 78, stats: { gp: 3, mpg: '2.0', ppg: '0.0' } });
+    ok(DC.buildBigBoard([bench], () => 0.6, 10).length === 0 && DC.buildBigBoard([bench], () => 0.6, 10, { keep: () => false }).length === 0, 'a player who barely played is left off the big board');
+    ok(DC.buildBigBoard([bench], () => 0.6, 10, { keep: p => p.name === 'Bench' }).length === 1, 'but a scripted draftee stays on it however little he played');
     const early = DC.scoreProspect(prospect(90, { stats: { gp: 2, mpg: '20.0' } }), 0.5), earlyLow = DC.scoreProspect(prospect(10, { stats: { gp: 2, mpg: '20.0' } }), 0.5);
     ok(sc(90).consistency - sc(10).consistency > early.consistency - earlyLow.consistency, 'and the read firms up as the games pile up');
     ok(DC.scoreProspect({ ...prospect(50), cons: undefined, isPro: true }, 0.5).consistency === 0, 'a pro with no college tape has no consistency read');

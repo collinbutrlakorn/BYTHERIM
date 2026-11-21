@@ -49,9 +49,9 @@ const torvikUrl = y => `https://barttorvik.com/getadvstats.php?year=${y}&csv=1`;
 
 // Column positions in Barttorvik's player file (it has no header row).
 const C = {
-  name: 0, team: 1, conf: 2, gp: 3, usg: 6, efg: 7, ts: 8, ftm: 13, fta: 14, ftPct: 15,
+  name: 0, team: 1, conf: 2, gp: 3, usg: 6, efg: 7, ts: 8, to: 12, ftm: 13, fta: 14, ftPct: 15,
   twoM: 16, twoA: 17, twoPct: 18, threeM: 19, threeA: 20, threePct: 21, cls: 25, height: 26,
-  year: 31, pid: 32, bpm: 50, obpm: 51, dbpm: 52, mpg: 54, reb: 59, ast: 60, stl: 61, blk: 62,
+  pfr: 30, year: 31, pid: 32, atr: 35, bpm: 50, obpm: 51, dbpm: 52, mpg: 54, reb: 59, ast: 60, stl: 61, blk: 62,
   pts: 63, role: 64, birthday: 66
 };
 
@@ -99,6 +99,23 @@ const pct = n => (n == null ? null : `${(n * 100).toFixed(1)}%`);    // 0.358 ->
 const pct100 = n => (n == null ? null : `${n.toFixed(1)}%`);         // 58.2 -> "58.2%"
 const rate = n => (n == null ? null : n.toFixed(2));
 
+// Turnovers and fouls a game. Sports-Reference rows carry them directly
+// (r.tov, r.pf). Barttorvik's file doesn't list them, so they're worked
+// back from what it does: assists per game over its assist-to-turnover
+// ratio (exact), or, for a player with no assists, from his turnover
+// percentage (close); and fouls per 40 minutes times minutes a game.
+function derivedTov(r) {
+  const gp = num(r[C.gp]), ast = num(r[C.ast]), ratio = num(r[C.atr]);
+  if (ast > 0 && ratio > 0) return ast / ratio;
+  const to = num(r[C.to]), fga = (num(r[C.twoA]) || 0) + (num(r[C.threeA]) || 0), fta = num(r[C.fta]) || 0;
+  if (gp > 0 && to != null && to >= 0 && to < 100 && fga + fta > 0) return (to / 100) / (1 - to / 100) * (fga + 0.44 * fta) / gp;
+  return null;
+}
+function derivedPf(r) {
+  const pfr = num(r[C.pfr]), mpg = num(r[C.mpg]);
+  return pfr != null && mpg != null ? pfr * mpg / 40 : null;
+}
+
 // One Barttorvik row -> the stat keys the site shows (same keys as the sheet).
 function statLine(r) {
   const fga = (num(r[C.twoA]) || 0) + (num(r[C.threeA]) || 0);
@@ -106,6 +123,7 @@ function statLine(r) {
   const s = {
     PTS: f1(num(r[C.pts])), REB: f1(num(r[C.reb])), AST: f1(num(r[C.ast])),
     STL: f1(num(r[C.stl])), BLK: f1(num(r[C.blk])),
+    TOV: f1(r.tov != null ? num(r.tov) : derivedTov(r)), PF: f1(r.pf != null ? num(r.pf) : derivedPf(r)),
     'TS%': pct100(num(r[C.ts])), 'eFG%': pct100(num(r[C.efg])),
     '2P%': num(r[C.twoA]) ? pct(num(r[C.twoPct])) : null,
     '3P%': num(r[C.threeA]) ? pct(num(r[C.threePct])) : null,
@@ -175,10 +193,14 @@ function bbrefTables(html, keep = BBREF_SEASON_ROW) {
   return tables;
 }
 
-const TOTAL_KEYS = ['g', 'mp', 'fg', 'fga', 'fg3', 'fg3a', 'fg2', 'fg2a', 'ft', 'fta', 'trb', 'ast', 'stl', 'blk', 'pts'];
+const TOTAL_KEYS = ['g', 'mp', 'fg', 'fga', 'fg3', 'fg3a', 'fg2', 'fg2a', 'ft', 'fta', 'trb', 'ast', 'stl', 'blk', 'tov', 'pf', 'pts'];
 function sumTotals(rows) {
   const t = {};
   TOTAL_KEYS.forEach(k => { t[k] = rows.reduce((a, r) => a + (num(r[k]) || 0), 0); });
+  // Turnovers and fouls aren't on every page; a page without them gets no
+  // zero, just no number.
+  t.hasTov = rows.some(r => num(r.tov) != null);
+  t.hasPf = rows.some(r => num(r.pf) != null);
   return t;
 }
 
@@ -189,6 +211,7 @@ function lineFromTotals(t, usg) {
   const s = {
     G: t.g ? String(t.g) : null, MP: per(t.mp),
     PTS: per(t.pts), REB: per(t.trb), AST: per(t.ast), STL: per(t.stl), BLK: per(t.blk),
+    TOV: t.hasTov ? per(t.tov) : null, PF: t.hasPf ? per(t.pf) : null,
     'TS%': t.fga + t.fta ? pct(t.pts / (2 * (t.fga + 0.44 * t.fta))) : null,
     'eFG%': t.fga ? pct((t.fg + 0.5 * t.fg3) / t.fga) : null,
     '2P%': t.fg2a ? pct(t.fg2 / t.fg2a) : null,
@@ -264,9 +287,19 @@ function editDistance(a, b) {
   return d[a.length][b.length];
 }
 
-function pick(p, cands) {
-  cands = cands.filter(r => dobOk(p, r));
-  if (cands.length <= 1) return { row: cands[0] || null };
+function pick(p, all) {
+  const cands = all.filter(r => dobOk(p, r));
+  // A birthday only tells same-named players apart. Barttorvik's are often
+  // a placeholder (Oct 15) or years off, and a sheet's can be mistyped, so
+  // when no birthday agrees, the one player of that name at the board's
+  // school for the player is still him. (Without this a freshman like Toni
+  // Bryant drops off the board's stats for good.) It's reported, so the
+  // sheet's date can be checked.
+  if (!cands.length) {
+    const here = all.filter(r => sameSchool(p, r));
+    return here.length === 1 ? { row: here[0], dobMismatch: true } : { row: null };
+  }
+  if (cands.length === 1) return { row: cands[0] };
   const narrowed = cands.filter(r => sameSchool(p, r) || dobClose(p, r));
   if (narrowed.length === 1) return { row: narrowed[0] };
   return { ambiguous: cands.length };
@@ -361,6 +394,7 @@ function srRows(html, school, year) {
     r[C.twoA] = g.fg2a_per_g; r[C.twoPct] = g.fg2_pct; r[C.threeA] = g.fg3a_per_g; r[C.threePct] = g.fg3_pct;
     r[C.reb] = g.trb_per_g; r[C.ast] = g.ast_per_g; r[C.stl] = g.stl_per_g; r[C.blk] = g.blk_per_g; r[C.pts] = g.pts_per_g;
     r[C.bpm] = a.bpm || ''; r[C.obpm] = a.obpm || ''; r[C.dbpm] = a.dbpm || '';
+    r.tov = g.tov_per_g; r.pf = g.pf_per_g;   // exact, unlike Barttorvik's
     r[C.cls] = cls.get(g.name_display) || ''; r[C.year] = String(year); r[C.pid] = ''; r[C.role] = ''; r[C.birthday] = '';
     return r;
   });
@@ -547,6 +581,7 @@ for (const [year, yearJobs] of [...jobs].sort((a, b) => a[0] - b[0])) {
       if (m.ambiguous) { report.push(`${label}: ${p.name} matched ${m.ambiguous} players that can't be told apart; skipped`); continue; }
       if (!m.row) { if (job.listMisses) unmatched.push(p.name); continue; }
       if (m.fuzzy) report.push(`${label}: matched "${p.lookup}" to Barttorvik's "${m.row[C.name]}" (${m.row[C.team]}) — check the spelling on the sheet`);
+      if (m.dobMismatch) report.push(`${label}: matched ${p.name} (${p.school}) by name and school, but the birthday differs (sheet ${p.dob}, Barttorvik ${isoDate(m.row[C.birthday]) || 'blank'}) — check the sheet's date`);
       season[p.id] = statLine(m.row);
       found++;
     }

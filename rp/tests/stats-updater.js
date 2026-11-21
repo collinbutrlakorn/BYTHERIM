@@ -22,7 +22,9 @@ const SHEET = [
   '6,4,Euro Pro,1/1/2007,INTL,"6\'6""",195,SG,Pro,Guard,',
   '7,4,Sheet Nick,2/2/2005,SR,"6\'4""",190,SG,Iowa,Guard,Robert Formal',
   '8,5,Near Miss,4/4/2006,SO,"6\'5""",200,SG,Oregon,Guard,',          // a "Near Mist" exists, but at another school with another birthday
-  '9,5,Nathan Longname,6/3/2003,SR,"6\'11""",240,C,Oregon,Big,'      // nickname that isn't a prefix: Barttorvik has "Nate"
+  '9,5,Nathan Longname,6/3/2003,SR,"6\'11""",240,C,Oregon,Big,',     // nickname that isn't a prefix: Barttorvik has "Nate"
+  '10,5,Wrong Birthday,11/7/2006,SR,"6\'10""",215,PF,Missouri,Big,',  // the sheet's date is years off Barttorvik's placeholder, but he is the one Wrong Birthday at Missouri
+  '11,5,Twin Name,3/3/2005,SR,"6\'6""",200,SF,Texas,Wing,'            // two of them elsewhere, neither with his birthday: must not be guessed
 ].join('\n');
 
 // A past board ("2025 Board" tab) and a tab that's still a copy of the
@@ -42,8 +44,8 @@ const td = (k, v) => `<td data-stat="${k}">${v}</td>`;
 const intlRow = (season, team, league, t) => `<tr><th data-stat="season">${season}</th>${td('team', `<a>${team}</a>`)}${td('league', league)}` +
   Object.entries(t).map(([k, v]) => td(k, v)).join('') + '</tr>';
 const INTL_HTML = `<table id="player-stats-totals-all-"><thead></thead><tbody>
-  ${intlRow('2024-25', 'Baskonia', 'EuroLeague', { g: 11, mp: 65, fg: 3, fga: 14, fg3: 1, fg3a: 8, fg2: 2, fg2a: 6, ft: 0, fta: 0, trb: 5, ast: 3, stl: 3, blk: 0, pts: 7 })}
-  ${intlRow('2024-25', 'Baskonia', 'Liga ACB', { g: 10, mp: 83, fg: 10, fga: 25, fg3: 6, fg3a: 15, fg2: 4, fg2a: 10, ft: 3, fta: 8, trb: 11, ast: 9, stl: 3, blk: 0, pts: 29 })}
+  ${intlRow('2024-25', 'Baskonia', 'EuroLeague', { g: 11, mp: 65, fg: 3, fga: 14, fg3: 1, fg3a: 8, fg2: 2, fg2a: 6, ft: 0, fta: 0, trb: 5, ast: 3, stl: 3, blk: 0, tov: 22, pf: 33, pts: 7 })}
+  ${intlRow('2024-25', 'Baskonia', 'Liga ACB', { g: 10, mp: 83, fg: 10, fga: 25, fg3: 6, fg3a: 15, fg2: 4, fg2a: 10, ft: 3, fta: 8, trb: 11, ast: 9, stl: 3, blk: 0, tov: 15, pf: 25, pts: 29 })}
   ${intlRow('2025-26', 'Real Madrid', 'Liga ACB', { g: 20, mp: 400, fg: 60, fga: 120, fg3: 20, fg3a: 60, fg2: 40, fg2a: 60, ft: 20, fta: 25, trb: 60, ast: 40, stl: 20, blk: 5, pts: 160 })}
 </tbody><tfoot><tr><th data-stat="season">2 Seasons</th></tr></tfoot></table>`;
 // Players with only a domestic league have no combined "all" table.
@@ -51,25 +53,27 @@ const LEAGUE_ONLY_HTML = `<table id="player-stats-totals-league-"><tbody>
   ${intlRow('2025-26', '&#201;lan Chalon', 'LNB &#201;lite', { g: 3, mp: 38, fg: 0, fga: 0, fg3: 0, fg3a: 0, fg2: 0, fg2a: 0, ft: 0, fta: 0, trb: 0, ast: 0, stl: 0, blk: 0, pts: 0 })}
 </tbody></table>`;
 const glRow = (season, team, t) => `<tr><th data-stat="season">${season}</th>${td('team_id', team)}` + Object.entries(t).map(([k, v]) => td(k, v)).join('') + '</tr>';
-const GL_HTML = `<table id="nbdl_totals-reg"><tbody>${glRow('2024-25', 'GLI', { g: 26, mp: 831, fg: 141, fga: 315, fg3: 24, fg3a: 88, fg2: 117, fg2a: 227, ft: 40, fta: 56, trb: 160, ast: 50, stl: 20, blk: 50, pts: 346 })}</tbody></table>
-<table id="nbdl_totals-sc"><tbody>${glRow('2024-25', 'GLI', { g: 9, mp: 221, fg: 41, fga: 85, fg3: 6, fg3a: 27, fg2: 35, fg2a: 58, ft: 10, fta: 15, trb: 55, ast: 16, stl: 10, blk: 15, pts: 98 })}</tbody></table>
+const GL_HTML = `<table id="nbdl_totals-reg"><tbody>${glRow('2024-25', 'GLI', { g: 26, mp: 831, fg: 141, fga: 315, fg3: 24, fg3a: 88, fg2: 117, fg2a: 227, ft: 40, fta: 56, trb: 160, ast: 50, stl: 20, blk: 50, tov: 80, pf: 60, pts: 346 })}</tbody></table>
+<table id="nbdl_totals-sc"><tbody>${glRow('2024-25', 'GLI', { g: 9, mp: 221, fg: 41, fga: 85, fg3: 6, fg3a: 27, fg2: 35, fg2a: 58, ft: 10, fta: 15, trb: 55, ast: 16, stl: 10, blk: 15, tov: 20, pf: 10, pts: 98 })}</tbody></table>
 <!-- <table id="nbdl_advanced-reg"><tbody>${glRow('2024-25', 'GLI', { usg_pct: '21.7' })}</tbody></table> -->`;
 const PUBHTML = [['2027 Board', '0'], ['2025 Board', '5'], ['2024 Board', '6'], ['TorvikData', '7']]
   .map(([n, g]) => `items.push({name: "${n}", pageUrl: "x", gid: "${g}",initialSheet: false});`).join('');
 
 // Barttorvik's player file has no header; build rows by column position.
-const C = { name: 0, team: 1, conf: 2, gp: 3, usg: 6, efg: 7, ts: 8, fta: 14, ftPct: 15, twoA: 17, twoPct: 18,
-  threeA: 20, threePct: 21, cls: 25, year: 31, pid: 32, bpm: 50, obpm: 51, dbpm: 52, mpg: 54,
+const C = { name: 0, team: 1, conf: 2, gp: 3, usg: 6, efg: 7, ts: 8, to: 12, fta: 14, ftPct: 15, twoA: 17, twoPct: 18,
+  threeA: 20, threePct: 21, cls: 25, pfr: 30, year: 31, pid: 32, atr: 35, bpm: 50, obpm: 51, dbpm: 52, mpg: 54,
   reb: 59, ast: 60, stl: 61, blk: 62, pts: 63, role: 64, birthday: 66 };
 let pid = 1000;
-function row(name, team, birthday, pts, year = 2026) {
+// `extra` overrides columns by position (e.g. a player with no assists).
+function row(name, team, birthday, pts, year = 2026, extra = {}) {
   const r = new Array(67).fill('');
   Object.assign(r, {
     [C.name]: name, [C.team]: team, [C.conf]: 'B12', [C.gp]: '30', [C.usg]: '22.5', [C.efg]: '55.0', [C.ts]: '58.1',
+    [C.to]: '15.0', [C.pfr]: '3.0', [C.atr]: '2.0',   // 2.2 assists a game over 2.0 assists per turnover = 1.1 turnovers; 3.0 fouls per 40 in 28.4 minutes = 2.1
     [C.fta]: '90', [C.ftPct]: '0.75', [C.twoA]: '200', [C.twoPct]: '0.52', [C.threeA]: '100', [C.threePct]: '0.36',
     [C.cls]: 'Jr', [C.year]: String(year), [C.pid]: String(pid++), [C.bpm]: '5.2', [C.obpm]: '3.1', [C.dbpm]: '2.1',
     [C.mpg]: '28.4', [C.reb]: '5.5', [C.ast]: '2.2', [C.stl]: '1.1', [C.blk]: '0.4', [C.pts]: String(pts),
-    [C.role]: 'Wing G', [C.birthday]: birthday
+    [C.role]: 'Wing G', [C.birthday]: birthday, ...extra
   });
   return r.map(v => (/[,"]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)).join(',');
 }
@@ -81,7 +85,11 @@ const TORVIK_2026 = [
   row('Transfer Guy', 'Kansas', '2005-05-20', 13.3),
   row('Robert Formal', 'Iowa', '2005-02-02', 8.8),
   row('Near Mist', 'Maine', '2001-10-15', 7.7),
-  row('Nate Longname', 'Oregon', '2003-06-03', 11.1)
+  row('Nate Longname', 'Oregon', '2003-06-03', 11.1),
+  // Barttorvik's birthday for him is its Oct 15 placeholder, two years off the sheet's; no assists, so his turnovers come from his turnover rate
+  row('Wrong Birthday', 'Missouri', '2008-10-15', 11.2, 2026, { [C.ast]: '0', [C.atr]: '0' }),
+  row('Twin Name', 'Kansas', '2001-10-15', 6.1),
+  row('Twin Name', 'Baylor', '2002-10-15', 6.2)
 ].join('\n');
 // Before the season starts, Barttorvik lists players with blank box scores.
 const TORVIK_2027 = row('Exact Match', 'Duke', '2006-02-13', '', 2027);
@@ -135,6 +143,13 @@ ok(!last['euro-pro'], 'pros skipped');
 ok(!last['near-miss'], 'a near-miss name at a different school with a different birthday is not matched');
 ok(/no D-I line found for Near Miss/.test(log), 'unmatched returning players are listed');
 ok(last['nathan-longname'] && last['nathan-longname'].torvikName === 'Nate Longname', 'common nicknames matched when the school agrees (Nathan -> Nate)');
+// A birthday that disagrees with Barttorvik's must not hide the one player of that name at the board's school (Toni Bryant).
+ok(last['wrong-birthday'] && last['wrong-birthday'].team === 'Missouri' && last['wrong-birthday'].stats.PTS === '11.2', 'same name and school matched even when the sheet birthday is years off Barttorvik\'s');
+ok(/Wrong Birthday \(Missouri\).*birthday differs/.test(log), 'a birthday mismatch match is reported so the sheet can be checked');
+ok(!last['twin-name'] && /Twin Name/.test(log), 'two same-named players, neither at the school or with the birthday, are not guessed at');
+// Turnovers and fouls a game, worked back from Barttorvik's rates.
+ok(last['exact-match'].stats.TOV === '1.1' && last['exact-match'].stats.PF === '2.1', 'turnovers (assists over assist-to-turnover) and fouls (per 40 x minutes) derived from Barttorvik');
+ok(last['wrong-birthday'].stats.TOV === '2.0', 'a player with no assists gets turnovers from his turnover rate instead');
 const y25 = stats.seasons['2024-25'] || {};
 ok(y25['past-frosh'] && y25['past-frosh'].stats.PTS === '14.0', 'past board: prospects get the season leading into that draft, freshmen included');
 ok(!y25['past-intl'], 'past board: internationals skipped');
@@ -143,9 +158,12 @@ const pro = stats.pro || {};
 const intl = (pro['past-intl'] || {}).seasons || [];
 ok(intl.length === 3 && intl[0].team === 'Baskonia (EuroLeague)' && intl[1].team === 'Baskonia (Liga ACB)', 'Basketball-Reference: international page gives one line per season and competition');
 ok(intl[0].stats.G === '11' && intl[0].stats.MP === '5.9' && intl[0].stats.PTS === '0.6' && intl[0].stats['3P%'] === '12.5%', 'Basketball-Reference: per-game numbers and splits worked out from totals');
+ok(intl[0].stats.TOV === '2.0' && intl[0].stats.PF === '3.0' && intl[1].stats.TOV === '1.5' && intl[1].stats.PF === '2.5', 'Basketball-Reference: turnovers and fouls a game worked out from totals');
+ok(!('TOV' in intl[2].stats) && !('PF' in intl[2].stats), 'Basketball-Reference: a season whose page lists no turnovers or fouls gets none, not a zero');
 ok(intl[1].stats['TS%'] === '50.8%' && intl[1].stats.FTr === '0.32' && !('BPM' in intl[1].stats), 'Basketball-Reference: TS% and rates computed; nothing invented where the page has no data');
 const gl = (pro['ignite-guy'] || {}).seasons || [];
 ok(gl.length === 1 && gl[0].team === 'G League Ignite' && gl[0].stats.G === '35', 'Basketball-Reference: G League regular season and Showcase Cup added together');
+ok(gl[0].stats.TOV === '2.9' && gl[0].stats.PF === '2.0', 'Basketball-Reference: G League turnovers and fouls added across regular season and Showcase Cup');
 ok(gl[0].stats['USG%'] === '21.7%', 'Basketball-Reference: usage read from the advanced table, even inside an HTML comment');
 const lo = (pro['league-only'] || {}).seasons || [];
 ok(lo.length === 1 && lo[0].team === 'Élan Chalon (LNB Élite)' && lo[0].stats.G === '3', 'Basketball-Reference: league-only pages read too, accented names decoded');
@@ -178,6 +196,33 @@ ok(JSON.stringify(after.pro) === JSON.stringify(stats.pro), 'a refused Basketbal
 ok(/sent a web page instead of the CSV/.test(blockedLog) && /kept the \d+ stat lines already saved/.test(blockedLog), 'the run log says what was kept and why');
 ok(stats.torvikUpdated && !isNaN(Date.parse(stats.torvikUpdated)), 'the file records when Barttorvik was last read (the board shows it)');
 ok(after.torvikUpdated === stats.torvikUpdated, '...and a blocked run doesn\'t move that date');
+
+// Barttorvik refusing the server while Sports-Reference answers: the school
+// pages give turnovers and fouls exactly (no birthdays, so players match on
+// name and school).
+const srTd = (k, v) => `<td data-stat="${k}">${v}</td>`;
+const srPage = rows => `<table id="players_per_game"><tbody>${rows.map(r =>
+  `<tr><th data-stat="name_display">${r.name}</th>${Object.entries(r.v).map(([k, v]) => srTd(k, v)).join('')}</tr>`).join('')}</tbody></table>`;
+const SR_DUKE = srPage([{ name: 'Exact Match', v: { games: 28, mp_per_g: '30.5', pts_per_g: '10.4', trb_per_g: '5.0', ast_per_g: '2.5', stl_per_g: '1.0', blk_per_g: '0.3', tov_per_g: '1.4', pf_per_g: '2.2' } }]);
+const SR_MIZZOU = srPage([{ name: 'Wrong Birthday', v: { games: 6, mp_per_g: '21.0', pts_per_g: '8.5', trb_per_g: '4.1', ast_per_g: '0.5', stl_per_g: '0.4', blk_per_g: '0.9', tov_per_g: '2.6', pf_per_g: '3.4' } }]);
+const srOnly = path.join(tmp, 'sr-only.mjs');
+fs.writeFileSync(srOnly, `
+const real = globalThis.fetch;
+const page = body => ({ ok: true, status: 200, text: async () => body });
+globalThis.fetch = async url => {
+  url = String(url);
+  if (url.includes('barttorvik')) return { ok: false, status: 403, text: async () => '' };
+  if (url.endsWith('/cbb/schools/')) return page('<a href="/cbb/schools/duke/men/">Duke</a><a href="/cbb/schools/missouri/men/">Missouri</a>');
+  if (url.endsWith('/schools/duke/men/2026.html')) return page(${JSON.stringify(SR_DUKE)});
+  if (url.endsWith('/schools/missouri/men/2026.html')) return page(${JSON.stringify(SR_MIZZOU)});
+  return real(url);
+};`);
+const srOut = path.join(tmp, 'sr-stats.json');
+const srLog = execFileSync(process.execPath, ['--import', 'file://' + preload, '--import', 'file://' + srOnly, path.join(ROOT, 'tools', 'update-stats.mjs')],
+  { env: { ...process.env, STATS_OUT: srOut, CRAWL_DELAY_MS: '0', BBREF_DELAY_MS: '0' }, encoding: 'utf8' });
+const srLast = (JSON.parse(fs.readFileSync(srOut, 'utf8')).seasons || {})['2025-26'] || {};
+ok(srLast['exact-match'] && srLast['exact-match'].stats.TOV === '1.4' && srLast['exact-match'].stats.PF === '2.2', 'Sports-Reference: turnovers and fouls a game read straight from the school page');
+ok(srLast['wrong-birthday'] && srLast['wrong-birthday'].stats.TOV === '2.6' && srLast['wrong-birthday'].stats.PF === '3.4' && /Sports-Reference gave 2 lines/.test(srLog), 'Sports-Reference: a player with no birthday on the page still matches on name and school');
 ok(fs.existsSync(path.join(ROOT, 'tools', 'update-stats-mac.command')) && fs.existsSync(path.join(ROOT, 'tools', 'update-stats-windows.cmd')), 'one-click updaters to run it from your own computer');
 
 // The sheet's relay: Barttorvik refuses the server (HTTP 403), but the

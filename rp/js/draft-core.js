@@ -248,7 +248,10 @@ function buildBigBoard(players, winPctFor, limit = 60, opts = {}) {
       const hasRole = totalMin >= 250 || num(st.mpg) >= 14;
       // A teenage pro barely plays against men; scouts watch every
       // draft-eligible one anyway, so they're always on the board.
-      return hasRole || num(x.player.rating, 0) >= 82 || x.player.isPro;
+      // A player the roster sheet's script puts in this draft is on the
+      // board however little he played (opts.keep says who), or a benched
+      // one would never be drafted.
+      return hasRole || num(x.player.rating, 0) >= 82 || x.player.isPro || !!(opts.keep && opts.keep(x.player));
     })
     .sort((a, b) => b.score - a.score)
     .map((x, i, all) => {
