@@ -4,7 +4,7 @@
    Draws one graphic onto a canvas from plain data:
      { look: 'nba' | 'draft' | 'ncaa',
        tpl:  'statline' | 'awards' | 'leaders',
-       size: '4x5' | '1x1' | '9x16',
+       size: '3x4' | '4x5' | '1x1' | '9x16',
        style: { bg, frame }  (optional: background color, gold/silver frame)
        f:    { ...the template's fields } }
 
@@ -17,7 +17,12 @@
   'use strict';
   const W = 1080;
   let M = 64; // side margin; wider when the graphic has a frame
+  // TikTok and Instagram both show profile-grid tiles at 3:4, so a 3:4
+  // thumbnail fills its tile exactly. A 4:5 image is wider than a TikTok
+  // tile (white bars above and below) and a 9:16 one is taller than an
+  // Instagram tile (cropped top and bottom).
   const SIZES = {
+    '3x4': { h: 1440, label: 'Grid thumbnail (3:4): TikTok + Instagram' },
     '4x5': { h: 1350, label: 'Instagram post (4:5)' },
     '1x1': { h: 1080, label: 'Square (1:1)' },
     '9x16': { h: 1920, label: 'Story / video cover (9:16)' }
@@ -539,8 +544,9 @@
 
 
   // ------------------------------------------------------------ reel / tiktok thumbnails
-  // 1080x1920 covers for the four series. Profile grids crop a 9:16 cover
-  // to roughly 3:4, so everything that matters stays between TOP and BOTTOM.
+  // Covers for the four series, laid out on a 1080x1920 canvas. Profile
+  // grids show the middle 3:4 of it (rows 240 to 1680), so everything that
+  // matters stays between TOP and BOTTOM, and the 3:4 size is that middle.
   const TSAFE = { l: 76, top: 300, bottom: 1600 };
   const lum = hex => { const m = /^#?([0-9a-f]{6})$/i.exec(hex || ''); if (!m) return 0; const v = parseInt(m[1], 16); return (0.299 * (v >> 16) + 0.587 * ((v >> 8) & 255) + 0.114 * (v & 255)) / 255; };
   function stackText(ctx, text, x, y, depth, color) {
@@ -725,14 +731,20 @@
   // ------------------------------------------------------------ draw
   async function draw(canvas, g, opts = {}) {
     const L = lookFor(g);
-    const H = (g.tpl === 'overlay' || g.tpl === 'thumb') ? SIZES['9x16'].h : (SIZES[g.size] || SIZES['4x5']).h;
+    // The video overlay is always 1080x1920. The Reel thumbnail is drawn on
+    // that same canvas (LH tall); its 3:4 size is the middle of it, which is
+    // the part a profile grid shows, so nothing is cropped or barred there.
+    const key = g.tpl === 'overlay' ? '9x16' : g.tpl === 'thumb' ? (g.size === '3x4' ? '3x4' : '9x16') : g.size;
+    const H = (SIZES[key] || SIZES['4x5']).h;
+    const LH = g.tpl === 'thumb' ? SIZES['9x16'].h : H;
+    const cropY = (LH - H) / 2;
     const scale = opts.scale || 1;
     canvas.width = W * scale; canvas.height = H * scale;
     const ctx = canvas.getContext && canvas.getContext('2d');
     if (!ctx) return canvas;
     const f = g.f || {};
     const [wordmark, photo] = await Promise.all([loadImg(opts.wordmark || 'assets/logo-header.png'), f.photo ? loadImg(f.photo) : null, fontsReady()]);
-    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    ctx.setTransform(scale, 0, 0, scale, 0, -cropY * scale);
     if (g.tpl === 'overlay') {
       // Transparent: only the card is drawn.
       await overlay(ctx, L, { ...g, f }, H, photo);
@@ -744,8 +756,8 @@
     const F = L.frame && g.tpl !== 'thumb' ? 38 : 0;
     M = 64 + F;
     if (F) { ctx.save(); ctx.beginPath(); ctx.rect(F, F, W - F * 2, H - F * 2); ctx.clip(); }
-    background(ctx, L, H, photo, f);
-    if (g.tpl === 'thumb') await thumb(ctx, L, { ...g, f }, H, photo, wordmark);
+    background(ctx, L, LH, photo, f);
+    if (g.tpl === 'thumb') await thumb(ctx, L, { ...g, f }, LH, photo, wordmark);
     else if (g.tpl === 'cover') await cover(ctx, L, { ...g, f }, H, 0, 0, photo, wordmark);
     else {
       const top = brandBlock(ctx, L, { ...g, f }, wordmark);

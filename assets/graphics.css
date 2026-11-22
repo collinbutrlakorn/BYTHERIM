@@ -35,6 +35,7 @@
 .gx-canvas-wrap { border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; background: #06070a; line-height: 0; }
 .gx-canvas-wrap canvas { width: 100%; height: auto; display: block; aspect-ratio: 4 / 5; }
 .gx-1x1 canvas { aspect-ratio: 1 / 1; }
+.gx-3x4 canvas { aspect-ratio: 3 / 4; }
 .gx-9x16 canvas { aspect-ratio: 9 / 16; }
 .gx-5x4 canvas { aspect-ratio: 5 / 4; }
 .gx-9x16 { max-width: 330px; margin: 0 auto; width: 100%; }

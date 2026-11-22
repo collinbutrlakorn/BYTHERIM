@@ -11,7 +11,12 @@
 
   const LOOKS = [['nba', 'NBA'], ['draft', 'Draft'], ['ncaa', 'NCAA']];
   const TPLS = [['statline', 'Statline'], ['awards', 'Weekly awards'], ['leaders', 'Top performances'], ['overlay', 'Video overlay'], ['cover', 'Cover'], ['thumb', 'Reel thumbnail']];
-  const SIZE_KEYS = ['4x5', '1x1', '9x16'];
+  const SIZE_KEYS = ['3x4', '4x5', '1x1', '9x16'];
+  // Thumbnails (Cover, Reel thumbnail) start at 3:4, the shape both the
+  // TikTok and Instagram profile grids show. The Reel thumbnail is only
+  // ever 3:4 or the full 9:16.
+  const THUMB_SIZES = ['3x4', '9x16'];
+  const isGrid = t => t === 'cover' || t === 'thumb';
   const today = () => root.GraphicsDraw.prettyDate(new Date());
   const CLASS = { FR: 'Freshman', SO: 'Sophomore', JR: 'Junior', SR: 'Senior', INTL: 'International' };
 
@@ -54,7 +59,7 @@
     };
   }
   function blank(look = 'nba', tpl = 'statline') {
-    return { id: null, name: '', look, tpl, size: '4x5', style: { bg: '', frame: '' }, f: defaults(look, tpl) };
+    return { id: null, name: '', look, tpl, size: tpl === 'overlay' ? '9x16' : isGrid(tpl) ? '3x4' : '4x5', style: { bg: '', frame: '' }, f: defaults(look, tpl) };
   }
   // Graphics saved while the page tried other layouts open in these three.
   const LATER = { single: 'statline', list: 'leaders', columns: 'leaders' };
@@ -116,7 +121,7 @@
             <div class="gx-row">${seg('look', LOOKS, g.look)}</div>
             <div class="gx-row">${seg('tpl', TPLS, g.tpl)}</div>
             <div class="gx-fields2">
-              ${(g.tpl === 'overlay' || g.tpl === 'thumb') ? `<div class="site-field"><span>Size</span><div class="gx-fixed">1080 × 1920${g.tpl === 'overlay' ? ', transparent' : ''}</div></div>` : `<label class="site-field"><span>Size</span><select data-set-select="size">${SIZE_KEYS.map(k => `<option value="${k}"${g.size === k ? ' selected' : ''}>${esc(D.SIZES[k].label)}</option>`).join('')}</select></label>`}
+              ${g.tpl === 'overlay' ? `<div class="site-field"><span>Size</span><div class="gx-fixed">1080 × 1920, transparent</div></div>` : `<label class="site-field"><span>Size</span><select data-set-select="size">${(g.tpl === 'thumb' ? THUMB_SIZES : SIZE_KEYS).map(k => `<option value="${k}"${g.size === k ? ' selected' : ''}>${esc(D.SIZES[k].label)}</option>`).join('')}</select></label>`}
               <label class="site-field"><span>Saved as</span><input type="text" data-name value="${esc(g.name)}" placeholder="Name it to save (e.g. NBA awards wk 1)"></label>
             </div>
             <div class="gx-actions">
@@ -130,14 +135,15 @@
           <div class="card gx-panel" id="gxForm">${this.formHTML()}</div>
         </div>
         <div class="gx-preview">
-          <div class="gx-canvas-wrap gx-${g.tpl === 'overlay' || g.tpl === 'thumb' ? '9x16' : g.size}${g.tpl === 'overlay' ? ' gx-clear' : ''}"><canvas id="gxCanvas" aria-label="Graphic preview"></canvas></div>
+          <div class="gx-canvas-wrap gx-${g.tpl === 'overlay' ? '9x16' : g.size}${g.tpl === 'overlay' ? ' gx-clear' : ''}"><canvas id="gxCanvas" aria-label="Graphic preview"></canvas></div>
           <div class="gx-actions gx-export">
             <button type="button" class="sim-btn" data-act="png">Download PNG</button>
-            ${g.tpl === 'overlay' || g.tpl === 'thumb' ? '' : '<button type="button" class="sim-btn sim-btn-secondary" data-act="all-sizes">All 3 sizes</button>'}
+            ${g.tpl === 'overlay' || g.tpl === 'thumb' ? '' : `<button type="button" class="sim-btn sim-btn-secondary" data-act="all-sizes">All ${SIZE_KEYS.length} sizes</button>`}
             <label class="gx-check"><input type="checkbox" data-hd ${this.hd ? 'checked' : ''}> 2x (sharper in Canva)</label>
           </div>
           ${g.tpl === 'overlay' ? `<label class="gx-check"><input type="checkbox" data-guides ${this.guides === false ? '' : 'checked'}> Show the TikTok / Reels safe area (preview only)</label>
           <p class="adm-note">The PNG is transparent. Drop it on top of your clip in CapCut, Premiere or Canva video. Keep it inside the dashed lines so the app's buttons and caption don't cover it.</p>` : ''}
+          ${isGrid(g.tpl) ? `<p class="adm-note">TikTok and Instagram both show profile-grid tiles at 3:4. A 4:5 image shows white bars on TikTok and a 9:16 one is cropped on Instagram, so 3:4 is the size that fills both.</p>` : ''}
           <p class="adm-note">In Canva: Uploads, then drag the PNG onto a 1080 px design. A background photo sits behind everything; drag the preview to move it. With no photo, the statline panel stays open for a cutout.</p>
         </div>
       </div>`;
@@ -436,8 +442,14 @@
           (fresh && v === 'cover' ? ['photo', 'zoom', 'photoX', 'photoY'] : ['photo', 'zoom', 'photoX', 'photoY', 'tint', 'shade']).forEach(k => { g.f[k] = this.byTpl[was0][k] ?? ''; });
           // Statline and Video overlay share a player, so a new one starts from the other's.
           if (fresh && ['statline', 'overlay'].includes(was0) && ['statline', 'overlay'].includes(v)) ['where', 'opp', 'result', 'score', 'player', 'team', 'info', 'stats', 'shooting'].forEach(k => { g.f[k] = clone(this.byTpl[was0][k]); });
-          const fixed = t => t === 'overlay' || t === 'thumb';
-          if (fixed(v)) { if (!fixed(was0)) this.sizeBefore = g.size; g.size = '9x16'; } else if (fixed(was0)) g.size = this.sizeBefore && this.sizeBefore !== '9x16' ? this.sizeBefore : '4x5';
+          // Video overlay is always 9:16; thumbnails start at 3:4; the other
+          // templates go back to the size they had before.
+          const special = t => t === 'overlay' || isGrid(t);
+          if (v === 'overlay') { if (!special(was0)) this.sizeBefore = g.size; g.size = '9x16'; }
+          else if (isGrid(v)) {
+            if (!special(was0)) this.sizeBefore = g.size;
+            if (!isGrid(was0) || (v === 'thumb' && !THUMB_SIZES.includes(g.size))) g.size = '3x4';
+          } else if (special(was0)) g.size = this.sizeBefore && !['9x16', '3x4'].includes(this.sizeBefore) ? this.sizeBefore : '4x5';
         } else return;
         this.dirty = true;
         this.render();
