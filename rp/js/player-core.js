@@ -243,7 +243,110 @@
     return { noise: 0.6 + 0.8 * inc, jump: 0.5 + inc };
   }
 
+  // ---------- Shot zones ----------
+  // Where a player's two-point shots come from: at the rim (dunks are a
+  // part of those) or away from it (floaters, post hooks, pull-ups). A box
+  // score only knows twos and threes, so each game's twos are split by the
+  // player's own tendencies, which stay with him (a hash of his name, like
+  // his consistency): a rim-running big lives at the basket and dunks,
+  // a jump-shooting guard takes more of his twos off the dribble.
+  //   rim    share of his two-point attempts taken at the rim
+  //   dunk   share of his rim attempts that are dunks
+  //   rimPct / midPct  what he makes from each spot, before the night's luck
+  const RIM_BASE = { guard: 0.50, wing: 0.58, forward: 0.65, big: 0.74 };
+  const DUNK_BASE = { guard: 0.05, wing: 0.13, forward: 0.22, big: 0.33 };
+  const RIM_PCT = { guard: 0.58, wing: 0.61, forward: 0.65, big: 0.69 };
+  const ARCH_RIM = { slasher: 0.11, rollBig: 0.12, postHub: -0.10, shooter: -0.07, primaryScorer: -0.03, playmaker: -0.02, defender: 0.03, connector: 0 };
+  const ARCH_DUNK = { slasher: 0.05, rollBig: 0.12, postHub: -0.07, shooter: -0.03, defender: 0.02 };
+  function heightIn(ht) {
+    const s = String(ht == null ? '' : ht);
+    const m = s.match(/(\d)\s*['’\-]\s*(\d{1,2}(?:\.\d+)?)?/);
+    if (m) return parseInt(m[1], 10) * 12 + parseFloat(m[2] || '0');
+    const n = parseFloat(s);
+    return isFinite(n) && n > 60 && n < 96 ? n : null;
+  }
+  function shotProfile(p) {
+    const g = groupOf(p && p.pos);
+    const k = keyOf(p);
+    const arch = (p && p.playstyle && p.playstyle.archetype) || '';
+    const athN = parseFloat(p && p.athleticism);
+    const ath = isFinite(athN) ? clamp((athN - 75) / 25, -1, 1) : 0;
+    const h = heightIn(p && p.ht);
+    const tall = h ? clamp((h - ({ guard: 75, wing: 78.5, forward: 80.5, big: 82.5 }[g])) / 3, -1.5, 1.5) : 0;
+    const rim = clamp(RIM_BASE[g] + (ARCH_RIM[arch] || 0) + ath * 0.06 + tri(k, 'zr') * 0.08, 0.25, 0.92);
+    const dunk = clamp(DUNK_BASE[g] + (ARCH_DUNK[arch] || 0) + ath * 0.09 + tall * 0.04 + tri(k, 'zd') * 0.05, 0, 0.7);
+    const rimPct = clamp(RIM_PCT[g] + ath * 0.03 + dunk * 0.12 + tri(k, 'zp') * 0.03, 0.45, 0.82);
+    return { rim, dunk, rimPct, midPct: 0.34 };
+  }
+  // Splits one game's made and attempted twos into rim (with dunks) and
+  // non-rim twos. Totals always add back up to the box score.
+  function splitTwos(p, twoPm, twoPa, rng) {
+    const r = rng || Math.random;
+    const m = Math.max(0, Math.round(twoPm || 0)), a = Math.max(m, Math.round(twoPa || 0));
+    const out = { rimM: 0, rimA: 0, dunkM: 0, dunkA: 0 };
+    if (!a) return out;
+    const pr = shotProfile(p);
+    for (let i = 0; i < a; i++) if (r() < pr.rim) out.rimA++;
+    const midA = a - out.rimA;
+    const er = out.rimA * pr.rimPct, em = midA * pr.midPct;
+    const lo = Math.max(0, m - midA), hi = Math.min(out.rimA, m);
+    const want = er + em > 0 ? m * er / (er + em) : m * out.rimA / a;
+    out.rimM = clamp(Math.round(want + (r() - 0.5) * 1.2), lo, hi);
+    for (let i = 0; i < out.rimA; i++) if (r() < pr.dunk) out.dunkA++;
+    const dlo = Math.max(0, out.dunkA - (out.rimA - out.rimM)), dhi = Math.min(out.dunkA, out.rimM);
+    let made = 0;
+    for (let i = 0; i < out.dunkA; i++) if (r() < 0.92) made++;
+    out.dunkM = clamp(made, dlo, dhi);
+    return out;
+  }
+
+  // ---------- Birthdays ----------
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  // A college class's age in a season's fall: a freshman is 18 (born from
+  // September 19 years before through the next August).
+  const CLASS_AGE = { FR: 0, SO: 1, JR: 2, SR: 3, GR: 4 };
+  function parseDob(dob) {
+    const s = String(dob == null ? '' : dob).trim();
+    let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (m) return { y: +m[3], mo: +m[1], d: +m[2] };
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return { y: +m[1], mo: +m[2], d: +m[3] };
+    return null;
+  }
+  // His birthday: the sheet's when there is one; otherwise one that fits his
+  // class in `seasonYear` (the fall the season starts), on the same day of
+  // the year his body's growth already assumes (youthOf), with the odd
+  // player a year older (a reclass or a gap year). `p.born` keeps an
+  // invented one once it has been made, so it never moves.
+  function birthdayOf(p, seasonYear) {
+    const real = parseDob(p && p.dob);
+    if (real && real.mo >= 1 && real.mo <= 12) return { ...real, invented: false };
+    const kept = parseDob(p && p.born);
+    if (kept) return { ...kept, invented: true };
+    if (!seasonYear) return null;
+    const cls = String((p && (p.draftClass || p.class)) || 'SO').toUpperCase();
+    const off = CLASS_AGE[cls] != null ? CLASS_AGE[cls] : 1;
+    const y = youthOf(p);
+    const months = Math.min(11.97, y * 12);
+    const mo = ((8 + Math.floor(months)) % 12) + 1;     // 0 -> September
+    const d = 1 + Math.min(27, Math.floor((months % 1) * 28));
+    const older = hash01(keyOf(p), 'older') < 0.12 ? 1 : 0;
+    const year = seasonYear - 19 - off - older + (mo <= 8 ? 1 : 0);
+    return { y: year, mo, d, invented: true };
+  }
+  function dobText(b) { return b ? `${b.mo}/${b.d}/${b.y}` : ''; }
+  function birthdayLabel(b) { return b ? `${MONTHS[b.mo - 1]} ${b.d}, ${b.y}` : ''; }
+  // Age on a date (a Date, or 'YYYY-MM-DD'), to a tenth of a year like a
+  // draft guide prints it.
+  function ageOn(b, when) {
+    if (!b) return null;
+    const t = when instanceof Date ? when : new Date(`${when}T12:00:00Z`);
+    const born = Date.UTC(b.y, b.mo - 1, b.d, 12);
+    return Math.floor(((t.getTime() - born) / (365.2425 * 86400000)) * 10) / 10;
+  }
+
   const api = {
+    shotProfile, splitTwos, parseDob, birthdayOf, dobText, birthdayLabel, ageOn,
     hash01, tri, groupOf, WT_CAP, weightNum, youthOf, immatureBodyDeficit, enrollGain, growBody,
     SPOT_RATE, VOLUME_RATE, TIER_MULT, tierOf, shotRoleOf, shotRoleEffects,
     consistencyOf, consistencyLabel, consistencyImpact, consistencyDraft, gameSpread, seasonForm, developmentSwing

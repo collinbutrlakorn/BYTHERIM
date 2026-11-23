@@ -103,6 +103,21 @@ function consistencyOf(player) {
   return PlayerCore.consistencyOf(player);
 }
 
+// How far a mid-major's score drops (see scoreProspect). `dominance` is
+// his production plus efficiency before the level discount: a typical
+// power-conference first-rounder sits around 30, the very top of a class 40+.
+const MID_MAJOR_BASE = { strong: 7, other: 11 };
+const EXCEPTIONAL = { from: 31, full: 43 };
+function midMajorDiscount(player, dominance, evidence) {
+  const conf = player && player.conference;
+  if (!conf || player.isPro || conf === 'Pro' || POWER_SIX.has(conf)) return 0;
+  const base = STRONG_MID.has(conf) ? MID_MAJOR_BASE.strong : MID_MAJOR_BASE.other;
+  const relief = Math.max(0, Math.min(1, (num(dominance) - EXCEPTIONAL.from) / (EXCEPTIONAL.full - EXCEPTIONAL.from))) * Math.min(1, num(evidence));
+  const rsci = num(player.rsci, 0);
+  const shield = rsci > 0 && rsci <= 15 ? 0.5 : rsci > 0 && rsci <= 35 ? 0.75 : 1;
+  return +(base * (1 - relief) * shield).toFixed(2);
+}
+
 function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
   const st = player.stats || {};
   const gp = st.gp || 0;
@@ -124,7 +139,10 @@ function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
   const cls = player.draftClass || player.class;
   const youth = CLASS_YOUTH[cls] !== undefined ? CLASS_YOUTH[cls] : 3;
 
-  const hIn = parseHeightInches(player.ht);
+  // The combine's measurement (in shoes, the closest match to a listed
+  // height) replaces the listing once he has been measured for this draft.
+  const pdm = player.predraft && player.predraft.meas && (!opts.draftYear || player.predraft.year === opts.draftYear) ? player.predraft.meas : null;
+  const hIn = pdm && num(pdm.shoes) > 60 ? num(pdm.shoes) : parseHeightInches(player.ht);
   const target = POS_SIZE_TARGET[player.pos] || 79;
   // Positional size: taller than typical for the position helps, undersized
   // hurts, with diminishing returns either way.
@@ -208,12 +226,18 @@ function scoreProspect(player, teamWinPct = 0.5, opts = {}) {
 
   // Low usage is judged on real evidence only.
   const usagePenalty = lowUsage * evidence;
+  // A mid-major needs exceptional numbers to be a first-round pick: scouts
+  // don't take good production against weaker teams at face value, so the
+  // discount above isn't the whole of it. Exceptional production (a top-ten
+  // pick's line from a power conference) clears it; a top national recruit
+  // keeps part of his billing. Pros and the power six are exempt.
+  const midMajorPenalty = midMajorDiscount(player, production + efficiency, evidence);
   // A player who gives you the same thing every night is worth more to a
   // front office than one with the same average built from big nights and
   // bad ones; the read firms up as the games pile up.
   const cons = consistencyOf(player);
   const consistency = cons != null ? (cons - 50) * 0.10 * (0.4 + 0.6 * evidence) : 0;
-  return { score: score + stock + bigGames + upside + intl + positionValue + consistency - usagePenalty, consistency, upside, intl, positionValue, usagePenalty, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree, level, stock, bigGames };
+  return { score: score + stock + bigGames + upside + intl + positionValue + consistency - usagePenalty - midMajorPenalty, consistency, upside, intl, positionValue, usagePenalty, midMajorPenalty, gp, evidence, youth, sizeEdge, production, efficiency, winning, pedigree, level, stock, bigGames };
 }
 
 // Ranks a list of players. `winPctFor` maps a school name to that team's
@@ -294,7 +318,7 @@ function scoutingTags(entry) {
   return tags.slice(0, 4);
 }
 
-const DraftCore = { consistencyOf, internationalUpside, birthYear, ageEligible, PRO_LEVEL, parseHeightInches, scoreProspect, competitionFactor, POWER_SIX, STRONG_MID, buildBigBoard, scoutingTags, CLASS_YOUTH, POS_SIZE_TARGET };
+const DraftCore = { midMajorDiscount, consistencyOf, internationalUpside, birthYear, ageEligible, PRO_LEVEL, parseHeightInches, scoreProspect, competitionFactor, POWER_SIX, STRONG_MID, buildBigBoard, scoutingTags, CLASS_YOUTH, POS_SIZE_TARGET };
 
 if (typeof module !== 'undefined' && module.exports) module.exports = DraftCore;
 else if (typeof window !== 'undefined') window.DraftCore = DraftCore;

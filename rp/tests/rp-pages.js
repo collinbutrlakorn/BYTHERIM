@@ -136,6 +136,41 @@ function bootRecruiting(universe) {
       `draft rp: past big boards are kept by year (${pastBoard.length} rows)`);
     w.DraftRP.setHistoryYear(2030);
     ok(/2030 Big Board/.test(d.querySelector('.draft-section-title').textContent), 'draft rp: back to this year\'s board');
+
+    // Sortable columns, a position filter, the shooting view, birthdays.
+    const D = w.DraftRP;
+    const col = key => [...d.querySelectorAll('#draftBody thead th')].findIndex(th => th.dataset.sort === key);
+    const colVals = key => { const i = col(key); return [...d.querySelectorAll('#draftBody tr.prospect-row')].map(r => r.children[i].textContent.trim()); };
+    const nums = a => a.filter(v => v !== '—' && v !== '-').map(parseFloat);
+    const desc = a => a.every((v, i) => i === 0 || a[i - 1] >= v), asc = a => a.every((v, i) => i === 0 || a[i - 1] <= v);
+    D.sortBy('ppg');
+    ok(col('ppg') > 0 && desc(nums(colVals('ppg'))) && /▼/.test(d.querySelector('#draftBody th[data-sort="ppg"]').textContent), 'draft rp: clicking a stat column sorts the board by it, best first');
+    D.sortBy('ppg');
+    ok(asc(nums(colVals('ppg'))), 'draft rp: clicking it again flips the order');
+    D.sortBy('age');
+    ok(col('age') > 0 && asc(nums(colVals('age'))) && nums(colVals('age')).length === 30 && nums(colVals('age')).every(a => a > 17 && a < 26), 'draft rp: every prospect has an age on draft night, youngest first when sorted');
+    D.sortBy('name');
+    const names = colVals('name');
+    ok(names.slice(1).every((n, i) => names[i].localeCompare(n) <= 0), 'draft rp: and by name, A to Z');
+    D.sortBy('rank');
+    ok(!D.state.sortKey && d.querySelectorAll('#draftBody tr.prospect-row').length === 30, 'draft rp: the Rank column goes back to the model order');
+    D.setBoardPos('C');
+    const cRows = [...d.querySelectorAll('#draftBody tr.prospect-row .pos-badge')].map(b => b.textContent);
+    ok(cRows.length > 0 && cRows.every(x => ['C', 'F/C', 'C/F'].includes(x)) && d.querySelector('#draftBody select[aria-label="Position"]').value === 'C', `draft rp: filtering the board by position shows only centres (${cRows.length})`);
+    D.setBoardPos('PG');
+    ok([...d.querySelectorAll('#draftBody tr.prospect-row .pos-badge')].every(b => ['PG', 'G', 'CG'].includes(b.textContent)), 'draft rp: a combo guard counts as a point guard');
+    D.setBoardPos('ALL');
+    D.setStatMode('shots');
+    ok(['rimA', 'rimPct', 'dunkM', 'midPct', 'threePPct'].every(k => col(k) > 0), 'draft rp: a Shooting view shows rim, dunk, other-two and three-point numbers');
+    D.setStatMode('box');
+    const e0 = D.state.masterBoard[0];
+    Object.assign(e0.player.stats, { gp: 30, fga: '14.0', threePa: '5.0', rimFg: '120-190', rimA: '6.3', rimPct: '.632', rimRate: '.452', dunkFg: '40-43', dunkA: '1.4', dunkPct: '.930', dunkRate: '.102', midFg: '30-80', midA: '2.7', midPct: '.375', midRate: '.190', threeFg: '55-150' });
+    e0.player.dob = '3/14/2010';
+    D.toggleDetail(e0.player.id);
+    const det = d.querySelector('#draftBody .prospect-detail').textContent;
+    ok(/Shot Profile/.test(det) && /At the rim/.test(det) && /120-190/.test(det) && /Dunks/.test(det) && /40-43/.test(det) && /Non-rim twos/.test(det) && /55-150/.test(det), 'draft rp: a prospect\'s profile shows where his shots came from');
+    ok(/Born Mar 14, 2010 · 20\.2 on draft night/.test(det), 'draft rp: and his birthday, with his age on draft night');
+    D.toggleDetail(e0.player.id);
     ok(errors.length === 0, 'draft rp: no script errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
     w.close();
   }

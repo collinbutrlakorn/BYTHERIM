@@ -9,6 +9,24 @@ const { boot, playSeason, ok } = require('./harness');
   await Sim.init();
   await Sim.startNewGame();
   ok(await playSeason(Sim), 'season played');
+
+  // ---- shot tracking ----
+  {
+    const played = Sim.state.activePlayers.filter(p => p.statsFull && p.statsFull.gp >= 10);
+    const logs = played.flatMap(p => p.gameLog.filter(g => g.min > 0));
+    ok(logs.length > 1000 && logs.every(g => g.rimA != null && g.rimM <= g.rimA && g.rimA <= g.twoPa && g.twoPm - g.rimM <= g.twoPa - g.rimA && g.dunkA <= g.rimA && g.dunkM <= g.dunkA),
+      'every game records his rim attempts, dunks and other twos, adding back up to the box score');
+    const tot = k => played.reduce((n, p) => n + (p.statsFull[k] || 0), 0);
+    const fg = k => played.reduce((n, p) => { const [m, a] = String(p.statsFull[k]).split('-').map(Number); return [n[0] + m, n[1] + a]; }, [0, 0]);
+    const fga = tot('totFga'), rim = fg('rimFg'), mid = fg('midFg'), dunk = fg('dunkFg');
+    ok(rim[1] / fga > 0.27 && rim[1] / fga < 0.42 && rim[0] / rim[1] > 0.54 && rim[0] / rim[1] < 0.67, `about a third of all shots come at the rim, made about 60% of the time (${(rim[1] / fga * 100).toFixed(0)}% at ${(rim[0] / rim[1] * 100).toFixed(1)}%)`);
+    ok(mid[0] / mid[1] > 0.32 && mid[0] / mid[1] < 0.43, `non-rim twos go in far less often (${(mid[0] / mid[1] * 100).toFixed(1)}%)`);
+    ok(dunk[1] / fga > 0.025 && dunk[1] / fga < 0.09, `dunks are a small share of shots (${(dunk[1] / fga * 100).toFixed(1)}%)`);
+    const grp = g => played.filter(p => w.DraftCycle.group(p.pos) === g);
+    const dunkRate = list => list.reduce((n, p) => n + Number(p.statsFull.dunkFg.split('-')[1]), 0) / list.reduce((n, p) => n + p.statsFull.totFga, 0);
+    ok(dunkRate(grp('big')) > dunkRate(grp('guard')) * 4, `bigs dunk far more than guards (${(dunkRate(grp('big')) * 100).toFixed(1)}% vs ${(dunkRate(grp('guard')) * 100).toFixed(1)}% of shots)`);
+    ok(played.every(p => p.born || p.dob), 'every player has a birthday');
+  }
   const DC = w.DraftCycle;
   ok(DC && DC.STAGES.length === 6, 'six steps: declarations, combine, lottery, workouts, deadline, draft night');
   ok(Sim.state.draftCycle && Sim.state.draftCycle.stage === 'declared' && Sim.state.draftCycle.year === Sim.state.year + 1,
@@ -47,6 +65,10 @@ const { boot, playSeason, ok } = require('./harness');
   ok(invited.every(p => p.predraft.notes.length >= 1 && /barefoot/.test(p.predraft.notes[0])), 'each prospect has combine notes');
   ok(new Set(invited.map(p => p.predraft.personality)).size >= 4, 'personalities vary across the class');
 
+  // Standouts: lesser-known prospects who test, measure or shoot their way up.
+  const standouts = invited.filter(p => p.predraft.standout >= 3);
+  ok(standouts.length >= 3 && standouts.every(p => p.predraft.notes.some(n => /Combine standout/.test(n))), `combine standouts every year (${standouts.length})`);
+  ok(invited.filter(p => p.predraft.combineRank <= 10).every(p => (p.predraft.standout || 0) < 3), 'the projected top ten have little to prove at the combine');
   // A prospect's stock actually moves the board.
   const riser = invited.slice().sort((a, b) => b.predraft.stock - a.predraft.stock)[0];
   const withStock = w.DraftCore.scoreProspect(riser, 0.5, { draftYear: Sim.upcomingDraftYear() }).score;
@@ -89,6 +111,14 @@ const { boot, playSeason, ok } = require('./harness');
   ok(olderFirst.length >= 2, `upperclassmen go in the first round too (${olderFirst.map(p => `#${p.pick} ${p.class}`).join(', ')})`);
   ok(picks.filter(p => p.pick <= 5).every(p => ['FR', 'SO', 'Pro'].includes(p.class)) || picks.filter(p => p.pick <= 5 && ['JR', 'SR', 'GR'].includes(p.class)).length <= 1, 'the very top of the draft stays young');
   ok(picks.every((p, i) => p.team && p.team.id === lot.order[i]), 'picks follow the order drawn on lottery night');
+  // A mid-major goes in the first round only with exceptional numbers (or
+  // a combine that made scouts look again).
+  {
+    const byId = Sim.draftContext().byId;
+    const midFirst = picks.filter(p => p.pick <= 30).map(p => byId[p.id]).filter(p => p && !p.isPro && p.conference && !w.DraftCore.POWER_SIX.has(p.conference));
+    const explained = p => { const e = w.DraftCore.scoreProspect(p, 0.5, { draftYear: Sim.upcomingDraftYear() }); return e.midMajorPenalty < 2 || (p.predraft && p.predraft.standout >= 3) || Sim.scriptedDraftFor(p); };
+    ok(midFirst.length <= 5 && midFirst.every(explained), `mid-major first-rounders had exceptional numbers or a standout combine (${midFirst.map(p => `${p.name}, ${p.conference}`).join('; ') || 'none'})`);
+  }
   ok(picks.every(p => !back.some(r => r.id === p.id)), 'no withdrawn player is drafted');
   ok(picks.filter(p => p.workedOut).length >= 10, `teams draft players who impressed them in workouts (${picks.filter(p => p.workedOut).length})`);
   const hist = Sim.state.draftHistory.find(d => d.year === Sim.upcomingDraftYear());

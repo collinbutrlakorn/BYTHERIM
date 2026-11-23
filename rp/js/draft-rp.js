@@ -39,7 +39,9 @@ const DraftRP = {
     view: 'master',
     poolSearch: '',
     poolPos: 'ALL',
-    poolSort: 'score',
+    boardPos: 'ALL',
+    sortKey: null,         // a column of the board and pool tables, or null for model rank
+    sortDir: -1,
     statMode: 'box',
     league: null,
     mock: null,
@@ -339,7 +341,7 @@ const DraftRP = {
       id: d.id, name: d.name, school: d.school, pos: d.pos, class: d.class,
       conference: d.conference || '', rating: d.rating,
       ht: d.ht || '', wt: d.wt || '', hometown: d.hometown || '',
-      hs: d.hs || '', jersey: d.jersey || '', rsci: d.rsci || null,
+      hs: d.hs || '', jersey: d.jersey || '', rsci: d.rsci || null, dob: d.dob || null, born: d.born || null,
       collegeHistory: d.collegeHistory || (d.school ? [d.school] : []),
       stats: d.stats || { ppg: d.ppg, rpg: d.rpg, apg: d.apg },
       leads: d.leads || null,
@@ -947,7 +949,82 @@ const DraftRP = {
   setView(view) { this.state.view = view; this.state.expanded = null; this.renderChrome(); this.render(); },
   setStatMode(mode) { this.state.statMode = mode; this.render(); },
   setPoolPos(pos) { this.state.poolPos = pos; this.render(); },
-  setPoolSort(sort) { this.state.poolSort = sort; this.render(); },
+  setBoardPos(pos) { this.state.boardPos = pos; this.render(); },
+  // Click a column to sort by it (best first); again to flip it; the Rank
+  // column goes back to the model's order.
+  sortBy(key) {
+    const s = this.state;
+    if (!key || key === 'rank') { s.sortKey = null; s.sortDir = -1; }
+    else if (s.sortKey === key) s.sortDir *= -1;
+    else { s.sortKey = key; s.sortDir = this.ASCENDING.includes(key) ? 1 : -1; }
+    this.render();
+  },
+  // Lower is better (or alphabetical) for these.
+  ASCENDING: ['name', 'pos', 'class', 'school', 'age', 'tov', 'pf', 'drtg', 'tovPct'],
+  POSITIONS: ['ALL', 'PG', 'SG', 'SF', 'PF', 'C'],
+  // A combo position counts for both spots it covers.
+  posMatches(p, f) {
+    if (!f || f === 'ALL') return true;
+    const SPAN = { G: ['PG', 'SG'], CG: ['PG', 'SG'], W: ['SG', 'SF'], 'G/F': ['SG', 'SF'], F: ['SF', 'PF'], 'F/C': ['PF', 'C'], 'C/F': ['PF', 'C'] };
+    return [p.pos, p.pos2].filter(Boolean).map(x => String(x).toUpperCase()).some(x => x === f || (SPAN[x] || []).includes(f));
+  },
+  posSelect(value, setter) {
+    return `<select class="filter-select" aria-label="Position" onchange="DraftRP.${setter}(this.value)">
+      ${this.POSITIONS.map(p => `<option value="${p}" ${value === p ? 'selected' : ''}>${p === 'ALL' ? 'All Positions' : p}</option>`).join('')}
+    </select>`;
+  },
+  CLASS_ORDER: { FR: 1, SO: 2, JR: 3, SR: 4, GR: 5 },
+  sortValue(entry, key) {
+    const p = entry.player, st = p.stats || {};
+    if (key === 'name' || key === 'school' || key === 'pos') return String(p[key] || '').toLowerCase();
+    if (key === 'class') return this.CLASS_ORDER[String(p.class || '').toUpperCase()] || 9;
+    if (key === 'ht') return this.sizeOf(p).htIn;
+    if (key === 'wt') return this.sizeOf(p).wtNum;
+    if (key === 'age') return this.draftAge(p);
+    if (key === 'combine') return this.pd(p) ? Number(this.pd(p).composite) : null;
+    const v = parseFloat(st[key]);
+    return isNaN(v) || (st.gp === 0 && key !== 'gp') ? null : v;
+  },
+  // Sorts board or pool entries by the chosen column; players without a
+  // number sink to the bottom either way.
+  sorted(list) {
+    const { sortKey: k, sortDir: dir } = this.state;
+    if (!k) return list;
+    return list.map((e, i) => ({ e, i, v: this.sortValue(e, k) })).sort((a, b) => {
+      if (a.v == null && b.v == null) return a.i - b.i;
+      if (a.v == null) return 1;
+      if (b.v == null) return -1;
+      const c = typeof a.v === 'string' ? a.v.localeCompare(b.v) : a.v - b.v;
+      return c ? c * dir : a.i - b.i;
+    }).map(x => x.e);
+  },
+
+  // ---------- Size and age ----------
+
+  // His height and weight: the combine's once he has been measured for
+  // this draft (height in shoes, so it lines up with listed heights),
+  // otherwise his listing.
+  sizeOf(p) {
+    const pd = this.pd(p), m = pd && pd.meas;
+    const listedIn = typeof DraftCore !== 'undefined' ? DraftCore.parseHeightInches(p.ht) : null;
+    const lw = parseFloat(p.wt);
+    if (m && m.shoes) {
+      return { measured: true, htIn: m.shoes, ht: this.fmtIn(m.shoes), barefoot: this.fmtIn(m.barefoot), wtNum: m.weight || (isNaN(lw) ? null : lw),
+        wt: m.weight ? String(m.weight) : (isNaN(lw) ? '' : String(lw)), listedHt: p.ht || '', listedWt: isNaN(lw) ? '' : String(lw) };
+    }
+    return { measured: false, htIn: listedIn, ht: p.ht || '', wtNum: isNaN(lw) ? null : lw, wt: isNaN(lw) ? '' : String(lw) };
+  },
+  draftNight() { return `${this.state.draftYear || new Date().getFullYear()}-06-25`; },
+  birthday(p) {
+    if (typeof PlayerCore === 'undefined' || !PlayerCore.birthdayOf) return null;
+    const fall = this.state.seasonYear || (this.state.draftYear ? this.state.draftYear - 1 : null);
+    return PlayerCore.birthdayOf(p, fall);
+  },
+  // Age on draft night, to a tenth.
+  draftAge(p) {
+    const b = this.birthday(p);
+    return b && typeof PlayerCore !== 'undefined' ? PlayerCore.ageOn(b, this.draftNight()) : null;
+  },
   setPoolSearch(q) { this.state.poolSearch = q; this.renderPoolOnly(); },
   setCombineGroup(g) { this.state.combineGroup = g; this.render(); },
   setCombineSort(k) {
@@ -996,6 +1073,10 @@ const DraftRP = {
   },
 
   statHeaders() {
+    if (this.state.statMode === 'shots') {
+      return [['rimA','Rim A'],['rimPct','Rim%'],['rimRate','Rim Rate'],['dunkM','Dunks'],['midA','Mid A'],['midPct','Mid%'],
+        ['threePa','3PA'],['threePPct','3P%'],['threePar','3PAr'],['ftPct','FT%'],['tsPct','TS%']];
+    }
     return this.state.statMode === 'adv'
       ? [['bpm','BPM'],['obpm','OBPM'],['dbpm','DBPM'],['tsPct','TS%'],['eFgPct','eFG%'],
          ['orebPct','OREB%'],['drebPct','DREB%'],['astPct','AST%'],['tovPct','TOV%'],
@@ -1111,12 +1192,14 @@ const DraftRP = {
                  ['p40pf','PF'],['p40fga','FGA'],['p40threePa','3PA'],['p40fta','FTA']];
 
     const onBoard = this.state.customOrder.includes(p.id);
+    const size = this.sizeOf(p), bday = this.birthday(p), age = this.draftAge(p);
 
     return `<div class="prospect-detail rp-rise">
       <div class="prospect-detail-head">
         <div>
           <div class="prospect-detail-name">${p.jersey ? '#' + p.jersey + ' ' : ''}${p.name}</div>
-          <div class="prospect-detail-bio">${[p.pos, p.class, p.ht, p.wt ? p.wt + ' lbs' : '', p.school].filter(Boolean).join(' · ')}</div>
+          <div class="prospect-detail-bio">${[p.pos, p.class, size.ht, size.wt ? size.wt + ' lbs' : '', p.school].filter(Boolean).join(' · ')}${size.measured ? ` <span class="sub-text-sm">(combine; listed ${[size.listedHt, size.listedWt ? size.listedWt + ' lbs' : ''].filter(Boolean).join(', ')})</span>` : ''}</div>
+          ${bday ? `<div class="prospect-detail-bio">Born ${PlayerCore.birthdayLabel(bday)}${age != null ? ` · ${age.toFixed(1)} on draft night` : ''}</div>` : ''}
           ${p.hometown && p.hometown !== 'N/A' ? `<div class="prospect-detail-bio">Hometown: ${p.hometown}${p.hs ? ' · ' + p.hs : ''}</div>` : ''}
           ${(() => {
             const c = typeof DraftCore !== 'undefined' && DraftCore.consistencyOf ? DraftCore.consistencyOf(p) : null;
@@ -1136,8 +1219,30 @@ const DraftRP = {
       <h5 class="detail-stat-title">Box Score</h5>${table(box)}
       ${st.bpm !== undefined ? `<h5 class="detail-stat-title">Advanced</h5>${table(adv)}` : ''}
       ${st.p40pts !== undefined ? `<h5 class="detail-stat-title">Per 40 Minutes</h5>${table(p40)}` : ''}
+      ${this.renderShotZones(st)}
       ${typeof LeadersCore !== 'undefined' ? LeadersCore.legend() : ''}
     </div>`;
+  },
+
+  // Where his shots came from this season, tracked game by game: at the
+  // rim (dunks are part of those), other twos, and threes.
+  renderShotZones(st) {
+    if (!st || st.rimFg === undefined || !st.gp) return '';
+    const fga = parseFloat(st.fga) || 0;
+    const pct = v => (v && v !== '.000' ? v : '—');
+    const rate = v => (v != null && v !== '' ? `${Math.round(parseFloat(v) * 100)}%` : '—');
+    const threeRate = fga > 0 ? (parseFloat(st.threePa) || 0) / fga : null;
+    const row = (label, fg, perGame, p, r, cls = '') => `<tr${cls ? ` class="${cls}"` : ''}><td class="zone-label">${label}</td><td>${fg || '—'}</td><td>${perGame || '—'}</td><td>${pct(p)}</td><td>${r}</td></tr>`;
+    return `<h5 class="detail-stat-title">Shot Profile</h5>
+      <div class="table-scroll"><table class="data-table profile-stat-table shot-zone-table">
+        <thead><tr><th>Zone</th><th>FGM-FGA</th><th>FGA/G</th><th>FG%</th><th>% of FGA</th></tr></thead>
+        <tbody>
+          ${row('At the rim', st.rimFg, st.rimA, st.rimPct, rate(st.rimRate))}
+          ${row('&nbsp;&nbsp;Dunks', st.dunkFg, st.dunkA, st.dunkPct, rate(st.dunkRate), 'zone-sub')}
+          ${row('Non-rim twos', st.midFg, st.midA, st.midPct, rate(st.midRate))}
+          ${row('Threes', st.threeFg, st.threePa, st.threePPct, threeRate == null ? '—' : `${Math.round(threeRate * 100)}%`)}
+        </tbody>
+      </table></div>`;
   },
 
   esc(v) { return String(v).replace(/'/g, "\\'"); },
@@ -1149,6 +1254,7 @@ const DraftRP = {
     const isOpen = this.state.expanded === p.id;
     const onBoard = this.state.customOrder.includes(p.id);
     const pd = this.pd(p);
+    const size = this.sizeOf(p), age = this.draftAge(p);
 
     let controls = '';
     if (opts.mode === 'board') {
@@ -1182,28 +1288,41 @@ const DraftRP = {
         </td>
         <td><span class="pos-badge">${p.pos || '-'}</span></td>
         <td class="sub-text">${p.class || '-'}</td>
-        <td class="sub-text">${p.ht || '-'}</td>
+        <td class="sub-text">${age != null ? age.toFixed(1) : '-'}</td>
+        <td class="sub-text"${size.measured ? ` title="Combine, in shoes (listed ${size.listedHt || '—'})"` : ''}>${size.ht || '-'}${size.measured ? '<sup class="meas-mark">C</sup>' : ''}</td>
+        <td class="sub-text"${size.measured ? ` title="Combine (listed ${size.listedWt || '—'})"` : ''}>${size.wt || '-'}</td>
         <td class="school-col">${p.school || '-'}</td>
         ${cols.map(c => `<td>${st[c[0]] !== undefined && (st.gp !== 0 || c[0] === 'gp') ? st[c[0]] : '—'}</td>`).join('')}
         ${controls}
       </tr>
-      ${isOpen ? `<tr class="detail-row"><td colspan="${7 + cols.length + (controls ? 1 : 0)}">${this.renderProspectDetail(entry)}</td></tr>` : ''}`;
+      ${isOpen ? `<tr class="detail-row"><td colspan="${this.FIXED_COLS + cols.length + (controls ? 1 : 0)}">${this.renderProspectDetail(entry)}</td></tr>` : ''}`;
   },
 
-  tableHead(extraCol) {
+  // Column headers. Sortable ones (the board and the pool, not My Board,
+  // whose order is the user's) sort the table when clicked.
+  tableHead(extraCol, sortable = true) {
     const cols = this.statHeaders();
+    const s = this.state;
+    const th = (key, label, extra = '') => {
+      if (!sortable) return `<th${extra}>${label}</th>`;
+      const on = key === 'rank' ? !s.sortKey : s.sortKey === key;
+      const arrow = on && key !== 'rank' ? (s.sortDir > 0 ? ' ▲' : ' ▼') : '';
+      return `<th class="sortable${on ? ' sorted' : ''}"${extra} data-sort="${key}" onclick="DraftRP.sortBy('${key}')" title="Sort by ${label}">${label}${arrow}</th>`;
+    };
     return `<tr>
-      <th style="width:70px;">Rank</th>
-      <th>Prospect</th><th>Pos</th><th>Class</th><th>HT</th><th>School</th>
-      ${cols.map(c => `<th>${c[1]}</th>`).join('')}
+      ${th('rank', 'Rank', ' style="width:70px;"')}
+      ${th('name', 'Prospect')}${th('pos', 'Pos')}${th('class', 'Class')}${th('age', 'Age')}${th('ht', 'HT')}${th('wt', 'WT')}${th('school', 'School')}
+      ${cols.map(c => th(c[0], c[1])).join('')}
       ${extraCol ? `<th style="width:96px;"></th>` : ''}
     </tr>`;
   },
+  FIXED_COLS: 9,
 
   statToggle() {
     return `<div class="stat-toggle">
       <button class="theme-btn ${this.state.statMode === 'box' ? 'active' : ''}" onclick="DraftRP.setStatMode('box')">Box Score</button>
       <button class="theme-btn ${this.state.statMode === 'adv' ? 'active' : ''}" onclick="DraftRP.setStatMode('adv')">Advanced</button>
+      <button class="theme-btn ${this.state.statMode === 'shots' ? 'active' : ''}" onclick="DraftRP.setStatMode('shots')">Shooting</button>
     </div>`;
   },
 
@@ -1221,7 +1340,13 @@ const DraftRP = {
   renderMasterView() {
     const s = this.state;
     if (s.historyYear !== s.draftYear) return this.renderPastBoard();
-    const rows = s.masterBoard.map((e, i) => this.prospectRow(e, i + 1, { mode: 'pool' })).join('');
+    // A position filter shows the top 30 at that spot from the whole pool,
+    // each with his overall rank.
+    const rankOf = new Map(s.prospects.map((e, i) => [e.player.id, i + 1]));
+    const list = s.boardPos === 'ALL' ? s.masterBoard
+      : s.prospects.filter(e => this.posMatches(e.player, s.boardPos)).slice(0, this.BOARD_SIZE);
+    const rows = this.sorted(list).map(e => this.prospectRow(e, rankOf.get(e.player.id) || (s.masterBoard.indexOf(e) + 1), { mode: 'pool' })).join('')
+      || `<tr><td colspan="${this.FIXED_COLS + 1 + this.statHeaders().length}" class="empty-table-msg">No ${s.boardPos} prospects.</td></tr>`;
     const c = s.sources[s.source] || {};
     const title = s.stage === 'live' ? 'Big Board' : s.stage === 'complete' ? 'Final Big Board' : 'Big Board';
     const blurb = s.stage === 'live' && !c.week
@@ -1237,9 +1362,9 @@ const DraftRP = {
       <div class="draft-section-head">
         <div>
           <h2 class="draft-section-title">${s.draftYear} ${title}</h2>
-          <p class="sub-text">${blurb} Click any prospect for full stats${this.hasCombine() ? ' and pre-draft results' : ''}.</p>
+          <p class="sub-text">${blurb} Click any prospect for full stats${this.hasCombine() ? ' and pre-draft results' : ''}, or a column to sort by it.${this.hasCombine() ? ' <sup class="meas-mark">C</sup> height and weight are from the combine.' : ''}</p>
         </div>
-        <div class="board-actions">${this.yearSelect('Board')}${this.statToggle()}</div>
+        <div class="board-actions">${this.yearSelect('Board')}${this.posSelect(s.boardPos, 'setBoardPos')}${this.statToggle()}</div>
       </div>
       <div class="table-wrapper">
         <table class="draft-table data-table">
@@ -1308,7 +1433,7 @@ const DraftRP = {
          <button class="sim-btn" onclick="DraftRP.copyMasterBoard()">Start From Master Board</button></div>`
       : `<div class="table-wrapper">
           <table class="draft-table data-table">
-            <thead>${this.tableHead(true)}</thead>
+            <thead>${this.tableHead(true, false)}</thead>
             <tbody>${boardRows}</tbody>
           </table>
         </div>`;
@@ -1330,23 +1455,13 @@ const DraftRP = {
       <div class="draft-section-head mt-2">
         <div>
           <h3 class="draft-section-title">Available Prospects</h3>
-          <p class="sub-text">${this.state.stage === 'live' ? `The top ${this.state.prospects.length} prospects in college basketball right now.` : 'Every declared player.'} Click a row for full box score, advanced and per-40 stats.</p>
+          <p class="sub-text">${this.state.stage === 'live' ? `The top ${this.state.prospects.length} prospects in college basketball right now.` : 'Every declared player.'} Click a row for full box score, advanced, per-40 and shooting stats, or a column to sort by it.</p>
         </div>
         <div class="filter-controls">
           <input class="search-bar" id="poolSearch" placeholder="Search prospects…"
             value="${this.state.poolSearch.replace(/"/g, '&quot;')}"
             oninput="DraftRP.setPoolSearch(this.value)">
-          <select class="filter-select" onchange="DraftRP.setPoolPos(this.value)">
-            ${['ALL','PG','SG','SF','PF','C'].map(p => `<option value="${p}" ${this.state.poolPos === p ? 'selected' : ''}>${p === 'ALL' ? 'All Positions' : p}</option>`).join('')}
-          </select>
-          <select class="filter-select" onchange="DraftRP.setPoolSort(this.value)">
-            <option value="score" ${this.state.poolSort === 'score' ? 'selected' : ''}>Model Rank</option>
-            <option value="ppg" ${this.state.poolSort === 'ppg' ? 'selected' : ''}>Points</option>
-            <option value="rpg" ${this.state.poolSort === 'rpg' ? 'selected' : ''}>Rebounds</option>
-            <option value="apg" ${this.state.poolSort === 'apg' ? 'selected' : ''}>Assists</option>
-            <option value="bpm" ${this.state.poolSort === 'bpm' ? 'selected' : ''}>BPM</option>
-            <option value="name" ${this.state.poolSort === 'name' ? 'selected' : ''}>Name</option>
-          </select>
+          ${this.posSelect(this.state.poolPos, 'setPoolPos')}
         </div>
       </div>
       <div class="table-wrapper">
@@ -1362,9 +1477,7 @@ const DraftRP = {
     const onBoard = new Set(this.state.customOrder);
     let pool = this.state.prospects.filter(e => !onBoard.has(e.player.id));
 
-    if (this.state.poolPos !== 'ALL') {
-      pool = pool.filter(e => (e.player.pos || '').toUpperCase() === this.state.poolPos);
-    }
+    if (this.state.poolPos !== 'ALL') pool = pool.filter(e => this.posMatches(e.player, this.state.poolPos));
     const q = this.state.poolSearch.trim().toLowerCase();
     if (q) {
       pool = pool.filter(e =>
@@ -1372,14 +1485,10 @@ const DraftRP = {
         (e.player.school || '').toLowerCase().includes(q));
     }
 
-    const sort = this.state.poolSort;
-    if (sort === 'name') pool.sort((a, b) => a.player.name.localeCompare(b.player.name));
-    else if (sort !== 'score') {
-      pool.sort((a, b) => (parseFloat((b.player.stats || {})[sort]) || 0) - (parseFloat((a.player.stats || {})[sort]) || 0));
-    }
+    pool = this.sorted(pool);
 
     if (pool.length === 0) {
-      const span = 7 + this.statHeaders().length;
+      const span = this.FIXED_COLS + 1 + this.statHeaders().length;
       return `<tr><td colspan="${span}" class="empty-table-msg">${onBoard.size && !q && this.state.poolPos === 'ALL' ? 'Every prospect is on your board.' : 'No prospects match these filters.'}</td></tr>`;
     }
 

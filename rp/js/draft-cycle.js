@@ -249,6 +249,32 @@
   // little to prove, a fringe prospect everything.
   function volatility(rank) { return rank <= 10 ? 0.45 : rank <= 30 ? 1.0 : rank <= 60 ? 1.35 : 1.6; }
 
+  // A combine standout: elite testing, length, shooting, or measuring
+  // bigger than his listing. Teams already know the projected top picks;
+  // for a prospect few have watched (outside the first round, a mid-major,
+  // no national recruiting rank) a standout week is how he gets noticed,
+  // and it can carry him a long way up the board.
+  const POWER = new Set(['ACC', 'Big Ten', 'Big 12', 'SEC', 'Big East', 'Pac-12']);
+  function obscurity(p, rank) {
+    let o = rank <= 10 ? 0.15 : rank <= 20 ? 0.4 : rank <= 30 ? 0.7 : rank <= 45 ? 1.0 : 1.3;
+    if (rank > 10 && !p.isPro && p.conference && !POWER.has(p.conference)) o += 0.3;
+    const rsci = num(p.rsci, 0);
+    if (rank > 10 && (!rsci || rsci > 100)) o += 0.2;
+    return o;
+  }
+  function standoutOf(r, athletic, length, shooting) {
+    const parts = [];
+    let s = 0;
+    const add = (v, why) => { if (v > 0.05) { s += v; parts.push(why); } };
+    if (athletic != null) add(Math.max(0, (athletic - 72) / 28), 'athletic testing');
+    if (r.tests) add(['maxVert', 'sprint', 'lane'].some(k => r.pct[k] >= 97) ? 0.25 : 0, 'a top result in his group');
+    add(Math.max(0, (length - 82) / 18) * 0.6, 'length');
+    if (shooting != null) add(Math.max(0, (shooting - 80) / 20) * 0.7, 'shooting');
+    add(Math.max(0, Math.min(1, (r.m.shoes - r.m.listed) / 1.5)) * 0.5, 'measuring bigger than listed');
+    return { score: s, parts };
+  }
+  const STANDOUT_K = 5, STANDOUT_CAP = 9;
+
   function runCombine(ctx) {
     const rng = ctx.rng || Math.random;
     const board = ctx.board();                // declared, ranked
@@ -293,6 +319,9 @@
       const med = (p.injuries || []).filter(x => num(x.severity) >= 3 && num(x.year) >= num(ctx.draftYear) - 2);
       const worst = med.reduce((m, x) => Math.max(m, num(x.severity)), 0);
       if (worst) stock -= (worst >= 4 ? 1.4 : 0.6) * vol;
+      const so = standoutOf(r, athletic, length, shooting);
+      const standout = so.score >= 0.35 ? +Math.min(STANDOUT_CAP, so.score * STANDOUT_K * obscurity(p, r.rank)).toFixed(2) : 0;
+      stock += standout;
       stock = +stock.toFixed(2);
 
       const notes = [];
@@ -309,6 +338,7 @@
       if (r.shots && r.pct.shooting >= 85) notes.push(`Lit up the shooting drills (${r.shots.spotUp}/25 spot-up).`);
       else if (r.shots && r.pct.shooting <= 15) notes.push('Shooting drills were a struggle.');
       if (worst) notes.push(`Medicals: teams looked closely at his recovery from ${med[med.length - 1].type}.`);
+      if (standout >= 3) notes.push(`Combine standout: ${so.parts.slice(0, 3).join(', ')} put him on boards that hadn't had him${r.rank > 30 ? ' — one of the biggest risers of the week' : ''}.`);
       if (iv <= -1) notes.push('Some teams came away from interviews unconvinced.');
       else if (iv >= 1) notes.push('Interviewed as well as anyone in the class.');
 
@@ -316,7 +346,7 @@
         id: p.id, name: p.name, school: p.school, pos: p.pos, group: r.group, rank: r.rank,
         meas: r.m, tests: r.tests, shooting: r.shots ? { spotUp: r.shots.spotUp, offDribble: r.shots.offDribble, star: r.shots.star } : null,
         pct: r.pct, athletic: athletic == null ? null : Math.round(athletic), composite: Math.round(composite),
-        grade: letter(composite), personality: pers, interview: iv, profile: r.prof, stock, notes
+        grade: letter(composite), personality: pers, interview: iv, profile: r.prof, stock, standout, notes
       };
     });
     return results;
@@ -501,7 +531,10 @@
   const KEEP_STATS = ['gp', 'gs', 'mpg', 'ppg', 'oreb', 'dreb', 'rpg', 'apg', 'stl', 'blk', 'tov', 'pf', 'fgm', 'fga', 'fgPct',
     'threePm', 'threePa', 'threePPct', 'ftm', 'fta', 'ftPct', 'bpm', 'obpm', 'dbpm', 'tsPct', 'eFgPct', 'rTsPct', 'orebPct',
     'drebPct', 'trbPct', 'astPct', 'tovPct', 'blkPct', 'usg', 'ftr', 'threePar', 'ortg', 'drtg', 'netRtg',
-    'p40pts', 'p40oreb', 'p40dreb', 'p40reb', 'p40ast', 'p40stl', 'p40blk', 'p40tov', 'p40pf', 'p40fga', 'p40threePa', 'p40fta'];
+    'p40pts', 'p40oreb', 'p40dreb', 'p40reb', 'p40ast', 'p40stl', 'p40blk', 'p40tov', 'p40pf', 'p40fga', 'p40threePa', 'p40fta',
+    // Shot zones: at the rim, dunks, other twos, threes.
+    'rimM', 'rimA', 'rimPct', 'rimRate', 'rimFg', 'midM', 'midA', 'midPct', 'midRate', 'midFg',
+    'dunkM', 'dunkA', 'dunkPct', 'dunkRate', 'dunkFg', 'threeFg'];
   function keptStats(st) {
     if (!st) return null;
     const out = {};
@@ -642,7 +675,7 @@
         Object.assign(pd(r.id), {
           invited: true, meas: r.meas, tests: r.tests, shooting: r.shooting, pct: r.pct, athletic: r.athletic,
           composite: r.composite, grade: r.grade, personality: r.personality, interview: r.interview,
-          profile: r.profile, combineStock: r.stock, notes: r.notes, stock: r.stock, combineRank: r.rank
+          profile: r.profile, combineStock: r.stock, standout: r.standout, notes: r.notes, stock: r.stock, combineRank: r.rank
         });
       });
       cycle.combine = {

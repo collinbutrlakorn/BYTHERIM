@@ -2543,6 +2543,8 @@ window.SimEngine = {
       mpg: z1, ppg: z1, oreb: z1, dreb: z1, rpg: z1, apg: z1, stl: z1, blk: z1, tov: z1, pf: z1,
       fgm: z1, fga: z1, fgPct: z3, twoPm: z1, twoPa: z1, twoPPct: z3,
       threePm: z1, threePa: z1, threePPct: z3, ftm: z1, fta: z1, ftPct: z3,
+      rimM: z1, rimA: z1, rimPct: z3, rimRate: z3, rimFg: '0-0', midM: z1, midA: z1, midPct: z3, midRate: z3, midFg: '0-0',
+      dunkM: z1, dunkA: z1, dunkPct: z3, dunkRate: z3, dunkFg: '0-0', threeFg: '0-0',
       bpm: z1, obpm: z1, dbpm: z1, tsPct: z3, rTsPct: z1, eFgPct: z3,
       orebPct: '0.0%', drebPct: '0.0%', trbPct: '0.0%', astPct: '0.0%',
       tovPct: '0.0%', blkPct: '0.0%', usg: '0.0%', ftr: z3, threePar: z3,
@@ -4870,6 +4872,7 @@ window.SimEngine = {
         const inj = player._injNow; delete player._injNow;
         player.gameLog.push({
           ...box,
+          ...this.shotZonesFor(player, box),
           ...(inj ? { inj } : {}),
           started: !player.isBench && box.min > 0,
           week: scheduleEntry ? scheduleEntry.week : this.state.week,
@@ -4983,8 +4986,37 @@ window.SimEngine = {
     if (denom > 0) this.state.leagueTsPct = t.pts / denom;
   },
 
+  // Where a game's twos came from (PlayerCore.splitTwos): at the rim, the
+  // dunks among those, and the rest. Recorded with each game as it's played.
+  shotZonesFor(player, box, rng) {
+    if (!box || !(box.twoPa > 0) || typeof PlayerCore === 'undefined' || !PlayerCore.splitTwos) return { rimM: 0, rimA: 0, dunkM: 0, dunkA: 0 };
+    return PlayerCore.splitTwos(player, box.twoPm, box.twoPa, rng);
+  },
+  // Games played before shots were tracked get theirs worked out once, the
+  // same way every time (seeded by the game), and kept.
+  backfillShotZones(player) {
+    (player.gameLog || []).forEach((g, i) => {
+      if (g.rimA != null) return;
+      const seed = typeof PlayerCore !== 'undefined' ? PlayerCore.hash01(`${player.name}|${g.week}|${g.opponent}|${i}`, 'shots') : 0.5;
+      let a = Math.floor(seed * 4294967296) >>> 0;
+      const rng = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+      Object.assign(g, this.shotZonesFor(player, g, rng));
+    });
+  },
+
+  // A birthday for every player: the sheet's, or one fitting his class,
+  // made once and kept (p.born) so it never moves (PlayerCore.birthdayOf).
+  birthdayFor(p) {
+    if (!p || typeof PlayerCore === 'undefined' || !PlayerCore.birthdayOf) return null;
+    const b = PlayerCore.birthdayOf(p, this.state.year);
+    if (b && b.invented && !p.born) p.born = PlayerCore.dobText(b);
+    return b;
+  },
+
   recalculateAverages(player) {
     if (!player.gameLog || player.gameLog.length === 0) return;
+    this.backfillShotZones(player);
+    this.birthdayFor(player);
     
     const exp = player.expectedStats || {};
 
@@ -4993,8 +5025,11 @@ window.SimEngine = {
        // games stay in the log (they show as DNP) but not in GP or averages.
        const logs = allLogs.filter(g => (g.min || 0) > 0);
        if (logs.length === 0) return this.getZeroStats();
-       let s = { min:0, pts:0, reb:0, oreb:0, dreb:0, ast:0, stl:0, blk:0, tov:0, pf:0, fgm:0, fga:0, twoPm:0, twoPa:0, threePm:0, threePa:0, ftm:0, fta:0 };
+       let s = { min:0, pts:0, reb:0, oreb:0, dreb:0, ast:0, stl:0, blk:0, tov:0, pf:0, fgm:0, fga:0, twoPm:0, twoPa:0, threePm:0, threePa:0, ftm:0, fta:0,
+                 rimM:0, rimA:0, dunkM:0, dunkA:0 };
        logs.forEach(g => { for(let k in s) s[k] += (g[k] || 0); });
+       const midM = s.twoPm - s.rimM, midA = s.twoPa - s.rimA;
+       const share = a => s.fga > 0 ? t3(a, s.fga) : '.000';
        const gamesStarted = logs.filter(g => g.started).length;
        
        const g = logs.length;
@@ -5062,6 +5097,13 @@ window.SimEngine = {
           totAst: s.ast, totStl: s.stl, totBlk: s.blk, totTov: s.tov, totPf: s.pf,
           totFgm: s.fgm, totFga: s.fga, totThreePm: s.threePm, totThreePa: s.threePa,
           totFtm: s.ftm, totFta: s.fta,
+          totRimM: s.rimM, totRimA: s.rimA, totMidM: midM, totMidA: midA, totDunkM: s.dunkM, totDunkA: s.dunkA,
+          // Shot zones (see shotZonesFor): per game, percentage, share of
+          // his field goal attempts, and the season's makes-attempts.
+          rimM: t1(s.rimM), rimA: t1(s.rimA), rimPct: t3(s.rimM, s.rimA), rimRate: share(s.rimA), rimFg: `${s.rimM}-${s.rimA}`,
+          midM: t1(midM), midA: t1(midA), midPct: t3(midM, midA), midRate: share(midA), midFg: `${midM}-${midA}`,
+          dunkM: t1(s.dunkM), dunkA: t1(s.dunkA), dunkPct: t3(s.dunkM, s.dunkA), dunkRate: share(s.dunkA), dunkFg: `${s.dunkM}-${s.dunkA}`,
+          threeFg: `${s.threePm}-${s.threePa}`,
           mpg: t1(s.min), ppg: t1(s.pts), oreb: t1(s.oreb), dreb: t1(s.dreb), rpg: t1(s.reb), apg: t1(s.ast),
           stl: t1(s.stl), blk: t1(s.blk), tov: t1(s.tov), pf: t1(s.pf),
           fgm: t1(s.fgm), fga: t1(s.fga), fgPct: t3(s.fgm, s.fga),
@@ -5151,6 +5193,7 @@ window.SimEngine = {
         const inj = player._injNow; delete player._injNow;
         player.gameLog.push({
           ...box,
+          ...this.shotZonesFor(player, box),
           ...(inj ? { inj } : {}),
           started: !player.isBench && box.min > 0,
           week: this.state.week,
@@ -8302,6 +8345,7 @@ window.SimEngine = {
             ${chip('Weight', player.wt ? player.wt + ' lb' : '')}
             ${typeof PlayerCore !== 'undefined' && !player.isPro ? chip('Consistency', PlayerCore.consistencyLabel(PlayerCore.consistencyOf(player))) : ''}
             ${player.shotRole === 'spot' ? chip('Role', 'Three-point specialist') : player.shotRole === 'volume' && player.class === 'FR' ? chip('Role', 'Volume three-point shooter') : ''}
+            ${(() => { const b = this.birthdayFor(player); return b ? chip('Born', `${PlayerCore.birthdayLabel(b)} (age ${Math.floor(PlayerCore.ageOn(b, new Date(Date.UTC(this.state.year, 10, 1))))})`) : ''; })()}
             ${chip('Hometown', player.hometown && player.hometown !== 'N/A' ? player.hometown : '')}
             ${chip('High school', player.hs)}
             ${chip('RSCI', player.rsci ? '#' + Math.round(player.rsci) + (player.recClassYear ? ' (' + player.recClassYear + ')' : '') : 'Unranked')}
@@ -10550,6 +10594,7 @@ window.SimEngine = {
       cons: typeof PlayerCore !== 'undefined' ? PlayerCore.consistencyOf(p) : null,
       shotRole: p.shotRole || null,
       isPro: !!p.isPro, draftClass: p.draftClass || null, dob: p.dob || null,
+      born: p.dob ? null : (this.birthdayFor(p) && p.born) || null,
       // What the board reads to value an international pro.
       ...(p.isPro ? { recRating: p.recRating || null, proYears: p.proYears || 0, breakout: p.breakout || 0, club: p.club || null, proLeague: p.proLeague || null, proLevel: p.proLevel || null, proTeam: p.proTeam || null } : {}),
       // The sheet's Draft column, so the Draft RP's mock agrees with draft night.
@@ -11049,7 +11094,7 @@ window.SimEngine = {
         </div>
         ${commit}
       </div>
-      <div class="rc-facts card">${fact('Height', r.ht)}${fact('Weight', r.wt ? r.wt + ' lb' : '')}${fact('Wingspan', r.wingspan)}${fact('Hometown', r.hometown && r.hometown !== 'N/A' ? r.hometown : '')}${fact('High school', r.hs)}</div>
+      <div class="rc-facts card">${fact('Height', r.ht)}${fact('Weight', r.wt ? r.wt + ' lb' : '')}${fact('Wingspan', r.wingspan)}${(() => { const b = typeof PlayerCore !== 'undefined' ? PlayerCore.parseDob(r.dob) : null; return b ? fact('Born', PlayerCore.birthdayLabel(b)) : ''; })()}${fact('Hometown', r.hometown && r.hometown !== 'N/A' ? r.hometown : '')}${fact('High school', r.hs)}</div>
       ${this.summerCardHTML(r)}
       ${picked.length ? `<div class="card rc-block"><h3 class="section-title">All-star games</h3><ul>${picked.map(x => `<li>${this.esc(x)}</li>`).join('')}</ul></div>` : ''}
       ${sc.strengths || sc.weaknesses || sc.scouting ? `<div class="card rc-block"><h3 class="section-title">Scouting report</h3>
