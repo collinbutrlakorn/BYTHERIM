@@ -248,14 +248,21 @@
   // part of those) or away from it (floaters, post hooks, pull-ups). A box
   // score only knows twos and threes, so each game's twos are split by the
   // player's own tendencies, which stay with him (a hash of his name, like
-  // his consistency): a rim-running big lives at the basket and dunks,
-  // a jump-shooting guard takes more of his twos off the dribble.
+  // his consistency).
+  //
+  // What a player makes at the rim barely moves from one player to the next
+  // at a position: a guard is around 60% there and 70% is rare for anyone
+  // but a big. What separates a good two-point shooter is mostly WHERE he
+  // takes them, so his expected 2P% (expectedStats.twoPPct) sets his share
+  // of twos at the rim, and only nudges his percentages.
   //   rim    share of his two-point attempts taken at the rim
   //   dunk   share of his rim attempts that are dunks
   //   rimPct / midPct  what he makes from each spot, before the night's luck
-  const RIM_BASE = { guard: 0.50, wing: 0.58, forward: 0.65, big: 0.74 };
+  const GROUP_2P = { guard: 0.475, wing: 0.53, forward: 0.55, big: 0.595 };
+  const RIM_PCT = { guard: 0.615, wing: 0.64, forward: 0.675, big: 0.705 };
+  const RIM_CAP = { guard: 0.635, wing: 0.65, forward: 0.72, big: 0.79 };
+  const MID_PCT = 0.39;
   const DUNK_BASE = { guard: 0.05, wing: 0.13, forward: 0.22, big: 0.33 };
-  const RIM_PCT = { guard: 0.58, wing: 0.61, forward: 0.65, big: 0.69 };
   const ARCH_RIM = { slasher: 0.11, rollBig: 0.12, postHub: -0.10, shooter: -0.07, primaryScorer: -0.03, playmaker: -0.02, defender: 0.03, connector: 0 };
   const ARCH_DUNK = { slasher: 0.05, rollBig: 0.12, postHub: -0.07, shooter: -0.03, defender: 0.02 };
   function heightIn(ht) {
@@ -273,30 +280,41 @@
     const ath = isFinite(athN) ? clamp((athN - 75) / 25, -1, 1) : 0;
     const h = heightIn(p && p.ht);
     const tall = h ? clamp((h - ({ guard: 75, wing: 78.5, forward: 80.5, big: 82.5 }[g])) / 3, -1.5, 1.5) : 0;
-    const rim = clamp(RIM_BASE[g] + (ARCH_RIM[arch] || 0) + ath * 0.06 + tri(k, 'zr') * 0.08, 0.25, 0.92);
-    const dunk = clamp(DUNK_BASE[g] + (ARCH_DUNK[arch] || 0) + ath * 0.09 + tall * 0.04 + tri(k, 'zd') * 0.05, 0, 0.7);
-    const rimPct = clamp(RIM_PCT[g] + ath * 0.03 + dunk * 0.12 + tri(k, 'zp') * 0.03, 0.45, 0.82);
-    return { rim, dunk, rimPct, midPct: 0.34 };
+    const e2 = parseFloat(p && p.expectedStats && p.expectedStats.twoPPct);
+    const P = isFinite(e2) && e2 > 0.2 && e2 < 0.9 ? e2 : GROUP_2P[g];
+    const dev = P - GROUP_2P[g];
+    const rimPct = clamp(RIM_PCT[g] + dev * 0.1 + ath * 0.012 + tri(k, 'zp') * 0.012, 0.48, RIM_CAP[g]);
+    let midPct = clamp(MID_PCT + dev * 0.3 + tri(k, 'zm') * 0.025, 0.27, 0.48);
+    // The share of twos at the rim that makes his 2P% add up, leaned by how
+    // he plays; then the non-rim percentage settles what's left.
+    const rim = clamp((P - midPct) / Math.max(0.05, rimPct - midPct) + (ARCH_RIM[arch] || 0) * 0.5 + tri(k, 'zr') * 0.05, 0.15, 0.95);
+    midPct = clamp((P - rim * rimPct) / Math.max(0.05, 1 - rim), 0.27, 0.46);
+    const dunk = clamp(DUNK_BASE[g] + (ARCH_DUNK[arch] || 0) + ath * 0.09 + tall * 0.04 + (rim - 0.55) * 0.15 + tri(k, 'zd') * 0.05, 0, 0.7);
+    return { rim, dunk, rimPct, midPct };
   }
   // Splits one game's made and attempted twos into rim (with dunks) and
-  // non-rim twos. Totals always add back up to the box score.
+  // non-rim twos. Totals always add back up to the box score. Each make
+  // and each miss is placed by how likely a shot from each spot was to go
+  // in, so a player's rim and non-rim percentages come out where his
+  // profile puts them, not pulled toward his overall 2P%.
+  const DUNK_PCT = 0.92;
   function splitTwos(p, twoPm, twoPa, rng) {
     const r = rng || Math.random;
     const m = Math.max(0, Math.round(twoPm || 0)), a = Math.max(m, Math.round(twoPa || 0));
     const out = { rimM: 0, rimA: 0, dunkM: 0, dunkA: 0 };
     if (!a) return out;
     const pr = shotProfile(p);
-    for (let i = 0; i < a; i++) if (r() < pr.rim) out.rimA++;
-    const midA = a - out.rimA;
-    const er = out.rimA * pr.rimPct, em = midA * pr.midPct;
-    const lo = Math.max(0, m - midA), hi = Math.min(out.rimA, m);
-    const want = er + em > 0 ? m * er / (er + em) : m * out.rimA / a;
-    out.rimM = clamp(Math.round(want + (r() - 0.5) * 1.2), lo, hi);
-    for (let i = 0; i < out.rimA; i++) if (r() < pr.dunk) out.dunkA++;
-    const dlo = Math.max(0, out.dunkA - (out.rimA - out.rimM)), dhi = Math.min(out.dunkA, out.rimM);
-    let made = 0;
-    for (let i = 0; i < out.dunkA; i++) if (r() < 0.92) made++;
-    out.dunkM = clamp(made, dlo, dhi);
+    const made = pr.rim * pr.rimPct, missed = pr.rim * (1 - pr.rimPct);
+    const qMade = made / (made + (1 - pr.rim) * pr.midPct);
+    const qMiss = missed / (missed + (1 - pr.rim) * (1 - pr.midPct));
+    // Of rim makes and rim misses, the dunks.
+    const dMade = clamp(pr.dunk * DUNK_PCT / pr.rimPct, 0, 1);
+    const dMiss = clamp(pr.dunk * (1 - DUNK_PCT) / (1 - pr.rimPct), 0, 1);
+    for (let i = 0; i < m; i++) if (r() < qMade) { out.rimM++; if (r() < dMade) out.dunkM++; }
+    let rimMiss = 0, dunkMiss = 0;
+    for (let i = 0; i < a - m; i++) if (r() < qMiss) { rimMiss++; if (r() < dMiss) dunkMiss++; }
+    out.rimA = out.rimM + rimMiss;
+    out.dunkA = out.dunkM + dunkMiss;
     return out;
   }
 

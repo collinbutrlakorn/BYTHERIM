@@ -11,8 +11,8 @@ const CY = require(path.join(JS, 'draft-cycle.js'));
 const { ok } = require('./harness');
 
 const mean = a => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length);
-let seed = 7;
-const rng = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+let rs = 7;
+const rng = () => { rs = (rs + 0x6D2B79F5) | 0; let t = Math.imul(rs ^ (rs >>> 15), 1 | rs); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 
 // ---- Shot zones ----
 {
@@ -35,6 +35,24 @@ const rng = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed
   ok(dunkShare('big') > 0.3 && dunkShare('guard') < 0.08, `and dunks far more of them (${(dunkShare('big') * 100).toFixed(0)}% vs ${(dunkShare('guard') * 100).toFixed(0)}%)`);
   ok(JSON.stringify(PC.shotProfile(big)) === JSON.stringify(PC.shotProfile({ ...big })), 'a player\'s shot tendencies are his own, the same every time');
   ok(JSON.stringify(PC.splitTwos(big, 0, 0, rng)) === JSON.stringify({ rimM: 0, rimA: 0, dunkM: 0, dunkA: 0 }), 'no twos, no rim shots');
+
+  // Realistic percentages: a season of games at his expected 2P%.
+  const season = (p, games = 400) => {
+    const P = parseFloat(p.expectedStats.twoPPct), t = { rm: 0, ra: 0, mm: 0, ma: 0 };
+    for (let i = 0; i < games; i++) {
+      const a = 2 + Math.floor(rng() * 8); let m = 0;
+      for (let j = 0; j < a; j++) if (rng() < P) m++;
+      const z = PC.splitTwos(p, m, a, rng);
+      t.rm += z.rimM; t.ra += z.rimA; t.mm += m - z.rimM; t.ma += a - z.rimA;
+    }
+    return { rim: t.rm / t.ra, mid: t.mm / t.ma, share: t.ra / (t.ra + t.ma) };
+  };
+  const avgG = season({ name: 'Average Guard', pos: 'SG', expectedStats: { twoPPct: '.480' } });
+  const hotG = season({ name: 'Efficient Guard', pos: 'PG', expectedStats: { twoPPct: '.580' } });
+  const avgB = season({ name: 'Average Center', pos: 'C', expectedStats: { twoPPct: '.600' } });
+  ok(avgG.rim > 0.56 && avgG.rim < 0.65 && avgG.mid > 0.33 && avgG.mid < 0.43, `a typical guard makes about 60% at the rim and 38% on other twos (${(avgG.rim * 100).toFixed(1)}%, ${(avgG.mid * 100).toFixed(1)}%)`);
+  ok(hotG.rim < 0.67 && hotG.share > avgG.share + 0.2, `an efficient two-point guard gets there by living at the rim, not by making 70% there (${(hotG.rim * 100).toFixed(1)}% on ${(hotG.share * 100).toFixed(0)}% of his twos)`);
+  ok(avgB.rim > 0.65 && avgB.rim < 0.75, `a center finishes better at the rim (${(avgB.rim * 100).toFixed(1)}%)`);
 }
 
 // ---- Birthdays ----

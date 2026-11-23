@@ -365,6 +365,12 @@ window.SimEngine = {
             if (!(this.state.proPlayers || []).length) this.refreshProPool();
             this.updateProSeasons();
             this.advanceHsCalendar();
+            // Shot splits from an older version are redone (and saved, so the
+            // Draft RP reads the new ones too).
+            if (this.state.activePlayers.some(p => (p.gameLog || []).some(g => g.rimA != null && g.zv !== this.SHOT_ZONE_VERSION))) {
+              this.recalculateAllAverages();
+              Promise.resolve(this.saveStateToDB()).catch(e => console.warn('Saving the redone shot splits:', e));
+            }
             this.syncUI();
             this.logNews(`Loaded Season ${this.state.year} (${this.state.teams.length} teams, ${this.state.activePlayers.length} players).`);
             setTimeout(() => this.checkGeneratedResets().catch(e => console.warn('Checking generated classes:', e))
@@ -4988,15 +4994,20 @@ window.SimEngine = {
 
   // Where a game's twos came from (PlayerCore.splitTwos): at the rim, the
   // dunks among those, and the rest. Recorded with each game as it's played.
+  // zv: which version of the split made them. Games split by an older one
+  // (the first version ran rim percentages far too high) are redone.
+  SHOT_ZONE_VERSION: 2,
   shotZonesFor(player, box, rng) {
-    if (!box || !(box.twoPa > 0) || typeof PlayerCore === 'undefined' || !PlayerCore.splitTwos) return { rimM: 0, rimA: 0, dunkM: 0, dunkA: 0 };
-    return PlayerCore.splitTwos(player, box.twoPm, box.twoPa, rng);
+    const zv = this.SHOT_ZONE_VERSION;
+    if (!box || !(box.twoPa > 0) || typeof PlayerCore === 'undefined' || !PlayerCore.splitTwos) return { rimM: 0, rimA: 0, dunkM: 0, dunkA: 0, zv };
+    return { ...PlayerCore.splitTwos(player, box.twoPm, box.twoPa, rng), zv };
   },
-  // Games played before shots were tracked get theirs worked out once, the
-  // same way every time (seeded by the game), and kept.
+  // Games played before shots were tracked (or split by an older version)
+  // get theirs worked out once, the same way every time (seeded by the
+  // game), and kept.
   backfillShotZones(player) {
     (player.gameLog || []).forEach((g, i) => {
-      if (g.rimA != null) return;
+      if (g.rimA != null && g.zv === this.SHOT_ZONE_VERSION) return;
       const seed = typeof PlayerCore !== 'undefined' ? PlayerCore.hash01(`${player.name}|${g.week}|${g.opponent}|${i}`, 'shots') : 0.5;
       let a = Math.floor(seed * 4294967296) >>> 0;
       const rng = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };

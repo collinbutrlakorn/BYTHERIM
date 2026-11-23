@@ -19,13 +19,28 @@ const { boot, playSeason, ok } = require('./harness');
     const tot = k => played.reduce((n, p) => n + (p.statsFull[k] || 0), 0);
     const fg = k => played.reduce((n, p) => { const [m, a] = String(p.statsFull[k]).split('-').map(Number); return [n[0] + m, n[1] + a]; }, [0, 0]);
     const fga = tot('totFga'), rim = fg('rimFg'), mid = fg('midFg'), dunk = fg('dunkFg');
-    ok(rim[1] / fga > 0.27 && rim[1] / fga < 0.42 && rim[0] / rim[1] > 0.54 && rim[0] / rim[1] < 0.67, `about a third of all shots come at the rim, made about 60% of the time (${(rim[1] / fga * 100).toFixed(0)}% at ${(rim[0] / rim[1] * 100).toFixed(1)}%)`);
+    ok(rim[1] / fga > 0.27 && rim[1] / fga < 0.42 && rim[0] / rim[1] > 0.58 && rim[0] / rim[1] < 0.68, `about a third of all shots come at the rim, made about 63% of the time (${(rim[1] / fga * 100).toFixed(0)}% at ${(rim[0] / rim[1] * 100).toFixed(1)}%)`);
     ok(mid[0] / mid[1] > 0.32 && mid[0] / mid[1] < 0.43, `non-rim twos go in far less often (${(mid[0] / mid[1] * 100).toFixed(1)}%)`);
+    // Per player, against real college numbers: rim around 64%, other twos
+    // around 38%, and only a handful of guards and wings over 70% at the rim.
+    const med = a => { a = a.slice().sort((x, y) => x - y); return a[Math.floor(a.length / 2)]; };
+    const split = (p, k) => String(p.statsFull[k]).split('-').map(Number);
+    const qual = played.filter(p => split(p, 'rimFg')[1] >= 75);
+    const rimMed = med(qual.map(p => split(p, 'rimFg')[0] / split(p, 'rimFg')[1]));
+    const midMed = med(played.filter(p => split(p, 'midFg')[1] >= 75).map(p => split(p, 'midFg')[0] / split(p, 'midFg')[1]));
+    const hotSmall = qual.filter(p => ['guard', 'wing'].includes(w.DraftCycle.group(p.pos)) && split(p, 'rimFg')[0] / split(p, 'rimFg')[1] > 0.7);
+    ok(rimMed > 0.6 && rimMed < 0.68 && midMed > 0.34 && midMed < 0.42, `the typical player makes ${(rimMed * 100).toFixed(1)}% at the rim and ${(midMed * 100).toFixed(1)}% on other twos (75+ attempts)`);
+    ok(hotSmall.length <= 30, `few guards or wings make over 70% at the rim (${hotSmall.length})`);
     ok(dunk[1] / fga > 0.025 && dunk[1] / fga < 0.09, `dunks are a small share of shots (${(dunk[1] / fga * 100).toFixed(1)}%)`);
     const grp = g => played.filter(p => w.DraftCycle.group(p.pos) === g);
     const dunkRate = list => list.reduce((n, p) => n + Number(p.statsFull.dunkFg.split('-')[1]), 0) / list.reduce((n, p) => n + p.statsFull.totFga, 0);
     ok(dunkRate(grp('big')) > dunkRate(grp('guard')) * 4, `bigs dunk far more than guards (${(dunkRate(grp('big')) * 100).toFixed(1)}% vs ${(dunkRate(grp('guard')) * 100).toFixed(1)}% of shots)`);
     ok(played.every(p => p.born || p.dob), 'every player has a birthday');
+    // A save split by the first version is redone when stats are rebuilt.
+    const p0 = played[0], g0 = p0.gameLog.find(g => g.twoPa > 0);
+    Object.assign(g0, { rimM: g0.twoPm, rimA: g0.twoPa, dunkM: 0, dunkA: 0, zv: 1 });
+    Sim.recalculateAverages(p0);
+    ok(g0.zv === Sim.SHOT_ZONE_VERSION && g0.rimA <= g0.twoPa, 'games split by an older version are redone');
   }
   const DC = w.DraftCycle;
   ok(DC && DC.STAGES.length === 6, 'six steps: declarations, combine, lottery, workouts, deadline, draft night');
